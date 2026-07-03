@@ -1,0 +1,88 @@
+{
+  "generated_at": "2026-06-29T22:45:11",
+  "action": "notebook_and_project_cleanup",
+  "reason": "整理活跃根目录和重复 notebook：保留当前主线，旧实验进入 archive/quarantine。",
+  "moves": [
+    {
+      "source": "C:/GoogleDrive/TP/test.ipynb",
+      "destination": "archive/notebook_cleanup_20260629/root_experiments/test.ipynb",
+      "reason": "根目录旧实验 notebook，含旧 pkl/parquet 路径和写出操作，不作为生产入口",
+      "bucket": "notebook_cleanup",
+      "file_count": 1,
+      "size_bytes": 753537,
+      "status": "moved"
+    },
+    {
+      "source": "C:/GoogleDrive/TP/test_bloom_bench_excel.ipynb",
+      "destination": "archive/notebook_cleanup_20260629/root_experiments/test_bloom_bench_excel.ipynb",
+      "reason": "根目录旧 benchmark Excel 实验 notebook，未被当前主线引用",
+      "bucket": "notebook_cleanup",
+      "file_count": 1,
+      "size_bytes": 21847,
+      "status": "moved"
+    },
+    {
+      "source": "C:/GoogleDrive/TP/test.parquet",
+      "destination": "archive/notebook_cleanup_20260629/root_experiments/test.parquet",
+      "reason": "根目录旧实验产物，命名不具生产语义",
+      "bucket": "notebook_cleanup",
+      "file_count": 1,
+      "size_bytes": 7481029,
+      "status": "moved"
+    },
+    {
+      "source": "C:/GoogleDrive/TP/backtest",
+      "destination": "archive/frozen_20260629/backtest",
+      "reason": "早期回测目录，当前主线为 backtest_code",
+      "bucket": "frozen_project",
+      "file_count": 5,
+      "size_bytes": 1419861,
+      "status": "moved"
+    },
+    {
+      "source": "C:/GoogleDrive/TP/cyc",
+      "destination": "archive/frozen_20260629/cyc",
+      "reason": "早期周期研究，后续有价值逻辑并入 regime_model",
+      "bucket": "frozen_project",
+      "file_count": 2,
+      "size_bytes": 4570254,
+      "status": "moved"
+    },
+    {
+      "source": "C:/GoogleDrive/TP/技术分析和深度学习/深度学习",
+      "destination": "archive/frozen_20260629/技术分析和深度学习__深度学习",
+      "reason": "旧深度学习 pipeline，与 ML_Enhanced 职责重叠",
+      "bucket": "frozen_project",
+      "file_count": 9,
+      "size_bytes": 703153,
+      "status": "moved"
+    },
+    {
+      "source": "C:/GoogleDrive/TP/ML_Enhanced/参考文件_EM",
+      "destination": "ML_Enhanced/_quarantine_20260629/em_reference_legacy",
+      "reason": "EM 参考 notebook 和旧 backtestengine_optim，不作为当前主线",
+      "bucket": "project_quarantine",
+      "file_count": 2,
+      "size_bytes": 445052,
+      "status": "moved"
+    },
+    {
+      "source": "C:/GoogleDrive/TP/ML_Enhanced/Monitoring.ipynb",
+      "destination": "ML_Enhanced/_quarantine_20260629/legacy_notebooks/Monitoring_old_ptf_based.ipynb",
+      "reason": "旧监控 notebook 依赖生成 ptf；由新版替代",
+      "bucket": "project_quarantine",
+      "file_count": 1,
+      "size_bytes": 58678,
+      "status": "moved"
+    },
+    {
+      "source": "C:/GoogleDrive/TP/ML_Enhanced/Monitoring - NEW.ipynb",
+      "destination": "ML_Enhanced/Monitoring.ipynb",
+      "reason": "新版监控 notebook 直接结合 screen 和 shap，成为标准入口",
+      "bucket": "notebook_merge",
+      "file_count": 1,
+      "size_bytes": 14212,
+      "status": "moved"
+    }
+  ]
+}

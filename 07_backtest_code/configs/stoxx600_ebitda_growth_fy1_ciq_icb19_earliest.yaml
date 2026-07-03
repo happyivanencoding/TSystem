@@ -1,0 +1,12 @@
+run:
+  bench: "STOXX EUROPE 600"
+  metrics:
+    - "EBITDA Growth FY1 CIQ"
+  percentile: 0.2
+  start_date: "2009-06-30"
+  screen_start_date: null
+  score_neutral: "ICB 19"
+  weight_neutral: "ICB 19"
+  sector_neutral: true
+  ponderation: "Market cap"
+  top: true

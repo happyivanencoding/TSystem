@@ -1,0 +1,318 @@
+{
+  "rows": 5496,
+  "columns": 11890,
+  "date_min": "2005-01-03T00:00:00",
+  "date_max": "2026-06-11T00:00:00",
+  "thresholds": {
+    "abs_threshold": 1.0,
+    "positive_threshold": 2.0,
+    "negative_threshold": -0.95
+  },
+  "flagged_cells": 2017,
+  "flagged_unique_sedol": 440,
+  "max_return": 168883.984375,
+  "min_return": -0.9999908804893494,
+  "top": [
+    {
+      "Date": "2024-07-17",
+      "Company SEDOL": "R3Q0GG-R",
+      "return": 168883.984375,
+      "abs_return": 168883.984375
+    },
+    {
+      "Date": "2025-04-21",
+      "Company SEDOL": "P52239-R",
+      "return": 59226.7265625,
+      "abs_return": 59226.7265625
+    },
+    {
+      "Date": "2025-07-24",
+      "Company SEDOL": "PXN7MH-R",
+      "return": 29916.138671875,
+      "abs_return": 29916.138671875
+    },
+    {
+      "Date": "2024-09-09",
+      "Company SEDOL": "HWYM1P-R",
+      "return": 18880.587890625,
+      "abs_return": 18880.587890625
+    },
+    {
+      "Date": "2025-08-19",
+      "Company SEDOL": "XN4WDM-R",
+      "return": 14988.71875,
+      "abs_return": 14988.71875
+    },
+    {
+      "Date": "2024-08-21",
+      "Company SEDOL": "HWYM1P-R",
+      "return": 10085.384765625,
+      "abs_return": 10085.384765625
+    },
+    {
+      "Date": "2024-08-13",
+      "Company SEDOL": "T7HRLL-R",
+      "return": 9976.6376953125,
+      "abs_return": 9976.6376953125
+    },
+    {
+      "Date": "2025-11-26",
+      "Company SEDOL": "XNQCR0-R",
+      "return": 9975.2725,
+      "abs_return": 9975.2725
+    },
+    {
+      "Date": "2025-09-22",
+      "Company SEDOL": "VW1H7G-R",
+      "return": 4993.0537109375,
+      "abs_return": 4993.0537109375
+    },
+    {
+      "Date": "2023-11-15",
+      "Company SEDOL": "T7HRLL-R",
+      "return": 4986.115234375,
+      "abs_return": 4986.115234375
+    },
+    {
+      "Date": "2025-09-26",
+      "Company SEDOL": "VW1H7G-R",
+      "return": 4892.50439453125,
+      "abs_return": 4892.50439453125
+    },
+    {
+      "Date": "2025-11-10",
+      "Company SEDOL": "T4332F-R",
+      "return": 3005.755,
+      "abs_return": 3005.755
+    },
+    {
+      "Date": "2025-11-25",
+      "Company SEDOL": "J6L6Y9-R",
+      "return": 2990.4378,
+      "abs_return": 2990.4378
+    },
+    {
+      "Date": "2024-04-12",
+      "Company SEDOL": "R3Q0GG-R",
+      "return": 2617.343505859375,
+      "abs_return": 2617.343505859375
+    },
+    {
+      "Date": "2025-10-10",
+      "Company SEDOL": "J6L6Y9-R",
+      "return": 1999.2591552734375,
+      "abs_return": 1999.2591552734375
+    },
+    {
+      "Date": "2025-10-20",
+      "Company SEDOL": "VW1H7G-R",
+      "return": 1801.085205078125,
+      "abs_return": 1801.085205078125
+    },
+    {
+      "Date": "2024-08-23",
+      "Company SEDOL": "LG0DHY-R",
+      "return": 1490.54638671875,
+      "abs_return": 1490.54638671875
+    },
+    {
+      "Date": "2025-01-28",
+      "Company SEDOL": "JXR980-R",
+      "return": 1006.1466674804688,
+      "abs_return": 1006.1466674804688
+    },
+    {
+      "Date": "2025-07-10",
+      "Company SEDOL": "J6L6Y9-R",
+      "return": 1001.9965209960938,
+      "abs_return": 1001.9965209960938
+    },
+    {
+      "Date": "2025-01-23",
+      "Company SEDOL": "JXR980-R",
+      "return": 1001.1159057617188,
+      "abs_return": 1001.1159057617188
+    },
+    {
+      "Date": "2019-04-10",
+      "Company SEDOL": "BBD288-R",
+      "return": 1000.9555053710938,
+      "abs_return": 1000.9555053710938
+    },
+    {
+      "Date": "2025-10-31",
+      "Company SEDOL": "K80C6V-R",
+      "return": 1000.9061279296875,
+      "abs_return": 1000.9061279296875
+    },
+    {
+      "Date": "2024-11-01",
+      "Company SEDOL": "T7HRLL-R",
+      "return": 999.6912841796875,
+      "abs_return": 999.6912841796875
+    },
+    {
+      "Date": "2017-11-08",
+      "Company SEDOL": "QR9H6P-R",
+      "return": 998.2230834960938,
+      "abs_return": 998.2230834960938
+    },
+    {
+      "Date": "2025-11-28",
+      "Company SEDOL": "PXN7MH-R",
+      "return": 998.0523,
+      "abs_return": 998.0523
+    },
+    {
+      "Date": "2024-08-21",
+      "Company SEDOL": "R3Q0GG-R",
+      "return": 997.6519775390625,
+      "abs_return": 997.6519775390625
+    },
+    {
+      "Date": "2025-08-07",
+      "Company SEDOL": "PXN7MH-R",
+      "return": 899.309814453125,
+      "abs_return": 899.309814453125
+    },
+    {
+      "Date": "2024-07-31",
+      "Company SEDOL": "R3Q0GG-R",
+      "return": 846.2454223632812,
+      "abs_return": 846.2454223632812
+    },
+    {
+      "Date": "2015-10-28",
+      "Company SEDOL": "WDK2F1-R",
+      "return": 822.8444213867188,
+      "abs_return": 822.8444213867188
+    },
+    {
+      "Date": "2025-09-16",
+      "Company SEDOL": "XN4WDM-R",
+      "return": 693.4481811523438,
+      "abs_return": 693.4481811523438
+    },
+    {
+      "Date": "2021-10-05",
+      "Company SEDOL": "GKYKWV-R",
+      "return": 651.2394409179688,
+      "abs_return": 651.2394409179688
+    },
+    {
+      "Date": "2025-11-07",
+      "Company SEDOL": "XNQCR0-R",
+      "return": 557.40313,
+      "abs_return": 557.40313
+    },
+    {
+      "Date": "2015-12-23",
+      "Company SEDOL": "WDK2F1-R",
+      "return": 503.5024108886719,
+      "abs_return": 503.5024108886719
+    },
+    {
+      "Date": "2015-12-29",
+      "Company SEDOL": "WDK2F1-R",
+      "return": 502.5059814453125,
+      "abs_return": 502.5059814453125
+    },
+    {
+      "Date": "2025-02-06",
+      "Company SEDOL": "H6ZV58-R",
+      "return": 501.5073547363281,
+      "abs_return": 501.5073547363281
+    },
+    {
+      "Date": "2025-03-19",
+      "Company SEDOL": "X32NYV-R",
+      "return": 501.2984313964844,
+      "abs_return": 501.2984313964844
+    },
+    {
+      "Date": "2015-12-10",
+      "Company SEDOL": "WDK2F1-R",
+      "return": 500.6669006347656,
+      "abs_return": 500.6669006347656
+    },
+    {
+      "Date": "2025-03-10",
+      "Company SEDOL": "X32NYV-R",
+      "return": 500.49945068359375,
+      "abs_return": 500.49945068359375
+    },
+    {
+      "Date": "2016-01-14",
+      "Company SEDOL": "WDK2F1-R",
+      "return": 499.4613037109375,
+      "abs_return": 499.4613037109375
+    },
+    {
+      "Date": "2025-03-14",
+      "Company SEDOL": "X32NYV-R",
+      "return": 498.33319091796875,
+      "abs_return": 498.33319091796875
+    },
+    {
+      "Date": "2025-06-23",
+      "Company SEDOL": "X32NYV-R",
+      "return": 498.32794189453125,
+      "abs_return": 498.32794189453125
+    },
+    {
+      "Date": "2023-12-12",
+      "Company SEDOL": "R3Q0GG-R",
+      "return": 496.5367126464844,
+      "abs_return": 496.5367126464844
+    },
+    {
+      "Date": "2023-10-30",
+      "Company SEDOL": "R3Q0GG-R",
+      "return": 462.2266540527344,
+      "abs_return": 462.2266540527344
+    },
+    {
+      "Date": "2016-02-01",
+      "Company SEDOL": "WDK2F1-R",
+      "return": 445.98443603515625,
+      "abs_return": 445.98443603515625
+    },
+    {
+      "Date": "2025-06-26",
+      "Company SEDOL": "X32NYV-R",
+      "return": 445.6561584472656,
+      "abs_return": 445.6561584472656
+    },
+    {
+      "Date": "2025-07-24",
+      "Company SEDOL": "X32NYV-R",
+      "return": 437.7846984863281,
+      "abs_return": 437.7846984863281
+    },
+    {
+      "Date": "2025-08-15",
+      "Company SEDOL": "X32NYV-R",
+      "return": 427.1275939941406,
+      "abs_return": 427.1275939941406
+    },
+    {
+      "Date": "2025-08-12",
+      "Company SEDOL": "X32NYV-R",
+      "return": 426.731689453125,
+      "abs_return": 426.731689453125
+    },
+    {
+      "Date": "2024-12-19",
+      "Company SEDOL": "LG0DHY-R",
+      "return": 402.5841369628906,
+      "abs_return": 402.5841369628906
+    },
+    {
+      "Date": "2024-10-01",
+      "Company SEDOL": "X32NYV-R",
+      "return": 402.033447265625,
+      "abs_return": 402.033447265625
+    }
+  ],
+  "returns_path": "C:\\GoogleDrive\\TP\\00_screen\\returns.parquet"
+}

@@ -1,0 +1,5033 @@
+"""TP system monitoring and pipeline control dashboard."""
+
+from __future__ import annotations
+
+import json
+import os
+import shlex
+import subprocess
+import sys
+import time
+from datetime import datetime
+from functools import lru_cache
+from importlib import import_module
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+import plotly.graph_objects as go
+from dash import ALL, Dash, Input, Output, State, ctx, dash_table, dcc, html
+from dash.exceptions import PreventUpdate
+from flask import Response, jsonify, request, send_from_directory, stream_with_context
+
+from presentation_layer.apps import system_jobs
+from presentation_layer.apps.system_checks import CHECK_LATEST, project_checks
+from presentation_layer.apps.system_registry import (
+    DATA_ASSET_REGISTRY,
+    FLOW_EDGES,
+    FLOW_NODES,
+    PIPELINE_STEPS,
+    PROJECT_REGISTRY,
+    DataAssetEntry,
+)
+from tp_core.data_sources import (
+    PRODUCTION_INCOMING_DIR,
+    PRODUCTION_INPUTS_DIR,
+    TP_ROOT,
+)
+
+
+_pipeline_common = import_module("02_pipelines.common")
+PIPELINE_MANIFESTS_DIR: Path = _pipeline_common.PIPELINE_MANIFESTS_DIR
+path_profile = _pipeline_common.path_profile
+
+
+PORT = 8060
+LAUNCH_DIR = TP_ROOT / ".tmp_dashboard_work" / "launches"
+DASHBOARD_CONFIG_PATH = TP_ROOT / ".tmp_dashboard_work" / "dashboard_config.json"
+CLIENT_JOB_API_ENABLED = os.environ.get("TP_DASHBOARD_CLIENT_JOB_API", "1") != "0"
+CLIENT_DIST_DIR = TP_ROOT / "08_presentation_layer" / "frontend" / "system_dashboard" / "dist"
+CLIENT_ASSETS_DIR = CLIENT_DIST_DIR / "assets"
+QA_DIR = TP_ROOT / "00_screen" / "qa"
+RETURNS_AUDIT_PATH = QA_DIR / "returns_anomaly_governance" / "returns_extreme_audit_latest.json"
+DATABASE_PROFILE_PATH = (
+    TP_ROOT / "00_screen" / "production_inputs" / "profiles" / "latest_database_profile_latest.json"
+)
+FULL_BACKTEST_VALIDATION_PATH = (
+    PIPELINE_MANIFESTS_DIR / "run_backtest" / "full_backtest_validation_latest.json"
+)
+
+ASSET_SUFFIXES = {".parquet", ".xlsx", ".xls", ".csv", ".json", ".md", ".yaml", ".yml"}
+IGNORED_ASSET_PARTS = {
+    "__pycache__",
+    ".git",
+    ".ipynb_checkpoints",
+    ".pytest_cache",
+    ".tmp_dashboard_work",
+    ".venv_tp",
+    "node_modules",
+}
+IGNORED_ASSET_PART_KEYWORDS = ("backup", "quarantine", "备份", "隔离")
+DISCOVERY_MAX_PER_PROJECT = 24
+DISCOVERY_TTL_SECONDS = 120
+_ASSET_DISCOVERY_CACHE: tuple[float, list[DataAssetEntry]] | None = None
+DEFAULT_DASHBOARD_CONFIG: dict[str, Any] = {
+    "step": "run_all",
+    "input_month": "",
+    "as_of": "",
+    "update_mode": "both",
+    "flags": ["skip_refresh", "skip_backtest", "dry_run_data", "inspect_backtest"],
+    "top_pct": 0.1,
+    "ml_weight": 0.7,
+    "technical_weight": 0.3,
+    "max_weight": 0.05,
+    "optimizer_method": "score_weight",
+    "portfolio_region": "",
+    "backtest_profile": "default",
+    "bench": "",
+    "universe": "",
+    "start_date": "",
+    "percentile": None,
+    "project_id": "00_screen",
+    "project_mode": "safe_check",
+}
+QUALITY_KEYS = {
+    "screen_aggregate": ("Date", "Company SEDOL"),
+    "screen_aggregate_5Y": ("Date", "Company SEDOL"),
+    "last_screen": ("Company SEDOL",),
+    "ml_signals": ("Date", "signal_family", "signal_name", "Company SEDOL", "region"),
+    "technical_signals": ("Date", "signal_family", "signal_name", "Company SEDOL"),
+    "regime_risk_budget": ("Date", "signal_family", "signal_name", "region"),
+    "latest_candidates": ("candidate_date", "Company SEDOL"),
+    "latest_target_weights": ("candidate_date", "Company SEDOL"),
+}
+QUALITY_FULL_SCAN_MAX_BYTES = 80 * 1024 * 1024
+CORE_SCHEMA_ASSETS = (
+    ("screen_aggregate", TP_ROOT / "00_screen" / "screen_aggregate.parquet"),
+    ("last_screen", TP_ROOT / "00_screen" / "last_screen.parquet"),
+    ("screen_aggregate_5Y", TP_ROOT / "00_screen" / "screen_aggregate_5Y.parquet"),
+)
+CORE_DATABASE_NAMES = ("screen_aggregate", "returns", "last_screen", "screen_aggregate_5Y")
+LINEAGE_NODE_PROJECTS: dict[str, tuple[str, ...]] = {
+    "生产输入": ("00_screen",),
+    "核心数据库": ("00_screen", "01_tp_core"),
+    "ML / Regime / Technical": ("03_ml_enhanced", "03_regime_model", "03_technical_analysis"),
+    "统一信号": ("04_signals",),
+    "候选池": ("05_candidates",),
+    "组合权重": ("06_portfolios", "06_optimiser"),
+    "回测": ("07_backtest_code",),
+    "报告 / Dashboard": ("09_reports", "08_presentation_layer", "08_dashboard_analysis"),
+}
+
+STYLE = """
+:root {
+  --tp-bg: #eeecec;
+  --tp-bg-2: #f5f4f3;
+  --tp-surface: #ffffff;
+  --tp-surface-soft: #f9f8f7;
+  --tp-border: #d8d6d4;
+  --tp-text: #20242a;
+  --tp-muted: #6f747b;
+  --tp-blue: #315d9f;
+  --tp-teal: #187d72;
+  --tp-amber: #aa741c;
+  --tp-rose: #b23a50;
+  --tp-green-soft: #e8f4f0;
+  --tp-blue-soft: #e9eef7;
+  --tp-amber-soft: #fbf2df;
+  --tp-rose-soft: #f9e8eb;
+  --tp-shadow: 0 1px 0 rgba(15, 23, 42, .05), 0 12px 32px rgba(15, 23, 42, .07);
+}
+
+html, body, #_dash-app-content {
+  margin: 0;
+  min-height: 100%;
+  background: var(--tp-bg);
+  color: var(--tp-text);
+  font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+.tp-dashboard {
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.62), rgba(255,255,255,0) 260px),
+    var(--tp-bg);
+}
+
+.tp-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 28px;
+  background: rgba(238, 236, 236, .88);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(216, 214, 212, .82);
+}
+
+.tp-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tp-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--tp-blue);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 8px 18px rgba(49,93,159,.22);
+}
+
+.tp-title {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.tp-subtitle {
+  margin-top: 3px;
+  color: var(--tp-muted);
+  font-size: 12px;
+}
+
+.tp-header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.tp-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.tp-client-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(49,93,159,.28);
+  background: var(--tp-surface);
+  color: var(--tp-blue);
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 760;
+  text-decoration: none;
+}
+
+.tp-client-link:hover {
+  background: #e8edf7;
+}
+
+.tp-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--tp-border);
+  background: rgba(255,255,255,.68);
+  color: var(--tp-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tp-main {
+  width: min(1480px, 100%);
+  margin: 0 auto;
+  padding: 22px 24px 40px;
+}
+
+.tp-grid-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tp-card, .tp-panel {
+  border: 1px solid rgba(216,214,212,.9);
+  border-radius: 8px;
+  background: rgba(255,255,255,.82);
+  box-shadow: var(--tp-shadow);
+}
+
+.tp-card {
+  min-height: 106px;
+  padding: 15px;
+}
+
+.tp-card-label {
+  color: var(--tp-muted);
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.tp-card-value {
+  margin-top: 9px;
+  font-size: 26px;
+  font-weight: 720;
+  line-height: 1.05;
+  word-break: break-word;
+}
+
+.tp-card-note {
+  margin-top: 8px;
+  color: var(--tp-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.tp-status-success { color: var(--tp-teal); }
+.tp-status-failed { color: var(--tp-rose); }
+.tp-status-warning { color: var(--tp-amber); }
+.tp-status-muted { color: var(--tp-muted); }
+
+.tp-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(360px, .75fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.tp-panel {
+  padding: 16px;
+  min-width: 0;
+}
+
+.tp-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tp-panel-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 720;
+}
+
+.tp-panel-meta {
+  color: var(--tp-muted);
+  font-size: 12px;
+}
+
+.tp-project-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.tp-project-card {
+  padding: 14px;
+  min-height: 134px;
+}
+
+.tp-project-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tp-project-id {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  width: auto;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: var(--tp-blue-soft);
+  color: var(--tp-blue);
+  font-weight: 740;
+  font-size: 12px;
+}
+
+.tp-project-name {
+  margin-top: 12px;
+  font-weight: 720;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.tp-project-role {
+  margin-top: 7px;
+  color: var(--tp-muted);
+  font-size: 12px;
+  line-height: 1.42;
+}
+
+.tp-project-detail,
+.tp-project-command {
+  margin-top: 7px;
+  color: var(--tp-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.tp-project-command {
+  color: #3d424a;
+  font-family: Consolas, "SFMono-Regular", monospace;
+}
+
+.tp-project-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.tp-project-action {
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+  background: var(--tp-surface);
+  color: var(--tp-blue);
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.tp-project-action:hover {
+  background: var(--tp-blue-soft);
+}
+
+.tp-project-action:disabled {
+  cursor: not-allowed;
+  color: var(--tp-muted);
+  background: #f0efee;
+}
+
+.tp-status-chip {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tp-chip-success { background: var(--tp-green-soft); color: var(--tp-teal); }
+.tp-chip-failed { background: var(--tp-rose-soft); color: var(--tp-rose); }
+.tp-chip-warning { background: var(--tp-amber-soft); color: var(--tp-amber); }
+.tp-chip-muted { background: #f0efee; color: var(--tp-muted); }
+
+.tp-control-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.tp-label {
+  color: var(--tp-muted);
+  font-size: 11px;
+  font-weight: 680;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.tp-field input,
+.tp-field select,
+.tp-field .Select-control {
+  min-height: 34px;
+  border-radius: 7px;
+}
+
+.tp-checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 10px;
+  margin-top: 12px;
+}
+
+.tp-checks label {
+  color: var(--tp-text);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.tp-command {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--tp-border);
+  background: var(--tp-surface-soft);
+  color: #353a42;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tp-lineage-detail {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+  background: rgba(255,255,255,.64);
+}
+
+.tp-lineage-title {
+  color: var(--tp-text);
+  font-size: 13px;
+  font-weight: 780;
+  margin-bottom: 6px;
+}
+
+.tp-lineage-meta {
+  color: var(--tp-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.tp-lineage-projects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tp-lineage-project {
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+  background: var(--tp-surface);
+  padding: 9px;
+}
+
+.tp-lineage-project-name {
+  color: var(--tp-text);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.tp-lineage-project-note {
+  color: var(--tp-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  margin-top: 4px;
+}
+
+.tp-run-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.tp-button {
+  border: 0;
+  border-radius: 8px;
+  background: var(--tp-blue);
+  color: white;
+  min-height: 38px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 760;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(49,93,159,.22);
+}
+
+.tp-button:hover { filter: brightness(.97); }
+
+.tp-button-secondary {
+  background: var(--tp-surface);
+  color: var(--tp-blue);
+  border: 1px solid var(--tp-border);
+  box-shadow: none;
+}
+
+.tp-run-result {
+  flex: 1;
+  min-height: 38px;
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: rgba(255,255,255,.58);
+  color: var(--tp-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.tp-job-status {
+  margin-top: 12px;
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+  background: var(--tp-surface-soft);
+  padding: 10px;
+}
+
+.tp-job-status-running {
+  border-color: rgba(49,93,159,.32);
+  background: var(--tp-blue-soft);
+}
+
+.tp-job-status-completed {
+  border-color: rgba(24,125,114,.24);
+  background: var(--tp-green-soft);
+}
+
+.tp-job-status-failed {
+  border-color: rgba(178,58,80,.34);
+  background: var(--tp-rose-soft);
+}
+
+.tp-job-status-evidence_waiting {
+  border-color: rgba(170,116,28,.3);
+  background: var(--tp-amber-soft);
+}
+
+.tp-job-title {
+  color: var(--tp-text);
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.tp-job-line {
+  margin-top: 5px;
+  color: var(--tp-muted);
+  font-size: 11px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.tp-job-progress {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.tp-job-phase {
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+  background: rgba(255,255,255,.7);
+  color: var(--tp-muted);
+  font-size: 10px;
+  font-weight: 760;
+  padding: 5px 6px;
+  text-align: center;
+}
+
+.tp-job-phase-active {
+  border-color: rgba(49,93,159,.35);
+  background: #fff;
+  color: var(--tp-blue);
+}
+
+.tp-job-log {
+  margin: 9px 0 0;
+  border: 1px solid rgba(32,36,42,.08);
+  border-radius: 8px;
+  background: rgba(255,255,255,.72);
+  color: var(--tp-text);
+  max-height: 118px;
+  overflow: auto;
+  padding: 8px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.42;
+  white-space: pre-wrap;
+}
+
+.tp-action-feedback {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 40;
+  max-width: min(420px, calc(100vw - 36px));
+  min-width: 260px;
+  border: 1px solid rgba(32,36,42,.1);
+  border-radius: 8px;
+  background: rgba(32,36,42,.94);
+  color: #fff;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, .18);
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 640;
+  line-height: 1.45;
+  white-space: pre-line;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+  transition: opacity .16s ease, transform .16s ease;
+}
+
+.tp-action-feedback-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tp-subcontrol {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--tp-border);
+}
+
+.tp-subcontrol-title {
+  margin: 0 0 10px;
+  color: var(--tp-text);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.tp-advanced {
+  margin-top: 12px;
+  border-top: 1px solid var(--tp-border);
+  padding-top: 10px;
+}
+
+.tp-advanced summary {
+  cursor: pointer;
+  color: var(--tp-muted);
+  font-size: 12px;
+  font-weight: 720;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.tp-advanced[open] summary {
+  margin-bottom: 10px;
+}
+
+.tp-section {
+  margin-top: 14px;
+}
+
+.tp-table {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.tp-table .dash-table-container,
+.tp-table .dash-spreadsheet-container,
+.tp-table .dash-spreadsheet-inner {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.tp-table .dash-table-container {
+  border-radius: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tp-qa-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tp-qa-item {
+  min-height: 86px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--tp-border);
+  background: var(--tp-surface-soft);
+}
+
+.tp-qa-name {
+  font-weight: 720;
+  font-size: 13px;
+}
+
+.tp-qa-value {
+  margin-top: 8px;
+  font-size: 18px;
+  font-weight: 760;
+}
+
+.tp-qa-note {
+  margin-top: 6px;
+  color: var(--tp-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.tp-audit-detail {
+  margin-top: 12px;
+  padding: 10px;
+  border-top: 1px solid var(--tp-border);
+  color: var(--tp-muted);
+  font-size: 12px;
+  line-height: 1.42;
+}
+
+.tp-audit-detail-title {
+  color: var(--tp-text);
+  font-size: 13px;
+  font-weight: 760;
+  margin-bottom: 6px;
+}
+
+.tp-audit-detail-line {
+  margin-top: 4px;
+  word-break: break-word;
+}
+
+.tp-audit-detail-label {
+  color: var(--tp-text);
+  font-weight: 720;
+}
+
+@media (max-width: 1180px) {
+  .tp-grid-stats,
+  .tp-project-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tp-workbench {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .tp-action-feedback {
+    left: 12px;
+    right: 12px;
+    top: 12px;
+    min-width: 0;
+    max-width: calc(100vw - 24px);
+  }
+  .tp-header {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 16px;
+  }
+  .tp-header-meta {
+    justify-content: flex-start;
+  }
+  .tp-main {
+    padding: 16px 12px 28px;
+  }
+  .tp-grid-stats,
+  .tp-project-grid,
+  .tp-control-grid,
+  .tp-lineage-projects,
+  .tp-checks,
+  .tp-qa-list {
+    grid-template-columns: 1fr;
+  }
+}
+"""
+
+TP_JOB_EVENT_SCRIPT = """
+(function () {
+  const phaseOrder = ["submitted", "running", "evidence", "done"];
+  let currentSource = null;
+  let currentJobId = "";
+
+  function setText(id, value) {
+    const node = document.getElementById(id);
+    if (node) {
+      node.textContent = value || "";
+    }
+  }
+
+  function readApiState() {
+    const node = document.getElementById("tp-job-api-state");
+    if (!node || !node.textContent) {
+      return {};
+    }
+    try {
+      return JSON.parse(node.textContent);
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function setFeedback(title, note) {
+    const node = document.getElementById("tp-action-feedback");
+    if (!node) {
+      return;
+    }
+    const timeText = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    node.className = "tp-action-feedback tp-action-feedback-active";
+    node.textContent = timeText + "  " + title + "\\n" + (note || "");
+  }
+
+  function setResult(id, lines) {
+    const node = document.getElementById(id);
+    if (!node) {
+      return;
+    }
+    node.style.whiteSpace = "pre-line";
+    node.textContent = (lines || []).filter(Boolean).join("\\n");
+  }
+
+  function pipelinePayload(state) {
+    return {
+      step: state.step || "run_all",
+      input_month: state.input_month || "",
+      as_of: state.as_of || "",
+      update_mode: state.update_mode || "both",
+      top_pct: state.top_pct,
+      ml_weight: state.ml_weight,
+      technical_weight: state.technical_weight,
+      max_weight: state.max_weight,
+      optimizer_method: state.optimizer_method || "score_weight",
+      portfolio_region: state.portfolio_region || "",
+      backtest_profile: state.backtest_profile || "",
+      bench: state.bench || "",
+      start_date: state.start_date || "",
+      percentile: state.percentile,
+      flags: Array.isArray(state.flags) ? state.flags : []
+    };
+  }
+
+  function launchTarget(button) {
+    const state = readApiState();
+    if (button.id === "tp-checks-run") {
+      return {
+        endpoint: "/api/dashboard/jobs/system-checks",
+        payload: {},
+        resultId: "tp-checks-run-result",
+        pendingStep: "system_checks",
+        title: "已提交全部项目检查"
+      };
+    }
+    if (button.id === "tp-project-run") {
+      return {
+        endpoint: "/api/dashboard/jobs/project",
+        payload: {
+          project_id: state.project_id || "00_screen",
+          mode: state.project_mode || "safe_check"
+        },
+        resultId: "tp-project-run-result",
+        pendingStep: "project:" + (state.project_id || "00_screen") + ":" + (state.project_mode || "safe_check"),
+        title: "已提交子项目启动"
+      };
+    }
+    return {
+      endpoint: "/api/dashboard/jobs/pipeline",
+      payload: pipelinePayload(state),
+      resultId: "tp-run-result",
+      pendingStep: state.step || "run_all",
+      title: "已提交 pipeline 启动"
+    };
+  }
+
+  function renderJob(job) {
+    if (!job) {
+      return false;
+    }
+    const card = document.querySelector("#tp-active-job .tp-job-status");
+    if (!card) {
+      return false;
+    }
+    const status = job.status || "idle";
+    const phase = job.phase || "submitted";
+    const activeIndex = Math.max(0, phaseOrder.indexOf(phase));
+    card.className = "tp-job-status tp-job-status-" + status;
+    card.dataset.jobId = job.job_id || "";
+    card.dataset.jobStatus = status;
+    card.dataset.jobRealtime = currentSource ? "sse" : "api";
+    setText("tp-job-title", "当前任务: " + (job.step || "暂无启动任务") + " [" + (job.status_label || "IDLE") + "]");
+    setText(
+      "tp-job-detail",
+      "job_id: " + (job.job_id || "N/A") + " / PID: " + (job.pid || "N/A") + " / started: " + (job.started_at || "N/A")
+    );
+    setText("tp-job-evidence", "manifest: " + (job.manifest_status || "N/A") + " / " + (job.manifest || "N/A"));
+    setText("tp-job-log-path", "log: " + (job.log_path || "N/A"));
+    setText("tp-job-log-tail", job.log_tail || "暂无日志摘要");
+    document.querySelectorAll("#tp-active-job .tp-job-phase").forEach(function (node, index) {
+      node.className = index <= activeIndex ? "tp-job-phase tp-job-phase-active" : "tp-job-phase";
+    });
+    window.tpDashboardJobState = { job: job, eventSourceActive: Boolean(currentSource) };
+    return true;
+  }
+
+  async function refreshLatestJob() {
+    try {
+      const response = await fetch("/api/dashboard/jobs/latest", { headers: { "Accept": "application/json" } });
+      if (!response.ok) {
+        return;
+      }
+      const job = await response.json();
+      if (renderJob(job)) {
+        subscribeToJob(job.job_id || "");
+      } else {
+        window.setTimeout(refreshLatestJob, 1000);
+      }
+    } catch (error) {
+      window.tpDashboardJobState = { error: String(error) };
+    }
+  }
+
+  function closeSource() {
+    if (currentSource) {
+      currentSource.close();
+      currentSource = null;
+    }
+  }
+
+  function subscribeToJob(jobId) {
+    if (!window.EventSource || !jobId || jobId === currentJobId) {
+      return;
+    }
+    closeSource();
+    currentJobId = jobId;
+    currentSource = new EventSource("/api/dashboard/jobs/" + encodeURIComponent(jobId) + "/events");
+    currentSource.addEventListener("job", function (event) {
+      const job = JSON.parse(event.data);
+      renderJob(job);
+      if (job.status === "completed" || job.status === "failed") {
+        closeSource();
+      }
+    });
+    currentSource.onerror = function () {
+      closeSource();
+      window.setTimeout(refreshLatestJob, 3000);
+    };
+  }
+
+  async function apiLaunchJob(button) {
+    const target = launchTarget(button);
+    button.disabled = true;
+    button.dataset.apiLaunch = "pending";
+    renderJob({
+      job_id: "pending",
+      step: target.pendingStep,
+      status: "running",
+      status_label: "SUBMITTING",
+      phase: "submitted",
+      pid: "",
+      started_at: "",
+      manifest_status: "N/A",
+      manifest: "",
+      log_path: "",
+      log_tail: "正在向后端提交 job..."
+    });
+    setFeedback(target.title, "前端已接管按钮点击，正在通过 API 创建后台 job。");
+    setResult(target.resultId, ["正在通过 API 提交 job..."]);
+    try {
+      const response = await fetch(target.endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(target.payload)
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "job API request failed");
+      }
+      const job = payload.job || {};
+      renderJob(job);
+      subscribeToJob(job.job_id || "");
+      setFeedback(target.title, "job_id " + (job.job_id || "N/A") + " 已返回，后续状态走实时事件流。");
+      setResult(target.resultId, [
+        "已通过 API 提交 " + (job.step || target.pendingStep),
+        "job_id " + (job.job_id || "N/A"),
+        "PID " + (job.pid || "N/A"),
+        job.log_path || ""
+      ]);
+    } catch (error) {
+      setFeedback("启动失败", String(error && error.message ? error.message : error));
+      setResult(target.resultId, ["启动失败", String(error && error.message ? error.message : error)]);
+    } finally {
+      window.setTimeout(function () {
+        button.disabled = false;
+        button.dataset.apiLaunch = "";
+      }, 900);
+    }
+  }
+
+  function boot() {
+    document.documentElement.dataset.tpJobEvents = "ready";
+    document.documentElement.dataset.tpClientLaunch = "api";
+    refreshLatestJob();
+    document.addEventListener("click", function (event) {
+      const button = event.target.closest("#tp-run, #tp-project-run, #tp-checks-run");
+      if (button && document.documentElement.dataset.tpClientLaunch === "api") {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        apiLaunchJob(button);
+      }
+    }, true);
+    window.setInterval(refreshLatestJob, 10000);
+    window.tpDashboardJobEvents = {
+      apiLaunchJob: apiLaunchJob,
+      refreshLatestJob: refreshLatestJob,
+      renderJob: renderJob,
+      subscribeToJob: subscribeToJob
+    };
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();
+"""
+
+
+def _read_json(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _latest_manifest(step: str) -> dict[str, Any] | None:
+    return _read_json(PIPELINE_MANIFESTS_DIR / step / f"{step}_latest.json")
+
+
+def _latest_json_by_glob(pattern: str) -> dict[str, Any] | None:
+    matches = sorted(QA_DIR.glob(pattern), key=lambda item: item.stat().st_mtime, reverse=True)
+    for path in matches:
+        payload = _read_json(path)
+        if payload is not None:
+            payload["_path"] = str(path)
+            return payload
+    return None
+
+
+def _read_dashboard_config() -> dict[str, Any]:
+    payload = _read_json(DASHBOARD_CONFIG_PATH) or {}
+    values = payload.get("values") if isinstance(payload.get("values"), dict) else payload
+    config = dict(DEFAULT_DASHBOARD_CONFIG)
+    if isinstance(values, dict):
+        for key in DEFAULT_DASHBOARD_CONFIG:
+            if key in values:
+                config[key] = values[key]
+    return config
+
+
+def _write_dashboard_config(values: dict[str, Any]) -> dict[str, Any]:
+    DASHBOARD_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    clean_values = {
+        key: values.get(key, DEFAULT_DASHBOARD_CONFIG[key])
+        for key in DEFAULT_DASHBOARD_CONFIG
+    }
+    payload = {
+        "saved_at": datetime.now().isoformat(timespec="seconds"),
+        "values": clean_values,
+    }
+    DASHBOARD_CONFIG_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return payload
+
+
+def _rel(path: str | Path | None) -> str:
+    if not path:
+        return ""
+    target = Path(path)
+    try:
+        return str(target.relative_to(TP_ROOT))
+    except ValueError:
+        return str(target)
+
+
+def _format_bytes(value: Any) -> str:
+    if value in (None, ""):
+        return ""
+    size = float(value)
+    for unit in ["B", "KB", "MB", "GB"]:
+        if size < 1024 or unit == "GB":
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} B"
+        size /= 1024
+    return ""
+
+
+def _fmt_int(value: Any) -> str:
+    if value in (None, ""):
+        return ""
+    try:
+        return f"{int(value):,}"
+    except Exception:
+        return str(value)
+
+
+def _fmt_date(value: Any) -> str:
+    if value in (None, "", pd.NaT):
+        return ""
+    try:
+        return pd.Timestamp(value).date().isoformat()
+    except Exception:
+        return str(value)
+
+
+def _status_label(status: str | None) -> str:
+    if status == "success":
+        return "OK"
+    if status == "failed":
+        return "FAIL"
+    if status:
+        return status.upper()
+    return "N/A"
+
+
+def _status_class(status: str | None) -> str:
+    if status == "success":
+        return "tp-chip-success"
+    if status == "failed":
+        return "tp-chip-failed"
+    if status:
+        return "tp-chip-warning"
+    return "tp-chip-muted"
+
+
+@lru_cache(maxsize=64)
+def _date_profile_cached(path_text: str, column: str, mtime_ns: int) -> dict[str, Any]:
+    del mtime_ns
+    import pyarrow.parquet as pq
+
+    table = pq.read_table(path_text, columns=[column])
+    values = pd.to_datetime(table[column].to_pandas(), errors="coerce").dropna()
+    if values.empty:
+        return {"date_min": "", "date_max": "", "date_count": 0}
+    return {
+        "date_min": values.min().date().isoformat(),
+        "date_max": values.max().date().isoformat(),
+        "date_count": int(values.nunique()),
+    }
+
+
+def _date_profile(path: Path, column: str | None) -> dict[str, Any]:
+    if not column or not path.exists() or path.suffix.lower() != ".parquet":
+        return {}
+    try:
+        return _date_profile_cached(str(path), column, path.stat().st_mtime_ns)
+    except Exception as exc:
+        return {"date_error": str(exc)}
+
+
+@lru_cache(maxsize=64)
+def _quality_profile_cached(
+    path_text: str,
+    mtime_ns: int,
+    asset_name: str,
+    date_column: str | None,
+    size_bytes: int,
+) -> dict[str, Any]:
+    del mtime_ns
+    path = Path(path_text)
+    if not path.exists() or path.suffix.lower() != ".parquet":
+        return {}
+
+    import pyarrow.parquet as pq
+
+    schema_names = set(pq.ParquetFile(path).schema.names)
+    key_columns = tuple(column for column in QUALITY_KEYS.get(asset_name, ()) if column in schema_names)
+    is_full_scan = size_bytes <= QUALITY_FULL_SCAN_MAX_BYTES
+    if is_full_scan:
+        frame = pd.read_parquet(path)
+        quality_scope = "full table"
+    else:
+        read_columns = list(dict.fromkeys(column for column in (*key_columns, date_column or "") if column in schema_names))
+        if not read_columns:
+            return {"quality_scope": "metadata only"}
+        frame = pd.read_parquet(path, columns=read_columns)
+        quality_scope = "key columns"
+
+    cell_count = int(frame.shape[0] * frame.shape[1])
+    null_rate = None
+    if cell_count:
+        null_rate = float(frame.isna().sum().sum() / cell_count)
+
+    duplicate_rows = None
+    if key_columns and all(column in frame.columns for column in key_columns):
+        duplicate_rows = int(frame.duplicated(list(key_columns)).sum())
+
+    return {
+        "null_rate": null_rate,
+        "duplicate_rows": duplicate_rows,
+        "quality_scope": quality_scope,
+        "quality_columns": ", ".join(key_columns) if key_columns else "",
+    }
+
+
+def _quality_profile(asset: DataAssetEntry, profile: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return _quality_profile_cached(
+            str(asset.path),
+            asset.path.stat().st_mtime_ns,
+            asset.name,
+            asset.date_column,
+            int(profile.get("bytes") or 0),
+        )
+    except Exception as exc:
+        return {"quality_error": str(exc)}
+
+
+@lru_cache(maxsize=32)
+def _schema_names_cached(path_text: str, mtime_ns: int) -> tuple[str, ...]:
+    del mtime_ns
+    import pyarrow.parquet as pq
+
+    path = Path(path_text)
+    if not path.exists() or path.suffix.lower() != ".parquet":
+        return ()
+    return tuple(pq.ParquetFile(path).schema.names)
+
+
+def _schema_names(path: Path) -> tuple[str, ...]:
+    try:
+        return _schema_names_cached(str(path), path.stat().st_mtime_ns)
+    except Exception:
+        return ()
+
+
+@lru_cache(maxsize=32)
+def _date_gap_profile_cached(path_text: str, column: str, mtime_ns: int, frequency: str) -> dict[str, Any]:
+    del mtime_ns
+    import pyarrow.parquet as pq
+
+    table = pq.read_table(path_text, columns=[column])
+    values = pd.to_datetime(table[column].to_pandas(), errors="coerce").dropna().drop_duplicates().sort_values()
+    if values.empty:
+        return {"observed": 0, "expected": 0, "missing": 0, "sample": ""}
+    if frequency == "month_end":
+        expected = pd.date_range(values.min(), values.max(), freq="ME")
+    else:
+        expected = pd.bdate_range(values.min(), values.max())
+    expected_dates = set(pd.Series(expected).dt.normalize())
+    observed_dates = set(values.dt.normalize())
+    missing = sorted(expected_dates - observed_dates)
+    return {
+        "observed": int(len(observed_dates)),
+        "expected": int(len(expected_dates)),
+        "missing": int(len(missing)),
+        "sample": ", ".join(item.date().isoformat() for item in missing[:5]),
+    }
+
+
+def _date_gap_profile(path: Path, column: str, frequency: str) -> dict[str, Any]:
+    try:
+        return _date_gap_profile_cached(str(path), column, path.stat().st_mtime_ns, frequency)
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+def _fmt_pct(value: Any, digits: int = 1) -> str:
+    if value in (None, ""):
+        return ""
+    try:
+        return f"{float(value) * 100:.{digits}f}%"
+    except Exception:
+        return str(value)
+
+
+def _asset_profile(asset: DataAssetEntry, source: str) -> dict[str, Any]:
+    profile = path_profile(asset.path, parquet=asset.path.suffix.lower() == ".parquet")
+    profile.update(_date_profile(asset.path, asset.date_column))
+    quality = _quality_profile(asset, profile)
+    status = "存在" if profile.get("exists") else "缺失"
+    date_range = ""
+    if profile.get("date_min") or profile.get("date_max"):
+        date_range = f"{profile.get('date_min', '')} -> {profile.get('date_max', '')}"
+    return {
+        "项目": asset.project_id,
+        "数据/产物": asset.name,
+        "类型": asset.kind,
+        "状态": status,
+        "必需": "是" if asset.required else "否",
+        "行": _fmt_int(profile.get("rows")),
+        "列": _fmt_int(profile.get("columns")),
+        "日期范围": date_range,
+        "空值率": _fmt_pct(quality.get("null_rate")),
+        "重复键": _fmt_int(quality.get("duplicate_rows")),
+        "质量口径": quality.get("quality_scope") or quality.get("quality_error", ""),
+        "更新时间": profile.get("modified_at", ""),
+        "大小": _format_bytes(profile.get("bytes")),
+        "路径": _rel(profile.get("path")),
+        "来源": source,
+        "_bytes": int(profile.get("bytes") or 0),
+        "_mtime": _safe_mtime(asset.path),
+    }
+
+
+def _asset_kind(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix == ".parquet":
+        return "parquet"
+    if suffix in {".xlsx", ".xls"}:
+        return "spreadsheet"
+    if suffix == ".csv":
+        return "csv"
+    if suffix == ".json":
+        return "json"
+    if suffix == ".md":
+        return "markdown"
+    if suffix in {".yaml", ".yml"}:
+        return "yaml"
+    return "file"
+
+
+def _is_ignored_asset(path: Path) -> bool:
+    for part in path.parts:
+        normalized = part.lower()
+        if part in IGNORED_ASSET_PARTS:
+            return True
+        if any(keyword in normalized for keyword in IGNORED_ASSET_PART_KEYWORDS):
+            return True
+    return False
+
+
+def _safe_mtime(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def _discovered_asset_entries() -> list[DataAssetEntry]:
+    global _ASSET_DISCOVERY_CACHE
+    now = time.time()
+    if _ASSET_DISCOVERY_CACHE and now - _ASSET_DISCOVERY_CACHE[0] < DISCOVERY_TTL_SECONDS:
+        return _ASSET_DISCOVERY_CACHE[1]
+
+    registered_paths = {entry.path.resolve(strict=False) for entry in DATA_ASSET_REGISTRY}
+    entries: list[DataAssetEntry] = []
+    for project in PROJECT_REGISTRY:
+        root = project.root_path
+        if not root.exists() or not root.is_dir():
+            continue
+        candidates: list[Path] = []
+        try:
+            for path in root.rglob("*"):
+                if _is_ignored_asset(path) or not path.is_file() or path.suffix.lower() not in ASSET_SUFFIXES:
+                    continue
+                if path.resolve(strict=False) in registered_paths:
+                    continue
+                candidates.append(path)
+        except OSError:
+            continue
+        candidates.sort(key=_safe_mtime, reverse=True)
+        for path in candidates[:DISCOVERY_MAX_PER_PROJECT]:
+            entries.append(
+                DataAssetEntry(
+                    project_id=project.project_id,
+                    name=_rel(path),
+                    path=path,
+                    kind=_asset_kind(path),
+                    required=False,
+                )
+            )
+
+    _ASSET_DISCOVERY_CACHE = (now, entries)
+    return entries
+
+
+def _asset_rows() -> list[dict[str, Any]]:
+    rows = [_asset_profile(asset, "registry") for asset in DATA_ASSET_REGISTRY if not _is_ignored_asset(asset.path)]
+    rows.extend(_asset_profile(asset, "discovered") for asset in _discovered_asset_entries())
+    return rows
+
+
+def _project_asset_summary_rows(asset_rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    rows = asset_rows if asset_rows is not None else _asset_rows()
+    rows_by_project: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        rows_by_project.setdefault(str(row.get("项目") or ""), []).append(row)
+
+    summaries: list[dict[str, Any]] = []
+    for project in PROJECT_REGISTRY:
+        project_rows = rows_by_project.get(project.project_id, [])
+        registered = [row for row in project_rows if row.get("来源") == "registry"]
+        discovered = [row for row in project_rows if row.get("来源") == "discovered"]
+        present = [row for row in project_rows if row.get("状态") == "存在"]
+        missing = [row for row in project_rows if row.get("状态") == "缺失"]
+        required_missing = [row for row in missing if row.get("必需") == "是"]
+        latest = max((float(row.get("_mtime") or 0) for row in project_rows), default=0.0)
+        key_assets = [
+            f"{row.get('数据/产物', '')} ({row.get('状态', '')})"
+            for row in registered[:4]
+        ]
+        if len(registered) > 4:
+            key_assets.append(f"+{len(registered) - 4} registered")
+        if not key_assets and discovered:
+            key_assets = [str(row.get("数据/产物", "")) for row in discovered[:3]]
+        status = "CHECK" if required_missing else "OK" if project_rows else "无资产"
+        summaries.append(
+            {
+                "项目": project.project_id,
+                "项目状态": project.status,
+                "资产状态": status,
+                "注册资产": _fmt_int(len(registered)),
+                "自动发现": _fmt_int(len(discovered)),
+                "存在": _fmt_int(len(present)),
+                "缺失": _fmt_int(len(missing)),
+                "必需缺失": _fmt_int(len(required_missing)),
+                "总大小": _format_bytes(sum(int(row.get("_bytes") or 0) for row in project_rows)),
+                "最新更新时间": datetime.fromtimestamp(latest).isoformat(timespec="seconds") if latest else "",
+                "关键资产": "; ".join(item for item in key_assets if item),
+            }
+        )
+    return summaries
+
+
+def _asset_filter_options() -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]]]:
+    project_options = [{"label": "全部项目", "value": ""}]
+    project_options.extend(
+        {"label": f"{project.project_id} - {project.role}", "value": project.project_id}
+        for project in PROJECT_REGISTRY
+    )
+    source_options = [
+        {"label": "全部来源", "value": ""},
+        {"label": "注册资产", "value": "registry"},
+        {"label": "自动发现", "value": "discovered"},
+    ]
+    status_options = [
+        {"label": "全部状态", "value": ""},
+        {"label": "存在", "value": "存在"},
+        {"label": "缺失", "value": "缺失"},
+    ]
+    return project_options, source_options, status_options
+
+
+def _filter_asset_rows(
+    rows: list[dict[str, Any]],
+    project_id: str | None = None,
+    source: str | None = None,
+    status: str | None = None,
+) -> list[dict[str, Any]]:
+    filtered = rows
+    if project_id:
+        filtered = [row for row in filtered if row.get("项目") == project_id]
+    if source:
+        filtered = [row for row in filtered if row.get("来源") == source]
+    if status:
+        filtered = [row for row in filtered if row.get("状态") == status]
+    return filtered
+
+
+def _core_schema_signal(name: str, path_text: str | None) -> tuple[str, str]:
+    path = TP_ROOT / path_text if path_text else None
+    schema = _schema_names(path) if path else ()
+    if not schema:
+        return "N/A", "schema unavailable"
+    if name in {item[0] for item in CORE_SCHEMA_ASSETS}:
+        base_schema = _schema_names(CORE_SCHEMA_ASSETS[0][1])
+        missing = sorted(set(base_schema) - set(schema))
+        added = sorted(set(schema) - set(base_schema))
+        status = "OK" if not missing and not added else "CHECK"
+        evidence = "matches screen_aggregate"
+        if missing or added:
+            evidence = f"missing {len(missing)}, added {len(added)}"
+        return status, f"{len(schema)} columns; {evidence}"
+    sample = ", ".join(schema[:4])
+    return "BASELINE", f"{len(schema)} columns; sample {sample}"
+
+
+def _core_database_rows(asset_rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    assets = asset_rows if asset_rows is not None else _asset_rows()
+    by_name = {row.get("数据/产物"): row for row in assets}
+    rows: list[dict[str, Any]] = []
+    for name in CORE_DATABASE_NAMES:
+        row = by_name.get(name, {})
+        date_range = row.get("日期范围", "")
+        latest_date = date_range.split(" -> ")[-1] if date_range else ""
+        exists = row.get("状态") == "存在"
+        duplicate_count = None
+        try:
+            duplicate_count = int(str(row.get("重复键") or "").replace(",", ""))
+        except ValueError:
+            duplicate_count = None
+        status = "OK" if exists and latest_date and duplicate_count in (None, 0) else "CHECK"
+        if not exists:
+            status = "缺失"
+        schema_status, schema_evidence = _core_schema_signal(name, row.get("路径"))
+        if schema_status == "CHECK":
+            status = "CHECK"
+        quality_parts = [
+            f"null {row.get('空值率') or 'N/A'}",
+            f"dup {row.get('重复键') or 'N/A'}",
+            row.get("质量口径") or "",
+        ]
+        rows.append(
+            {
+                "数据资产": name,
+                "更新状态": status,
+                "最新日期": latest_date,
+                "行": row.get("行", ""),
+                "列": row.get("列", ""),
+                "日期范围": date_range,
+                "更新时间": row.get("更新时间", ""),
+                "大小": row.get("大小", ""),
+                "质量信号": "; ".join(part for part in quality_parts if part),
+                "Schema": schema_status,
+                "Schema 证据": schema_evidence,
+                "路径": row.get("路径", ""),
+            }
+        )
+    return rows
+
+
+def _command_text(command: Any) -> str:
+    if isinstance(command, list):
+        return _quote_command([str(item) for item in command])
+    return str(command or "")
+
+
+def _pipeline_rows() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for step in PIPELINE_STEPS:
+        payload = _latest_manifest(step)
+        failed = []
+        if payload:
+            failed = [
+                item.get("name", "")
+                for item in payload.get("validations", [])
+                if item.get("status") != "passed"
+            ]
+        rows.append(
+            {
+                "步骤": step,
+                "状态": _status_label(payload.get("status") if payload else None),
+                "最近完成": payload.get("finished_at", "") if payload else "",
+                "秒数": payload.get("duration_seconds", "") if payload else "",
+                "未通过校验": ", ".join(failed),
+                "manifest": _rel(PIPELINE_MANIFESTS_DIR / step / f"{step}_latest.json")
+                if payload
+                else "",
+            }
+        )
+    return rows
+
+
+def _alert_rows(
+    core_rows: list[dict[str, Any]],
+    check_rows: list[dict[str, Any]],
+    pipeline_rows: list[dict[str, Any]],
+    quality_rows: list[dict[str, Any]],
+    production_rows: list[dict[str, Any]],
+    limit: int = 12,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+
+    for item in core_rows:
+        status = str(item.get("更新状态") or "")
+        if status == "OK":
+            continue
+        rows.append(
+            {
+                "级别": "P1" if status == "缺失" else "P2",
+                "模块": "核心数据库",
+                "对象": item.get("数据资产", ""),
+                "状态": status,
+                "证据": "; ".join(
+                    part
+                    for part in (
+                        item.get("质量信号", ""),
+                        f"schema {item.get('Schema', '')}: {item.get('Schema 证据', '')}",
+                    )
+                    if part
+                )[:700],
+            }
+        )
+
+    for item in check_rows:
+        status = str(item.get("状态") or "")
+        status_key = status.lower()
+        if status_key in {"success", "ok", "passed"}:
+            continue
+        rows.append(
+            {
+                "级别": "P1" if status_key in {"failed", "error"} else "P2",
+                "模块": "子项目检查",
+                "对象": item.get("项目", ""),
+                "状态": status or "N/A",
+                "证据": (item.get("stdout/stderr") or item.get("输出概况") or item.get("命令") or "")[:700],
+            }
+        )
+
+    for item in pipeline_rows:
+        status = str(item.get("状态") or "")
+        if status == "OK":
+            continue
+        rows.append(
+            {
+                "级别": "P1" if status == "FAIL" else "P2",
+                "模块": "Pipeline",
+                "对象": item.get("步骤", ""),
+                "状态": status or "N/A",
+                "证据": (item.get("未通过校验") or item.get("manifest") or "")[:700],
+            }
+        )
+
+    for item in quality_rows:
+        status = str(item.get("状态") or "")
+        if status.upper() in {"OK", "PASSED"} or status.lower() in {"passed", "success"}:
+            continue
+        if status.upper() == "N/A":
+            continue
+        rows.append(
+            {
+                "级别": "P2",
+                "模块": "数据质量",
+                "对象": item.get("检查项", ""),
+                "状态": status,
+                "证据": "; ".join(
+                    part for part in (item.get("异常/缺口", ""), item.get("证据", "")) if part
+                )[:700],
+            }
+        )
+
+    for item in production_rows:
+        status = str(item.get("状态") or "")
+        if status == "OK":
+            continue
+        rows.append(
+            {
+                "级别": "P2",
+                "模块": "投资生产",
+                "对象": item.get("产物", ""),
+                "状态": status or "N/A",
+                "证据": (item.get("质量") or item.get("覆盖/数量") or "")[:700],
+            }
+        )
+
+    if not rows:
+        return [
+            {
+                "级别": "INFO",
+                "模块": "系统总览",
+                "对象": "all clear",
+                "状态": "OK",
+                "证据": "核心库、项目检查、pipeline、数据质量和生产产物未发现阻断项",
+            }
+        ]
+    return rows[:limit]
+
+
+@lru_cache(maxsize=48)
+def _frame_cached(path_text: str, mtime_ns: int) -> pd.DataFrame:
+    del mtime_ns
+    return pd.read_parquet(path_text)
+
+
+def _read_frame(path: Path) -> pd.DataFrame | None:
+    if not path.exists() or path.suffix.lower() != ".parquet":
+        return None
+    try:
+        return _frame_cached(str(path), path.stat().st_mtime_ns)
+    except Exception:
+        return None
+
+
+def _date_range_text(frame: pd.DataFrame, column: str) -> str:
+    if column not in frame.columns:
+        return ""
+    values = pd.to_datetime(frame[column], errors="coerce").dropna()
+    if values.empty:
+        return ""
+    return f"{values.min().date().isoformat()} -> {values.max().date().isoformat()}"
+
+
+def _top_counts(frame: pd.DataFrame, column: str, limit: int = 3) -> str:
+    if column not in frame.columns:
+        return ""
+    counts = frame[column].dropna().value_counts().head(limit)
+    return "; ".join(f"{index}: {_fmt_int(value)}" for index, value in counts.items())
+
+
+def _fmt_float(value: Any, digits: int = 2) -> str:
+    if value in (None, ""):
+        return ""
+    try:
+        return f"{float(value):.{digits}f}"
+    except Exception:
+        return str(value)
+
+
+def _quality_text(frame: pd.DataFrame, keys: list[str]) -> str:
+    null_rate = float(frame.isna().sum().sum() / (frame.shape[0] * frame.shape[1])) if frame.size else 0.0
+    duplicate_rows = ""
+    if keys and all(column in frame.columns for column in keys):
+        duplicate_rows = f", dup {_fmt_int(frame.duplicated(keys).sum())}"
+    return f"null {_fmt_pct(null_rate)}{duplicate_rows}"
+
+
+def _top_row_text(frame: pd.DataFrame, score_column: str, name_column: str = "Name") -> str:
+    if score_column not in frame.columns or frame[score_column].dropna().empty:
+        return ""
+    top = frame.sort_values(score_column, ascending=False).iloc[0]
+    label = ""
+    for column in (name_column, "Company SEDOL", "region"):
+        value = top.get(column)
+        if pd.notna(value) and value not in ("", None):
+            label = str(value)
+            break
+    return f"{label} ({score_column} {_fmt_float(top.get(score_column), 3)})"
+
+
+def _signal_summary_row(label: str, path: Path) -> dict[str, Any]:
+    frame = _read_frame(path)
+    if frame is None or frame.empty:
+        return {
+            "产物": label,
+            "状态": "缺失/空",
+            "日期范围": "",
+            "覆盖/数量": "",
+            "分布": "",
+            "Top": "",
+            "质量": "",
+        }
+    score_column = "score_pct" if "score_pct" in frame.columns and frame["score_pct"].notna().any() else "score"
+    security_count = frame["Company SEDOL"].dropna().nunique() if "Company SEDOL" in frame.columns else 0
+    region_count = frame["region"].dropna().nunique() if "region" in frame.columns else 0
+    coverage = f"{_fmt_int(security_count)} securities" if security_count else f"{_fmt_int(region_count)} regions"
+    distribution = _top_counts(frame, "signal_name")
+    if "region" in frame.columns and frame["region"].notna().any():
+        distribution = f"{distribution}; {_top_counts(frame, 'region')}" if distribution else _top_counts(frame, "region")
+    return {
+        "产物": label,
+        "状态": "OK",
+        "日期范围": _date_range_text(frame, "Date"),
+        "覆盖/数量": f"{_fmt_int(len(frame))} rows / {coverage}",
+        "分布": distribution,
+        "Top": _top_row_text(frame, score_column),
+        "质量": _quality_text(frame, list(QUALITY_KEYS.get(path.stem, ()))),
+    }
+
+
+def _candidate_summary_row(path: Path) -> dict[str, Any]:
+    frame = _read_frame(path)
+    if frame is None or frame.empty:
+        return {"产物": "latest_candidates", "状态": "缺失/空", "日期范围": "", "覆盖/数量": "", "分布": "", "Top": "", "质量": ""}
+    selected = frame[frame["selected"].fillna(False)] if "selected" in frame.columns else frame
+    return {
+        "产物": "latest_candidates",
+        "状态": "OK",
+        "日期范围": _date_range_text(frame, "candidate_date"),
+        "覆盖/数量": f"{_fmt_int(len(frame))} candidates / {_fmt_int(len(selected))} selected",
+        "分布": _top_counts(frame, "region") or _top_counts(frame, "Exchange Country Region"),
+        "Top": _top_row_text(selected if not selected.empty else frame, "composite_score"),
+        "质量": _quality_text(frame, list(QUALITY_KEYS.get("latest_candidates", ()))),
+    }
+
+
+def _portfolio_summary_row(path: Path) -> dict[str, Any]:
+    frame = _read_frame(path)
+    if frame is None or frame.empty:
+        return {"产物": "latest_target_weights", "状态": "缺失/空", "日期范围": "", "覆盖/数量": "", "分布": "", "Top": "", "质量": ""}
+    weight_sum = frame["target_weight"].sum() if "target_weight" in frame.columns else None
+    region_text = ""
+    if {"region", "target_weight"} <= set(frame.columns):
+        region_weights = frame.groupby("region", dropna=True)["target_weight"].sum().sort_values(ascending=False).head(4)
+        region_text = "; ".join(f"{region}: {_fmt_pct(weight, 1)}" for region, weight in region_weights.items())
+    return {
+        "产物": "latest_target_weights",
+        "状态": "OK",
+        "日期范围": _date_range_text(frame, "candidate_date"),
+        "覆盖/数量": f"{_fmt_int(len(frame))} holdings / sum {_fmt_float(weight_sum, 4)}",
+        "分布": region_text,
+        "Top": _top_row_text(frame, "target_weight"),
+        "质量": _quality_text(frame, list(QUALITY_KEYS.get("latest_target_weights", ()))),
+    }
+
+
+def _production_rows() -> list[dict[str, Any]]:
+    return [
+        _signal_summary_row("ml_signals", TP_ROOT / "04_signals" / "ml_signals.parquet"),
+        _signal_summary_row("technical_signals", TP_ROOT / "04_signals" / "technical_signals.parquet"),
+        _signal_summary_row("regime_risk_budget", TP_ROOT / "04_signals" / "regime_risk_budget.parquet"),
+        _candidate_summary_row(TP_ROOT / "05_candidates" / "latest_candidates.parquet"),
+        _portfolio_summary_row(TP_ROOT / "06_portfolios" / "latest_target_weights.parquet"),
+    ]
+
+
+def _latest_backtest_summaries(limit: int = 4) -> list[Path]:
+    root = TP_ROOT / "07_backtest_code" / "runs"
+    if not root.exists():
+        return []
+    return sorted(root.rglob("summary.json"), key=lambda item: item.stat().st_mtime, reverse=True)[:limit]
+
+
+def _latest_backtest_perf_dirs(limit: int = 4) -> list[Path]:
+    root = TP_ROOT / "07_backtest_code" / "runs"
+    if not root.exists():
+        return []
+    run_dirs = {
+        path.parent
+        for path in root.rglob("perf_ptf.parquet")
+        if (path.parent / "perf_bench.parquet").exists()
+    }
+    return sorted(
+        run_dirs,
+        key=lambda item: max(
+            (item / "perf_ptf.parquet").stat().st_mtime,
+            (item / "perf_bench.parquet").stat().st_mtime,
+        ),
+        reverse=True,
+    )[:limit]
+
+
+def _backtest_nav_series(path: Path) -> pd.Series:
+    frame = _read_frame(path)
+    if frame is None or frame.empty:
+        return pd.Series(dtype="float64")
+    value_column = "Contrib" if "Contrib" in frame.columns else ""
+    if not value_column:
+        numeric_columns = list(frame.select_dtypes(include="number").columns)
+        value_column = numeric_columns[0] if numeric_columns else ""
+    if not value_column:
+        return pd.Series(dtype="float64")
+    values = pd.to_numeric(frame[value_column], errors="coerce")
+    if "Date" in frame.columns:
+        dates = pd.to_datetime(frame["Date"], errors="coerce")
+        series = pd.Series(values.to_numpy(), index=dates)
+        series = series[~series.index.isna()]
+        return series.sort_index().dropna()
+    return pd.Series(values.to_numpy()).dropna()
+
+
+def _clean_float(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except Exception:
+        return None
+    if pd.isna(number) or number in (float("inf"), float("-inf")):
+        return None
+    return number
+
+
+def _backtest_years(series: pd.Series, periods: int) -> float:
+    if isinstance(series.index, pd.DatetimeIndex) and len(series.index) > 1:
+        days = (series.index.max() - series.index.min()).days
+        if days > 0:
+            return days / 365.25
+    return max(periods / 252, 1 / 252)
+
+
+def _backtest_nav_metrics(series: pd.Series) -> dict[str, Any]:
+    if series.empty:
+        return {}
+    returns = series.pct_change().replace([float("inf"), float("-inf")], pd.NA).dropna()
+    periods = len(returns)
+    first = _clean_float(series.iloc[0])
+    last = _clean_float(series.iloc[-1])
+    total_return = (last / first - 1) if first and last else None
+    years = _backtest_years(series, periods) if periods else 0
+    annual_return = ((last / first) ** (1 / years) - 1) if first and last and years > 0 else None
+    drawdown = _clean_float((series / series.cummax() - 1).min())
+    annual_volatility = _clean_float(returns.std() * (252 ** 0.5)) if periods > 1 else None
+    if isinstance(series.index, pd.DatetimeIndex):
+        date_min = series.index.min().date().isoformat()
+        date_max = series.index.max().date().isoformat()
+    else:
+        date_min = ""
+        date_max = ""
+    return {
+        "rows": int(len(series)),
+        "date_min": date_min,
+        "date_max": date_max,
+        "final_value": last,
+        "total_return": total_return,
+        "annual_return": annual_return,
+        "annual_volatility": annual_volatility,
+        "max_drawdown": drawdown,
+        "returns": returns,
+    }
+
+
+def _backtest_perf_metrics(run_dir: str | Path | None) -> dict[str, Any]:
+    if not run_dir:
+        return {}
+    root = Path(run_dir)
+    portfolio = _backtest_nav_metrics(_backtest_nav_series(root / "perf_ptf.parquet"))
+    benchmark = _backtest_nav_metrics(_backtest_nav_series(root / "perf_bench.parquet"))
+    if not portfolio and not benchmark:
+        return {}
+    active_return = None
+    if portfolio.get("annual_return") is not None and benchmark.get("annual_return") is not None:
+        active_return = portfolio["annual_return"] - benchmark["annual_return"]
+    tracking_error = None
+    information_ratio = None
+    ptf_returns = portfolio.get("returns")
+    bench_returns = benchmark.get("returns")
+    if isinstance(ptf_returns, pd.Series) and isinstance(bench_returns, pd.Series):
+        aligned_ptf, aligned_bench = ptf_returns.align(bench_returns, join="inner")
+        active_daily = (aligned_ptf - aligned_bench).dropna()
+        if len(active_daily) > 1:
+            tracking_error = _clean_float(active_daily.std() * (252 ** 0.5))
+            if tracking_error and active_return is not None:
+                information_ratio = active_return / tracking_error
+    portfolio.pop("returns", None)
+    benchmark.pop("returns", None)
+    return {
+        "portfolio": portfolio,
+        "benchmark": benchmark,
+        "active_return": active_return,
+        "tracking_error": tracking_error,
+        "information_ratio": information_ratio,
+    }
+
+
+def _backtest_date_text(metrics: dict[str, Any], fallback: str = "") -> str:
+    portfolio = metrics.get("portfolio") or {}
+    if portfolio.get("date_min") or portfolio.get("date_max"):
+        return f"{portfolio.get('date_min', '')} -> {portfolio.get('date_max', '')}"
+    return fallback
+
+
+def _backtest_return_text(metrics: dict[str, Any], fallback_ptf: dict[str, Any] | None = None) -> str:
+    portfolio = metrics.get("portfolio") or {}
+    benchmark = metrics.get("benchmark") or {}
+    if portfolio:
+        return (
+            f"ptf {_fmt_pct(portfolio.get('total_return'))} total / {_fmt_pct(portfolio.get('annual_return'))} ann; "
+            f"bench {_fmt_pct(benchmark.get('annual_return'))} ann; active {_fmt_pct(metrics.get('active_return'))}"
+        )
+    if fallback_ptf:
+        return f"ptf final {_fmt_float(fallback_ptf.get('final_value'))}"
+    return ""
+
+
+def _backtest_active_text(metrics: dict[str, Any]) -> str:
+    if not metrics:
+        return ""
+    return f"TE {_fmt_pct(metrics.get('tracking_error'))}; IR {_fmt_float(metrics.get('information_ratio'))}"
+
+
+def _backtest_drawdown_text(
+    metrics: dict[str, Any],
+    fallback_ptf: dict[str, Any] | None = None,
+    fallback_bench: dict[str, Any] | None = None,
+) -> str:
+    portfolio = metrics.get("portfolio") or fallback_ptf or {}
+    benchmark = metrics.get("benchmark") or fallback_bench or {}
+    return f"ptf DD {_fmt_pct(portfolio.get('max_drawdown'))}; bench DD {_fmt_pct(benchmark.get('max_drawdown'))}"
+
+
+def _backtest_report_status(run_dir: str | Path | None, report_manifest: dict[str, Any] | None = None) -> str:
+    parts: list[str] = []
+    if run_dir:
+        root = Path(run_dir)
+        if (root / "plot.html").exists():
+            parts.append("plot OK")
+        if (root / "summary.json").exists():
+            parts.append("summary OK")
+    if report_manifest:
+        outputs = report_manifest.get("outputs") or {}
+        report = outputs.get("report") if isinstance(outputs.get("report"), dict) else {}
+        if report.get("exists"):
+            parts.append(f"generate_report {_status_label(report_manifest.get('status'))}")
+    return "; ".join(parts) or "N/A"
+
+
+def _backtest_rows() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    run_manifest = _latest_manifest("run_backtest") or {}
+    report_manifest = _latest_manifest("generate_report") or {}
+    validation = _read_json(FULL_BACKTEST_VALIDATION_PATH) or {}
+    perf = validation.get("performance") or {}
+    portfolio_perf = perf.get("portfolio") or {}
+    bench_perf = perf.get("benchmark") or {}
+    validation_run_dir = validation.get("run_dir")
+    validation_metrics = _backtest_perf_metrics(validation_run_dir)
+    seen_run_dirs: set[str] = set()
+    if validation_run_dir:
+        seen_run_dirs.add(str(Path(validation_run_dir).resolve(strict=False)))
+    if run_manifest:
+        params = run_manifest.get("parameters") or {}
+        rows.append(
+            {
+                "来源": "run_backtest_latest",
+                "状态": _status_label(run_manifest.get("status")),
+                "区间/日期": _backtest_date_text(
+                    validation_metrics,
+                    f"{portfolio_perf.get('date_min', '')} -> {portfolio_perf.get('date_max', '')}",
+                ),
+                "Benchmark": params.get("bench") or "default",
+                "组合/结果": f"profile {params.get('profile', '')} / {params.get('ptf_name', '')}",
+                "收益/Alpha": _backtest_return_text(validation_metrics, portfolio_perf),
+                "TE/IR": _backtest_active_text(validation_metrics),
+                "风险/回撤": _backtest_drawdown_text(validation_metrics, portfolio_perf, bench_perf),
+                "报告状态": _backtest_report_status(validation_run_dir, report_manifest),
+                "报告/路径": _rel(PIPELINE_MANIFESTS_DIR / "run_backtest" / "run_backtest_latest.json"),
+            }
+        )
+    if validation:
+        rows.append(
+            {
+                "来源": "full_backtest_validation",
+                "状态": validation.get("status", ""),
+                "区间/日期": validation.get("generated_at", ""),
+                "Benchmark": validation.get("profile", ""),
+                "组合/结果": f"ptf {_fmt_float(portfolio_perf.get('final_value'))}; bench {_fmt_float(bench_perf.get('final_value'))}",
+                "收益/Alpha": _backtest_return_text(validation_metrics, portfolio_perf),
+                "TE/IR": _backtest_active_text(validation_metrics),
+                "风险/回撤": f"{_backtest_drawdown_text(validation_metrics, portfolio_perf, bench_perf)}; checks {sum(1 for value in (validation.get('acceptance_checks') or {}).values() if value)}/{len(validation.get('acceptance_checks') or {})}",
+                "报告状态": _backtest_report_status(validation_run_dir),
+                "报告/路径": _rel(validation.get("run_dir")),
+            }
+        )
+    if report_manifest:
+        outputs = report_manifest.get("outputs") or {}
+        report = outputs.get("report") if isinstance(outputs.get("report"), dict) else {}
+        rows.append(
+            {
+                "来源": "generate_report_latest",
+                "状态": _status_label(report_manifest.get("status")),
+                "区间/日期": report_manifest.get("finished_at", ""),
+                "Benchmark": "",
+                "组合/结果": _outputs_summary(report_manifest),
+                "收益/Alpha": "",
+                "TE/IR": "",
+                "风险/回撤": _validation_summary(report_manifest),
+                "报告状态": "report OK" if report.get("exists") else _status_label(report_manifest.get("status")),
+                "报告/路径": _rel(report.get("path") or PIPELINE_MANIFESTS_DIR / "generate_report" / "generate_report_latest.json"),
+            }
+        )
+    for path in _latest_backtest_summaries():
+        payload = _read_json(path) or {}
+        top_holdings = payload.get("top_holdings") or []
+        top_names = ", ".join(str(item.get("Name", "")) for item in top_holdings[:3] if item.get("Name"))
+        summary_metrics = _backtest_perf_metrics(path.parent)
+        seen_run_dirs.add(str(path.parent.resolve(strict=False)))
+        rows.append(
+            {
+                "来源": "summary.json",
+                "状态": "OK",
+                "区间/日期": _backtest_date_text(
+                    summary_metrics,
+                    payload.get("input_screen_date") or payload.get("output_sec_list_date", ""),
+                ),
+                "Benchmark": payload.get("benchmark", ""),
+                "组合/结果": f"{payload.get('objective', '')} / {_fmt_int(payload.get('selected_names_sec_list'))} names / weight {_fmt_float(payload.get('selected_weight_sum'), 4)}",
+                "收益/Alpha": _backtest_return_text(summary_metrics),
+                "TE/IR": _backtest_active_text(summary_metrics) or f"te_max {_fmt_pct((payload.get('constraints') or {}).get('te_max'))}",
+                "风险/回撤": _backtest_drawdown_text(summary_metrics) if summary_metrics else f"score avg {_fmt_float(payload.get('selected_score_ml_weighted_avg'))}",
+                "报告状态": _backtest_report_status(path.parent),
+                "报告/路径": f"{_rel(path.parent)} / {top_names}",
+            }
+        )
+    for run_dir in _latest_backtest_perf_dirs():
+        run_dir_key = str(run_dir.resolve(strict=False))
+        if run_dir_key in seen_run_dirs:
+            continue
+        metrics = _backtest_perf_metrics(run_dir)
+        rows.append(
+            {
+                "来源": "perf_pair",
+                "状态": "OK" if metrics else "N/A",
+                "区间/日期": _backtest_date_text(metrics),
+                "Benchmark": "",
+                "组合/结果": run_dir.name,
+                "收益/Alpha": _backtest_return_text(metrics),
+                "TE/IR": _backtest_active_text(metrics),
+                "风险/回撤": _backtest_drawdown_text(metrics),
+                "报告状态": _backtest_report_status(run_dir),
+                "报告/路径": _rel(run_dir),
+            }
+        )
+    return rows
+
+
+def _validation_summary(payload: dict[str, Any]) -> str:
+    validations = payload.get("validations")
+    if isinstance(validations, list):
+        failed = [item.get("name", "") for item in validations if item.get("status") != "passed"]
+        return f"{len(validations) - len(failed)}/{len(validations)} passed" + (f"; failed: {', '.join(failed[:3])}" if failed else "")
+    checks = payload.get("acceptance_checks")
+    if isinstance(checks, dict):
+        passed = sum(1 for value in checks.values() if value)
+        return f"{passed}/{len(checks)} checks"
+    return ""
+
+
+def _outputs_summary(payload: dict[str, Any]) -> str:
+    outputs = payload.get("outputs")
+    if isinstance(outputs, dict):
+        names = list(outputs.keys())
+        return ", ".join(names[:5])
+    artifacts = payload.get("artifacts")
+    if isinstance(artifacts, dict):
+        return ", ".join(list(artifacts.keys())[:5])
+    return ""
+
+
+def _audit_filter_options() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    steps = [{"label": "全部 step", "value": ""}]
+    steps.extend({"label": step, "value": step} for step in PIPELINE_STEPS)
+    statuses = [
+        {"label": "全部状态", "value": ""},
+        {"label": "success", "value": "success"},
+        {"label": "failed", "value": "failed"},
+        {"label": "running", "value": "running"},
+    ]
+    return steps, statuses
+
+
+def _parse_filter_date(value: str | None) -> pd.Timestamp | None:
+    if not value:
+        return None
+    try:
+        return pd.Timestamp(value).normalize()
+    except Exception:
+        return None
+
+
+def _audit_rows(
+    limit: int = 80,
+    step: str | None = None,
+    status: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    as_of: str | None = None,
+    input_month: str | None = None,
+) -> list[dict[str, Any]]:
+    manifests = [
+        path
+        for path in PIPELINE_MANIFESTS_DIR.rglob("*.json")
+        if not path.name.endswith("_latest.json")
+    ]
+    manifests.sort(key=lambda item: item.stat().st_mtime, reverse=True)
+    rows: list[dict[str, Any]] = []
+    start = _parse_filter_date(date_from)
+    end = _parse_filter_date(date_to)
+    for path in manifests:
+        payload = _read_json(path) or {}
+        params = payload.get("parameters") or {}
+        time_text = payload.get("finished_at") or payload.get("generated_at") or datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds")
+        row_step = payload.get("step") or path.parent.name
+        row_status = payload.get("status", "")
+        if step and row_step != step:
+            continue
+        if status and row_status != status:
+            continue
+        row_date = _parse_filter_date(time_text)
+        if start is not None and row_date is not None and row_date < start:
+            continue
+        if end is not None and row_date is not None and row_date > end:
+            continue
+        if as_of and str(params.get("as_of") or "") != str(as_of):
+            continue
+        if input_month and str(params.get("input_month") or "") != str(input_month):
+            continue
+        focus_params = []
+        for key in ("as_of", "input_month", "profile", "update_mode", "top_pct", "method"):
+            if params.get(key) not in (None, ""):
+                focus_params.append(f"{key}={params.get(key)}")
+        rows.append(
+            {
+                "时间": time_text,
+                "step": row_step,
+                "状态": row_status,
+                "秒数": payload.get("duration_seconds", ""),
+                "参数": "; ".join(focus_params),
+                "输出": _outputs_summary(payload),
+                "校验": _validation_summary(payload),
+                "manifest": _rel(path),
+            }
+        )
+        if len(rows) >= limit:
+            break
+    return rows
+
+
+def _manifest_path_from_row(row: dict[str, Any] | None) -> Path | None:
+    if not row:
+        return None
+    manifest = row.get("manifest")
+    if not manifest:
+        return None
+    path = Path(str(manifest))
+    if not path.is_absolute():
+        path = TP_ROOT / path
+    try:
+        resolved = path.resolve(strict=False)
+        manifests_root = PIPELINE_MANIFESTS_DIR.resolve(strict=False)
+        resolved.relative_to(manifests_root)
+    except Exception:
+        return None
+    return resolved if resolved.exists() and resolved.suffix.lower() == ".json" else None
+
+
+def _compact_mapping(value: Any, limit: int = 6) -> str:
+    if not isinstance(value, dict) or not value:
+        return ""
+    parts: list[str] = []
+    for key, item in list(value.items())[:limit]:
+        if isinstance(item, dict):
+            status = "exists" if item.get("exists") is True else "missing" if item.get("exists") is False else ""
+            bits = [str(key)]
+            if item.get("path"):
+                bits.append(_rel(item.get("path")))
+            if item.get("rows") is not None:
+                bits.append(f"{_fmt_int(item.get('rows'))} rows")
+            if item.get("columns") is not None:
+                bits.append(f"{_fmt_int(item.get('columns'))} cols")
+            if status:
+                bits.append(status)
+            parts.append(" / ".join(bits))
+        else:
+            parts.append(f"{key}={item}")
+    if len(value) > limit:
+        parts.append(f"+{len(value) - limit} more")
+    return "; ".join(parts)
+
+
+def _compact_parameters(value: Any, limit: int = 12) -> str:
+    if not isinstance(value, dict) or not value:
+        return ""
+    parts = [
+        f"{key}={item}"
+        for key, item in list(value.items())[:limit]
+        if item not in (None, "")
+    ]
+    if len(value) > limit:
+        parts.append(f"+{len(value) - limit} more")
+    return "; ".join(parts)
+
+
+def _compact_validations(payload: dict[str, Any]) -> str:
+    validations = payload.get("validations")
+    if isinstance(validations, list):
+        parts = []
+        for item in validations[:8]:
+            name = item.get("name", "")
+            status = item.get("status", "")
+            message = item.get("message", "")
+            parts.append(" / ".join(bit for bit in (name, status, message) if bit))
+        if len(validations) > 8:
+            parts.append(f"+{len(validations) - 8} more")
+        return "; ".join(parts)
+    checks = payload.get("acceptance_checks")
+    if isinstance(checks, dict):
+        return "; ".join(f"{key}={value}" for key, value in list(checks.items())[:8])
+    return ""
+
+
+def _compact_child_manifests(payload: dict[str, Any]) -> str:
+    details = payload.get("details") if isinstance(payload.get("details"), dict) else {}
+    child_manifests = details.get("child_manifests")
+    if not isinstance(child_manifests, list) or not child_manifests:
+        return ""
+    rels = [_rel(path) for path in child_manifests[:8]]
+    if len(child_manifests) > 8:
+        rels.append(f"+{len(child_manifests) - 8} more")
+    return "; ".join(rels)
+
+
+def _audit_detail_payload(row: dict[str, Any] | None) -> dict[str, str]:
+    path = _manifest_path_from_row(row)
+    if path is None:
+        return {
+            "title": "审计详情",
+            "manifest": "点击审计表中的一行查看 manifest 输入、输出、校验和回滚线索。",
+        }
+    payload = _read_json(path) or {}
+    idempotency = payload.get("idempotency") if isinstance(payload.get("idempotency"), dict) else {}
+    backup_text = "; ".join(
+        bit
+        for bit in (
+            _compact_mapping(payload.get("backups")),
+            _compact_mapping(payload.get("backup")),
+            _compact_mapping(payload.get("qa")),
+        )
+        if bit
+    )
+    return {
+        "title": f"{payload.get('step') or path.parent.name} / {_status_label(payload.get('status'))}",
+        "manifest": _rel(path),
+        "time": f"{payload.get('started_at', '')} -> {payload.get('finished_at') or payload.get('generated_at', '')}".strip(" ->"),
+        "parameters": _compact_parameters(payload.get("parameters")),
+        "inputs": _compact_mapping(payload.get("inputs")),
+        "outputs": _compact_mapping(payload.get("outputs") or payload.get("artifacts")),
+        "validations": _compact_validations(payload),
+        "child_manifests": _compact_child_manifests(payload),
+        "rollback": backup_text or _compact_mapping(payload.get("outputs")) or "无显式 backup；按 manifest 路径追溯固定 latest 产物",
+        "idempotency": "; ".join(f"{key}={value}" for key, value in idempotency.items()),
+    }
+
+
+def _audit_detail(row: dict[str, Any] | None = None) -> Any:
+    payload = _audit_detail_payload(row)
+    lines = [
+        ("manifest", payload.get("manifest", "")),
+        ("time", payload.get("time", "")),
+        ("parameters", payload.get("parameters", "")),
+        ("inputs", payload.get("inputs", "")),
+        ("outputs", payload.get("outputs", "")),
+        ("validations / QA", payload.get("validations", "")),
+        ("child manifests", payload.get("child_manifests", "")),
+        ("rollback", payload.get("rollback", "")),
+        ("idempotency", payload.get("idempotency", "")),
+    ]
+    return html.Div(
+        className="tp-audit-detail",
+        children=[
+            html.Div(payload.get("title", "审计详情"), className="tp-audit-detail-title"),
+            *[
+                html.Div(
+                    [html.Span(f"{label}: ", className="tp-audit-detail-label"), value],
+                    className="tp-audit-detail-line",
+                )
+                for label, value in lines
+                if value
+            ],
+        ],
+    )
+
+
+def _status_from_bool(ok: bool | None) -> str:
+    if ok is True:
+        return "OK"
+    if ok is False:
+        return "CHECK"
+    return "N/A"
+
+
+def _data_quality_rows() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    monthly_qa = _latest_json_by_glob("monthly_update*.json") or {}
+    profile = _read_json(DATABASE_PROFILE_PATH) or {}
+    returns_audit = _read_json(RETURNS_AUDIT_PATH) or {}
+    input_inventory = _read_json(PRODUCTION_INPUTS_DIR / "manifests" / "input_inventory_latest.json") or {}
+    ciq_merge = _read_json(PRODUCTION_INPUTS_DIR / "manifests" / "ciq_merge_column_check_latest.json") or {}
+    ciq_content = _read_json(PRODUCTION_INPUTS_DIR / "manifests" / "ciq_content_update_check_latest.json") or {}
+
+    base_schema = _schema_names(CORE_SCHEMA_ASSETS[0][1])
+    for name, path in CORE_SCHEMA_ASSETS:
+        schema = _schema_names(path)
+        missing = sorted(set(base_schema) - set(schema))
+        added = sorted(set(schema) - set(base_schema))
+        rows.append(
+            {
+                "检查项": f"{name} schema",
+                "状态": _status_from_bool(bool(schema) and not missing and not added),
+                "范围/资产": _rel(path),
+                "指标": f"{_fmt_int(len(schema))} columns",
+                "异常/缺口": f"missing {len(missing)}, added {len(added)}",
+                "证据": "schemas match"
+                if not missing and not added
+                else f"sample missing: {', '.join(missing[:3])}; sample added: {', '.join(added[:3])}",
+            }
+        )
+
+    profile_screen = profile.get("screen_aggregate") or {}
+    current_schema_count = len(base_schema)
+    profile_columns = profile_screen.get("columns")
+    rows.append(
+        {
+            "检查项": "database profile freshness",
+            "状态": _status_from_bool(profile_columns in (None, current_schema_count)),
+            "范围/资产": _rel(DATABASE_PROFILE_PATH),
+            "指标": f"profile {profile_columns}, live {current_schema_count}",
+            "异常/缺口": "" if profile_columns == current_schema_count else "profile/schema count mismatch",
+            "证据": f"generated {profile.get('generated_at', '')}",
+        }
+    )
+
+    gap_specs = [
+        ("screen monthly dates", TP_ROOT / "00_screen" / "screen_aggregate.parquet", "Date", "month_end"),
+        ("screen_aggregate_5Y monthly dates", TP_ROOT / "00_screen" / "screen_aggregate_5Y.parquet", "Date", "month_end"),
+        ("returns business-day proxy", TP_ROOT / "00_screen" / "returns.parquet", "__index_level_0__", "business_day"),
+    ]
+    for label, path, column, frequency in gap_specs:
+        gap = _date_gap_profile(path, column, frequency)
+        missing = gap.get("missing")
+        rows.append(
+            {
+                "检查项": label,
+                "状态": _status_from_bool(missing == 0 if isinstance(missing, int) else None),
+                "范围/资产": _rel(path),
+                "指标": f"observed {_fmt_int(gap.get('observed'))} / expected {_fmt_int(gap.get('expected'))}",
+                "异常/缺口": f"missing {_fmt_int(missing)}" if missing not in (None, "") else gap.get("error", ""),
+                "证据": gap.get("sample", ""),
+            }
+        )
+
+    rows.append(
+        {
+            "检查项": "returns anomaly audit",
+            "状态": returns_audit.get("governance_status", "N/A"),
+            "范围/资产": _rel(RETURNS_AUDIT_PATH),
+            "指标": f"{_fmt_int(returns_audit.get('flagged_cells'))} cells / {_fmt_int(returns_audit.get('flagged_unique_sedol'))} sedols",
+            "异常/缺口": ", ".join(f"{key}: {_fmt_int(value)}" for key, value in (returns_audit.get("severity_counts") or {}).items()),
+            "证据": f"min {_fmt_float(returns_audit.get('min_return'), 4)}, max {_fmt_float(returns_audit.get('max_return'), 4)}",
+        }
+    )
+
+    sedol = monthly_qa.get("latest_sedol_coverage") or profile.get("sedol_coverage_latest") or {}
+    missing_sedol = sedol.get("missing_in_returns_count", sedol.get("missing_count"))
+    rows.append(
+        {
+            "检查项": "latest SEDOL coverage",
+            "状态": _status_from_bool(missing_sedol == 0 if missing_sedol is not None else None),
+            "范围/资产": "last_screen vs returns",
+            "指标": f"valid {_fmt_int(sedol.get('valid_sedol_count'))}",
+            "异常/缺口": f"missing {_fmt_int(missing_sedol)}",
+            "证据": ", ".join(map(str, sedol.get("missing_sample", [])[:5])) if isinstance(sedol.get("missing_sample"), list) else "",
+        }
+    )
+
+    update_result = monthly_qa.get("update_result") or {}
+    ciq_result = update_result.get("ciq_result") or {}
+    rows.append(
+        {
+            "检查项": "CIQ merge coverage",
+            "状态": _status_from_bool((ciq_result or ciq_merge) != {}),
+            "范围/资产": _rel(update_result.get("ciq_path") or ciq_merge.get("after_path") or ciq_content.get("after_path")),
+            "指标": f"matched {_fmt_int(ciq_result.get('matched_screen_rows') or ciq_merge.get('matched_screen_rows'))}; filled {_fmt_int(ciq_result.get('filled_cells_total') or ciq_merge.get('filled_cells_total') or ciq_content.get('filled_cells_total'))}",
+            "异常/缺口": f"overwritten {_fmt_int(ciq_merge.get('overwritten_non_null_cells') or ciq_content.get('overwritten_non_null_cells_total'))}; cleared {_fmt_int(ciq_merge.get('cleared_non_null_cells') or ciq_content.get('cleared_non_null_cells_total'))}",
+            "证据": ciq_merge.get("conclusion", "")[:260],
+        }
+    )
+
+    inventory_summary = input_inventory.get("summary") or {}
+    rows.append(
+        {
+            "检查项": "production input inventory",
+            "状态": _status_from_bool((inventory_summary.get("error_records") or 0) == 0),
+            "范围/资产": _rel(input_inventory.get("production_inputs_dir") or PRODUCTION_INPUTS_DIR),
+            "指标": f"total {_fmt_int(inventory_summary.get('total_records'))}; eligible {_fmt_int(inventory_summary.get('eligible_records'))}",
+            "异常/缺口": f"errors {_fmt_int(inventory_summary.get('error_records'))}; skipped {_fmt_int(inventory_summary.get('skipped_records'))}",
+            "证据": f"run {input_inventory.get('run_id', '')} / {input_inventory.get('mode', '')}",
+        }
+    )
+
+    backups = [update_result.get("backup_path"), update_result.get("returns_backup_path")]
+    backup_exists = [Path(path).exists() for path in backups if path]
+    rows.append(
+        {
+            "检查项": "monthly update backups",
+            "状态": _status_from_bool(bool(backup_exists) and all(backup_exists)),
+            "范围/资产": "screen + returns backups",
+            "指标": f"{sum(1 for ok in backup_exists if ok)}/{len(backup_exists)} present",
+            "异常/缺口": "" if backup_exists and all(backup_exists) else "backup path missing",
+            "证据": "; ".join(_rel(path) for path in backups if path),
+        }
+    )
+
+    weight_sums = monthly_qa.get("weight_sums") or profile_screen.get("weight_sums_latest") or {}
+    for name, detail in list(weight_sums.items())[:6]:
+        total = detail.get("sum") if isinstance(detail, dict) else detail
+        rows.append(
+            {
+                "检查项": "benchmark weight sum",
+                "状态": _status_from_bool(abs(float(total) - 1.0) < 0.001 if total is not None else None),
+                "范围/资产": name,
+                "指标": _fmt_float(total, 6),
+                "异常/缺口": "",
+                "证据": f"non_null {_fmt_int(detail.get('non_null'))}" if isinstance(detail, dict) else "",
+            }
+        )
+
+    return rows
+
+
+def _config_rows() -> list[dict[str, Any]]:
+    run_all = _latest_manifest("run_all") or {}
+    params = run_all.get("parameters") or {}
+    saved_payload = _read_json(DASHBOARD_CONFIG_PATH) or {}
+    saved_values = saved_payload.get("values") if isinstance(saved_payload.get("values"), dict) else {}
+    config_items = [
+        ("input_month", params.get("input_month"), "run_all_latest", "月更输入批次"),
+        ("as_of", params.get("as_of"), "run_all_latest", "信号/候选/组合目标日期"),
+        ("update_mode", params.get("update_mode"), "run_all_latest", "refresh_data 更新范围"),
+        ("top_pct", params.get("top_pct"), "run_all_latest", "候选池入选比例"),
+        ("ml_weight", params.get("ml_weight"), "run_all_latest", "候选池 ML 权重"),
+        ("technical_weight", params.get("technical_weight"), "run_all_latest", "候选池技术信号权重"),
+        ("optimizer_method", params.get("optimizer_method"), "run_all_latest", "组合优化方法"),
+        ("max_weight", params.get("max_weight"), "run_all_latest", "单股权重上限"),
+        ("backtest_profile", params.get("backtest_profile"), "run_all_latest", "回测 profile"),
+        ("sector_neutral", params.get("sector_neutral"), "run_all_latest", "回测行业中性开关"),
+        ("skip_refresh_data", params.get("skip_refresh_data"), "run_all_latest", "总流水线是否跳过数据刷新"),
+        ("skip_backtest", params.get("skip_backtest"), "run_all_latest", "总流水线是否跳过回测"),
+        ("dashboard_default_flags", "dry_run_data, skip_refresh, skip_backtest, inspect_backtest", "UI default", "控制台默认安全模式"),
+        ("dashboard_config_saved_at", saved_payload.get("saved_at"), "dashboard_config", "控制台保存配置时间"),
+        ("dashboard_config_path", _rel(DASHBOARD_CONFIG_PATH) if DASHBOARD_CONFIG_PATH.exists() else "", "dashboard_config", "控制台配置文件"),
+        ("saved_step", saved_values.get("step"), "dashboard_config", "默认 pipeline step"),
+        ("saved_input_month", saved_values.get("input_month"), "dashboard_config", "默认月更输入批次"),
+        ("saved_as_of", saved_values.get("as_of"), "dashboard_config", "默认目标日期"),
+        ("saved_benchmark", saved_values.get("bench"), "dashboard_config", "默认 benchmark"),
+        ("saved_universe", saved_values.get("universe"), "dashboard_config", "默认 universe 标签；当前不传给 pipeline CLI"),
+        ("saved_project", saved_values.get("project_id"), "dashboard_config", "默认子项目"),
+        ("saved_project_mode", saved_values.get("project_mode"), "dashboard_config", "默认子项目运行模式"),
+    ]
+    return [
+        {
+            "配置项": name,
+            "当前值": "N/A" if value in (None, "") else str(value),
+            "来源": source,
+            "影响": impact,
+            "状态": "active" if value not in (None, "") else "unset",
+        }
+        for name, value, source, impact in config_items
+    ]
+
+
+def _launch_log_tail(log_path: Path, limit: int = 700) -> str:
+    try:
+        resolved = log_path.resolve(strict=False)
+        launch_root = LAUNCH_DIR.resolve(strict=False)
+        if launch_root not in (resolved, *resolved.parents):
+            return ""
+        if not resolved.exists() or not resolved.is_file():
+            return ""
+        return resolved.read_text(encoding="utf-8", errors="replace")[-limit:].strip()
+    except Exception:
+        return ""
+
+
+def _launch_evidence(step: str) -> tuple[Path | None, dict[str, Any] | None]:
+    if step in PIPELINE_STEPS:
+        return PIPELINE_MANIFESTS_DIR / step / f"{step}_latest.json", _latest_manifest(step)
+    if step == "system_checks":
+        return CHECK_LATEST, _checks_payload()
+    if step.startswith("project:"):
+        parts = step.split(":", 2)
+        project_id = parts[1] if len(parts) > 1 else ""
+        mode = parts[2] if len(parts) > 2 else ""
+        try:
+            project = _project_by_id(project_id)
+        except ValueError:
+            return None, None
+        if mode == "safe_check":
+            return CHECK_LATEST, _checks_payload()
+        if project.pipeline_step:
+            return (
+                PIPELINE_MANIFESTS_DIR / project.pipeline_step / f"{project.pipeline_step}_latest.json",
+                _latest_manifest(project.pipeline_step),
+            )
+    return None, None
+
+
+def _timestamp(value: Any) -> pd.Timestamp | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = pd.Timestamp(value)
+    except Exception:
+        return None
+    return None if pd.isna(parsed) else parsed
+
+
+def _evidence_status(
+    evidence_path: Path | None,
+    payload: dict[str, Any] | None,
+    started_at: str,
+    running: bool,
+) -> str:
+    if evidence_path is None:
+        return "N/A"
+    if not evidence_path.exists():
+        return "等待" if running else "缺失"
+    status = _status_label(str(payload.get("status")) if payload else None)
+    started = _timestamp(started_at)
+    evidence_time = _timestamp((payload or {}).get("finished_at") or (payload or {}).get("generated_at"))
+    if evidence_time is None:
+        try:
+            evidence_time = pd.Timestamp.fromtimestamp(evidence_path.stat().st_mtime)
+        except Exception:
+            evidence_time = None
+    if started is not None and evidence_time is not None and evidence_time < started:
+        return "等待" if running else "未更新"
+    return status
+
+
+def _pid_is_running(pid: Any) -> bool:
+    if pid in (None, ""):
+        return False
+    if os.name == "nt":
+        try:
+            completed = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            return str(pid) in completed.stdout
+        except Exception:
+            return False
+    try:
+        os.kill(int(pid), 0)
+    except Exception:
+        return False
+    return True
+
+
+def _latest_launch_record() -> dict[str, Any] | None:
+    return system_jobs.latest_launch_record(LAUNCH_DIR)
+
+
+def _launch_record_by_job_id(job_id: str) -> dict[str, Any] | None:
+    return system_jobs.launch_record_by_job_id(job_id, LAUNCH_DIR)
+
+
+def _job_payload_from_record(payload: dict[str, Any] | None) -> dict[str, str]:
+    if not payload:
+        return {
+            "job_id": "",
+            "step": "暂无启动任务",
+            "status": "idle",
+            "status_label": "IDLE",
+            "phase": "submitted",
+            "pid": "",
+            "started_at": "",
+            "manifest_status": "N/A",
+            "manifest": "",
+            "log_path": _rel(LAUNCH_DIR),
+            "log_tail": "",
+            "backend": "",
+            "queue_name": "",
+            "queued_at": "",
+            "status_updated_at": "",
+            "finished_at": "",
+            "returncode": "",
+            "error": "",
+        }
+    step = str(payload.get("step", ""))
+    pid = payload.get("pid", "")
+    started_at = str(payload.get("started_at", ""))
+    record_status = str(payload.get("status", ""))
+    job_meta = {
+        "backend": str(payload.get("backend") or ""),
+        "queue_name": str(payload.get("queue_name") or ""),
+        "queued_at": str(payload.get("queued_at") or ""),
+        "status_updated_at": str(payload.get("status_updated_at") or ""),
+        "finished_at": str(payload.get("finished_at") or ""),
+        "returncode": str(payload.get("returncode") if payload.get("returncode") is not None else ""),
+        "error": str(payload.get("error") or ""),
+    }
+    if record_status == "queued":
+        log_path = Path(str(payload.get("log_path", "")))
+        return {
+            "job_id": str(payload.get("job_id") or ""),
+            "step": step,
+            "status": "queued",
+            "status_label": "QUEUED",
+            "phase": "submitted",
+            "pid": "",
+            "started_at": started_at,
+            "manifest_status": "N/A",
+            "manifest": "",
+            "log_path": _rel(log_path),
+            "log_tail": _launch_log_tail(log_path, limit=360),
+            **job_meta,
+        }
+    running = _pid_is_running(pid)
+    evidence_path, evidence_payload = _launch_evidence(step)
+    manifest_status = _evidence_status(evidence_path, evidence_payload, started_at, running)
+    if record_status == "failed":
+        status, status_label = "failed", "FAILED"
+    elif running:
+        status, status_label = "running", "RUNNING"
+    elif manifest_status == "OK":
+        status, status_label = "completed", "COMPLETED"
+    elif manifest_status == "FAIL":
+        status, status_label = "failed", "FAILED"
+    else:
+        status, status_label = "evidence_waiting", "EVIDENCE WAITING"
+    if status == "running":
+        phase = "running"
+    elif status in {"completed", "failed"}:
+        phase = "done"
+    elif status == "evidence_waiting":
+        phase = "evidence"
+    else:
+        phase = "submitted"
+    record_path = payload.get("record_path") or payload.get("_record_file") or ""
+    job_id = str(payload.get("job_id") or (Path(str(record_path)).stem if record_path else ""))
+    log_path = Path(str(payload.get("log_path", "")))
+    return {
+        "job_id": job_id,
+        "step": step,
+        "status": status,
+        "status_label": status_label,
+        "phase": phase,
+        "pid": str(pid or ""),
+        "started_at": started_at,
+        "manifest_status": manifest_status,
+        "manifest": _rel(evidence_path),
+        "log_path": _rel(log_path),
+        "log_tail": _launch_log_tail(log_path, limit=360),
+        **job_meta,
+    }
+
+
+def _active_job_payload() -> dict[str, str]:
+    return _job_payload_from_record(_latest_launch_record())
+
+
+def _job_payload(job_id: str | None = None) -> dict[str, str] | None:
+    if job_id:
+        record = _launch_record_by_job_id(job_id)
+        return _job_payload_from_record(record) if record else None
+    return _active_job_payload()
+
+
+def _job_event_stream(job_id: str, interval_seconds: float = 2.0, limit: int | None = None):
+    emitted = 0
+    while True:
+        payload = _job_payload(job_id)
+        if payload is None:
+            return
+        yield f"event: job\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+        emitted += 1
+        if (limit is not None and emitted >= limit) or payload["status"] in {"completed", "failed"}:
+            return
+        time.sleep(interval_seconds)
+
+
+def _queue_event_stream(interval_seconds: float = 3.0, limit: int | None = None):
+    emitted = 0
+    while True:
+        payload = system_jobs.queue_status(LAUNCH_DIR)
+        yield f"event: queue\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+        emitted += 1
+        if limit is not None and emitted >= limit:
+            return
+        time.sleep(interval_seconds)
+
+
+def _active_job_card() -> html.Div:
+    job = _active_job_payload()
+    title = f"当前任务: {job['step']} [{job['status_label']}]"
+    detail = f"job_id: {job['job_id'] or 'N/A'} / PID: {job['pid'] or 'N/A'} / started: {job['started_at'] or 'N/A'}"
+    evidence = f"manifest: {job['manifest_status']} / {job['manifest'] or 'N/A'}"
+    log_line = f"log: {job['log_path'] or 'N/A'}"
+    tail = job["log_tail"] or "暂无日志摘要"
+    phases = [
+        ("submitted", "已提交"),
+        ("running", "运行中"),
+        ("evidence", "等证据"),
+        ("done", "完成"),
+    ]
+    active_index = next((index for index, (phase, _) in enumerate(phases) if phase == job["phase"]), 0)
+    return html.Div(
+        className=f"tp-job-status tp-job-status-{job['status']}",
+        **{"data-job-id": job["job_id"], "data-job-status": job["status"]},
+        children=[
+            html.Div(title, id="tp-job-title", className="tp-job-title"),
+            html.Div(detail, id="tp-job-detail", className="tp-job-line"),
+            html.Div(
+                className="tp-job-progress",
+                children=[
+                    html.Div(
+                        label,
+                        className="tp-job-phase tp-job-phase-active" if index <= active_index else "tp-job-phase",
+                    )
+                    for index, (_, label) in enumerate(phases)
+                ],
+            ),
+            html.Div(evidence, id="tp-job-evidence", className="tp-job-line"),
+            html.Div(log_line, id="tp-job-log-path", className="tp-job-line"),
+            html.Pre(tail, id="tp-job-log-tail", className="tp-job-log"),
+        ],
+    )
+
+
+def _launch_rows(limit: int = 20) -> list[dict[str, Any]]:
+    if not LAUNCH_DIR.exists():
+        return [
+            {
+                "时间": "",
+                "job_id": "",
+                "step": "暂无 dashboard 启动记录",
+                "PID": "",
+                "命令": "",
+                "日志": _rel(LAUNCH_DIR),
+                "日志摘要": "",
+                "manifest状态": "N/A",
+                "manifest/证据": "",
+                "状态": "N/A",
+            }
+        ]
+    records: list[dict[str, Any]] = []
+    paths = sorted(LAUNCH_DIR.glob("*.json"), key=lambda item: item.stat().st_mtime, reverse=True)
+    history_paths = [path for path in paths if path.name != "launch_latest.json"]
+    if not history_paths and (LAUNCH_DIR / "launch_latest.json").exists():
+        history_paths = [LAUNCH_DIR / "launch_latest.json"]
+    for path in history_paths[:limit]:
+        payload = _read_json(path) or {}
+        started_at = payload.get("started_at", "")
+        log_path = Path(payload.get("log_path", ""))
+        pid = payload.get("pid")
+        running = _pid_is_running(pid)
+        evidence_path, evidence_payload = _launch_evidence(str(payload.get("step", "")))
+        manifest_status = _evidence_status(evidence_path, evidence_payload, started_at, running)
+        if running:
+            row_status = "running"
+        elif manifest_status == "OK":
+            row_status = "completed"
+        elif manifest_status == "FAIL":
+            row_status = "failed"
+        else:
+            row_status = "evidence_waiting"
+        records.append(
+            {
+                "时间": started_at,
+                "job_id": payload.get("job_id") or path.stem,
+                "step": payload.get("step", ""),
+                "PID": pid or "",
+                "命令": _command_text(payload.get("command"))[-360:],
+                "日志": _rel(log_path),
+                "日志摘要": _launch_log_tail(log_path),
+                "manifest状态": manifest_status,
+                "manifest/证据": _rel(evidence_path),
+                "状态": row_status,
+            }
+        )
+    return records or [
+        {
+            "时间": "",
+            "job_id": "",
+            "step": "暂无 dashboard 启动记录",
+            "PID": "",
+            "命令": "",
+            "日志": _rel(LAUNCH_DIR),
+            "日志摘要": "",
+            "manifest状态": "N/A",
+            "manifest/证据": "",
+            "状态": "N/A",
+        }
+    ]
+
+
+def _latest_project_launch(project_id: str) -> dict[str, Any] | None:
+    if not LAUNCH_DIR.exists():
+        return None
+    prefix = f"project:{project_id}:"
+    paths = sorted(LAUNCH_DIR.glob("*.json"), key=lambda item: item.stat().st_mtime, reverse=True)
+    history_paths = [path for path in paths if path.name != "launch_latest.json"]
+    if not history_paths and (LAUNCH_DIR / "launch_latest.json").exists():
+        history_paths = [LAUNCH_DIR / "launch_latest.json"]
+    for path in history_paths:
+        payload = _read_json(path) or {}
+        step = str(payload.get("step") or "")
+        if not step.startswith(prefix):
+            continue
+        return {
+            "started_at": payload.get("started_at", ""),
+            "step": step,
+            "pid": payload.get("pid", ""),
+            "log_path": _rel(payload.get("log_path")),
+        }
+    return None
+
+
+def _checks_payload() -> dict[str, Any] | None:
+    return _read_json(CHECK_LATEST)
+
+
+def _check_status_by_project() -> dict[str, dict[str, Any]]:
+    payload = _checks_payload() or {}
+    statuses: dict[str, dict[str, Any]] = {}
+    for item in payload.get("results", []):
+        if item.get("project"):
+            statuses[item["project"]] = item
+        if item.get("project_id"):
+            statuses[item["project_id"]] = item
+    return statuses
+
+
+def _check_rows() -> list[dict[str, Any]]:
+    payload = _checks_payload()
+    generated_at = payload.get("generated_at", "") if payload else ""
+    check_defs = {check.project_id: check for check in project_checks()}
+    raw_results: dict[str, dict[str, Any]] = {}
+    for item in (payload or {}).get("results", []):
+        if item.get("project"):
+            raw_results[item["project"]] = item
+        if item.get("project_id"):
+            raw_results[item["project_id"]] = item
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def append_result_row(item: dict[str, Any], fallback_project_id: str = "") -> None:
+        outputs = []
+        for output in item.get("outputs", []):
+            if not output.get("exists"):
+                outputs.append(f"{_rel(output.get('path'))}: missing")
+                continue
+            bits = [_rel(output.get("path"))]
+            if output.get("rows") is not None:
+                bits.append(f"{_fmt_int(output.get('rows'))} rows")
+            if output.get("columns") is not None:
+                bits.append(f"{_fmt_int(output.get('columns'))} cols")
+            if output.get("bytes") is not None:
+                bits.append(_format_bytes(output.get("bytes")))
+            outputs.append(" / ".join(filter(None, bits)))
+        project_id = str(item.get("project") or item.get("project_id") or fallback_project_id)
+        check = check_defs.get(project_id)
+        rows.append(
+            {
+                "项目": project_id,
+                "状态": item.get("status", ""),
+                "检查批次": generated_at,
+                "必需": "是" if item.get("required", check.required if check else True) else "否",
+                "退出码": item.get("returncode", ""),
+                "输出类型": item.get("data_kind", ""),
+                "秒数": item.get("duration_seconds", ""),
+                "命令": _command_text(item.get("command"))[-360:],
+                "输出概况": "; ".join(outputs),
+                "stdout/stderr": (item.get("stdout_tail") or item.get("stderr_tail") or "").strip()[-700:],
+            }
+        )
+
+    for project in PROJECT_REGISTRY:
+        item = raw_results.get(project.project_id)
+        if item:
+            append_result_row(item, project.project_id)
+            seen.add(project.project_id)
+            continue
+        check = check_defs.get(project.project_id)
+        required = check.required if check else project.status == "active"
+        rows.append(
+            {
+                "项目": project.project_id,
+                "状态": "未检查" if check else "未定义",
+                "检查批次": generated_at,
+                "必需": "是" if required else "否",
+                "退出码": "",
+                "输出类型": check.data_kind if check else "",
+                "秒数": "",
+                "命令": _command_text(check.command if check else project.smoke_test)[-360:],
+                "输出概况": (
+                    "最近检查批次未包含该项目；点击运行全部检查刷新完整覆盖"
+                    if payload and check
+                    else "尚未生成检查证据；点击运行全部检查"
+                    if check
+                    else "system_checks.py 未登记该项目检查"
+                ),
+                "stdout/stderr": "",
+            }
+        )
+        seen.add(project.project_id)
+
+    for item in (payload or {}).get("results", []):
+        project_id = str(item.get("project") or item.get("project_id") or "")
+        if project_id and project_id in seen:
+            continue
+        append_result_row(item)
+    return rows
+
+
+def _project_context_payload(project_id: str | None) -> dict[str, str]:
+    project = _project_by_id(project_id or PROJECT_REGISTRY[0].project_id)
+    check = _check_status_by_project().get(project.project_id, {})
+    manifest = _latest_manifest(project.pipeline_step) if project.pipeline_step else None
+    launch = _latest_project_launch(project.project_id)
+    asset_names = set(project.data_assets)
+    asset_rows = [
+        row
+        for row in _asset_rows()
+        if row.get("项目") == project.project_id and (not asset_names or row.get("数据/产物") in asset_names)
+    ]
+    asset_summary = "; ".join(
+        " / ".join(
+            item
+            for item in (
+                row.get("数据/产物", ""),
+                row.get("状态", ""),
+                row.get("日期范围", ""),
+                f"{row.get('行', '')}x{row.get('列', '')}".strip("x"),
+                row.get("大小", ""),
+            )
+            if item
+        )
+        for row in asset_rows[:5]
+    )
+    if len(asset_rows) > 5:
+        asset_summary = f"{asset_summary}; +{len(asset_rows) - 5} more"
+
+    check_status = check.get("status") or "N/A"
+    check_note = check.get("data_kind") or ""
+    if check.get("duration_seconds") not in (None, ""):
+        check_note = f"{check_note} / {check.get('duration_seconds')}s".strip(" /")
+
+    return {
+        "title": f"{project.project_id} / {project.status}",
+        "role": project.role,
+        "root": _rel(project.root_path),
+        "inputs": ", ".join(project.inputs) or "N/A",
+        "outputs": ", ".join(project.outputs) or "N/A",
+        "assets": asset_summary or ", ".join(project.data_assets) or "N/A",
+        "smoke_test": project.smoke_test,
+        "registered_command": project.commands[0] if project.commands else "N/A",
+        "latest_check": f"{check_status} {check_note}".strip(),
+        "manifest": (
+            f"{_status_label(manifest.get('status'))} {manifest.get('finished_at', '')} / "
+            f"{_rel(PIPELINE_MANIFESTS_DIR / project.pipeline_step / f'{project.pipeline_step}_latest.json')}"
+            if manifest and project.pipeline_step
+            else ("required but missing" if project.manifest_required else "not required")
+        ),
+        "latest_launch": (
+            f"{launch.get('started_at', '')} / PID {launch.get('pid', '')} / {launch.get('log_path', '')}"
+            if launch
+            else "N/A"
+        ),
+    }
+
+
+def _project_context(project_id: str | None = None) -> Any:
+    try:
+        payload = _project_context_payload(project_id)
+    except ValueError:
+        payload = _project_context_payload(PROJECT_REGISTRY[0].project_id)
+    lines = [
+        ("role", payload["role"]),
+        ("root", payload["root"]),
+        ("inputs", payload["inputs"]),
+        ("outputs", payload["outputs"]),
+        ("data assets", payload["assets"]),
+        ("smoke test", payload["smoke_test"]),
+        ("registered command", payload["registered_command"]),
+        ("latest check", payload["latest_check"]),
+        ("latest manifest", payload["manifest"]),
+        ("latest launch", payload["latest_launch"]),
+    ]
+    return html.Div(
+        className="tp-audit-detail",
+        children=[
+            html.Div(payload["title"], className="tp-audit-detail-title"),
+            *[
+                html.Div(
+                    [html.Span(f"{label}: ", className="tp-audit-detail-label"), value],
+                    className="tp-audit-detail-line",
+                )
+                for label, value in lines
+                if value
+            ],
+        ],
+    )
+
+
+def _project_card_button_id(project_id: str, mode: str) -> dict[str, str]:
+    return {"type": "tp-project-card-select", "project": project_id, "mode": mode}
+
+
+def _project_card_selection(triggered_id: Any) -> tuple[str, str]:
+    if not isinstance(triggered_id, dict):
+        raise ValueError("未识别的项目卡操作")
+    project_id = triggered_id.get("project")
+    mode = triggered_id.get("mode")
+    if not project_id or mode not in {"safe_check", "registered_command"}:
+        raise ValueError("未识别的项目卡操作")
+    _project_by_id(str(project_id))
+    return str(project_id), str(mode)
+
+
+def _project_has_registered_command(project: Any) -> bool:
+    if not project.commands:
+        return False
+    try:
+        _parse_registered_command(project.commands[0])
+    except ValueError:
+        return False
+    return True
+
+
+def _project_cards() -> list[Any]:
+    cards: list[Any] = []
+    checks = _check_status_by_project()
+    for project in PROJECT_REGISTRY:
+        result = checks.get(project.project_id)
+        manifest = _latest_manifest(project.pipeline_step) if project.pipeline_step else None
+        status = result.get("status") if result else manifest.get("status") if manifest else None
+        seconds = result.get("duration_seconds") if result else None
+        asset_text = project.status
+        if seconds not in (None, ""):
+            asset_text = f"最近检查 {seconds}s"
+        command_text = project.commands[0] if project.commands else project.smoke_test
+        launch = _latest_project_launch(project.project_id)
+        launch_text = ""
+        if launch:
+            launch_text = f"最近启动: {launch['step']} / PID {launch['pid']} / {_rel(launch['log_path'])}"
+        has_registered_command = _project_has_registered_command(project)
+        cards.append(
+            html.Div(
+                className="tp-card tp-project-card",
+                children=[
+                    html.Div(
+                        className="tp-project-top",
+                        children=[
+                            html.Span(project.project_id, className="tp-project-id"),
+                            html.Span(
+                                _status_label(status),
+                                className=f"tp-status-chip {_status_class(status)}",
+                            ),
+                        ],
+                    ),
+                    html.Div(project.project_id, className="tp-project-name"),
+                    html.Div(project.role, className="tp-project-role"),
+                    html.Div(f"输入: {', '.join(project.inputs)}", className="tp-project-detail"),
+                    html.Div(f"输出: {', '.join(project.outputs)}", className="tp-project-detail"),
+                    html.Div(f"命令: {command_text}", className="tp-project-command"),
+                    html.Div(asset_text, className="tp-card-note"),
+                    html.Div(launch_text, className="tp-project-detail") if launch_text else None,
+                    html.Div(
+                        className="tp-project-actions",
+                        children=[
+                            html.Button(
+                                "检查",
+                                id=_project_card_button_id(project.project_id, "safe_check"),
+                                n_clicks=0,
+                                className="tp-project-action",
+                                title="填入右侧子项目运行面板的安全检查模式",
+                            ),
+                            html.Button(
+                                "登记命令",
+                                id=_project_card_button_id(project.project_id, "registered_command"),
+                                n_clicks=0,
+                                className="tp-project-action",
+                                disabled=not has_registered_command,
+                                title="填入右侧子项目运行面板的登记命令模式",
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        )
+    return cards
+
+
+def _project_health_card_payload(check_rows: list[dict[str, Any]] | None = None) -> tuple[str, str, str, str]:
+    if check_rows is None:
+        statuses = _check_status_by_project()
+        status_by_project = {
+            project.project_id: str((statuses.get(project.project_id) or {}).get("status") or "")
+            for project in PROJECT_REGISTRY
+        }
+    else:
+        status_by_project = {
+            str(row.get("项目") or row.get("project") or row.get("project_id") or ""): str(row.get("状态") or row.get("status") or "")
+            for row in check_rows
+        }
+    active_projects = [project for project in PROJECT_REGISTRY if project.status == "active"]
+    total = len(active_projects)
+    passed = 0
+    pending = 0
+    needs_review = 0
+    for project in active_projects:
+        status = status_by_project.get(project.project_id, "").lower()
+        if status in {"success", "ok", "passed"}:
+            passed += 1
+        elif status in {"", "n/a", "na", "未检查"}:
+            pending += 1
+        elif status:
+            needs_review += 1
+    note = "; ".join(
+        part
+        for part in (
+            f"通过 {passed}",
+            f"待处理 {needs_review}" if needs_review else "",
+            f"未检查 {pending}" if pending else "",
+        )
+        if part
+    )
+    css_class = "tp-status-success" if total and passed == total else "tp-status-warning"
+    return ("项目健康度", f"{passed}/{total}", note, css_class)
+
+
+def _latest_portfolio_card_payload(production_rows: list[dict[str, Any]] | None = None) -> tuple[str, str, str, str]:
+    rows = production_rows if production_rows is not None else _production_rows()
+    portfolio = next((row for row in rows if row.get("产物") == "latest_target_weights"), {})
+    status = str(portfolio.get("状态") or "")
+    date_range = str(portfolio.get("日期范围") or "")
+    value = date_range.split(" -> ")[-1] if status == "OK" and date_range else status
+    note = portfolio.get("覆盖/数量") or portfolio.get("分布") or portfolio.get("质量") or ""
+    css_class = "tp-status-success" if status == "OK" else "tp-status-warning"
+    return ("最新组合", value or "N/A", str(note), css_class)
+
+
+def _latest_report_card_payload(backtest_rows: list[dict[str, Any]] | None = None) -> tuple[str, str, str, str]:
+    rows = backtest_rows if backtest_rows is not None else _backtest_rows()
+    report = next((row for row in rows if str(row.get("报告状态") or "").upper() != "N/A"), rows[0] if rows else {})
+    report_status = str(report.get("报告状态") or "")
+    status = str(report.get("状态") or "")
+    report_status_upper = report_status.upper()
+    ok = bool(report_status) and report_status_upper != "N/A" and "FAIL" not in report_status_upper
+    value = "OK" if ok else report_status or status or "N/A"
+    note = "; ".join(str(part) for part in (report_status if value != report_status else "", report.get("来源", ""), report.get("区间/日期", "")) if part)
+    css_class = "tp-status-success" if ok else "tp-status-warning"
+    return ("报告状态", value, note, css_class)
+
+
+def _overview_card_payloads(
+    production_rows: list[dict[str, Any]] | None = None,
+    backtest_rows: list[dict[str, Any]] | None = None,
+    check_rows: list[dict[str, Any]] | None = None,
+) -> list[tuple[str, str, str, str]]:
+    assets = {row["数据/产物"]: row for row in _asset_rows()}
+    run_all = _latest_manifest("run_all")
+    returns_audit = _read_json(RETURNS_AUDIT_PATH) or {}
+    screen = assets.get("screen_aggregate", {})
+    returns = assets.get("returns", {})
+    last_screen = assets.get("last_screen", {})
+    audit_status = returns_audit.get("governance_status", "unknown")
+    audit_class = "tp-status-success" if audit_status == "passed" else "tp-status-warning"
+    return [
+        ("核心 Screen", last_screen.get("日期范围", "").split(" -> ")[-1], screen.get("行", ""), "tp-status-muted"),
+        ("Returns 更新", returns.get("日期范围", "").split(" -> ")[-1], returns.get("行", ""), "tp-status-muted"),
+        _project_health_card_payload(check_rows),
+        (
+            "Pipeline",
+            _status_label(run_all.get("status") if run_all else None),
+            run_all.get("finished_at", "") if run_all else "",
+            "tp-status-success" if run_all and run_all.get("status") == "success" else "tp-status-warning",
+        ),
+        _latest_portfolio_card_payload(production_rows),
+        _latest_report_card_payload(backtest_rows),
+        (
+            "Returns 审计",
+            audit_status,
+            f"{_fmt_int(returns_audit.get('flagged_cells'))} flagged cells",
+            audit_class,
+        ),
+    ]
+
+
+def _database_cards(
+    production_rows: list[dict[str, Any]] | None = None,
+    backtest_rows: list[dict[str, Any]] | None = None,
+    check_rows: list[dict[str, Any]] | None = None,
+) -> list[Any]:
+    cards = _overview_card_payloads(production_rows, backtest_rows, check_rows)
+    return [
+        html.Div(
+            className="tp-card",
+            children=[
+                html.Div(label, className="tp-card-label"),
+                html.Div(value or "N/A", className=f"tp-card-value {css_class}"),
+                html.Div(note or "", className="tp-card-note"),
+            ],
+        )
+        for label, value, note, css_class in cards
+    ]
+
+
+def _qa_items() -> list[Any]:
+    returns_audit = _read_json(RETURNS_AUDIT_PATH) or {}
+    monthly_qa = _latest_json_by_glob("monthly_update*.json") or {}
+    profile = _read_json(DATABASE_PROFILE_PATH) or {}
+    input_inventory = _read_json(
+        PRODUCTION_INPUTS_DIR / "manifests" / "input_inventory_latest.json"
+    ) or {}
+
+    items = [
+        (
+            "月更 QA",
+            "passed" if monthly_qa.get("qa_passed") else "check",
+            _rel(monthly_qa.get("_path", "")),
+        ),
+        (
+            "输入批次",
+            input_inventory.get("run_id", "N/A"),
+            f"incoming: {_rel(PRODUCTION_INCOMING_DIR)}",
+        ),
+        (
+            "数据库 profile",
+            _fmt_date(profile.get("generated_at")),
+            "profile mtime 与 live parquet 分开展示",
+        ),
+        (
+            "SEDOL 覆盖",
+            _fmt_int(
+                (monthly_qa.get("latest_sedol_coverage") or {}).get("missing_in_returns_count")
+                or (profile.get("sedol_coverage_latest") or {}).get("missing_count")
+            )
+            or "0",
+            "missing in returns",
+        ),
+        (
+            "Returns 异常",
+            _fmt_int(returns_audit.get("flagged_cells")) or "0",
+            returns_audit.get("governance_status", "unknown"),
+        ),
+        (
+            "核心权重",
+            "OK",
+            "MSCI WORLD / SP500 / STOXX 600 权重和接近 1",
+        ),
+    ]
+    return [
+        html.Div(
+            className="tp-qa-item",
+            children=[
+                html.Div(name, className="tp-qa-name"),
+                html.Div(value, className="tp-qa-value"),
+                html.Div(note, className="tp-qa-note"),
+            ],
+        )
+        for name, value, note in items
+    ]
+
+
+def _flow_figure() -> go.Figure:
+    node_index = {name: index for index, name in enumerate(FLOW_NODES)}
+    source = [node_index[src] for src, _, _ in FLOW_EDGES]
+    target = [node_index[dst] for _, dst, _ in FLOW_EDGES]
+    value = [amount for _, _, amount in FLOW_EDGES]
+    colors = [
+        "#d9dde4",
+        "#315d9f",
+        "#187d72",
+        "#5e7ea8",
+        "#aa741c",
+        "#6f8f84",
+        "#b23a50",
+        "#4f5661",
+    ]
+    fig = go.Figure(
+        data=[
+            go.Sankey(
+                arrangement="snap",
+                node={
+                    "label": FLOW_NODES,
+                    "pad": 18,
+                    "thickness": 14,
+                    "line": {"color": "#d8d6d4", "width": 1},
+                    "color": colors,
+                },
+                link={
+                    "source": source,
+                    "target": target,
+                    "value": value,
+                    "color": [
+                        "rgba(49,93,159,.18)",
+                        "rgba(24,125,114,.18)",
+                        "rgba(24,125,114,.22)",
+                        "rgba(170,116,28,.18)",
+                        "rgba(111,143,132,.20)",
+                        "rgba(178,58,80,.17)",
+                        "rgba(79,86,97,.15)",
+                        "rgba(94,126,168,.14)",
+                        "rgba(49,93,159,.12)",
+                    ],
+                },
+            )
+        ]
+    )
+    fig.update_layout(
+        margin={"l": 8, "r": 8, "t": 8, "b": 8},
+        height=330,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font={"family": "Inter, Segoe UI, sans-serif", "size": 12, "color": "#20242a"},
+    )
+    return fig
+
+
+def _lineage_node_from_click(click_data: dict[str, Any] | None) -> str:
+    if not click_data:
+        return "核心数据库"
+    point = (click_data.get("points") or [{}])[0]
+    label = point.get("label") or point.get("customdata")
+    if label in FLOW_NODES:
+        return str(label)
+    for key in ("nodeIndex", "pointIndex", "pointNumber"):
+        try:
+            index = int(point.get(key))
+        except (TypeError, ValueError):
+            continue
+        if 0 <= index < len(FLOW_NODES):
+            return FLOW_NODES[index]
+    return "核心数据库"
+
+
+def _lineage_node_payload(node_label: str = "核心数据库") -> dict[str, Any]:
+    if node_label not in FLOW_NODES:
+        node_label = "核心数据库"
+    upstream = [src for src, dst, _ in FLOW_EDGES if dst == node_label]
+    downstream = [dst for src, dst, _ in FLOW_EDGES if src == node_label]
+    projects: list[dict[str, Any]] = []
+    for project_id in LINEAGE_NODE_PROJECTS.get(node_label, ()):
+        project = _project_by_id(project_id)
+        manifest = _latest_manifest(project.pipeline_step) if project.pipeline_step else None
+        command = project.commands[0] if project.commands else project.smoke_test
+        projects.append(
+            {
+                "project_id": project.project_id,
+                "role": project.role,
+                "inputs": ", ".join(project.inputs),
+                "outputs": ", ".join(project.outputs),
+                "command": command,
+                "smoke_test": project.smoke_test,
+                "status": project.status,
+                "manifest_step": project.pipeline_step or "",
+                "manifest_status": manifest.get("status", "") if manifest else "",
+                "manifest_finished_at": manifest.get("finished_at", "") if manifest else "",
+                "manifest_path": _rel(PIPELINE_MANIFESTS_DIR / project.pipeline_step / f"{project.pipeline_step}_latest.json")
+                if project.pipeline_step
+                else "",
+            }
+        )
+    return {
+        "node": node_label,
+        "upstream": ", ".join(upstream) or "无",
+        "downstream": ", ".join(downstream) or "无",
+        "projects": projects,
+    }
+
+
+def _lineage_edge_rows() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for source, target, weight in FLOW_EDGES:
+        project_ids = list(
+            dict.fromkeys(
+                (*LINEAGE_NODE_PROJECTS.get(source, ()), *LINEAGE_NODE_PROJECTS.get(target, ()))
+            )
+        )
+        evidence: list[dict[str, str]] = []
+        registry_outputs: list[str] = []
+        seen_steps: set[str] = set()
+        for project_id in project_ids:
+            project = _project_by_id(project_id)
+            registry_outputs.extend(project.outputs)
+            if not project.pipeline_step or project.pipeline_step in seen_steps:
+                continue
+            seen_steps.add(project.pipeline_step)
+            manifest = _latest_manifest(project.pipeline_step)
+            manifest_path = PIPELINE_MANIFESTS_DIR / project.pipeline_step / f"{project.pipeline_step}_latest.json"
+            evidence.append(
+                {
+                    "step": project.pipeline_step,
+                    "status": _status_label(manifest.get("status") if manifest else None),
+                    "finished_at": str(manifest.get("finished_at", "")) if manifest else "",
+                    "manifest": _rel(manifest_path),
+                    "outputs": _outputs_summary(manifest) if manifest else "",
+                }
+            )
+        latest = max(evidence, key=lambda item: item["finished_at"]) if evidence else {}
+        statuses = {item["status"] for item in evidence if item["status"]}
+        edge_status = "FAIL" if "FAIL" in statuses else "OK" if "OK" in statuses else ", ".join(sorted(statuses)) or "N/A"
+        manifest_outputs = [f"{item['step']}: {item['outputs']}" for item in evidence if item["outputs"]]
+        key_outputs = manifest_outputs or list(dict.fromkeys(registry_outputs))[:8]
+        rows.append(
+            {
+                "上游": source,
+                "下游": target,
+                "权重": weight,
+                "负责项目": ", ".join(project_ids),
+                "最近状态": edge_status,
+                "最近完成": latest.get("finished_at", ""),
+                "manifest": latest.get("manifest", ""),
+                "关键输出": "; ".join(key_outputs)[:700],
+            }
+        )
+    return rows
+
+
+def _dashboard_state_payload() -> dict[str, Any]:
+    assets = _asset_rows()
+    pipeline = _pipeline_rows()
+    checks = _check_rows()
+    core_database = _core_database_rows(assets)
+    quality = _data_quality_rows()
+    production = _production_rows()
+    backtest = _backtest_rows()
+    overview = [
+        {"label": label, "value": value or "N/A", "note": note or "", "className": css_class}
+        for label, value, note, css_class in _overview_card_payloads(production, backtest, checks)
+    ]
+    return {
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "root": _rel(TP_ROOT),
+        "manifest_dir": _rel(PIPELINE_MANIFESTS_DIR),
+        "overview": overview,
+        "alerts": _alert_rows(core_database, checks, pipeline, quality, production),
+        "projects": _project_asset_summary_rows(assets),
+        "lineage_edges": _lineage_edge_rows(),
+        "checks": checks,
+        "assets": assets,
+        "core_database": core_database,
+        "quality": quality,
+        "production": production,
+        "backtest": backtest,
+        "config": _config_rows(),
+        "launches": _launch_rows(),
+        "pipeline": pipeline,
+        "queue": system_jobs.queue_status(LAUNCH_DIR),
+    }
+
+
+def _lineage_detail(node_label: str = "核心数据库") -> Any:
+    payload = _lineage_node_payload(node_label)
+    project_cards = [
+        html.Div(
+            className="tp-lineage-project",
+            children=[
+                html.Div(project["project_id"], className="tp-lineage-project-name"),
+                html.Div(project["role"], className="tp-lineage-project-note"),
+                html.Div(f"输入: {project['inputs']}", className="tp-lineage-project-note"),
+                html.Div(f"输出: {project['outputs']}", className="tp-lineage-project-note"),
+                html.Div(f"命令: {project['command']}", className="tp-lineage-project-note"),
+                html.Div(
+                    f"manifest: {project['manifest_status'] or 'N/A'} {project['manifest_finished_at']}".strip(),
+                    className="tp-lineage-project-note",
+                ),
+            ],
+        )
+        for project in payload["projects"]
+    ]
+    return html.Div(
+        className="tp-lineage-detail",
+        children=[
+            html.Div(f"节点: {payload['node']}", className="tp-lineage-title"),
+            html.Div(f"上游: {payload['upstream']}", className="tp-lineage-meta"),
+            html.Div(f"下游: {payload['downstream']}", className="tp-lineage-meta"),
+            html.Div(project_cards, className="tp-lineage-projects"),
+        ],
+    )
+
+
+def _command_options() -> list[dict[str, str]]:
+    return [
+        {"label": "总 pipeline", "value": "run_all"},
+        {"label": "数据刷新", "value": "refresh_data"},
+        {"label": "信号导出", "value": "export_signals"},
+        {"label": "候选池", "value": "build_candidates"},
+        {"label": "组合优化", "value": "optimize_portfolio"},
+        {"label": "回测", "value": "run_backtest"},
+        {"label": "报告", "value": "generate_report"},
+    ]
+
+
+def _project_options() -> list[dict[str, str]]:
+    return [
+        {"label": f"{project.project_id} - {project.role}", "value": project.project_id}
+        for project in PROJECT_REGISTRY
+    ]
+
+
+def _add_option(command: list[str], flag: str, value: Any) -> None:
+    if value not in (None, ""):
+        command.extend([flag, str(value)])
+
+
+def _build_pipeline_command(
+    step: str,
+    input_month: str | None,
+    as_of: str | None,
+    update_mode: str,
+    dry_run_data: bool,
+    inspect_refresh: bool,
+    skip_refresh: bool,
+    skip_backtest: bool,
+    skip_report: bool,
+    all_history_signals: bool,
+    regime_oos: bool,
+    top_pct: float | None,
+    ml_weight: float | None,
+    technical_weight: float | None,
+    by_region: bool,
+    optimizer_method: str,
+    max_weight: float | None,
+    portfolio_region: str | None,
+    backtest_profile: str | None,
+    inspect_backtest: bool,
+    bench: str | None,
+    start_date: str | None,
+    percentile: float | None,
+    sector_neutral: bool,
+) -> list[str]:
+    command = [sys.executable, "-m", f"02_pipelines.{step}"]
+    if step == "run_all":
+        _add_option(command, "--input-month", input_month)
+        _add_option(command, "--as-of", as_of)
+        _add_option(command, "--update-mode", update_mode)
+        if dry_run_data:
+            command.append("--dry-run-data")
+        if inspect_refresh:
+            command.append("--inspect-only-refresh-data")
+        if skip_refresh:
+            command.append("--skip-refresh-data")
+        if skip_backtest:
+            command.append("--skip-backtest")
+        if skip_report:
+            command.append("--skip-report")
+        if all_history_signals:
+            command.append("--all-history-signals")
+        if regime_oos:
+            command.append("--regime-oos")
+        _add_option(command, "--top-pct", top_pct)
+        _add_option(command, "--ml-weight", ml_weight)
+        _add_option(command, "--technical-weight", technical_weight)
+        if by_region:
+            command.append("--by-region")
+        _add_option(command, "--optimizer-method", optimizer_method)
+        _add_option(command, "--max-weight", max_weight)
+        _add_option(command, "--portfolio-region", portfolio_region)
+        _add_option(command, "--backtest-profile", backtest_profile)
+        if inspect_backtest:
+            command.append("--inspect-only-backtest")
+        _add_option(command, "--bench", bench)
+        _add_option(command, "--start-date", start_date)
+        _add_option(command, "--percentile", percentile)
+        if sector_neutral:
+            command.append("--sector-neutral")
+        return command
+
+    if step == "refresh_data":
+        _add_option(command, "--input-month", input_month)
+        _add_option(command, "--update-mode", update_mode)
+        if dry_run_data:
+            command.append("--dry-run")
+        if inspect_refresh:
+            command.append("--inspect-only")
+        return command
+
+    if step == "export_signals":
+        _add_option(command, "--as-of", as_of)
+        if all_history_signals:
+            command.append("--all-history")
+        if regime_oos:
+            command.append("--regime-oos")
+        return command
+
+    if step == "build_candidates":
+        _add_option(command, "--as-of", as_of)
+        _add_option(command, "--top-pct", top_pct)
+        _add_option(command, "--ml-weight", ml_weight)
+        _add_option(command, "--technical-weight", technical_weight)
+        if by_region:
+            command.append("--by-region")
+        return command
+
+    if step == "optimize_portfolio":
+        _add_option(command, "--method", optimizer_method)
+        _add_option(command, "--max-weight", max_weight)
+        _add_option(command, "--region", portfolio_region)
+        return command
+
+    if step == "run_backtest":
+        _add_option(command, "--profile", backtest_profile)
+        if inspect_backtest:
+            command.append("--inspect-only")
+        _add_option(command, "--bench", bench)
+        _add_option(command, "--start-date", start_date)
+        _add_option(command, "--percentile", percentile)
+        if sector_neutral:
+            command.append("--sector-neutral")
+        return command
+
+    return command
+
+
+def _quote_command(command: list[str]) -> str:
+    return " ".join(f'"{item}"' if " " in str(item) else str(item) for item in command)
+
+
+def _project_by_id(project_id: str) -> Any:
+    for project in PROJECT_REGISTRY:
+        if project.project_id == project_id:
+            return project
+    raise ValueError(f"Unknown project_id: {project_id}")
+
+
+def _parse_registered_command(command_text: str) -> list[str]:
+    tokens = shlex.split(command_text)
+    if not tokens or tokens[0].lower() in {"manual", "create_app()"}:
+        raise ValueError("该项目没有可直接启动的登记命令")
+    if tokens[0].lower() in {"python", "python.exe", "py"}:
+        tokens[0] = sys.executable
+    return tokens
+
+
+def _build_project_command(project_id: str, mode: str) -> list[str]:
+    project = _project_by_id(project_id)
+    if mode == "registered_command":
+        if not project.commands:
+            raise ValueError("该项目没有登记命令")
+        return _parse_registered_command(project.commands[0])
+    return [sys.executable, "-m", "presentation_layer.cli", "system-checks", "--project", project.project_id]
+
+
+def _build_system_checks_command() -> list[str]:
+    return [sys.executable, "-m", "presentation_layer.cli", "system-checks"]
+
+
+def _launch(command: list[str], step: str) -> dict[str, Any]:
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    return system_jobs.launch_job(
+        command,
+        step,
+        LAUNCH_DIR,
+        TP_ROOT,
+        popen_factory=subprocess.Popen,
+        creationflags=flags,
+    )
+
+
+def _submit_job(command: list[str], step: str) -> dict[str, Any]:
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    return system_jobs.submit_job(
+        command,
+        step,
+        LAUNCH_DIR,
+        TP_ROOT,
+        popen_factory=subprocess.Popen,
+        creationflags=flags,
+    )
+
+
+def _client_job_api_fallback_message(action: str) -> str:
+    return f"{action} 已由前端 API job 模式接管；Dash 回调未重复启动。"
+
+
+def _control_panel() -> html.Div:
+    config = _read_dashboard_config()
+    project_ids = {project.project_id for project in PROJECT_REGISTRY}
+    project_id = config.get("project_id") if config.get("project_id") in project_ids else PROJECT_REGISTRY[0].project_id
+    return html.Div(
+        className="tp-panel",
+        children=[
+            html.Div(
+                className="tp-panel-head",
+                children=[
+                    html.H2("Pipeline 控制", className="tp-panel-title"),
+                    html.Span("现有入口", className="tp-panel-meta"),
+                ],
+            ),
+            html.Div(
+                className="tp-control-grid",
+                children=[
+                    _field(
+                        "step",
+                        "运行目标",
+                        dcc.Dropdown(
+                            id="tp-step",
+                            options=_command_options(),
+                            value=config.get("step") or DEFAULT_DASHBOARD_CONFIG["step"],
+                            clearable=False,
+                        ),
+                    ),
+                    _field("input_month", "输入批次", dcc.Input(id="tp-input-month", value=config.get("input_month") or "", placeholder="YYYYMM")),
+                    _field("as_of", "目标日期", dcc.Input(id="tp-as-of", value=config.get("as_of") or "", placeholder="YYYY-MM-DD")),
+                    _field(
+                        "update_mode",
+                        "月更模式",
+                        dcc.Dropdown(
+                            id="tp-update-mode",
+                            options=[
+                                {"label": "both", "value": "both"},
+                                {"label": "screen_only", "value": "screen_only"},
+                                {"label": "returns_only", "value": "returns_only"},
+                            ],
+                            value=config.get("update_mode") or DEFAULT_DASHBOARD_CONFIG["update_mode"],
+                            clearable=False,
+                        ),
+                    ),
+                ],
+            ),
+            html.Div(
+                className="tp-checks",
+                children=[
+                    dcc.Checklist(
+                        id="tp-flags",
+                        options=[
+                            {"label": "数据 dry-run", "value": "dry_run_data"},
+                            {"label": "数据 inspect-only", "value": "inspect_refresh"},
+                            {"label": "跳过数据刷新", "value": "skip_refresh"},
+                            {"label": "跳过回测", "value": "skip_backtest"},
+                            {"label": "跳过报告", "value": "skip_report"},
+                            {"label": "信号全历史", "value": "all_history_signals"},
+                            {"label": "Regime OOS", "value": "regime_oos"},
+                            {"label": "候选按区域", "value": "by_region"},
+                            {"label": "回测 inspect-only", "value": "inspect_backtest"},
+                            {"label": "行业中性回测", "value": "sector_neutral"},
+                        ],
+                        value=config.get("flags") or DEFAULT_DASHBOARD_CONFIG["flags"],
+                    )
+                ],
+            ),
+            html.Div(id="tp-command-preview", className="tp-command"),
+            html.Div(
+                className="tp-run-row",
+                children=[
+                    html.Button("启动", id="tp-run", n_clicks=0, className="tp-button"),
+                    html.Button("保存配置", id="tp-save-config", n_clicks=0, className="tp-button tp-button-secondary"),
+                    html.Div(id="tp-run-result", className="tp-run-result"),
+                ],
+            ),
+            html.Div(id="tp-config-save-result", className="tp-run-result"),
+            html.Div(id="tp-active-job", children=_active_job_card()),
+            html.Div(
+                className="tp-subcontrol",
+                children=[
+                    html.Div("子项目启动", className="tp-subcontrol-title"),
+                    html.Div(
+                        className="tp-control-grid",
+                        children=[
+                            _field(
+                                "project",
+                                "子项目",
+                                dcc.Dropdown(
+                                    id="tp-project",
+                                    options=_project_options(),
+                                    value=project_id,
+                                    clearable=False,
+                                ),
+                            ),
+                            _field(
+                                "project-mode",
+                                "运行模式",
+                                dcc.Dropdown(
+                                    id="tp-project-mode",
+                                    options=[
+                                        {"label": "安全检查", "value": "safe_check"},
+                                        {"label": "登记命令", "value": "registered_command"},
+                                    ],
+                                    value=config.get("project_mode") or DEFAULT_DASHBOARD_CONFIG["project_mode"],
+                                    clearable=False,
+                                ),
+                            ),
+                        ],
+                    ),
+                    html.Div(id="tp-project-context", children=_project_context(project_id)),
+                    html.Div(id="tp-project-command-preview", className="tp-command"),
+                    html.Div(
+                        className="tp-run-row",
+                        children=[
+                            html.Button("启动子项目", id="tp-project-run", n_clicks=0, className="tp-button"),
+                            html.Div(id="tp-project-run-result", className="tp-run-result"),
+                        ],
+                    ),
+                ],
+            ),
+            html.Details(
+                className="tp-advanced",
+                children=[
+                    html.Summary("高级设置"),
+                    html.Div(
+                        className="tp-control-grid",
+                        children=[
+                            _field("top_pct", "候选比例", dcc.Input(id="tp-top-pct", type="number", value=config.get("top_pct"), step=0.01)),
+                            _field("ml_weight", "ML 权重", dcc.Input(id="tp-ml-weight", type="number", value=config.get("ml_weight"), step=0.05)),
+                            _field(
+                                "technical_weight",
+                                "技术权重",
+                                dcc.Input(id="tp-technical-weight", type="number", value=config.get("technical_weight"), step=0.05),
+                            ),
+                            _field(
+                                "max_weight",
+                                "单股上限",
+                                dcc.Input(id="tp-max-weight", type="number", value=config.get("max_weight"), step=0.01),
+                            ),
+                            _field(
+                                "optimizer_method",
+                                "优化方法",
+                                dcc.Dropdown(
+                                    id="tp-optimizer-method",
+                                    options=[
+                                        {"label": "score_weight", "value": "score_weight"},
+                                        {"label": "equal_weight", "value": "equal_weight"},
+                                    ],
+                                    value=config.get("optimizer_method") or DEFAULT_DASHBOARD_CONFIG["optimizer_method"],
+                                    clearable=False,
+                                ),
+                            ),
+                            _field("portfolio_region", "组合区域", dcc.Input(id="tp-portfolio-region", value=config.get("portfolio_region") or "")),
+                            _field("backtest_profile", "回测 profile", dcc.Input(id="tp-backtest-profile", value=config.get("backtest_profile") or "default")),
+                            _field("bench", "Benchmark", dcc.Input(id="tp-bench", value=config.get("bench") or "")),
+                            _field("universe", "Universe", dcc.Input(id="tp-universe", value=config.get("universe") or "", placeholder="记录用途，当前不传给 CLI")),
+                            _field("start_date", "回测起点", dcc.Input(id="tp-start-date", value=config.get("start_date") or "", placeholder="YYYY-MM-DD")),
+                            _field(
+                                "percentile",
+                                "选股分位",
+                                dcc.Input(id="tp-percentile", type="number", value=config.get("percentile"), step=0.01),
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    )
+
+
+def _field(name: str, label: str, control: Any) -> html.Div:
+    return html.Div(
+        className="tp-field",
+        children=[html.Label(label, htmlFor=f"tp-{name}", className="tp-label"), control],
+    )
+
+
+def _audit_filter_controls() -> html.Div:
+    step_options, status_options = _audit_filter_options()
+    return html.Div(
+        className="tp-control-grid",
+        children=[
+            _field(
+                "audit-step",
+                "Step",
+                dcc.Dropdown(id="tp-audit-step", options=step_options, value="", clearable=False),
+            ),
+            _field(
+                "audit-status",
+                "状态",
+                dcc.Dropdown(id="tp-audit-status", options=status_options, value="", clearable=False),
+            ),
+            _field("audit-date-from", "开始日期", dcc.Input(id="tp-audit-date-from", value="", placeholder="YYYY-MM-DD")),
+            _field("audit-date-to", "结束日期", dcc.Input(id="tp-audit-date-to", value="", placeholder="YYYY-MM-DD")),
+            _field("audit-as-of", "as-of", dcc.Input(id="tp-audit-as-of", value="", placeholder="YYYY-MM-DD")),
+            _field("audit-input-month", "input month", dcc.Input(id="tp-audit-input-month", value="", placeholder="YYYYMM")),
+        ],
+    )
+
+
+def _asset_filter_controls() -> html.Div:
+    project_options, source_options, status_options = _asset_filter_options()
+    return html.Div(
+        className="tp-control-grid",
+        children=[
+            _field(
+                "asset-project",
+                "项目",
+                dcc.Dropdown(id="tp-asset-project", options=project_options, value="", clearable=False),
+            ),
+            _field(
+                "asset-source",
+                "来源",
+                dcc.Dropdown(id="tp-asset-source", options=source_options, value="", clearable=False),
+            ),
+            _field(
+                "asset-status",
+                "状态",
+                dcc.Dropdown(id="tp-asset-status", options=status_options, value="", clearable=False),
+            ),
+        ],
+    )
+
+
+def _data_table(table_id: str, columns: list[str], page_size: int = 10) -> dash_table.DataTable:
+    return dash_table.DataTable(
+        id=table_id,
+        columns=[{"name": column, "id": column} for column in columns],
+        data=[],
+        page_size=page_size,
+        sort_action="native",
+        filter_action="native",
+        style_as_list_view=True,
+        style_table={"overflowX": "auto", "width": "100%"},
+        style_header={
+            "backgroundColor": "#f1f0ef",
+            "borderBottom": "1px solid #d8d6d4",
+            "fontWeight": "700",
+            "fontSize": "12px",
+            "color": "#20242a",
+        },
+        style_cell={
+            "backgroundColor": "#ffffff",
+            "border": "0",
+            "borderBottom": "1px solid #e3e1df",
+            "fontSize": "12px",
+            "fontFamily": "Inter, Segoe UI, sans-serif",
+            "padding": "8px",
+            "minWidth": "88px",
+            "maxWidth": "340px",
+            "whiteSpace": "normal",
+            "height": "auto",
+            "textAlign": "left",
+        },
+    )
+
+
+def _layout() -> html.Div:
+    return html.Div(
+        className="tp-dashboard",
+        children=[
+            dcc.Interval(id="tp-refresh", interval=30_000, n_intervals=0),
+            dcc.Interval(id="tp-job-refresh", interval=2_000, n_intervals=0),
+            html.Div(id="tp-job-api-state", style={"display": "none"}),
+            html.Div(
+                id="tp-action-feedback",
+                className="tp-action-feedback",
+                role="status",
+                **{"aria-live": "polite"},
+            ),
+            html.Header(
+                className="tp-header",
+                children=[
+                    html.Div(
+                        className="tp-brand",
+                        children=[
+                            html.Div(className="tp-mark"),
+                            html.Div(
+                                children=[
+                                    html.H1("TP System Dashboard", className="tp-title"),
+                                    html.Div("trading pipeline / data estate / run control", className="tp-subtitle"),
+                                ]
+                            ),
+                        ],
+                    ),
+                    html.Div(
+                        className="tp-header-actions",
+                        children=[
+                            html.A("React 交互版", href="/client/", className="tp-client-link"),
+                            html.Div(id="tp-header-meta", className="tp-header-meta"),
+                        ],
+                    ),
+                ],
+            ),
+            html.Main(
+                className="tp-main",
+                children=[
+                    html.Section(id="tp-stats", className="tp-grid-stats"),
+                    html.Section(
+                        className="tp-section tp-panel tp-table",
+                        children=[
+                            html.Div(
+                                className="tp-panel-head",
+                                children=[
+                                    html.H2("异常提醒", className="tp-panel-title"),
+                                    html.Span("core / checks / pipeline / quality / production", className="tp-panel-meta"),
+                                ],
+                            ),
+                            _data_table(
+                                "tp-alerts",
+                                ["级别", "模块", "对象", "状态", "证据"],
+                                page_size=8,
+                            ),
+                        ],
+                    ),
+                    html.Section(
+                        className="tp-workbench",
+                        children=[
+                            html.Div(
+                                className="tp-panel",
+                                children=[
+                                    html.Div(
+                                        className="tp-panel-head",
+                                        children=[
+                                            html.H2("数据传输", className="tp-panel-title"),
+                                            html.Span("点击节点查看 lineage", className="tp-panel-meta"),
+                                        ],
+                                    ),
+                                    dcc.Graph(
+                                        id="tp-flow",
+                                        figure=_flow_figure(),
+                                        config={"displayModeBar": False, "responsive": True},
+                                    ),
+                                    html.Div(id="tp-lineage-detail", children=_lineage_detail("核心数据库")),
+                                    html.Div(
+                                        className="tp-table",
+                                        children=[
+                                            _data_table(
+                                                "tp-lineage-edges",
+                                                ["上游", "下游", "权重", "负责项目", "最近状态", "最近完成", "manifest", "关键输出"],
+                                            )
+                                        ],
+                                    ),
+                                ],
+                            ),
+                            _control_panel(),
+                        ],
+                    ),
+                    html.Section(
+                        className="tp-section",
+                        children=[
+                            html.Div(
+                                className="tp-panel-head",
+                                children=[
+                                    html.H2("子项目状态", className="tp-panel-title"),
+                                    html.Span("按主线编号", className="tp-panel-meta"),
+                                ],
+                            ),
+                            html.Div(id="tp-projects", className="tp-project-grid"),
+                        ],
+                    ),
+                    html.Section(
+                        className="tp-section tp-panel tp-table",
+                        children=[
+                            html.Div(
+                                className="tp-panel-head",
+                                children=[
+                                    html.H2("项目验证", className="tp-panel-title"),
+                                    html.Span("smoke / inspect / output profile", className="tp-panel-meta"),
+                                ],
+                            ),
+                            html.Div(
+                                className="tp-run-row",
+                                children=[
+                                    html.Button("运行全部检查", id="tp-checks-run", n_clicks=0, className="tp-button tp-button-secondary"),
+                                    html.Div(id="tp-checks-run-result", className="tp-run-result"),
+                                ],
+                            ),
+                            _data_table(
+                                "tp-checks",
+                                ["项目", "状态", "检查批次", "必需", "退出码", "输出类型", "秒数", "命令", "输出概况", "stdout/stderr"],
+                            ),
+                        ],
+                    ),
+                    html.Section(
+                        className="tp-section tp-panel tp-table",
+                        children=[
+                            html.Div(
+                                className="tp-panel-head",
+                                children=[
+                                    html.H2("核心数据库监控", className="tp-panel-title"),
+                                    html.Span("screen / returns / last screen / 5Y", className="tp-panel-meta"),
+                                ],
+                            ),
+                            _data_table(
+                                "tp-core-db",
+                                [
+                                    "数据资产",
+                                    "更新状态",
+                                    "最新日期",
+                                    "行",
+                                    "列",
+                                    "日期范围",
+                                    "更新时间",
+                                    "大小",
+                                    "质量信号",
+                                    "Schema",
+                                    "Schema 证据",
+                                    "路径",
+                                ],
+                            ),
+                        ],
+                    ),
+                    html.Section(
+                        className="tp-section tp-panel tp-table",
+                        children=[
+                            html.Div(
+                                className="tp-panel-head",
+                                children=[
+                                    html.H2("数据质量监控", className="tp-panel-title"),
+                                    html.Span("schema / gaps / QA / CIQ", className="tp-panel-meta"),
+                                ],
+                            ),
+                            _data_table(
+                                "tp-quality",
+                                ["检查项", "状态", "范围/资产", "指标", "异常/缺口", "证据"],
+                            ),
+                        ],
+                    ),
+                    html.Section(
+                        className="tp-section tp-panel tp-table",
+                        children=[
+                            html.Div(
+                                className="tp-panel-head",
+                                children=[
+                                    html.H2("项目数据概况", className="tp-panel-title"),
+                                    html.Span("registered / discovered / required missing", className="tp-panel-meta"),
+                                ],
+                            ),
+                            _data_table(
+                                "tp-asset-project-summary",
+                                [
+                                    "项目",
+                                    "项目状态",
+                                    "资产状态",
+                                    "注册资产",
+                                    "自动发现",
+                                    "存在",
+                                    "缺失",
+                                    "必需缺失",
+                                    "总大小",
+                                    "最新更新时间",
+                                    "关键资产",
+                                ],
+                            ),
+                        ],
+                    ),
+                    html.Section(
+                        className="tp-section tp-panel tp-table",
+                        children=[
+                            html.Div(
+                                className="tp-panel-head",
+                                children=[
+                                    html.H2("数据资产", className="tp-panel-title"),
+                                    html.Span("parquet / manifest / report", className="tp-panel-meta"),
+                                ],
+                            ),
+                            _asset_filter_controls(),
+                            _data_table(
+                                "tp-assets",
+                                [
+                                    "项目",
+                                    "数据/产物",
+                                    "类型",
+                                    "状态",
+                                    "行",
+                                    "列",
+                                    "日期范围",
+                                    "空值率",
+                                    "重复键",
+                                    "质量口径",
+                                    "更新时间",
+                                    "大小",
+                                    "来源",
+                                    "路径",
+                                ],
+                            ),
+                        ],
+                    ),
+                    html.Section(
+                        className="tp-section tp-panel tp-table",
+                        children=[
+                            html.Div(
+                                className="tp-panel-head",
+                                children=[
+                                    html.H2("配置中心", className="tp-panel-title"),
+                                    html.Span("latest parameters / safe defaults", className="tp-panel-meta"),
+                                ],
+                            ),
+                            _data_table(
+                                "tp-config",
+                                ["配置项", "当前值", "来源", "影响", "状态"],
+                                page_size=24,
+                            ),
+                        ],
+                    ),
+                    html.Section(
+                        className="tp-section tp-panel tp-table",
+                        children=[
+                            html.Div(
+                                className="tp-panel-head",
+                                children=[
+                                    html.H2("信号与组合监控", className="tp-panel-title"),
+                                    html.Span("signals / candidates / target weights", className="tp-panel-meta"),
+                                ],
+                            ),
+                            _data_table(
+                                "tp-production",
+                                ["产物", "状态", "日期范围", "覆盖/数量", "分布", "Top", "质量"],
+                            ),
+                        ],
+                    ),
+                    html.Section(
+                        className="tp-section tp-panel tp-table",
+                        children=[
+                            html.Div(
+                                className="tp-panel-head",
+                                children=[
+                                    html.H2("运行日志", className="tp-panel-title"),
+                                    html.Span("dashboard-launched commands", className="tp-panel-meta"),
+                                ],
+                            ),
+                            _data_table(
+                                "tp-launches",
+                                ["时间", "job_id", "step", "PID", "命令", "日志", "日志摘要", "manifest状态", "manifest/证据", "状态"],
+                            ),
+                        ],
+                    ),
+                    html.Section(
+                        className="tp-section tp-panel tp-table",
+                        children=[
+                            html.Div(
+                                className="tp-panel-head",
+                                children=[
+                                    html.H2("回测与报告", className="tp-panel-title"),
+                                    html.Span("latest validation / summaries", className="tp-panel-meta"),
+                                ],
+                            ),
+                            _data_table(
+                                "tp-backtest",
+                                ["来源", "状态", "区间/日期", "Benchmark", "组合/结果", "收益/Alpha", "TE/IR", "风险/回撤", "报告状态", "报告/路径"],
+                            ),
+                        ],
+                    ),
+                    html.Section(
+                        className="tp-section tp-panel tp-table",
+                        children=[
+                            html.Div(
+                                className="tp-panel-head",
+                                children=[
+                                    html.H2("审计日志", className="tp-panel-title"),
+                                    html.Span("timestamped manifests", className="tp-panel-meta"),
+                                ],
+                            ),
+                            _audit_filter_controls(),
+                            _data_table(
+                                "tp-audit",
+                                ["时间", "step", "状态", "秒数", "参数", "输出", "校验", "manifest"],
+                            ),
+                            html.Div(id="tp-audit-detail", children=_audit_detail()),
+                        ],
+                    ),
+                    html.Section(
+                        className="tp-section tp-panel tp-table",
+                        children=[
+                            html.Div(
+                                className="tp-panel-head",
+                                children=[
+                                    html.H2("运行证据", className="tp-panel-title"),
+                                    html.Span("latest manifests", className="tp-panel-meta"),
+                                ],
+                            ),
+                            _data_table(
+                                "tp-pipeline",
+                                ["步骤", "状态", "最近完成", "秒数", "未通过校验", "manifest"],
+                            ),
+                        ],
+                    ),
+                    html.Section(
+                        className="tp-section tp-panel",
+                        children=[
+                            html.Div(
+                                className="tp-panel-head",
+                                children=[
+                                    html.H2("核心数据库更新", className="tp-panel-title"),
+                                    html.Span("QA / profile / governance", className="tp-panel-meta"),
+                                ],
+                            ),
+                            html.Div(id="tp-qa", className="tp-qa-list"),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    )
+
+
+def _flags(values: list[str] | None) -> set[str]:
+    return set(values or [])
+
+
+def _command_from_callback(
+    step: str,
+    input_month: str | None,
+    as_of: str | None,
+    update_mode: str,
+    top_pct: float | None,
+    ml_weight: float | None,
+    technical_weight: float | None,
+    max_weight: float | None,
+    optimizer_method: str,
+    portfolio_region: str | None,
+    backtest_profile: str | None,
+    bench: str | None,
+    start_date: str | None,
+    percentile: float | None,
+    flag_values: list[str] | None,
+) -> list[str]:
+    flags = _flags(flag_values)
+    return _build_pipeline_command(
+        step=step,
+        input_month=input_month,
+        as_of=as_of,
+        update_mode=update_mode,
+        dry_run_data="dry_run_data" in flags,
+        inspect_refresh="inspect_refresh" in flags,
+        skip_refresh="skip_refresh" in flags,
+        skip_backtest="skip_backtest" in flags,
+        skip_report="skip_report" in flags,
+        all_history_signals="all_history_signals" in flags,
+        regime_oos="regime_oos" in flags,
+        top_pct=top_pct,
+        ml_weight=ml_weight,
+        technical_weight=technical_weight,
+        by_region="by_region" in flags,
+        optimizer_method=optimizer_method,
+        max_weight=max_weight,
+        portfolio_region=portfolio_region,
+        backtest_profile=backtest_profile,
+        inspect_backtest="inspect_backtest" in flags,
+        bench=bench,
+        start_date=start_date,
+        percentile=percentile,
+        sector_neutral="sector_neutral" in flags,
+    )
+
+
+def create_app() -> Dash:
+    app = Dash(
+        __name__,
+        title="TP System Dashboard",
+        update_title=None,
+        suppress_callback_exceptions=True,
+        routes_pathname_prefix="/dash/",
+        requests_pathname_prefix="/dash/",
+    )
+    app.index_string = f"""<!DOCTYPE html>
+<html>
+    <head>
+        {{%metas%}}
+        <title>{{%title%}}</title>
+        {{%favicon%}}
+        {{%css%}}
+        <style>{STYLE}</style>
+    </head>
+    <body>
+        {{%app_entry%}}
+        <footer>
+            {{%config%}}
+            {{%scripts%}}
+            {{%renderer%}}
+            <script>{TP_JOB_EVENT_SCRIPT}</script>
+        </footer>
+    </body>
+</html>"""
+    app.layout = _layout()
+    server = app.server
+
+    @server.route("/", methods=["GET"])
+    @server.route("/index.html", methods=["GET"])
+    @server.route("/client/", methods=["GET"])
+    @server.route("/client/index.html", methods=["GET"])
+    def api_dashboard_client_index():
+        return send_from_directory(CLIENT_DIST_DIR, "index.html")
+
+    @server.route("/client/assets/<path:filename>", methods=["GET"])
+    def api_dashboard_client_assets(filename: str):
+        return send_from_directory(CLIENT_ASSETS_DIR, filename)
+
+    @server.route("/api/dashboard/state", methods=["GET"])
+    def api_dashboard_state():
+        return jsonify(_dashboard_state_payload())
+
+    @server.route("/api/dashboard/jobs/latest", methods=["GET"])
+    def api_dashboard_latest_job():
+        return jsonify(_active_job_payload())
+
+    @server.route("/api/dashboard/jobs/queue", methods=["GET"])
+    def api_dashboard_job_queue():
+        return jsonify(system_jobs.queue_status(LAUNCH_DIR))
+
+    @server.route("/api/dashboard/jobs/queue/events", methods=["GET"])
+    def api_dashboard_job_queue_events():
+        try:
+            limit_arg = request.args.get("limit")
+            limit = int(limit_arg) if limit_arg else None
+            interval = max(float(request.args.get("interval", "3")), 0.5)
+        except ValueError:
+            return jsonify({"error": "invalid queue events query parameters"}), 400
+        return Response(
+            stream_with_context(_queue_event_stream(interval_seconds=interval, limit=limit)),
+            mimetype="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @server.route("/api/dashboard/jobs/<job_id>", methods=["GET"])
+    def api_dashboard_job(job_id: str):
+        payload = _job_payload(job_id)
+        if payload is None:
+            return jsonify({"error": "job not found", "job_id": job_id}), 404
+        return jsonify(payload)
+
+    @server.route("/api/dashboard/jobs/<job_id>/events", methods=["GET"])
+    def api_dashboard_job_events(job_id: str):
+        if _job_payload(job_id) is None:
+            return jsonify({"error": "job not found", "job_id": job_id}), 404
+        try:
+            limit_arg = request.args.get("limit")
+            limit = int(limit_arg) if limit_arg else None
+            interval = max(float(request.args.get("interval", "2")), 0.2)
+        except ValueError:
+            return jsonify({"error": "invalid events query parameters"}), 400
+        return Response(
+            stream_with_context(_job_event_stream(job_id, interval_seconds=interval, limit=limit)),
+            mimetype="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @server.route("/api/dashboard/jobs/system-checks", methods=["POST"])
+    def api_dashboard_launch_system_checks():
+        record = _submit_job(_build_system_checks_command(), "system_checks")
+        return jsonify({"job": _job_payload_from_record(record), "record": record}), 202
+
+    @server.route("/api/dashboard/jobs/project", methods=["POST"])
+    def api_dashboard_launch_project():
+        payload = request.get_json(silent=True) or {}
+        project_id = str(payload.get("project_id") or DEFAULT_DASHBOARD_CONFIG["project_id"])
+        mode = str(
+            payload.get("mode")
+            or payload.get("project_mode")
+            or DEFAULT_DASHBOARD_CONFIG["project_mode"]
+        )
+        try:
+            command = _build_project_command(project_id, mode)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        record = _submit_job(command, f"project:{project_id}:{mode}")
+        return jsonify({"job": _job_payload_from_record(record), "record": record}), 202
+
+    @server.route("/api/dashboard/jobs/pipeline", methods=["POST"])
+    def api_dashboard_launch_pipeline():
+        payload = request.get_json(silent=True) or {}
+        flags = payload.get("flags")
+        if not isinstance(flags, list):
+            flags = DEFAULT_DASHBOARD_CONFIG["flags"]
+        try:
+            command = _command_from_callback(
+                str(payload.get("step") or DEFAULT_DASHBOARD_CONFIG["step"]),
+                payload.get("input_month") or "",
+                payload.get("as_of") or "",
+                str(payload.get("update_mode") or DEFAULT_DASHBOARD_CONFIG["update_mode"]),
+                payload.get("top_pct", DEFAULT_DASHBOARD_CONFIG["top_pct"]),
+                payload.get("ml_weight", DEFAULT_DASHBOARD_CONFIG["ml_weight"]),
+                payload.get("technical_weight", DEFAULT_DASHBOARD_CONFIG["technical_weight"]),
+                payload.get("max_weight", DEFAULT_DASHBOARD_CONFIG["max_weight"]),
+                str(payload.get("optimizer_method") or DEFAULT_DASHBOARD_CONFIG["optimizer_method"]),
+                payload.get("portfolio_region") or "",
+                payload.get("backtest_profile") or "",
+                payload.get("bench") or "",
+                payload.get("start_date") or "",
+                payload.get("percentile"),
+                flags,
+            )
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 400
+        step = str(payload.get("step") or DEFAULT_DASHBOARD_CONFIG["step"])
+        record = _submit_job(command, step)
+        return jsonify({"job": _job_payload_from_record(record), "record": record}), 202
+
+    app.clientside_callback(
+        """
+        function(runClicks, saveClicks, projectRunClicks, checksClicks, projectCardClicks, projectId, projectMode, step) {
+            const callbackContext = dash_clientside.callback_context;
+            if (!callbackContext.triggered.length) {
+                return [dash_clientside.no_update, dash_clientside.no_update];
+            }
+            const triggered = callbackContext.triggered_id;
+            const timeText = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+            let title = "";
+            let note = "";
+            if (triggered === "tp-run") {
+                if (!runClicks) {
+                    return [dash_clientside.no_update, dash_clientside.no_update];
+                }
+                title = "已提交 pipeline 启动请求";
+                note = (step || "pipeline") + " 正在交给后端启动；运行证据会在刷新后更新。";
+            } else if (triggered === "tp-save-config") {
+                if (!saveClicks) {
+                    return [dash_clientside.no_update, dash_clientside.no_update];
+                }
+                title = "配置保存请求已收到";
+                note = "保存结果会显示在控制面板下方。";
+            } else if (triggered === "tp-project-run") {
+                if (!projectRunClicks) {
+                    return [dash_clientside.no_update, dash_clientside.no_update];
+                }
+                title = "已提交子项目启动请求";
+                note = (projectId || "子项目") + " / " + (projectMode || "safe_check") + " 正在交给后端启动。";
+            } else if (triggered === "tp-checks-run") {
+                if (!checksClicks) {
+                    return [dash_clientside.no_update, dash_clientside.no_update];
+                }
+                title = "已提交全部项目检查";
+                note = "检查会在后台运行，项目验证表稍后刷新。";
+            } else if (triggered && typeof triggered === "object" && triggered.type === "tp-project-card-select") {
+                title = "已选择子项目";
+                note = triggered.project + " / " + (triggered.mode === "registered_command" ? "登记命令" : "安全检查") + " 已填入右侧运行面板。";
+            } else {
+                return [dash_clientside.no_update, dash_clientside.no_update];
+            }
+            return [
+                "tp-action-feedback tp-action-feedback-active",
+                timeText + "  " + title + "\\n" + note
+            ];
+        }
+        """,
+        Output("tp-action-feedback", "className"),
+        Output("tp-action-feedback", "children"),
+        Input("tp-run", "n_clicks"),
+        Input("tp-save-config", "n_clicks"),
+        Input("tp-project-run", "n_clicks"),
+        Input("tp-checks-run", "n_clicks"),
+        Input({"type": "tp-project-card-select", "project": ALL, "mode": ALL}, "n_clicks"),
+        State("tp-project", "value"),
+        State("tp-project-mode", "value"),
+        State("tp-step", "value"),
+        prevent_initial_call=True,
+    )
+
+    app.clientside_callback(
+        """
+        function(
+            step,
+            inputMonth,
+            asOf,
+            updateMode,
+            topPct,
+            mlWeight,
+            technicalWeight,
+            maxWeight,
+            optimizerMethod,
+            portfolioRegion,
+            backtestProfile,
+            bench,
+            startDate,
+            percentile,
+            flags,
+            projectId,
+            projectMode
+        ) {
+            return JSON.stringify({
+                step: step,
+                input_month: inputMonth || "",
+                as_of: asOf || "",
+                update_mode: updateMode,
+                top_pct: topPct,
+                ml_weight: mlWeight,
+                technical_weight: technicalWeight,
+                max_weight: maxWeight,
+                optimizer_method: optimizerMethod,
+                portfolio_region: portfolioRegion || "",
+                backtest_profile: backtestProfile || "",
+                bench: bench || "",
+                start_date: startDate || "",
+                percentile: percentile,
+                flags: flags || [],
+                project_id: projectId,
+                project_mode: projectMode
+            });
+        }
+        """,
+        Output("tp-job-api-state", "children"),
+        Input("tp-step", "value"),
+        Input("tp-input-month", "value"),
+        Input("tp-as-of", "value"),
+        Input("tp-update-mode", "value"),
+        Input("tp-top-pct", "value"),
+        Input("tp-ml-weight", "value"),
+        Input("tp-technical-weight", "value"),
+        Input("tp-max-weight", "value"),
+        Input("tp-optimizer-method", "value"),
+        Input("tp-portfolio-region", "value"),
+        Input("tp-backtest-profile", "value"),
+        Input("tp-bench", "value"),
+        Input("tp-start-date", "value"),
+        Input("tp-percentile", "value"),
+        Input("tp-flags", "value"),
+        Input("tp-project", "value"),
+        Input("tp-project-mode", "value"),
+    )
+
+    @app.callback(Output("tp-lineage-detail", "children"), Input("tp-flow", "clickData"))
+    def update_lineage_detail(click_data: dict[str, Any] | None):
+        return _lineage_detail(_lineage_node_from_click(click_data))
+
+    @app.callback(
+        Output("tp-header-meta", "children"),
+        Output("tp-stats", "children"),
+        Output("tp-alerts", "data"),
+        Output("tp-projects", "children"),
+        Output("tp-lineage-edges", "data"),
+        Output("tp-checks", "data"),
+        Output("tp-asset-project-summary", "data"),
+        Output("tp-assets", "data"),
+        Output("tp-core-db", "data"),
+        Output("tp-quality", "data"),
+        Output("tp-production", "data"),
+        Output("tp-backtest", "data"),
+        Output("tp-config", "data"),
+        Output("tp-launches", "data"),
+        Output("tp-pipeline", "data"),
+        Output("tp-qa", "children"),
+        Input("tp-refresh", "n_intervals"),
+        Input("tp-asset-project", "value"),
+        Input("tp-asset-source", "value"),
+        Input("tp-asset-status", "value"),
+    )
+    def refresh_status(_: int, asset_project: str | None, asset_source: str | None, asset_status: str | None):
+        now = datetime.now().isoformat(timespec="seconds")
+        assets = _asset_rows()
+        pipeline = _pipeline_rows()
+        checks = _check_rows()
+        core_database = _core_database_rows(assets)
+        quality = _data_quality_rows()
+        production = _production_rows()
+        backtest = _backtest_rows()
+        meta = [
+            html.Span(f"root: {_rel(TP_ROOT)}", className="tp-pill"),
+            html.Span(f"refresh: {now}", className="tp-pill"),
+            html.Span(f"manifests: {_rel(PIPELINE_MANIFESTS_DIR)}", className="tp-pill"),
+        ]
+        return (
+            meta,
+            _database_cards(production, backtest, checks),
+            _alert_rows(core_database, checks, pipeline, quality, production),
+            _project_cards(),
+            _lineage_edge_rows(),
+            checks,
+            _project_asset_summary_rows(assets),
+            _filter_asset_rows(assets, asset_project, asset_source, asset_status),
+            core_database,
+            quality,
+            production,
+            backtest,
+            _config_rows(),
+            _launch_rows(),
+            pipeline,
+            _qa_items(),
+        )
+
+    @app.callback(
+        Output("tp-audit", "data"),
+        Input("tp-refresh", "n_intervals"),
+        Input("tp-audit-step", "value"),
+        Input("tp-audit-status", "value"),
+        Input("tp-audit-date-from", "value"),
+        Input("tp-audit-date-to", "value"),
+        Input("tp-audit-as-of", "value"),
+        Input("tp-audit-input-month", "value"),
+    )
+    def refresh_audit(
+        _: int,
+        step: str | None,
+        status: str | None,
+        date_from: str | None,
+        date_to: str | None,
+        as_of: str | None,
+        input_month: str | None,
+    ):
+        return _audit_rows(
+            step=step,
+            status=status,
+            date_from=date_from,
+            date_to=date_to,
+            as_of=as_of,
+            input_month=input_month,
+        )
+
+    @app.callback(
+        Output("tp-audit-detail", "children"),
+        Input("tp-audit", "active_cell"),
+        State("tp-audit", "data"),
+    )
+    def update_audit_detail(active_cell: dict[str, Any] | None, rows: list[dict[str, Any]] | None):
+        if not active_cell or not rows:
+            return _audit_detail()
+        row_index = active_cell.get("row")
+        if not isinstance(row_index, int) or row_index < 0 or row_index >= len(rows):
+            return _audit_detail()
+        return _audit_detail(rows[row_index])
+
+    @app.callback(
+        Output("tp-active-job", "children"),
+        Input("tp-job-refresh", "n_intervals"),
+        Input("tp-run-result", "children"),
+        Input("tp-project-run-result", "children"),
+        Input("tp-checks-run-result", "children"),
+    )
+    def refresh_active_job(_: int, __: Any, ___: Any, ____: Any):
+        return _active_job_card()
+
+    callback_inputs = [
+        Input("tp-step", "value"),
+        Input("tp-input-month", "value"),
+        Input("tp-as-of", "value"),
+        Input("tp-update-mode", "value"),
+        Input("tp-top-pct", "value"),
+        Input("tp-ml-weight", "value"),
+        Input("tp-technical-weight", "value"),
+        Input("tp-max-weight", "value"),
+        Input("tp-optimizer-method", "value"),
+        Input("tp-portfolio-region", "value"),
+        Input("tp-backtest-profile", "value"),
+        Input("tp-bench", "value"),
+        Input("tp-start-date", "value"),
+        Input("tp-percentile", "value"),
+        Input("tp-flags", "value"),
+    ]
+
+    @app.callback(Output("tp-command-preview", "children"), callback_inputs)
+    def preview_command(*values):
+        command = _command_from_callback(*values)
+        return _quote_command(command)
+
+    @app.callback(
+        Output("tp-checks-run-result", "children"),
+        Input("tp-checks-run", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def run_system_checks(n_clicks: int):
+        if not n_clicks:
+            return ""
+        if CLIENT_JOB_API_ENABLED:
+            return _client_job_api_fallback_message("全部项目检查")
+        record = _launch(_build_system_checks_command(), "system_checks")
+        return [
+            html.Div(f"已提交全部项目检查，job_id {record['job_id']}"),
+            html.Div(f"PID {record['pid']}"),
+            html.Div(_rel(record["log_path"])),
+        ]
+
+    @app.callback(
+        Output("tp-run-result", "children"),
+        Input("tp-run", "n_clicks"),
+        [
+            State("tp-step", "value"),
+            State("tp-input-month", "value"),
+            State("tp-as-of", "value"),
+            State("tp-update-mode", "value"),
+            State("tp-top-pct", "value"),
+            State("tp-ml-weight", "value"),
+            State("tp-technical-weight", "value"),
+            State("tp-max-weight", "value"),
+            State("tp-optimizer-method", "value"),
+            State("tp-portfolio-region", "value"),
+            State("tp-backtest-profile", "value"),
+            State("tp-bench", "value"),
+            State("tp-start-date", "value"),
+            State("tp-percentile", "value"),
+            State("tp-flags", "value"),
+        ],
+        prevent_initial_call=True,
+    )
+    def run_pipeline(n_clicks: int, *values):
+        if not n_clicks:
+            return ""
+        if CLIENT_JOB_API_ENABLED:
+            return _client_job_api_fallback_message("pipeline 启动")
+        step = values[0]
+        command = _command_from_callback(*values)
+        record = _launch(command, step)
+        return [
+            html.Div(f"已提交 {record['step']}，job_id {record['job_id']}"),
+            html.Div(f"PID {record['pid']}"),
+            html.Div(_rel(record["log_path"])),
+        ]
+
+    @app.callback(
+        Output("tp-config-save-result", "children"),
+        Input("tp-save-config", "n_clicks"),
+        [
+            State("tp-step", "value"),
+            State("tp-input-month", "value"),
+            State("tp-as-of", "value"),
+            State("tp-update-mode", "value"),
+            State("tp-top-pct", "value"),
+            State("tp-ml-weight", "value"),
+            State("tp-technical-weight", "value"),
+            State("tp-max-weight", "value"),
+            State("tp-optimizer-method", "value"),
+            State("tp-portfolio-region", "value"),
+            State("tp-backtest-profile", "value"),
+            State("tp-bench", "value"),
+            State("tp-universe", "value"),
+            State("tp-start-date", "value"),
+            State("tp-percentile", "value"),
+            State("tp-flags", "value"),
+            State("tp-project", "value"),
+            State("tp-project-mode", "value"),
+        ],
+        prevent_initial_call=True,
+    )
+    def save_config(
+        n_clicks: int,
+        step: str,
+        input_month: str | None,
+        as_of: str | None,
+        update_mode: str,
+        top_pct: float | None,
+        ml_weight: float | None,
+        technical_weight: float | None,
+        max_weight: float | None,
+        optimizer_method: str,
+        portfolio_region: str | None,
+        backtest_profile: str | None,
+        bench: str | None,
+        universe: str | None,
+        start_date: str | None,
+        percentile: float | None,
+        flags: list[str] | None,
+        project_id: str,
+        project_mode: str,
+    ):
+        if not n_clicks:
+            return ""
+        payload = _write_dashboard_config(
+            {
+                "step": step,
+                "input_month": input_month or "",
+                "as_of": as_of or "",
+                "update_mode": update_mode,
+                "top_pct": top_pct,
+                "ml_weight": ml_weight,
+                "technical_weight": technical_weight,
+                "max_weight": max_weight,
+                "optimizer_method": optimizer_method,
+                "portfolio_region": portfolio_region or "",
+                "backtest_profile": backtest_profile or "",
+                "bench": bench or "",
+                "universe": universe or "",
+                "start_date": start_date or "",
+                "percentile": percentile,
+                "flags": flags or [],
+                "project_id": project_id,
+                "project_mode": project_mode,
+            }
+        )
+        return f"已保存配置 {payload['saved_at']} -> {_rel(DASHBOARD_CONFIG_PATH)}"
+
+    @app.callback(
+        Output("tp-project-command-preview", "children"),
+        Input("tp-project", "value"),
+        Input("tp-project-mode", "value"),
+    )
+    def preview_project_command(project_id: str, mode: str):
+        try:
+            return _quote_command(_build_project_command(project_id, mode))
+        except ValueError as exc:
+            return str(exc)
+
+    @app.callback(
+        Output("tp-project-context", "children"),
+        Input("tp-project", "value"),
+    )
+    def update_project_context(project_id: str):
+        return _project_context(project_id)
+
+    @app.callback(
+        Output("tp-project", "value"),
+        Output("tp-project-mode", "value"),
+        Input({"type": "tp-project-card-select", "project": ALL, "mode": ALL}, "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def select_project_from_card(_: list[int | None]):
+        try:
+            return _project_card_selection(ctx.triggered_id)
+        except ValueError as exc:
+            raise PreventUpdate from exc
+
+    @app.callback(
+        Output("tp-project-run-result", "children"),
+        Input("tp-project-run", "n_clicks"),
+        State("tp-project", "value"),
+        State("tp-project-mode", "value"),
+        prevent_initial_call=True,
+    )
+    def run_project(n_clicks: int, project_id: str, mode: str):
+        if not n_clicks:
+            return ""
+        if CLIENT_JOB_API_ENABLED:
+            return _client_job_api_fallback_message("子项目启动")
+        try:
+            command = _build_project_command(project_id, mode)
+        except ValueError as exc:
+            return str(exc)
+        record = _launch(command, f"project:{project_id}:{mode}")
+        return [
+            html.Div(f"已提交 {project_id}，job_id {record['job_id']}"),
+            html.Div(f"PID {record['pid']}"),
+            html.Div(_rel(record["log_path"])),
+        ]
+
+    return app
+
+
+def run(host: str = "127.0.0.1", port: int = PORT, debug: bool = False) -> None:
+    app = create_app()
+    app.run(host=host, port=port, debug=debug)
+
+
+__all__ = ["PORT", "create_app", "run"]

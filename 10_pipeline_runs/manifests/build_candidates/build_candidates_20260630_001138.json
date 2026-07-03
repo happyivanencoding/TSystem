@@ -1,0 +1,50 @@
+{
+  "step": "build_candidates",
+  "status": "failed",
+  "started_at": "2026-06-30T00:11:37",
+  "finished_at": "2026-06-30T00:11:38",
+  "duration_seconds": 0.232,
+  "parameters": {
+    "as_of": null,
+    "output": "C:\\tmp\\tp_smoke_candidates.parquet",
+    "top_n": null,
+    "top_pct": 0.1,
+    "ml_weight": 0.7,
+    "technical_weight": 0.3,
+    "by_region": false,
+    "signals_dir": "C:\\GoogleDrive\\TP\\04_signals",
+    "last_screen": "C:\\GoogleDrive\\TP\\00_screen\\last_screen.parquet"
+  },
+  "inputs": {
+    "signals_dir": {
+      "path": "C:\\GoogleDrive\\TP\\04_signals",
+      "exists": true,
+      "type": "directory",
+      "child_count": 4,
+      "file_count": 4,
+      "dir_count": 0
+    },
+    "last_screen": {
+      "path": "C:\\GoogleDrive\\TP\\00_screen\\last_screen.parquet",
+      "exists": true,
+      "bytes": 7605359,
+      "modified_at": "2026-06-29T17:29:55",
+      "format": "parquet",
+      "rows": 10983,
+      "columns": 277,
+      "row_groups": 1
+    }
+  },
+  "outputs": {},
+  "validations": [],
+  "details": {},
+  "idempotency": {
+    "policy": "标准产物使用固定 latest 路径覆盖写入；每次运行另写时间戳 manifest 保留审计证据。",
+    "no_duplicate_rows_expected": true
+  },
+  "error": {
+    "type": "PermissionError",
+    "message": "[Errno 13] Permission denied: 'C:\\\\tmp\\\\tp_smoke_candidates.parquet'",
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\build_candidates.py\", line 174, in run_build_candidates\n    frame = build_candidates(\n            ^^^^^^^^^^^^^^^^^\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\build_candidates.py\", line 163, in build_candidates\n    candidates.to_parquet(output, index=False)\n  File \"C:\\Users\\jingx\\anaconda3\\Lib\\site-packages\\pandas\\util\\_decorators.py\", line 333, in wrapper\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\jingx\\anaconda3\\Lib\\site-packages\\pandas\\core\\frame.py\", line 3118, in to_parquet\n    return to_parquet(\n           ^^^^^^^^^^^\n  File \"C:\\Users\\jingx\\anaconda3\\Lib\\site-packages\\pandas\\io\\parquet.py\", line 482, in to_parquet\n    impl.write(\n  File \"C:\\Users\\jingx\\anaconda3\\Lib\\site-packages\\pandas\\io\\parquet.py\", line 199, in write\n    path_or_handle, handles, filesystem = _get_path_or_handle(\n                                          ^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\jingx\\anaconda3\\Lib\\site-packages\\pandas\\io\\parquet.py\", line 141, in _get_path_or_handle\n    handles = get_handle(\n              ^^^^^^^^^^^\n  File \"C:\\Users\\jingx\\anaconda3\\Lib\\site-packages\\pandas\\io\\common.py\", line 882, in get_handle\n    handle = open(handle, ioargs.mode)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^\nPermissionError: [Errno 13] Permission denied: 'C:\\\\tmp\\\\tp_smoke_candidates.parquet'\n"
+  }
+}

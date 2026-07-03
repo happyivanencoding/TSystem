@@ -1,0 +1,22 @@
+{
+  "created_at": "2026-06-30T09:28:07",
+  "action": "archive_root_markdown_documents",
+  "policy": "root keeps only workspace entrypoint, data contracts, and engineering config files",
+  "items": [
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\DOCUMENTATION_UPDATE_PLAN.md",
+      "archived_path": "C:\\GoogleDrive\\TP\\11_docs\\archive\\DOCUMENTATION_UPDATE_PLAN.md",
+      "reason": "历史 documentation 整理计划，当前规则已并入 11_docs/DOCUMENTATION_GOVERNANCE.md"
+    },
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\TP_Projet_Cartographie.md",
+      "archived_path": "C:\\GoogleDrive\\TP\\11_docs\\archive\\TP_Projet_Cartographie.md",
+      "reason": "历史 cartographie 审计快照，当前项目地图以 11_docs/PROJECTS.md 为准"
+    },
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\screen_monthly_update_audit.md",
+      "archived_path": "C:\\GoogleDrive\\TP\\11_docs\\archive\\screen_monthly_update_audit.md",
+      "reason": "历史 screen 月更审计细节，当前运行手册以 00_screen/README.md 和 11_docs/DATA_AND_PRODUCTION.md 为准"
+    }
+  ]
+}

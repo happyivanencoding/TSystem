@@ -1,0 +1,22 @@
+{
+  "updated_at": "2026-06-29T23:37:38",
+  "purpose": "归档确认无依赖的空目录；保留生产流程需要的空目录。",
+  "archived_empty_dirs": [
+    {
+      "source": "06_optimiser\\test_output\\Pour April 2025",
+      "archived_to": "99_archive\\empty_dirs_20260629\\06_optimiser\\test_output\\Pour April 2025",
+      "reason": "空目录，未发现活跃代码或文档依赖"
+    },
+    {
+      "source": "08_company_analysis\\frontend\\src\\components",
+      "archived_to": "99_archive\\empty_dirs_20260629\\08_company_analysis\\frontend\\src\\components",
+      "reason": "空目录，未发现活跃代码或文档依赖"
+    }
+  ],
+  "retained_empty_dirs": [
+    {
+      "path": "00_screen\\production_inputs\\archive\\unclassified",
+      "reason": "production_inputs.py 用作无法分类输入的归档兜底目录"
+    }
+  ]
+}

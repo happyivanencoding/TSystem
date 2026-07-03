@@ -1,0 +1,48 @@
+app:
+  application_name: "Backtest Code"
+  default_user: "research"
+  default_mode: "research"
+  auto_open_plot: false
+
+user:
+  name: "research"
+
+paths:
+  screen: 'C:/GoogleDrive/TP/00_screen/screen_aggregate.parquet'
+  returns: 'C:/GoogleDrive/TP/00_screen/returns.parquet'
+  liste_noire: ""
+  output_dir: ""
+  score_pivot_esg_path: ""
+
+run:
+  mode: "research"
+  ptf_name: "PTF TEST"
+  bench: "STOXX EUROPE 600"
+  metrics:
+    - "Quality Avg Percentile"
+  percentile: 0.05
+  top: true
+  ponderation: "Market cap"
+  esg_exclusion: 0.0
+  cut_mkt_cap: 0.0
+  reco_secto: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  reco_facto: [0.0, 0.0, 0.0, 0.0, 0.0]
+  score_neutral: "ICB 19"
+  weight_neutral: "ICB 19"
+  top_mandatory: null
+  cap_weight_threshold: null
+  score_pivot_esg: null
+  mode_monthly_prod: false
+  start_date: "2020-01-31"
+  freq_rebal: null
+  screen_start_date: "mois_impair"
+  fill_method: "drift"
+  max_weight: 1.0
+  sector_neutral: false
+
+batch:
+  benches: []
+  metrics: []
+  percentiles: []
+  start_dates: []
+  top_values: []

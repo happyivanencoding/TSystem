@@ -1,0 +1,257 @@
+{
+  "generated_at": "2026-06-29T23:05:49",
+  "action": "rename_and_promote_project_to_root",
+  "old_path": "C:/GoogleDrive/TP/技术分析和深度学习/技术分析_V2",
+  "new_path": "C:/GoogleDrive/TP/03_technical_analysis",
+  "reason": "将技术分析 V2 提升到 TP 根目录，并改为英文下划线命名，与 backtest_code、regime_model、presentation_layer 等项目命名风格接轨。",
+  "old_parent_removed": true,
+  "file_count": 49,
+  "total_bytes": 2317365429,
+  "files": [
+    {
+      "path": "03_technical_analysis/.gitignore",
+      "bytes": 1768,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/_quarantine_20260629/legacy_data_copies/data__returns.parquet",
+      "bytes": 281353501,
+      "modified": "2026-04-02T16:36:01"
+    },
+    {
+      "path": "03_technical_analysis/_quarantine_20260629/legacy_data_copies/data__screen_aggregate.parquet",
+      "bytes": 925742046,
+      "modified": "2026-04-03T14:27:32"
+    },
+    {
+      "path": "03_technical_analysis/_quarantine_20260629/legacy_data_copies/manifest.json",
+      "bytes": 1417,
+      "modified": "2026-06-29T18:30:36"
+    },
+    {
+      "path": "03_technical_analysis/api.py",
+      "bytes": 972,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/__init__.py",
+      "bytes": 0,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/candlestick.py",
+      "bytes": 4858,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/__init__.py",
+      "bytes": 0,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/bearish_engulfing.py",
+      "bytes": 1204,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/bearish_harami.py",
+      "bytes": 1122,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/bullish_engulfing.py",
+      "bytes": 1205,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/bullish_harami.py",
+      "bytes": 1122,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/candlestick_finder.py",
+      "bytes": 3666,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/dark_cloud_cover.py",
+      "bytes": 1333,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/doji.py",
+      "bytes": 645,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/doji_star.py",
+      "bytes": 1099,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/dragonfly_doji.py",
+      "bytes": 648,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/evening_star.py",
+      "bytes": 1645,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/evening_star_doji.py",
+      "bytes": 1675,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/gravestone_doji.py",
+      "bytes": 650,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/hammer.py",
+      "bytes": 630,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/hanging_man.py",
+      "bytes": 1561,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/inverted_hammer.py",
+      "bytes": 640,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/morning_star.py",
+      "bytes": 1645,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/morning_star_doji.py",
+      "bytes": 1675,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/piercing_pattern.py",
+      "bytes": 1247,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/rain_drop.py",
+      "bytes": 971,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/rain_drop_doji.py",
+      "bytes": 1103,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/shooting_star.py",
+      "bytes": 900,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/candlestick/patterns/star.py",
+      "bytes": 967,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/data/screen_returns_context.md",
+      "bytes": 21407,
+      "modified": "2026-06-29T18:34:04"
+    },
+    {
+      "path": "03_technical_analysis/docs/pattern_backtest_score_guide.md",
+      "bytes": 14288,
+      "modified": "2026-04-09T13:22:03"
+    },
+    {
+      "path": "03_technical_analysis/export_technical_signals.py",
+      "bytes": 5606,
+      "modified": "2026-06-29T23:03:20"
+    },
+    {
+      "path": "03_technical_analysis/k8s/.dockerignore",
+      "bytes": 109,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/k8s/Dockerfile",
+      "bytes": 650,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/Main.py",
+      "bytes": 3594,
+      "modified": "2026-06-29T23:03:20"
+    },
+    {
+      "path": "03_technical_analysis/output/patterns.parquet",
+      "bytes": 1107423293,
+      "modified": "2026-04-03T19:31:35"
+    },
+    {
+      "path": "03_technical_analysis/pandas_ta-0.4.71b0.tar.gz",
+      "bytes": 1310317,
+      "modified": "2026-04-03T19:04:59"
+    },
+    {
+      "path": "03_technical_analysis/Pattern_backtest.ipynb",
+      "bytes": 1127541,
+      "modified": "2026-06-29T18:38:11"
+    },
+    {
+      "path": "03_technical_analysis/pattern_backtest_engine.py",
+      "bytes": 28363,
+      "modified": "2026-04-09T13:22:03"
+    },
+    {
+      "path": "03_technical_analysis/pattern_backtest_viz.py",
+      "bytes": 11204,
+      "modified": "2026-04-09T13:22:03"
+    },
+    {
+      "path": "03_technical_analysis/Pattern_visual_guide.ipynb",
+      "bytes": 186384,
+      "modified": "2026-04-04T15:23:58"
+    },
+    {
+      "path": "03_technical_analysis/README.md",
+      "bytes": 2593,
+      "modified": "2026-06-29T23:04:43"
+    },
+    {
+      "path": "03_technical_analysis/requirements.txt",
+      "bytes": 335,
+      "modified": "2026-04-04T14:12:03"
+    },
+    {
+      "path": "03_technical_analysis/Tradin_patterns.ipynb",
+      "bytes": 78325,
+      "modified": "2026-06-29T18:32:55"
+    },
+    {
+      "path": "03_technical_analysis/tradingpatterns/__init__.py",
+      "bytes": 0,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/tradingpatterns/hard_data.py",
+      "bytes": 1328,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/tradingpatterns/tradingpatterns.py",
+      "bytes": 11029,
+      "modified": "2026-04-03T18:23:50"
+    },
+    {
+      "path": "03_technical_analysis/utils.py",
+      "bytes": 7148,
+      "modified": "2026-04-09T13:22:03"
+    }
+  ]
+}

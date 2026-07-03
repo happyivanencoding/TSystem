@@ -1,0 +1,53 @@
+{
+  "archive_date": "2026-06-29",
+  "scope": "root-level compatibility wrapper removal",
+  "reason": "Physical project folders at TP root should use numbered names only. Thin root wrappers were archived after numbered module entrypoints and runtime aliases were added.",
+  "runtime_alias_file": "sitecustomize.py",
+  "archived_wrappers": [
+    {
+      "old_path": "tp_core/",
+      "current_path": "01_tp_core/",
+      "new_command_pattern": "python -m 01_tp_core.<module>"
+    },
+    {
+      "old_path": "pipelines/",
+      "current_path": "02_pipelines/",
+      "new_command_pattern": "python -m 02_pipelines.<module>"
+    },
+    {
+      "old_path": "backtest_code/",
+      "current_path": "07_backtest_code/",
+      "new_command_pattern": "python 07_backtest_code/run_backtest.py <command>"
+    },
+    {
+      "old_path": "screen/",
+      "current_path": "00_screen/",
+      "new_command_pattern": "python 00_screen/monthly_update.py <args>"
+    },
+    {
+      "old_path": "ML_Enhanced/",
+      "current_path": "03_ml_enhanced/",
+      "new_command_pattern": "python -m 03_ml_enhanced.export_signals"
+    },
+    {
+      "old_path": "regime_model/",
+      "current_path": "03_regime_model/",
+      "new_command_pattern": "python -m 03_regime_model.export_risk_budget"
+    },
+    {
+      "old_path": "technical_analysis_v2/",
+      "current_path": "03_technical_analysis/",
+      "new_command_pattern": "python -m 03_technical_analysis.export_technical_signals"
+    },
+    {
+      "old_path": "optimiser/",
+      "current_path": "06_optimiser/",
+      "new_command_pattern": "logical import remains available through sitecustomize.py"
+    },
+    {
+      "old_path": "presentation_layer/",
+      "current_path": "08_presentation_layer/",
+      "new_command_pattern": "logical import remains available through sitecustomize.py"
+    }
+  ]
+}

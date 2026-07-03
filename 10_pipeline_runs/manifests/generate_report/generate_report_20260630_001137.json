@@ -1,0 +1,53 @@
+{
+  "step": "generate_report",
+  "status": "failed",
+  "started_at": "2026-06-30T00:11:37",
+  "finished_at": "2026-06-30T00:11:37",
+  "duration_seconds": 0.011,
+  "parameters": {
+    "output": "C:\\tmp\\tp_smoke_report.md",
+    "step": null
+  },
+  "inputs": {
+    "pipeline_manifests": {
+      "path": "C:\\GoogleDrive\\TP\\10_pipeline_runs\\manifests",
+      "exists": true,
+      "type": "directory",
+      "child_count": 7,
+      "file_count": 0,
+      "dir_count": 7
+    },
+    "candidates": {
+      "path": "C:\\GoogleDrive\\TP\\05_candidates\\latest_candidates.parquet",
+      "exists": true,
+      "bytes": 297922,
+      "modified_at": "2026-06-29T23:26:31",
+      "format": "parquet",
+      "rows": 3614,
+      "columns": 22,
+      "row_groups": 1
+    },
+    "target_weights": {
+      "path": "C:\\GoogleDrive\\TP\\06_portfolios\\latest_target_weights.parquet",
+      "exists": true,
+      "bytes": 35903,
+      "modified_at": "2026-06-29T23:26:31",
+      "format": "parquet",
+      "rows": 361,
+      "columns": 17,
+      "row_groups": 1
+    }
+  },
+  "outputs": {},
+  "validations": [],
+  "details": {},
+  "idempotency": {
+    "policy": "标准产物使用固定 latest 路径覆盖写入；每次运行另写时间戳 manifest 保留审计证据。",
+    "no_duplicate_rows_expected": true
+  },
+  "error": {
+    "type": "PermissionError",
+    "message": "[Errno 13] Permission denied: 'C:\\\\tmp\\\\tp_smoke_report.md'",
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\generate_report.py\", line 109, in run_generate_report\n    text = generate_report(output=Path(args.output), steps=steps)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\generate_report.py\", line 96, in generate_report\n    output.write_text(text, encoding=\"utf-8\")\n  File \"C:\\Users\\jingx\\anaconda3\\Lib\\pathlib.py\", line 1078, in write_text\n    with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\jingx\\anaconda3\\Lib\\pathlib.py\", line 1044, in open\n    return io.open(self, mode, buffering, encoding, errors, newline)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nPermissionError: [Errno 13] Permission denied: 'C:\\\\tmp\\\\tp_smoke_report.md'\n"
+  }
+}

@@ -1,0 +1,130 @@
+{
+  "full_period": {
+    "model": {
+      "months": 196,
+      "annualized_return": 0.12426209933420873,
+      "annualized_volatility": 0.13208097314385897,
+      "sharpe": 0.9408024212455329,
+      "max_drawdown": -0.21982934031864088,
+      "hit_rate": 0.6530612244897959,
+      "total_return": 5.773871894772241
+    },
+    "benchmark": {
+      "months": 196,
+      "annualized_return": 0.11018875868101619,
+      "annualized_volatility": 0.13268654521766407,
+      "sharpe": 0.8304441004192123,
+      "max_drawdown": -0.22683914914931058,
+      "hit_rate": 0.6428571428571429,
+      "total_return": 4.514186918754893
+    },
+    "active": {
+      "months": 196,
+      "annualized_return": 0.012561276452115466,
+      "annualized_volatility": 0.016753026269815396,
+      "sharpe": 0.7497914854194209,
+      "max_drawdown": -0.027291063512236202,
+      "hit_rate": 0.5867346938775511,
+      "total_return": 0.2261628053570357
+    },
+    "relative_annualized_return": 0.012676529592961172,
+    "start_date": "2010-01-31",
+    "end_date": "2026-04-30"
+  },
+  "first_half": {
+    "model": {
+      "months": 98,
+      "annualized_return": 0.09500072888081701,
+      "annualized_volatility": 0.12089227269516528,
+      "sharpe": 0.7858296213883343,
+      "max_drawdown": -0.20148969249188942,
+      "hit_rate": 0.6224489795918368,
+      "total_return": 1.0983809463715222
+    },
+    "benchmark": {
+      "months": 98,
+      "annualized_return": 0.08479894129523102,
+      "annualized_volatility": 0.12109609258491563,
+      "sharpe": 0.7002615814029496,
+      "max_drawdown": -0.19273138554685176,
+      "hit_rate": 0.6122448979591837,
+      "total_return": 0.9439521180729382
+    },
+    "active": {
+      "months": 98,
+      "annualized_return": 0.009327877430336917,
+      "annualized_volatility": 0.015276632113129601,
+      "sharpe": 0.6105977653490793,
+      "max_drawdown": -0.01879697684166337,
+      "hit_rate": 0.5816326530612245,
+      "total_return": 0.0787733102567636
+    },
+    "relative_annualized_return": 0.009404311893414397,
+    "start_date": "2010-01-31",
+    "end_date": "2018-02-28"
+  },
+  "second_half": {
+    "model": {
+      "months": 98,
+      "annualized_return": 0.15430541246419183,
+      "annualized_volatility": 0.14255891753084,
+      "sharpe": 1.0823974756318608,
+      "max_drawdown": -0.21982934031864088,
+      "hit_rate": 0.6836734693877551,
+      "total_return": 2.2281421095085125
+    },
+    "benchmark": {
+      "months": 98,
+      "annualized_return": 0.1361728270402709,
+      "annualized_volatility": 0.143613305245145,
+      "sharpe": 0.9481908852931602,
+      "max_drawdown": -0.22683914914931058,
+      "hit_rate": 0.673469387755102,
+      "total_return": 1.8365857715781435
+    },
+    "active": {
+      "months": 98,
+      "annualized_return": 0.015805033722653183,
+      "annualized_volatility": 0.018140945238857592,
+      "sharpe": 0.8712354022655376,
+      "max_drawdown": -0.027291063512236202,
+      "hit_rate": 0.5918367346938775,
+      "total_return": 0.1366269388563126
+    },
+    "relative_annualized_return": 0.025513753588443322,
+    "start_date": "2018-03-31",
+    "end_date": "2026-04-30"
+  },
+  "post_2020": {
+    "model": {
+      "months": 76,
+      "annualized_return": 0.1687486092682362,
+      "annualized_volatility": 0.15162177711056662,
+      "sharpe": 1.1129576007091662,
+      "max_drawdown": -0.14925080954610448,
+      "hit_rate": 0.6973684210526315,
+      "total_return": 1.6847283259440546
+    },
+    "benchmark": {
+      "months": 76,
+      "annualized_return": 0.1495818539221827,
+      "annualized_volatility": 0.1515883540792848,
+      "sharpe": 0.9867634940079061,
+      "max_drawdown": -0.14788507866628853,
+      "hit_rate": 0.6842105263157895,
+      "total_return": 1.4177943915700086
+    },
+    "active": {
+      "months": 76,
+      "annualized_return": 0.01670134422853553,
+      "annualized_volatility": 0.018142780838159345,
+      "sharpe": 0.9205504039054437,
+      "max_drawdown": -0.02729106351223609,
+      "hit_rate": 0.6052631578947368,
+      "total_return": 0.11060132124913147
+    },
+    "relative_annualized_return": 0.03302007753965186,
+    "start_date": "2020-01-31",
+    "end_date": "2026-04-30"
+  }
+}

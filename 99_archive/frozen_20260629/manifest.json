@@ -1,0 +1,76 @@
+{
+  "generated_at": "2026-06-29T18:55:37",
+  "action": "freeze_legacy_directories",
+  "reason": "P0 主线整理：旧 ML、旧回测、旧 FactSet/Excel、技术分析 V1 不再作为生产或新研究入口。",
+  "policy": "新代码不得 import、读取或依赖本目录下的冻结项目；如需复用逻辑，应迁入当前主线目录或 tp_core。",
+  "items": [
+    {
+      "source": "C:\\GoogleDrive\\TP\\ML",
+      "destination": "C:\\GoogleDrive\\TP\\archive\\frozen_20260629\\ML",
+      "status": "moved",
+      "file_count": 24,
+      "size_bytes": 861679432,
+      "last_write_time": "2025-11-10T07:59:53"
+    },
+    {
+      "source": "C:\\GoogleDrive\\TP\\ML第一版",
+      "destination": "C:\\GoogleDrive\\TP\\archive\\frozen_20260629\\ML第一版",
+      "status": "moved",
+      "file_count": 38,
+      "size_bytes": 1492194,
+      "last_write_time": "2025-03-20T22:50:08"
+    },
+    {
+      "source": "C:\\GoogleDrive\\TP\\回测第一版",
+      "destination": "C:\\GoogleDrive\\TP\\archive\\frozen_20260629\\回测第一版",
+      "status": "moved",
+      "file_count": 6,
+      "size_bytes": 1036205,
+      "last_write_time": "2025-12-24T23:03:08"
+    },
+    {
+      "source": "C:\\GoogleDrive\\TP\\factsetProd第一版",
+      "destination": "C:\\GoogleDrive\\TP\\archive\\frozen_20260629\\factsetProd第一版",
+      "status": "moved",
+      "file_count": 15,
+      "size_bytes": 39725069,
+      "last_write_time": "2026-06-27T14:34:11"
+    },
+    {
+      "source": "C:\\GoogleDrive\\TP\\技术分析和深度学习\\技术分析_V1",
+      "destination": "C:\\GoogleDrive\\TP\\archive\\frozen_20260629\\技术分析和深度学习__技术分析_V1",
+      "status": "moved",
+      "file_count": 38,
+      "size_bytes": 2016687,
+      "last_write_time": "2026-04-03T18:27:32"
+    },
+    {
+      "source": "C:/GoogleDrive/TP/backtest",
+      "destination": "C:\\GoogleDrive\\TP\\archive\\frozen_20260629\\backtest",
+      "status": "moved",
+      "file_count": 5,
+      "size_bytes": 1419861,
+      "last_write_time": "2026-06-29T22:45:11",
+      "reason": "早期回测目录，当前主线为 backtest_code"
+    },
+    {
+      "source": "C:/GoogleDrive/TP/cyc",
+      "destination": "C:\\GoogleDrive\\TP\\archive\\frozen_20260629\\cyc",
+      "status": "moved",
+      "file_count": 2,
+      "size_bytes": 4570254,
+      "last_write_time": "2026-06-29T22:45:11",
+      "reason": "早期周期研究，后续有价值逻辑并入 regime_model"
+    },
+    {
+      "source": "C:/GoogleDrive/TP/技术分析和深度学习/深度学习",
+      "destination": "C:\\GoogleDrive\\TP\\archive\\frozen_20260629\\技术分析和深度学习__深度学习",
+      "status": "moved",
+      "file_count": 9,
+      "size_bytes": 703153,
+      "last_write_time": "2026-06-29T22:45:11",
+      "reason": "旧深度学习 pipeline，与 ML_Enhanced 职责重叠"
+    }
+  ],
+  "last_updated_at": "2026-06-29T22:45:11"
+}

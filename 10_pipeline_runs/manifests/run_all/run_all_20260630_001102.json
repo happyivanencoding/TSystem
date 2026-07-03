@@ -1,0 +1,69 @@
+{
+  "step": "run_all",
+  "status": "success",
+  "started_at": "2026-06-30T00:11:02",
+  "finished_at": "2026-06-30T00:11:02",
+  "duration_seconds": 0.0,
+  "parameters": {
+    "as_of": null,
+    "input_month": null,
+    "update_mode": "both",
+    "ciq_dir": null,
+    "skip_ciq": false,
+    "dry_run_data": false,
+    "skip_refresh_data": true,
+    "skip_export_signals": true,
+    "skip_build_candidates": true,
+    "skip_optimize_portfolio": true,
+    "skip_backtest": true,
+    "skip_report": true,
+    "all_history_signals": false,
+    "regime_oos": false,
+    "regime_region": null,
+    "candidates_output": "C:\\GoogleDrive\\TP\\05_candidates\\latest_candidates.parquet",
+    "top_n": null,
+    "top_pct": 0.1,
+    "ml_weight": 0.7,
+    "technical_weight": 0.3,
+    "by_region": false,
+    "portfolio_output": "C:\\GoogleDrive\\TP\\06_portfolios\\latest_target_weights.parquet",
+    "optimizer_method": "score_weight",
+    "max_weight": 0.05,
+    "portfolio_region": null,
+    "old_portfolio": null,
+    "backtest_profile": "default",
+    "backtest_user": null,
+    "inspect_only_backtest": false,
+    "bench": null,
+    "metric": null,
+    "start_date": null,
+    "percentile": null,
+    "ptf_name": null,
+    "backtest_output_dir": null,
+    "backtest_max_weight": null,
+    "sector_neutral": false,
+    "top": false,
+    "bottom": false,
+    "batch": false,
+    "report_output": "C:\\GoogleDrive\\TP\\09_reports\\latest_pipeline_report.md"
+  },
+  "inputs": {},
+  "outputs": {},
+  "validations": [
+    {
+      "name": "child_steps_completed",
+      "status": "passed",
+      "message": "已完成选定流水线步骤",
+      "details": {
+        "count": 0
+      }
+    }
+  ],
+  "details": {
+    "child_manifests": []
+  },
+  "idempotency": {
+    "policy": "标准产物使用固定 latest 路径覆盖写入；每次运行另写时间戳 manifest 保留审计证据。",
+    "no_duplicate_rows_expected": true
+  }
+}

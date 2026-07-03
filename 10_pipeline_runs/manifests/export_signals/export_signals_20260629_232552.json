@@ -1,0 +1,62 @@
+{
+  "step": "export_signals",
+  "status": "failed",
+  "started_at": "2026-06-29T23:25:52",
+  "finished_at": "2026-06-29T23:25:52",
+  "duration_seconds": 0.003,
+  "parameters": {
+    "as_of": null,
+    "all_history": false,
+    "skip_ml": false,
+    "skip_technical": false,
+    "skip_regime": false,
+    "regime_oos": false,
+    "region": null,
+    "patterns": "C:\\GoogleDrive\\TP\\03_technical_analysis\\output\\patterns.parquet",
+    "ml_output": "C:\\GoogleDrive\\TP\\04_signals\\ml_signals.parquet",
+    "technical_output": "C:\\GoogleDrive\\TP\\04_signals\\technical_signals.parquet",
+    "regime_output": "C:\\GoogleDrive\\TP\\04_signals\\regime_risk_budget.parquet"
+  },
+  "inputs": {
+    "screen_aggregate": {
+      "path": "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate.parquet",
+      "exists": true,
+      "bytes": 1087847793,
+      "modified_at": "2026-06-29T17:29:51",
+      "parquet_profile_error": "No module named 'pyarrow'"
+    },
+    "ml_exporter": {
+      "path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\export_signals.py",
+      "exists": true,
+      "type": "file",
+      "bytes": 2672,
+      "modified_at": "2026-06-29T23:15:56"
+    },
+    "technical_exporter": {
+      "path": "C:\\GoogleDrive\\TP\\03_technical_analysis\\export_technical_signals.py",
+      "exists": true,
+      "type": "file",
+      "bytes": 5455,
+      "modified_at": "2026-06-29T23:16:24"
+    },
+    "regime_exporter": {
+      "path": "C:\\GoogleDrive\\TP\\03_regime_model\\export_risk_budget.py",
+      "exists": true,
+      "type": "file",
+      "bytes": 3249,
+      "modified_at": "2026-06-29T23:15:56"
+    }
+  },
+  "outputs": {},
+  "validations": [],
+  "details": {},
+  "idempotency": {
+    "policy": "标准产物使用固定 latest 路径覆盖写入；每次运行另写时间戳 manifest 保留审计证据。",
+    "no_duplicate_rows_expected": true
+  },
+  "error": {
+    "type": "ImportError",
+    "message": "Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.\nA suitable version of pyarrow or fastparquet is required for parquet support.\nTrying to import the above resulted in these errors:\n - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.\n - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.",
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\GoogleDrive\\TP\\03_ml_enhanced\\export_signals.py\", line 34, in _read_screen_for_ml\n    return pd.read_parquet(SCREEN_AGGREGATE_PATH, columns=columns)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\jingx\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\site-packages\\pandas\\io\\parquet.py\", line 668, in read_parquet\n    impl = get_engine(engine)\n           ^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\jingx\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\site-packages\\pandas\\io\\parquet.py\", line 68, in get_engine\n    raise ImportError(\nImportError: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.\nA suitable version of pyarrow or fastparquet is required for parquet support.\nTrying to import the above resulted in these errors:\n - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.\n - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\export_signals.py\", line 67, in run_export_signals\n    outputs[\"ml_signals\"] = module.export_ml_signals(\n                            ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\GoogleDrive\\TP\\03_ml_enhanced\\export_signals.py\", line 41, in export_ml_signals\n    screen = _read_screen_for_ml()\n             ^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\GoogleDrive\\TP\\03_ml_enhanced\\export_signals.py\", line 37, in _read_screen_for_ml\n    return pd.read_parquet(SCREEN_AGGREGATE_PATH)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\jingx\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\site-packages\\pandas\\io\\parquet.py\", line 668, in read_parquet\n    impl = get_engine(engine)\n           ^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\jingx\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\site-packages\\pandas\\io\\parquet.py\", line 68, in get_engine\n    raise ImportError(\nImportError: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.\nA suitable version of pyarrow or fastparquet is required for parquet support.\nTrying to import the above resulted in these errors:\n - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.\n - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.\n"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "updated_at": "2026-06-30T00:06:30",
+  "purpose": "TP 根目录物理编号改名和兼容层归档记录。真实项目目录使用编号前缀；根目录无编号兼容文件夹已经移入 99_archive/compat_wrappers_20260629。",
+  "physical_renames": {
+    "screen": "00_screen",
+    "tp_core": "01_tp_core",
+    "pipelines": "02_pipelines",
+    "ML_Enhanced": "03_ml_enhanced",
+    "regime_model": "03_regime_model",
+    "technical_analysis_v2": "03_technical_analysis",
+    "signals": "04_signals",
+    "candidates": "05_candidates",
+    "optimiser": "06_optimiser",
+    "portfolios": "06_portfolios",
+    "backtest_code": "07_backtest_code",
+    "presentation_layer": "08_presentation_layer",
+    "web_app_des_companies": "08_web_app_des_companies",
+    "Company_Analysis": "08_company_analysis",
+    "dashboard_analysis": "08_dashboard_analysis",
+    "reports": "09_reports",
+    "pipeline_runs": "10_pipeline_runs",
+    "docs": "11_docs",
+    "small_cap": "12_small_cap",
+    "archive": "99_archive",
+    "Backtest_GUI": "99_backtest_gui_legacy",
+    "backtest_wep_app": "99_backtest_web_app_legacy",
+    "优化器": "99_optimiseur_legacy"
+  },
+  "archived_root_wrappers": "99_archive/compat_wrappers_20260629/",
+  "logical_packages_inside_numbered_dirs": {
+    "tp_core": "01_tp_core/tp_core/",
+    "optimiser": "06_optimiser/optimiser/",
+    "presentation_layer": "08_presentation_layer/presentation_layer/",
+    "backtest_code": "07_backtest_code/src/backtest_code/"
+  },
+  "command_rule": {
+    "tp_core": "python -m 01_tp_core.<module>",
+    "pipelines": "python -m 02_pipelines.<module>",
+    "backtest": "python 07_backtest_code/run_backtest.py <command>",
+    "screen_update": "python 00_screen/monthly_update.py <args>"
+  },
+  "production_rule": "新代码和文档引用编号后的真实目录；不得再新增根目录无编号 wrapper。"
+}

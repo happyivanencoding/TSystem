@@ -1,0 +1,20 @@
+{
+  "name": "tp-system-dashboard-client",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 8061",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 8062"
+  },
+  "dependencies": {
+    "lucide-react": "^0.292.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.3",
+    "vite": "^8.1.3"
+  }
+}

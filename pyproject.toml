@@ -1,0 +1,63 @@
+[project]
+name = "tp-workspace"
+version = "0.1.0"
+description = "TP 研究项目的共享工具与 canonical 数据契约"
+requires-python = ">=3.11"
+dependencies = [
+  "pandas>=2.0",
+  "numpy>=1.24",
+  "python-dateutil>=2.8",
+  "pyarrow>=14",
+  "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+screen = [
+  "numba>=0.58",
+  "pandarallel>=1.6",
+]
+backtest = [
+  "scipy>=1.10",
+  "plotly>=5",
+  "PyYAML>=6.0",
+]
+optimizer = [
+  "cvxpy>=1.7,<1.8",
+  "ecos>=2.0",
+]
+web = [
+  "fastapi>=0.110",
+  "uvicorn>=0.27",
+  "pydantic>=2",
+  "streamlit>=1.30",
+]
+ml = [
+  "scikit-learn>=1.3",
+  "xgboost>=2",
+  "shap>=0.44",
+]
+
+[project.scripts]
+tp-organize-inputs = "01_tp_core.production_inputs:main"
+tp-returns-audit = "01_tp_core.returns_audit:main"
+tp-check-legacy-references = "01_tp_core.legacy_policy:main"
+tp-validate-signals = "01_tp_core.signals:main"
+tp-pipeline-refresh-data = "02_pipelines.refresh_data:main"
+tp-pipeline-export-signals = "02_pipelines.export_signals:main"
+tp-pipeline-build-candidates = "02_pipelines.build_candidates:main"
+tp-pipeline-optimize-portfolio = "02_pipelines.optimize_portfolio:main"
+tp-pipeline-run-backtest = "02_pipelines.run_backtest:main"
+tp-pipeline-generate-report = "02_pipelines.generate_report:main"
+tp-pipeline-run-all = "02_pipelines.run_all:main"
+tp-presentation = "presentation_layer.cli:main"
+
+[tool.pytest.ini_options]
+pythonpath = [".", "01_tp_core", "06_optimiser", "08_presentation_layer", "07_backtest_code", "07_backtest_code/src"]
+testpaths = [
+  "07_backtest_code/tests",
+]
+
+[tool.ruff]
+line-length = 100
+
+

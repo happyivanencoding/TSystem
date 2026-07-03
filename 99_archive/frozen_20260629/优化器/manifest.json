@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-06-29T19:06:25",
+  "action": "freeze_excel_notebook_optimizer",
+  "reason": "P1 主线整理：optimiser/ 是唯一 Python 组合优化器，优化器/ 只保留历史说明。",
+  "items": [
+    {
+      "source": "C:\\GoogleDrive\\TP\\优化器\\optimiseur.ipynb",
+      "destination": "C:\\GoogleDrive\\TP\\archive\\frozen_20260629\\优化器\\optimiseur.ipynb",
+      "size_bytes": 2027439,
+      "last_write_time": "2025-12-17T17:56:26"
+    },
+    {
+      "source": "C:\\GoogleDrive\\TP\\优化器\\optimiseur.xlsm",
+      "destination": "C:\\GoogleDrive\\TP\\archive\\frozen_20260629\\优化器\\optimiseur.xlsm",
+      "size_bytes": 1485123,
+      "last_write_time": "2025-12-17T18:28:07"
+    }
+  ]
+}

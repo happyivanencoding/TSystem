@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>市场状态与风险仪表盘</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="appbar">
+    <span class="material-icons">insights</span>
+    <h1>市场状态与风险仪表盘</h1>
+    <span class="subtitle">HMM 状态识别 + Ridge 波动预测</span>
+    <div class="region-toggle" id="regionToggle">
+      <button data-region="US" class="active">美国 SP500</button>
+      <button data-region="EU">欧洲 STOXX600</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- 当前快照 -->
+    <section class="grid-3">
+      <div class="card snapshot">
+        <div class="card-label">当前市场状态</div>
+        <div class="state-chip" id="stateChip">—</div>
+        <div class="as-of" id="asOf"></div>
+      </div>
+      <div class="card snapshot">
+        <div class="card-label">预测下月波动率(年化)</div>
+        <div class="big-num" id="predVol">—</div>
+        <div class="hint">由 Ridge 模型基于 26 个状态特征预测</div>
+      </div>
+      <div class="card snapshot">
+        <div class="card-label">建议权益配置</div>
+        <div class="big-num accent" id="equityW">—</div>
+        <div class="alloc-break" id="allocBreak"></div>
+      </div>
+    </section>
+
+    <!-- 可解释性：当前预测的变量贡献 -->
+    <section class="card">
+      <div class="card-title">
+        <span class="material-icons">account_tree</span>
+        可解释性 · 当前波动预测的变量贡献
+      </div>
+      <p class="explain">
+        每根柱 = 该变量的标准化取值 × 模型系数，即它把下月波动预测<b>推高(红=风险↑)</b>或<b>压低(绿=风险↓)</b>了多少。
+        所有贡献求和 + 基准截距 = 最终预测波动。
+      </p>
+      <div class="chart-box tall"><canvas id="contribChart"></canvas></div>
+    </section>
+
+    <section class="grid-2">
+      <!-- 市场状态时间线 -->
+      <div class="card">
+        <div class="card-title"><span class="material-icons">timeline</span>市场状态时间线(累计收益着色)</div>
+        <div class="chart-box"><canvas id="regimeChart"></canvas></div>
+        <div class="legend" id="regimeLegend"></div>
+      </div>
+      <!-- 波动预测 -->
+      <div class="card">
+        <div class="card-title"><span class="material-icons">show_chart</span>已实现波动 vs 模型拟合</div>
+        <div class="chart-box"><canvas id="volChart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="grid-2">
+      <!-- Ridge 全局系数 -->
+      <div class="card">
+        <div class="card-title"><span class="material-icons">tune</span>模型全局方向 · Ridge 系数</div>
+        <p class="explain">正系数(红)=该变量越高、未来波动越大；负系数(绿)=越高则波动越小。反映模型学到的整体规律。</p>
+        <div class="chart-box tall"><canvas id="coefChart"></canvas></div>
+      </div>
+      <!-- 当前状态画像 -->
+      <div class="card">
+        <div class="card-title"><span class="material-icons">fingerprint</span>当前状态的特征画像</div>
+        <p class="explain">当前状态下各特征相对历史均值的标准化偏离(z)，刻画"这是个什么样的状态"。</p>
+        <div class="chart-box tall"><canvas id="profileChart"></canvas></div>
+      </div>
+    </section>
+
+    <footer>
+      <span>数据区间 2009–2026 · 月度 · 仅研究演示，非投资建议</span>
+    </footer>
+  </main>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+# ignore all markdown files (md) 
+*.pyc
+.git
+*.md
+*.ipynb
+.gitignore
+__pycache__
+Analyse_Exploratiore/

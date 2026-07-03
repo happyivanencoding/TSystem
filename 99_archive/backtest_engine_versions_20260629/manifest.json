@@ -1,0 +1,19 @@
+{
+  "archive_date": "2026-06-29",
+  "scope": "backtest engine consolidation",
+  "entries": [
+    {
+      "original_path": "03_ml_enhanced/Codes/BacktestEngine.py",
+      "archived_path": "99_archive/backtest_engine_versions_20260629/03_ml_enhanced/Codes/BacktestEngine.py",
+      "reason": "ML-local monolithic BacktestEngine duplicated the active code-first backtest stack; original path now delegates to tp_core/backtest_code compatibility layer."
+    },
+    {
+      "original_path": "07_backtest_code/core/backtest_engine_optimized.py",
+      "archived_path": "99_archive/backtest_engine_versions_20260629/07_backtest_code/core/backtest_engine_optimized.py",
+      "reason": "Optimized draft was incomplete and not wired into production; original path now delegates to the canonical BacktestEngine wrapper."
+    }
+  ],
+  "canonical_backtest_core": "01_tp_core/general_backtest.py",
+  "active_backtest_entry": "07_backtest_code/BacktestEngine.py",
+  "documentation": "11_docs/BACKTEST_ENGINE.md"
+}

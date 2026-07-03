@@ -1,0 +1,74 @@
+{
+  "step": "run_all",
+  "status": "success",
+  "started_at": "2026-06-29T23:26:28",
+  "finished_at": "2026-06-29T23:26:31",
+  "duration_seconds": 2.229,
+  "parameters": {
+    "as_of": null,
+    "input_month": null,
+    "update_mode": "both",
+    "ciq_dir": null,
+    "skip_ciq": false,
+    "dry_run_data": false,
+    "skip_refresh_data": true,
+    "skip_export_signals": false,
+    "skip_build_candidates": false,
+    "skip_optimize_portfolio": false,
+    "skip_backtest": true,
+    "skip_report": false,
+    "all_history_signals": false,
+    "regime_oos": false,
+    "regime_region": null,
+    "candidates_output": "C:\\GoogleDrive\\TP\\05_candidates\\latest_candidates.parquet",
+    "top_n": null,
+    "top_pct": 0.1,
+    "ml_weight": 0.7,
+    "technical_weight": 0.3,
+    "by_region": false,
+    "portfolio_output": "C:\\GoogleDrive\\TP\\06_portfolios\\latest_target_weights.parquet",
+    "optimizer_method": "score_weight",
+    "max_weight": 0.05,
+    "portfolio_region": null,
+    "old_portfolio": null,
+    "backtest_profile": "default",
+    "backtest_user": null,
+    "inspect_only_backtest": false,
+    "bench": null,
+    "metric": null,
+    "start_date": null,
+    "percentile": null,
+    "ptf_name": null,
+    "backtest_output_dir": null,
+    "backtest_max_weight": null,
+    "sector_neutral": false,
+    "top": false,
+    "bottom": false,
+    "batch": false,
+    "report_output": "C:\\GoogleDrive\\TP\\09_reports\\latest_pipeline_report.md"
+  },
+  "inputs": {},
+  "outputs": {},
+  "validations": [
+    {
+      "name": "child_steps_completed",
+      "status": "passed",
+      "message": "已完成选定流水线步骤",
+      "details": {
+        "count": 4
+      }
+    }
+  ],
+  "details": {
+    "child_manifests": [
+      "C:\\GoogleDrive\\TP\\10_pipeline_runs\\manifests\\export_signals\\export_signals_20260629_232630.json",
+      "C:\\GoogleDrive\\TP\\10_pipeline_runs\\manifests\\build_candidates\\build_candidates_20260629_232631.json",
+      "C:\\GoogleDrive\\TP\\10_pipeline_runs\\manifests\\optimize_portfolio\\optimize_portfolio_20260629_232631.json",
+      "C:\\GoogleDrive\\TP\\10_pipeline_runs\\manifests\\generate_report\\generate_report_20260629_232631.json"
+    ]
+  },
+  "idempotency": {
+    "policy": "标准产物使用固定 latest 路径覆盖写入；每次运行另写时间戳 manifest 保留审计证据。",
+    "no_duplicate_rows_expected": true
+  }
+}

@@ -1,0 +1,39 @@
+# Dataset and large binary artifacts
+*.parquet
+*.pkl
+*.pickle
+
+# Data archives, backups, and generated outputs
+**/_quarantine_*/
+00_screen/_quarantine_*/
+00_screen/production_inputs/
+00_screen/backups/
+03_ml_enhanced/_quarantine_*/
+07_backtest_code/runs/
+08_dashboard_analysis/outputs/
+10_pipeline_runs/notebook_execution/
+**/optimizer_debug/
+*.log
+
+# Local environments and caches
+.venv_tp/
+.venv/
+venv/
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipython/
+.jupyter/
+.idea/
+.codex/
+.codex_tmp/
+.tmp_dashboard_work/
+
+# Frontend build outputs
+dist/
+build/
+.next/
+
+# Large quarantine notebook artifact
+00_screen/_quarantine_20260629/manual_cleanup/exploration_notebooks/test.ipynb

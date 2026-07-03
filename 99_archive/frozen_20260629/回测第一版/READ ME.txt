@@ -1,0 +1,4 @@
+import sys
+sys.path.insert(0, r'\\groupe-ufg.com\commun\Prive\GestionAM\Ingenierie_Financiere\PROD\_EQUITY\Sec_List_Backtest')
+from backtest import backtest
+from sec_list_generation import generic_histo_seclist, sec_list_ML_EU, sec_list_spot, read_liste_noire

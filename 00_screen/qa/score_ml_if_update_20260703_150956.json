@@ -1,0 +1,31 @@
+{
+  "run_id": "20260703_150956",
+  "action": "add_score_ml_if",
+  "input_path_original": "C:\\GoogleDrive\\TP\\00_screen\\production_inputs\\incoming\\download (10)",
+  "input_path_archived": "C:\\GoogleDrive\\TP\\00_screen\\production_inputs\\archive\\processed_batches\\score_ml_if_20260703_150956\\loose_originals\\download (10)",
+  "screen_path": "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate.parquet",
+  "last_screen_path": "C:\\GoogleDrive\\TP\\00_screen\\last_screen.parquet",
+  "screen_5y_path": "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate_5Y.parquet",
+  "screen_backup": "C:\\GoogleDrive\\TP\\00_screen\\backups\\screen_aggregate\\screen_aggregate_20260703_151004_695417_before_score_ml_if_update.parquet",
+  "last_screen_backup": "C:\\GoogleDrive\\TP\\00_screen\\backups\\last_screen\\last_screen_20260703_151004_961699_before_score_ml_if_update.parquet",
+  "screen_5y_backup": "C:\\GoogleDrive\\TP\\00_screen\\backups\\screen_aggregate_5Y\\screen_aggregate_5Y_20260703_151004_964463_before_score_ml_if_update.parquet",
+  "score_input_rows": 457771,
+  "score_dedup_rows": 457731,
+  "duplicate_rows_same_value": 40,
+  "date_min": "2009-12-31",
+  "date_max": "2026-06-30",
+  "screen_rows": 3454342,
+  "matched_rows": 446172,
+  "latest_date": "2026-06-30",
+  "latest_matched_rows": 1444,
+  "derived_outputs": {
+    "latest_date": "2026-06-30 00:00:00",
+    "last_screen_path": "C:\\GoogleDrive\\TP\\00_screen\\last_screen.parquet",
+    "last_screen_rows": 11107,
+    "screen_5y_path": "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate_5Y.parquet",
+    "screen_5y_rows": 654038,
+    "write_skipped": false
+  },
+  "screen_contract_ok": true,
+  "screen_contract_issues": []
+}

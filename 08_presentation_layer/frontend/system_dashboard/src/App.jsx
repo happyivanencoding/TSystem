@@ -1,13 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
+  BarChart3,
   CheckCircle2,
   Database,
+  Gauge,
   Loader2,
   Play,
   RefreshCw,
   Server,
   ShieldCheck,
+  TrendingUp,
 } from 'lucide-react'
 
 const API_BASE = import.meta.env.VITE_TP_DASHBOARD_API || ''
@@ -66,6 +69,39 @@ const EMPTY_DASHBOARD_STATE = {
   assets: [],
   core_database: [],
   pipeline: [],
+  signals: {
+    regime: {
+      status: 'missing',
+      latest_date: '',
+      updated_at: '',
+      signal_path: '',
+      rows: [],
+      history: [],
+      models: {
+        status: 'missing',
+        updated_at: '',
+        state_models: [],
+        risk_models: [],
+        direction_models: [],
+        volatility_models: [],
+        drawdown_models: [],
+      },
+      message: '',
+    },
+    country: {
+      status: 'missing',
+      latest_date: '',
+      updated_at: '',
+      signal_path: '',
+      database_path: '',
+      single_country_path: '',
+      rows: [],
+      history: [],
+      single_country_rows: [],
+      single_country_history: [],
+      message: '',
+    },
+  },
   queue: {
     queue_name: '',
     thread_worker_alive: false,
@@ -136,6 +172,273 @@ function ActionButton({ icon: Icon, label, description, disabled, active = false
 
 function StatusPill({ value }) {
   return <span className={`tp-status-pill ${statusTone(value)}`}>{cellText(value)}</span>
+}
+
+function regimeProfile(item) {
+  const text = `${item.regime || ''} ${item.state || ''}`.toLowerCase()
+  const budget = Number.parseFloat(item.risk_budget)
+  if (text.includes('risk-off') || text.includes('衰退') || text.includes('压力') || text.includes('收缩') || text.includes('危机')) {
+    return { angle: -58, label: 'Risk-Off', tone: 'is-risk-off', color: '#b33f55', soft: '#f8e7eb' }
+  }
+  if (text.includes('risk-on') || text.includes('扩张') || budget > 1.02) {
+    return { angle: 58, label: 'Risk-On', tone: 'is-risk-on', color: '#167768', soft: '#e7f3ef' }
+  }
+  if (text.includes('震荡') || budget < 0.98) {
+    return { angle: -12, label: 'Neutral / Choppy', tone: 'is-neutral', color: '#9a6b18', soft: '#fbf1dc' }
+  }
+  return { angle: 0, label: 'Neutral', tone: 'is-neutral', color: '#315d9f', soft: '#e9eef8' }
+}
+
+function RegimeGauge({ item }) {
+  const profile = regimeProfile(item)
+  return (
+    <div
+      className={`tp-regime-meter ${profile.tone}`}
+      style={{
+        '--needle-angle': `${profile.angle}deg`,
+        '--regime-color': profile.color,
+        '--regime-soft': profile.soft,
+      }}
+    >
+      <div className="tp-regime-meter-head">
+        <span>{cellText(item.region)}</span>
+        <strong>{profile.label}</strong>
+      </div>
+      <div className="tp-regime-gauge" aria-label={`${cellText(item.region)} ${profile.label}`}>
+        <div className="tp-regime-arc">
+          <span className="tp-regime-needle" />
+          <span className="tp-regime-pin" />
+        </div>
+        <div className="tp-regime-scale">
+          <span>Risk-Off</span>
+          <span>Neutral</span>
+          <span>Risk-On</span>
+        </div>
+      </div>
+      <div className="tp-regime-readout">
+        <strong>{cellText(item.regime)}</strong>
+        <span>{cellText(item.risk_budget)} risk budget / {cellText(item.最新月份)}</span>
+      </div>
+    </div>
+  )
+}
+
+function scoreWidth(value) {
+  const number = Number.parseFloat(value)
+  if (!Number.isFinite(number)) return '0%'
+  return `${Math.max(0, Math.min(100, number * 100))}%`
+}
+
+function StateModelMatrix({ rows }) {
+  if (!rows.length) return <div className="tp-empty">暂无状态模型结果</div>
+  return (
+    <div className="tp-model-matrix">
+      {rows.map((row) => {
+        const profile = regimeProfile({ regime: row.regime, risk_budget: row.state === '0' ? '1.10' : '' })
+        return (
+          <div
+            className="tp-model-strip"
+            key={`${row.region}-${row.model}`}
+            style={{ '--model-color': profile.color, '--model-soft': profile.soft }}
+          >
+            <div className="tp-model-strip-head">
+              <span>{cellText(row.region)}</span>
+              <strong>{cellText(row.model)}</strong>
+            </div>
+            <div className="tp-model-strip-main">
+              <span className="tp-model-dot" />
+              <div>
+                <strong>{cellText(row.regime)}</strong>
+                <small>{cellText(row.as_of)} / state {cellText(row.state)} / {cellText(row.agreement || 'N/A')}</small>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function RiskModelMeters({ rows }) {
+  if (!rows.length) return <div className="tp-empty">暂无 Ridge 风险预测</div>
+  return (
+    <div className="tp-risk-meter-grid">
+      {rows.map((row) => (
+        <div className="tp-risk-meter" key={`${row.region}-${row.model}`}>
+          <div className="tp-risk-meter-top">
+            <span>{cellText(row.region)}</span>
+            <strong>{cellText(row.equity_weight_pct)}</strong>
+          </div>
+          <div className="tp-risk-meter-bar" aria-label={`${row.region} equity weight`}>
+            <span style={{ width: scoreWidth(row.equity_weight) }} />
+          </div>
+          <div className="tp-risk-meter-meta">
+            <span>Ridge vol {cellText(row.pred_vol_pct)}</span>
+            <span>target {cellText(row.target_vol_pct)}</span>
+          </div>
+          <small>{cellText(row.top_driver)} {cellText(row.top_driver_contrib)}</small>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ModelRankList({ icon: Icon, title, rows }) {
+  const visibleRows = rows.slice(0, 6)
+  return (
+    <div className="tp-rank-list">
+      <div className="tp-rank-title">
+        <Icon size={16} />
+        <strong>{title}</strong>
+      </div>
+      {visibleRows.map((row) => (
+        <div className="tp-rank-row" key={`${title}-${row.region}-${row.rank}-${row.model}`}>
+          <div className="tp-rank-row-head">
+            <span>{cellText(row.region)} #{cellText(row.rank)} {cellText(row.model)}</span>
+            <strong>{cellText(row.score_text)}</strong>
+          </div>
+          <div className="tp-rank-bar">
+            <span style={{ width: scoreWidth(row.score) }} />
+          </div>
+          <small>
+            {cellText(row.metric)} / secondary {cellText(row.secondary || 'N/A')}
+            {row.annual_return ? ` / ann ${cellText(row.annual_return)}%` : ''}
+            {row.sharpe ? ` / Sharpe ${cellText(row.sharpe)}` : ''}
+          </small>
+        </div>
+      ))}
+      {!visibleRows.length && <div className="tp-empty">暂无模型排名</div>}
+    </div>
+  )
+}
+
+const COUNTRY_FACTORS = [
+  ['margin', 'Margin'],
+  ['profitability', 'Profit'],
+  ['growth', 'Growth'],
+  ['value', 'Value'],
+  ['momentum', 'Momentum'],
+]
+
+function countryScoreWidth(value) {
+  const number = Number.parseFloat(value)
+  if (!Number.isFinite(number)) return '0%'
+  return `${Math.max(0, Math.min(100, number * 10))}%`
+}
+
+function countryProfile(item) {
+  const score = Number.parseFloat(item.score)
+  const recommendation = cellText(item.recommendation).toLowerCase()
+  if (recommendation.includes('positive') || score >= 6.6) {
+    return { label: 'Positive', color: '#167768', soft: '#e7f3ef' }
+  }
+  if (recommendation.includes('negative') || score <= 4.2) {
+    return { label: 'Negative', color: '#b33f55', soft: '#f8e7eb' }
+  }
+  return { label: 'Neutral', color: '#315d9f', soft: '#e9eef8' }
+}
+
+function CountryFactorBars({ item }) {
+  return (
+    <div className="tp-country-factors">
+      {COUNTRY_FACTORS.map(([key, label]) => (
+        <div className="tp-country-factor" key={key}>
+          <span>{label}</span>
+          <div className="tp-country-factor-track">
+            <i style={{ width: countryScoreWidth(item[key]) }} />
+          </div>
+          <strong>{cellText(item[key])}</strong>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function CountryRegionCard({ item }) {
+  const profile = countryProfile(item)
+  return (
+    <div
+      className="tp-country-card"
+      style={{ '--country-color': profile.color, '--country-soft': profile.soft }}
+    >
+      <div className="tp-country-card-head">
+        <div>
+          <span>{cellText(item.country_label)}</span>
+          <strong>{cellText(item.region)}</strong>
+        </div>
+        <em>{cellText(item.recommendation || profile.label)}</em>
+      </div>
+      <div className="tp-country-score-line">
+        <strong>{cellText(item.score)}</strong>
+        <span>rank #{cellText(item.rank)} / {cellText(item.最新月份)}</span>
+      </div>
+      <div className="tp-country-score-track" aria-label={`${item.region} country score`}>
+        <i style={{ width: countryScoreWidth(item.score) }} />
+      </div>
+      <div className="tp-country-card-meta">
+        <span>rank change {cellText(item.rank_delta)}</span>
+        <span>{cellText(item.model)}</span>
+      </div>
+      <CountryFactorBars item={item} />
+    </div>
+  )
+}
+
+function SingleCountryTile({ item }) {
+  const profile = countryProfile(item)
+  return (
+    <div
+      className="tp-single-country-tile"
+      style={{ '--country-color': profile.color, '--country-soft': profile.soft }}
+    >
+      <div className="tp-single-country-head">
+        <span>{cellText(item.country)}</span>
+        <strong>#{cellText(item.rank)}</strong>
+      </div>
+      <small>{cellText(item.country_label)}</small>
+      <div className="tp-single-country-score">
+        <strong>{cellText(item.score)}</strong>
+        <div className="tp-country-score-track">
+          <i style={{ width: countryScoreWidth(item.score) }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SingleCountryBoard({ rows }) {
+  if (!rows.length) return <div className="tp-empty">暂无单个国家分数</div>
+  const [leader, ...rest] = rows
+  const leaderProfile = countryProfile(leader)
+  return (
+    <div className="tp-single-country-board">
+      <div
+        className="tp-country-leader"
+        style={{ '--country-color': leaderProfile.color, '--country-soft': leaderProfile.soft }}
+      >
+        <div className="tp-country-card-head">
+          <div>
+            <span>Top single country</span>
+            <strong>{cellText(leader.country)}</strong>
+          </div>
+          <em>#{cellText(leader.rank)}</em>
+        </div>
+        <div className="tp-country-score-line">
+          <strong>{cellText(leader.score)}</strong>
+          <span>{cellText(leader.country_label)} / {cellText(leader.最新月份)}</span>
+        </div>
+        <div className="tp-country-score-track" aria-label={`${leader.country} country score`}>
+          <i style={{ width: countryScoreWidth(leader.score) }} />
+        </div>
+        <CountryFactorBars item={leader} />
+      </div>
+      <div className="tp-single-country-grid">
+        {rest.map((item) => (
+          <SingleCountryTile item={item} key={`${item.country}-${item.最新月份}`} />
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function DataTable({ columns, rows, limit = 8 }) {
@@ -380,6 +683,18 @@ function App() {
         label: 'Pipeline 启动',
         pendingStep: pipelinePayload.step,
       },
+      regime: {
+        endpoint: '/api/dashboard/jobs/signals/regime',
+        payload: {},
+        label: 'Regime 刷新',
+        pendingStep: 'signal:regime_risk_budget',
+      },
+      country: {
+        endpoint: '/api/dashboard/jobs/signals/country',
+        payload: {},
+        label: 'Country model 刷新',
+        pendingStep: 'signal:country_model',
+      },
     }
     const target = targets[kind]
     setSubmitting(kind)
@@ -445,6 +760,84 @@ function App() {
     [dashboardState.queue.recent],
   )
 
+  const regimeSignal = dashboardState.signals?.regime || EMPTY_DASHBOARD_STATE.signals.regime
+  const regimeRows = useMemo(
+    () =>
+      (regimeSignal.rows || []).map((item) => ({
+        region: item.region,
+        最新月份: item.最新月份,
+        regime: item.regime,
+        风险预算: item.risk_budget,
+        状态: item.state,
+        model: item.model,
+      })),
+    [regimeSignal],
+  )
+  const regimeHistoryRows = useMemo(
+    () =>
+      (regimeSignal.history || []).map((item) => ({
+        region: item.region,
+        月份: item.最新月份,
+        regime: item.regime,
+        风险预算: item.risk_budget,
+        状态: item.state,
+      })),
+    [regimeSignal],
+  )
+  const regimeModels = regimeSignal.models || EMPTY_DASHBOARD_STATE.signals.regime.models
+  const stateModelRows = regimeModels.state_models || []
+  const riskModelRows = regimeModels.risk_models || []
+  const directionModelRows = regimeModels.direction_models || []
+  const volatilityModelRows = regimeModels.volatility_models || []
+  const drawdownModelRows = regimeModels.drawdown_models || []
+  const countrySignal = dashboardState.signals?.country || EMPTY_DASHBOARD_STATE.signals.country
+  const countryVisualRows = countrySignal.rows || []
+  const singleCountrySignalRows = countrySignal.single_country_rows || []
+  const countryRows = useMemo(
+    () =>
+      (countrySignal.rows || []).map((item) => ({
+        region: item.region,
+        最新月份: item.最新月份,
+        score: item.score,
+        rank: item.rank,
+        recommendation: item.recommendation,
+        'Δ rank': item.rank_delta,
+        margin: item.margin,
+        profitability: item.profitability,
+        growth: item.growth,
+        value: item.value,
+        momentum: item.momentum,
+      })),
+    [countrySignal],
+  )
+  const countryHistoryRows = useMemo(
+    () =>
+      (countrySignal.history || []).map((item) => ({
+        region: item.region,
+        月份: item.最新月份,
+        score: item.score,
+        rank: item.rank,
+        recommendation: item.recommendation,
+      })),
+    [countrySignal],
+  )
+  const singleCountryRows = useMemo(
+    () =>
+      (countrySignal.single_country_rows || []).map((item) => ({
+        国家: item.country,
+        指数: item.country_label,
+        最新月份: item.最新月份,
+        score: item.score,
+        rank: item.rank,
+        margin: item.margin,
+        profitability: item.profitability,
+        growth: item.growth,
+        value: item.value,
+        momentum: item.momentum,
+      })),
+    [countrySignal],
+  )
+
   return (
     <div className="tp-shell">
       <header className="tp-topbar">
@@ -507,7 +900,7 @@ function App() {
                 onClick={() => launchJob('project')}
               />
               <ActionButton
-                active={submitting === 'pipeline' || (!job.step?.startsWith('project:') && job.step !== 'system_checks' && ['queued', 'running'].includes(job.status))}
+                active={submitting === 'pipeline' || (!job.step?.startsWith('project:') && !job.step?.startsWith('signal:') && job.step !== 'system_checks' && ['queued', 'running'].includes(job.status))}
                 busy={submitting === 'pipeline'}
                 description={`${pipelinePayload.step} / ${pipelinePayload.update_mode}`}
                 disabled={isBusy}
@@ -657,6 +1050,135 @@ function App() {
               ))}
               {!dashboardState.alerts.length && <div className="tp-empty">暂无告警</div>}
             </div>
+          </div>
+
+          <div className="tp-panel tp-wide-panel">
+            <div className="tp-panel-heading">
+              <div>
+                <p className="tp-kicker">Signals / Regime</p>
+                <h2 className="tp-heading-icon"><Gauge size={18} />Regime detector</h2>
+              </div>
+              <button
+                aria-busy={submitting === 'regime' ? 'true' : 'false'}
+                className="tp-icon-button"
+                disabled={isBusy}
+                onClick={() => launchJob('regime')}
+                type="button"
+              >
+                <RefreshCw className={submitting === 'regime' ? 'tp-spin' : ''} size={18} />
+                <span>刷新 Regime</span>
+              </button>
+            </div>
+            <div className="tp-panel-note">
+              最新月份 {regimeSignal.latest_date || 'N/A'} / {regimeSignal.status || 'N/A'} / {regimeSignal.signal_path || 'N/A'}
+            </div>
+            <div className="tp-regime-cards">
+              {(regimeSignal.rows || []).map((item) => (
+                <RegimeGauge item={item} key={`${item.region}-${item.最新月份}`} />
+              ))}
+              {!(regimeSignal.rows || []).length && <div className="tp-empty">暂无 Regime 信号</div>}
+            </div>
+            <div className="tp-model-section">
+              <div className="tp-model-section-head">
+                <div>
+                  <p className="tp-kicker">Model family</p>
+                  <h3>状态模型与风险配置</h3>
+                </div>
+                <span>{regimeModels.updated_at || 'N/A'}</span>
+              </div>
+              <StateModelMatrix rows={stateModelRows} />
+              <RiskModelMeters rows={riskModelRows} />
+            </div>
+            <div className="tp-rank-grid">
+              <ModelRankList icon={TrendingUp} rows={directionModelRows} title="方向预测" />
+              <ModelRankList icon={BarChart3} rows={volatilityModelRows} title="波动预测" />
+              <ModelRankList icon={Activity} rows={drawdownModelRows} title="回撤预测" />
+            </div>
+            <DataTable columns={['region', '最新月份', 'regime', '风险预算', '状态', 'model']} rows={regimeRows} />
+            <div className="tp-panel-note">最近历史</div>
+            <DataTable columns={['region', '月份', 'regime', '风险预算', '状态']} limit={6} rows={regimeHistoryRows} />
+          </div>
+
+          <div className="tp-panel tp-wide-panel">
+            <div className="tp-panel-heading">
+              <div>
+                <p className="tp-kicker">Signals / Country</p>
+                <h2 className="tp-heading-icon"><BarChart3 size={18} />Country model</h2>
+              </div>
+              <button
+                aria-busy={submitting === 'country' ? 'true' : 'false'}
+                className="tp-icon-button"
+                disabled={isBusy}
+                onClick={() => launchJob('country')}
+                type="button"
+              >
+                <RefreshCw className={submitting === 'country' ? 'tp-spin' : ''} size={18} />
+                <span>刷新 Country</span>
+              </button>
+            </div>
+            <div className="tp-country-status-row">
+              <div>
+                <span>最新月份</span>
+                <strong>{countrySignal.latest_date || 'N/A'}</strong>
+              </div>
+              <div>
+                <span>状态</span>
+                <strong>{countrySignal.status || 'N/A'}</strong>
+              </div>
+              <div>
+                <span>Signal file</span>
+                <strong>{countrySignal.signal_path || 'N/A'}</strong>
+              </div>
+              <div>
+                <span>Single-country file</span>
+                <strong>{countrySignal.single_country_path || 'N/A'}</strong>
+              </div>
+            </div>
+            <div className="tp-country-dashboard">
+              <section className="tp-country-column">
+                <div className="tp-model-section-head">
+                  <div>
+                    <p className="tp-kicker">Regional allocation signal</p>
+                    <h3>区域评分与因子构成</h3>
+                  </div>
+                  <span>{countryVisualRows.length} regions</span>
+                </div>
+                <div className="tp-country-card-grid">
+                  {countryVisualRows.map((item) => (
+                    <CountryRegionCard item={item} key={`${item.region}-${item.最新月份}`} />
+                  ))}
+                  {!countryVisualRows.length && <div className="tp-empty">暂无 Country 信号</div>}
+                </div>
+              </section>
+              <section className="tp-country-column">
+                <div className="tp-model-section-head">
+                  <div>
+                    <p className="tp-kicker">Single-country score</p>
+                    <h3>单个国家排名</h3>
+                  </div>
+                  <span>{singleCountrySignalRows.length} countries</span>
+                </div>
+                <SingleCountryBoard rows={singleCountrySignalRows} />
+              </section>
+            </div>
+            <div className="tp-country-table-split">
+              <div>
+                <div className="tp-panel-note">区域明细 / {countrySignal.signal_path || 'N/A'}</div>
+                <DataTable
+                  columns={['region', '最新月份', 'score', 'rank', 'recommendation', 'Δ rank', 'margin', 'profitability', 'growth', 'value', 'momentum']}
+                  rows={countryRows}
+                />
+              </div>
+              <div>
+                <div className="tp-panel-note">单国明细 / {countrySignal.single_country_path || 'N/A'}</div>
+                <DataTable
+                  columns={['国家', '指数', '最新月份', 'score', 'rank', 'margin', 'profitability', 'growth', 'value', 'momentum']}
+                  rows={singleCountryRows}
+                />
+              </div>
+            </div>
+            <div className="tp-panel-note">最近历史</div>
+            <DataTable columns={['region', '月份', 'score', 'rank', 'recommendation']} limit={10} rows={countryHistoryRows} />
           </div>
 
           <div className="tp-panel tp-wide-panel">

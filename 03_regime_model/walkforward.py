@@ -23,6 +23,8 @@ def walk_forward(region: str, k: int) -> pd.DataFrame:
     nowcast = {}
     for t in range(MIN_TRAIN, len(feats) + 1):
         window = feats.iloc[:t]
+        if len(window.ffill().dropna()) < MIN_TRAIN:
+            continue
         Z, f = model.preprocess(window)           # 仅窗口内 fit 标准化器，无前视
         m, st = model.fit_hmm(Z, k, n_init=N_INIT_WF)
         rank = model.label_states(f, st)

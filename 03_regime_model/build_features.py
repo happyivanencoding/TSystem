@@ -5,6 +5,7 @@ import config
 import data_loader
 import features
 import returns_loader
+import screen_vol_features
 
 
 def _selected_macro_features(region: str) -> pd.DataFrame:
@@ -20,6 +21,34 @@ def _selected_macro_features(region: str) -> pd.DataFrame:
     return out
 
 
+def _selected_macro2_features(region: str, target_index: pd.Index) -> pd.DataFrame:
+    raw = pd.read_excel(
+        config.MACRO2_PATH,
+        sheet_name=config.MACRO2_SHEETS[region],
+        header=None,
+        usecols="A:P",
+        engine="openpyxl",
+    )
+    raw = raw.iloc[3:, [0, 14, 15]].copy()
+    raw.columns = ["Date", "macro2_citi_raw", "macro2_bnp_raw"]
+    raw["Date"] = pd.to_datetime(raw["Date"], errors="coerce").dt.to_period("M").dt.to_timestamp("M")
+    raw = raw.dropna(subset=["Date"]).set_index("Date").sort_index()
+    raw = raw[~raw.index.duplicated(keep="last")]
+    raw = raw.apply(pd.to_numeric, errors="coerce")
+
+    full_index = target_index.union(raw.index).sort_values()
+    out = pd.DataFrame(index=target_index)
+    for col in ["macro2_citi_raw", "macro2_bnp_raw"]:
+        series = raw[col].dropna()
+        aligned = series.reindex(full_index).interpolate(method="time", limit_area="inside")
+        out[col] = aligned.reindex(target_index)
+        out[col.replace("_raw", "_ewma")] = out[col].ewm(span=6, adjust=False).mean()
+
+    out = out[list(config.MACRO2_FEATURE_COLS)]
+    out.index.name = "Date"
+    return out
+
+
 def main() -> None:
     config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     df = data_loader.load_screen()
@@ -30,6 +59,11 @@ def main() -> None:
         ret_feats = returns_loader.build_return_features(df, region, daily)
         feats = feats.join(ret_feats)
         feats = feats.join(_selected_macro_features(region))
+        feats = feats.join(_selected_macro2_features(region, feats.index))
+        screen_vol_cols = screen_vol_features.production_k4_cols(region)
+        if screen_vol_cols:
+            screen_vol = screen_vol_features.build_region_screen_vol(df, region)
+            feats = feats.join(screen_vol[screen_vol_cols])
         out = config.OUTPUT_DIR / f"features_{region}.parquet"
         feats.to_parquet(out)
         n_proxy = (feats.index < pd.Timestamp(config.PROXY_END)).sum()

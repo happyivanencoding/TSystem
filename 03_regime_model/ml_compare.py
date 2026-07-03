@@ -13,13 +13,17 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler
 
 import config
+import ml_if_features
 import model
 
 MIN_TRAIN = 60
 
 
-def _data(region: str):
+def _data(region: str, mlif_cols: list[str] | None = None):
     feats = model.load_features(region).ffill().dropna()
+    if mlif_cols:
+        mlif = ml_if_features.load_region_mlif(region, feats.index)[mlif_cols]
+        feats = feats.join(mlif).ffill().dropna()
     fwd = model.market_fwd_return(region).reindex(feats.index)
     df = feats.copy()
     df["_fwd"] = fwd
@@ -52,6 +56,35 @@ def _hmm_pred(region: str, index: pd.Index, fwd: pd.Series) -> np.ndarray:
     return np.array(preds)
 
 
+def _supervised(region: str, model_name: str) -> tuple[dict, int]:
+    X, y, fwd = _data(region, ml_if_features.direction_cols(region, model_name))
+    n = len(X)
+    test_idx = X.index[MIN_TRAIN:]
+    yt = y.loc[test_idx].values
+    fwt = fwd.loc[test_idx].values
+    probs = []
+    for i in range(MIN_TRAIN, n):
+        Xtr, ytr = X.iloc[:i], y.iloc[:i]
+        if model_name == "Logistic":
+            sc = StandardScaler().fit(Xtr)
+            lr = LogisticRegression(C=0.3, max_iter=1000).fit(sc.transform(Xtr), ytr)
+            probs.append(lr.predict_proba(sc.transform(X.iloc[[i]]))[0, 1])
+        else:
+            gbm = HistGradientBoostingClassifier(max_depth=3, max_iter=200,
+                                                 learning_rate=0.05, l2_regularization=1.0,
+                                                 random_state=0).fit(Xtr, ytr)
+            probs.append(gbm.predict_proba(X.iloc[[i]])[0, 1])
+    probs = np.array(probs)
+    pred = (probs > 0.5).astype(int)
+
+    def acc(p): return round((p == yt).mean(), 3)
+    def auc(prob):
+        from sklearn.metrics import roc_auc_score
+        return round(roc_auc_score(yt, prob), 3)
+
+    return {"准确率": acc(pred), "AUC": auc(probs), **_strategy(pred, fwt)}, len(test_idx)
+
+
 def evaluate(region: str) -> pd.DataFrame:
     X, y, fwd = _data(region)
     n = len(X)
@@ -59,34 +92,18 @@ def evaluate(region: str) -> pd.DataFrame:
     yt = y.loc[test_idx].values
     fwt = fwd.loc[test_idx].values
 
-    # 监督模型 walk-forward
-    log_p, gbm_p = [], []
-    for i in range(MIN_TRAIN, n):
-        Xtr, ytr = X.iloc[:i], y.iloc[:i]
-        sc = StandardScaler().fit(Xtr)
-        lr = LogisticRegression(C=0.3, max_iter=1000).fit(sc.transform(Xtr), ytr)
-        log_p.append(lr.predict_proba(sc.transform(X.iloc[[i]]))[0, 1])
-        gbm = HistGradientBoostingClassifier(max_depth=3, max_iter=200,
-                                             learning_rate=0.05, l2_regularization=1.0,
-                                             random_state=0).fit(Xtr, ytr)
-        gbm_p.append(gbm.predict_proba(X.iloc[[i]])[0, 1])
-    log_p, gbm_p = np.array(log_p), np.array(gbm_p)
-
     hmm_pred = _hmm_pred(region, test_idx, fwd)
     base_pred = np.ones_like(yt)             # 恒看涨
 
     def acc(p): return round((p == yt).mean(), 3)
-    def auc(prob):
-        from sklearn.metrics import roc_auc_score
-        return round(roc_auc_score(yt, prob), 3)
 
+    log_row, _ = _supervised(region, "Logistic")
+    gbm_row, _ = _supervised(region, "GBM")
     rows = {
         "基准(恒涨)": {"准确率": acc(base_pred), "AUC": np.nan, **_strategy(base_pred, fwt)},
         "HMM状态": {"准确率": acc(hmm_pred), "AUC": np.nan, **_strategy(hmm_pred, fwt)},
-        "Logistic": {"准确率": acc((log_p > 0.5).astype(int)), "AUC": auc(log_p),
-                     **_strategy((log_p > 0.5).astype(int), fwt)},
-        "GBM": {"准确率": acc((gbm_p > 0.5).astype(int)), "AUC": auc(gbm_p),
-                **_strategy((gbm_p > 0.5).astype(int), fwt)},
+        "Logistic+ML_IF": log_row,
+        "GBM+ML_IF": gbm_row,
     }
     return pd.DataFrame(rows).T
 

@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import shutil
 import sys
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 from tp_core.data_sources import LAST_SCREEN_PATH, PRODUCTION_INCOMING_DIR, RETURNS_PATH, SCREEN_AGGREGATE_PATH, TP_ROOT
 from tp_core.data_sources import validate_data_sources
 
-from .common import StepManifest, path_profile
+from .common import StepManifest, path_profile, timestamp
 
 
 def _load_monthly_update():
@@ -20,6 +22,135 @@ def _load_monthly_update():
     from monthly_update import run_monthly_update
 
     return run_monthly_update
+
+
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
+def _next_archive_path(archive_root: Path, batch_name: str) -> Path:
+    base = archive_root / f"{batch_name}_{timestamp()}"
+    candidate = base
+    suffix = 1
+    while candidate.exists():
+        suffix += 1
+        candidate = archive_root / f"{base.name}_{suffix:02d}"
+    return candidate
+
+
+def _next_file_path(path: Path) -> Path:
+    candidate = path
+    suffix = 1
+    while candidate.exists():
+        suffix += 1
+        candidate = path.with_name(f"{path.stem}_{suffix:02d}{path.suffix}")
+    return candidate
+
+
+def _file_fingerprint(path: Path) -> tuple[int, str]:
+    digest = hashlib.sha1()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return path.stat().st_size, digest.hexdigest()
+
+
+def _archive_processed_input_batch(input_batch_dir: str | None, *, dry_run: bool) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "action": "skipped",
+        "reason": None,
+        "input_batch_dir": input_batch_dir,
+    }
+    if dry_run:
+        result["reason"] = "dry_run"
+        return result
+    if not input_batch_dir:
+        result["reason"] = "no_standard_input_batch"
+        return result
+
+    try:
+        incoming_root = PRODUCTION_INCOMING_DIR.resolve()
+        source = Path(input_batch_dir).resolve()
+        archive_root = (PRODUCTION_INCOMING_DIR.parent / "archive" / "processed_batches").resolve()
+
+        if not source.exists():
+            result["reason"] = "input_batch_missing"
+            return result
+        if not source.is_dir():
+            result["reason"] = "input_batch_not_directory"
+            return result
+        if not _is_relative_to(source, incoming_root):
+            result["reason"] = "input_batch_outside_incoming"
+            return result
+
+        relative_source = source.relative_to(incoming_root)
+        if len(relative_source.parts) != 1:
+            result["reason"] = "input_batch_not_direct_child"
+            return result
+
+        items = list(source.rglob("*"))
+        file_count = sum(1 for item in items if item.is_file())
+        dir_count = sum(1 for item in items if item.is_dir())
+        consumed_fingerprints = {
+            _file_fingerprint(item)
+            for item in items
+            if item.is_file()
+        }
+        target = _next_archive_path(archive_root, relative_source.parts[0]).resolve()
+        if not _is_relative_to(target, archive_root):
+            result["reason"] = "archive_target_outside_processed_batches"
+            return result
+
+        archive_root.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(target))
+
+        loose_originals = []
+        loose_originals_dir = target / "loose_originals"
+        for candidate in incoming_root.iterdir():
+            if not candidate.is_file():
+                continue
+            if _file_fingerprint(candidate) not in consumed_fingerprints:
+                continue
+            loose_source = candidate.resolve()
+            loose_originals_dir.mkdir(parents=True, exist_ok=True)
+            loose_target = _next_file_path(loose_originals_dir / candidate.name).resolve()
+            if not _is_relative_to(loose_target, loose_originals_dir.resolve()):
+                result["reason"] = "loose_original_target_outside_archive"
+                return result
+            shutil.move(str(loose_source), str(loose_target))
+            loose_originals.append(
+                {
+                    "source_path": str(loose_source),
+                    "target_path": str(loose_target),
+                }
+            )
+
+        result.update(
+            {
+                "action": "moved",
+                "reason": "prod_success",
+                "source_path": str(source),
+                "target_path": str(target),
+                "file_count": file_count,
+                "dir_count": dir_count,
+                "loose_originals_moved": loose_originals,
+            }
+        )
+        return result
+    except Exception as exc:  # pragma: no cover - filesystem failure is recorded in manifest
+        result.update(
+            {
+                "action": "failed",
+                "reason": "archive_error",
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+            }
+        )
+        return result
 
 
 def run_refresh_data(args: argparse.Namespace) -> Path:
@@ -67,6 +198,11 @@ def run_refresh_data(args: argparse.Namespace) -> Path:
             "qa_report": path_profile(result.get("qa_report_path")) if result.get("qa_report_path") else None,
         }
         manifest.details["monthly_update_result"] = result
+        archive_result = _archive_processed_input_batch(
+            result.get("input_batch_dir"),
+            dry_run=bool(args.dry_run),
+        )
+        manifest.details["input_batch_archive"] = archive_result
         manifest.add_validation(
             "canonical_data_sources_exist",
             all(data_source_status.values()),
@@ -82,6 +218,16 @@ def run_refresh_data(args: argparse.Namespace) -> Path:
             manifest.add_validation("screen_idempotency_recorded", True, "screen 幂等性报告已记录")
         if result.get("returns_idempotency"):
             manifest.add_validation("returns_idempotency_recorded", True, "returns 幂等性报告已记录")
+        archive_required = not args.dry_run and bool(result.get("input_batch_dir"))
+        archive_ok = archive_result.get("action") == "moved" if archive_required else archive_result.get("action") == "skipped"
+        manifest.add_validation(
+            "input_batch_archived",
+            archive_ok,
+            "生产输入批次已归档"
+            if archive_result.get("action") == "moved"
+            else f"生产输入批次归档跳过或失败: {archive_result.get('reason')}",
+            archive_result,
+        )
         return manifest.write("success")
     except Exception as exc:
         manifest.write("failed", error=exc)

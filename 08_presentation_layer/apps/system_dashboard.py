@@ -48,6 +48,15 @@ DASHBOARD_CONFIG_PATH = TP_ROOT / ".tmp_dashboard_work" / "dashboard_config.json
 CLIENT_JOB_API_ENABLED = os.environ.get("TP_DASHBOARD_CLIENT_JOB_API", "1") != "0"
 CLIENT_DIST_DIR = TP_ROOT / "08_presentation_layer" / "frontend" / "system_dashboard" / "dist"
 CLIENT_ASSETS_DIR = CLIENT_DIST_DIR / "assets"
+REGIME_SIGNAL_PATH = TP_ROOT / "04_signals" / "regime_risk_budget.parquet"
+COUNTRY_SIGNAL_PATH = TP_ROOT / "04_signals" / "country_model_signals.parquet"
+COUNTRY_DATABASE_PATH = TP_ROOT / "14_country_model" / "data" / "country_model_database.parquet"
+COUNTRY_SINGLE_COUNTRY_SCORE_PATH = (
+    TP_ROOT / "14_country_model" / "outputs" / "country_model_single_country_scores.parquet"
+)
+REGIME_OUTPUT_DIR = TP_ROOT / "03_regime_model" / "output"
+REGIME_DASHBOARD_DATA_PATH = TP_ROOT / "03_regime_model" / "webapp" / "data.js"
+REGIME_MODEL_DIAGNOSTICS_PATH = REGIME_OUTPUT_DIR / "model_diagnostics.json"
 QA_DIR = TP_ROOT / "00_screen" / "qa"
 RETURNS_AUDIT_PATH = QA_DIR / "returns_anomaly_governance" / "returns_extreme_audit_latest.json"
 DATABASE_PROFILE_PATH = (
@@ -98,6 +107,9 @@ QUALITY_KEYS = {
     "ml_signals": ("Date", "signal_family", "signal_name", "Company SEDOL", "region"),
     "technical_signals": ("Date", "signal_family", "signal_name", "Company SEDOL"),
     "regime_risk_budget": ("Date", "signal_family", "signal_name", "region"),
+    "country_model_database": ("Date", "country"),
+    "country_model_signals": ("Date", "signal_family", "signal_name", "region"),
+    "country_model_single_country_scores": ("Date", "country"),
     "latest_candidates": ("candidate_date", "Company SEDOL"),
     "latest_target_weights": ("candidate_date", "Company SEDOL"),
 }
@@ -111,7 +123,7 @@ CORE_DATABASE_NAMES = ("screen_aggregate", "returns", "last_screen", "screen_agg
 LINEAGE_NODE_PROJECTS: dict[str, tuple[str, ...]] = {
     "生产输入": ("00_screen",),
     "核心数据库": ("00_screen", "01_tp_core"),
-    "ML / Regime / Technical": ("03_ml_enhanced", "03_regime_model", "03_technical_analysis"),
+    "ML / Regime / Technical": ("03_ml_enhanced", "03_regime_model", "03_technical_analysis", "14_country_model"),
     "统一信号": ("04_signals",),
     "候选池": ("05_candidates",),
     "组合权重": ("06_portfolios", "06_optimiser"),
@@ -1175,6 +1187,17 @@ def _fmt_date(value: Any) -> str:
         return str(value)
 
 
+def _fmt_number(value: Any, digits: int = 4) -> str:
+    if value is None or (isinstance(value, str) and value == ""):
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+        return f"{float(value):.{digits}f}"
+    except Exception:
+        return str(value)
+
+
 def _status_label(status: str | None) -> str:
     if status == "success":
         return "OK"
@@ -1851,9 +1874,336 @@ def _production_rows() -> list[dict[str, Any]]:
         _signal_summary_row("ml_signals", TP_ROOT / "04_signals" / "ml_signals.parquet"),
         _signal_summary_row("technical_signals", TP_ROOT / "04_signals" / "technical_signals.parquet"),
         _signal_summary_row("regime_risk_budget", TP_ROOT / "04_signals" / "regime_risk_budget.parquet"),
+        _signal_summary_row("country_model_signals", COUNTRY_SIGNAL_PATH),
         _candidate_summary_row(TP_ROOT / "05_candidates" / "latest_candidates.parquet"),
         _portfolio_summary_row(TP_ROOT / "06_portfolios" / "latest_target_weights.parquet"),
     ]
+
+
+def _read_regime_dashboard_data() -> dict[str, Any]:
+    if not REGIME_DASHBOARD_DATA_PATH.exists():
+        return {}
+    try:
+        text = REGIME_DASHBOARD_DATA_PATH.read_text(encoding="utf-8").strip()
+        prefix = "window.DASHBOARD_DATA = "
+        if text.startswith(prefix):
+            text = text[len(prefix):]
+        if text.endswith(";"):
+            text = text[:-1]
+        payload = json.loads(text)
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def _latest_regime_output_row(region: str, filename: str, model_name: str) -> dict[str, Any] | None:
+    path = REGIME_OUTPUT_DIR / filename
+    frame = _read_frame(path)
+    if frame is None or frame.empty:
+        return None
+    data = frame.copy()
+    if "Date" not in data.columns:
+        data = data.reset_index()
+    if "Date" not in data.columns:
+        return None
+    data["_Date"] = pd.to_datetime(data["Date"], errors="coerce")
+    data = data.dropna(subset=["_Date"]).sort_values("_Date")
+    if data.empty:
+        return None
+    row = data.iloc[-1]
+    return {
+        "region": region,
+        "model": model_name,
+        "as_of": _fmt_date(row.get("_Date")),
+        "regime": str(row.get("label") or "N/A"),
+        "state": _fmt_int(row.get("state")),
+        "source": _rel(path),
+    }
+
+
+def _regime_state_model_rows() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    by_region: dict[str, dict[str, dict[str, Any]]] = {}
+    for region in ("EU", "US"):
+        full = _latest_regime_output_row(region, f"regime_{region}.parquet", "HMM full-sample")
+        oos = _latest_regime_output_row(region, f"regime_oos_{region}.parquet", "HMM walk-forward OOS")
+        region_rows = [row for row in (full, oos) if row]
+        by_region[region] = {row["model"]: row for row in region_rows}
+        rows.extend(region_rows)
+    for region_rows in by_region.values():
+        full = region_rows.get("HMM full-sample")
+        oos = region_rows.get("HMM walk-forward OOS")
+        if full and oos:
+            agree = full["state"] == oos["state"] and full["regime"] == oos["regime"]
+            full["agreement"] = "一致" if agree else "分歧"
+            oos["agreement"] = "一致" if agree else "分歧"
+    return rows
+
+
+def _regime_risk_model_rows(dashboard_data: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for region in ("EU", "US"):
+        current = (dashboard_data.get(region) or {}).get("current") or {}
+        contrib = (dashboard_data.get(region) or {}).get("contrib") or []
+        if not current:
+            continue
+        top_driver = contrib[0] if contrib else {}
+        pred_vol = current.get("pred_vol")
+        target_vol = current.get("target_vol")
+        equity_weight = current.get("equity_weight")
+        rows.append(
+            {
+                "region": region,
+                "model": "Ridge volatility",
+                "as_of": str((dashboard_data.get(region) or {}).get("as_of") or ""),
+                "regime": str(current.get("label") or ""),
+                "pred_vol": pred_vol,
+                "target_vol": target_vol,
+                "equity_weight": equity_weight,
+                "pred_vol_pct": _fmt_pct(pred_vol, 1),
+                "target_vol_pct": _fmt_pct(target_vol, 1),
+                "equity_weight_pct": _fmt_pct(equity_weight, 0),
+                "state_mult": _fmt_number(current.get("state_mult"), 2),
+                "top_driver": str(top_driver.get("feat") or ""),
+                "top_driver_contrib": _fmt_number(top_driver.get("contrib"), 4),
+                "source": _rel(REGIME_DASHBOARD_DATA_PATH),
+            }
+        )
+    return rows
+
+
+def _regime_model_rank_rows(diagnostics: dict[str, Any], family: str, metric: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    regions = diagnostics.get("regions") if isinstance(diagnostics, dict) else {}
+    if not isinstance(regions, dict):
+        return rows
+    for region in ("EU", "US"):
+        model_rows = (regions.get(region) or {}).get(family) or []
+        for rank, item in enumerate(model_rows[:4], start=1):
+            score = item.get(metric)
+            rows.append(
+                {
+                    "region": region,
+                    "rank": rank,
+                    "model": str(item.get("model") or ""),
+                    "metric": metric,
+                    "score": score,
+                    "score_text": _fmt_number(score, 3),
+                    "secondary": _fmt_number(item.get("Pearson") or item.get("AUC") or item.get("R2"), 3),
+                    "annual_return": _fmt_number(item.get("年化收益%"), 2),
+                    "sharpe": _fmt_number(item.get("夏普"), 2),
+                }
+            )
+    return rows
+
+
+def _regime_models_payload() -> dict[str, Any]:
+    diagnostics = _read_json(REGIME_MODEL_DIAGNOSTICS_PATH) or {}
+    dashboard_data = _read_regime_dashboard_data()
+    updated_candidates = [
+        REGIME_MODEL_DIAGNOSTICS_PATH.stat().st_mtime if REGIME_MODEL_DIAGNOSTICS_PATH.exists() else None,
+        REGIME_DASHBOARD_DATA_PATH.stat().st_mtime if REGIME_DASHBOARD_DATA_PATH.exists() else None,
+    ]
+    latest_updated = max((item for item in updated_candidates if item is not None), default=None)
+    return {
+        "status": "ok" if dashboard_data or diagnostics else "missing",
+        "updated_at": datetime.fromtimestamp(latest_updated).isoformat(timespec="seconds") if latest_updated else "",
+        "state_models": _regime_state_model_rows(),
+        "risk_models": _regime_risk_model_rows(dashboard_data),
+        "direction_models": _regime_model_rank_rows(diagnostics, "direction_models", "准确率"),
+        "volatility_models": _regime_model_rank_rows(diagnostics, "volatility_models", "高波动AUC"),
+        "drawdown_models": _regime_model_rank_rows(diagnostics, "drawdown_models", "高波动AUC"),
+        "diagnostics_path": _rel(REGIME_MODEL_DIAGNOSTICS_PATH),
+        "dashboard_data_path": _rel(REGIME_DASHBOARD_DATA_PATH),
+    }
+
+
+def _regime_signal_payload() -> dict[str, Any]:
+    path = REGIME_SIGNAL_PATH
+    payload: dict[str, Any] = {
+        "name": "regime_risk_budget",
+        "title": "Regime detector",
+        "status": "missing",
+        "latest_date": "",
+        "updated_at": "",
+        "signal_path": _rel(path),
+        "rows": [],
+        "history": [],
+        "models": _regime_models_payload(),
+        "refresh_endpoint": "/api/dashboard/jobs/signals/regime",
+    }
+    if not path.exists():
+        payload["message"] = "regime signal parquet missing"
+        return payload
+    try:
+        frame = _read_frame(path)
+    except Exception as exc:
+        payload.update({"status": "error", "message": str(exc)})
+        return payload
+    if frame is None or frame.empty or "Date" not in frame.columns:
+        payload["message"] = "regime signal parquet empty or missing Date"
+        return payload
+
+    data = frame.copy()
+    data["_Date"] = pd.to_datetime(data["Date"], errors="coerce")
+    data = data.dropna(subset=["_Date"])
+    if data.empty:
+        payload["message"] = "regime signal parquet has no valid Date"
+        return payload
+
+    latest_date = data["_Date"].max()
+    latest = data[data["_Date"].eq(latest_date)].sort_values(["region", "signal_name"], na_position="last")
+    history = data.sort_values(["region", "_Date"]).groupby("region", dropna=False).tail(12)
+    history = history.sort_values(["_Date", "region"], ascending=[False, True], na_position="last")
+
+    def row_payload(row: pd.Series) -> dict[str, str]:
+        return {
+            "region": str(row.get("region") or "N/A"),
+            "最新月份": _fmt_date(row.get("_Date")),
+            "regime": str(row.get("raw_value") or "N/A"),
+            "risk_budget": _fmt_number(row.get("score"), 2),
+            "state": _fmt_int(row.get("regime_state")),
+            "direction": str(row.get("direction") or ""),
+            "model": str(row.get("model_version") or ""),
+            "source": _rel(row.get("source_file")),
+        }
+
+    payload.update(
+        {
+            "status": "ok",
+            "latest_date": _fmt_date(latest_date),
+            "updated_at": datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds"),
+            "rows": [row_payload(row) for _, row in latest.iterrows()],
+            "history": [row_payload(row) for _, row in history.iterrows()],
+            "message": f"{len(latest)} latest regime rows",
+        }
+    )
+    return payload
+
+
+def _country_signal_payload() -> dict[str, Any]:
+    path = COUNTRY_SIGNAL_PATH
+    payload: dict[str, Any] = {
+        "name": "country_model_signals",
+        "title": "Country model",
+        "status": "missing",
+        "latest_date": "",
+        "updated_at": "",
+        "signal_path": _rel(path),
+        "database_path": _rel(COUNTRY_DATABASE_PATH),
+        "single_country_path": _rel(COUNTRY_SINGLE_COUNTRY_SCORE_PATH),
+        "rows": [],
+        "history": [],
+        "single_country_rows": [],
+        "single_country_history": [],
+        "refresh_endpoint": "/api/dashboard/jobs/signals/country",
+    }
+    if not path.exists():
+        payload["message"] = "country model signal parquet missing"
+        return payload
+    try:
+        frame = _read_frame(path)
+    except Exception as exc:
+        payload.update({"status": "error", "message": str(exc)})
+        return payload
+    if frame is None or frame.empty or "Date" not in frame.columns:
+        payload["message"] = "country model signal parquet empty or missing Date"
+        return payload
+
+    data = frame.copy()
+    data["_Date"] = pd.to_datetime(data["Date"], errors="coerce")
+    data = data.dropna(subset=["_Date"])
+    if data.empty:
+        payload["message"] = "country model signal parquet has no valid Date"
+        return payload
+
+    latest_date = data["_Date"].max()
+    sort_columns = ["rank", "region"] if "rank" in data.columns else ["region"]
+    latest = data[data["_Date"].eq(latest_date)].sort_values(sort_columns, na_position="last")
+    history = data.sort_values(["region", "_Date"]).groupby("region", dropna=False).tail(12)
+    history = history.sort_values(["_Date", "rank", "region"], ascending=[False, True, True], na_position="last")
+
+    def row_payload(row: pd.Series) -> dict[str, str]:
+        return {
+            "region": str(row.get("region") or "N/A"),
+            "country_label": str(row.get("country_label") or row.get("region") or "N/A"),
+            "最新月份": _fmt_date(row.get("_Date")),
+            "score": _fmt_number(row.get("score"), 3),
+            "rank": _fmt_number(row.get("rank"), 0),
+            "recommendation": str(row.get("recommendation") or row.get("raw_value") or ""),
+            "rank_delta": _fmt_number(row.get("rank_delta"), 0),
+            "margin": _fmt_number(row.get("margin_score"), 2),
+            "profitability": _fmt_number(row.get("profitability_score"), 2),
+            "growth": _fmt_number(row.get("growth_score"), 2),
+            "value": _fmt_number(row.get("value_score"), 2),
+            "momentum": _fmt_number(row.get("momentum_score"), 2),
+            "excel_diff": _fmt_number(row.get("score_diff_vs_excel"), 6),
+            "model": str(row.get("model_version") or ""),
+        }
+
+    single_country_rows: list[dict[str, str]] = []
+    single_country_history_rows: list[dict[str, str]] = []
+    if COUNTRY_SINGLE_COUNTRY_SCORE_PATH.exists():
+        try:
+            single_country = _read_frame(COUNTRY_SINGLE_COUNTRY_SCORE_PATH)
+            if single_country is not None and not single_country.empty and "Date" in single_country.columns:
+                single_data = single_country.copy()
+                single_data["_Date"] = pd.to_datetime(single_data["Date"], errors="coerce")
+                single_data = single_data.dropna(subset=["_Date"])
+                if not single_data.empty:
+                    single_latest_date = single_data["_Date"].max()
+                    single_sort_columns = ["rank", "country"] if "rank" in single_data.columns else ["country"]
+                    single_latest = single_data[single_data["_Date"].eq(single_latest_date)].sort_values(
+                        single_sort_columns,
+                        na_position="last",
+                    )
+                    single_history = single_data.sort_values(["country", "_Date"]).groupby(
+                        "country",
+                        dropna=False,
+                    ).tail(12)
+                    single_history = single_history.sort_values(
+                        ["_Date", *single_sort_columns],
+                        ascending=[False, *([True] * len(single_sort_columns))],
+                        na_position="last",
+                    )
+
+                    def single_country_row_payload(row: pd.Series) -> dict[str, str]:
+                        return {
+                            "country": str(row.get("country") or "N/A"),
+                            "country_label": str(row.get("country_label") or row.get("country") or "N/A"),
+                            "最新月份": _fmt_date(row.get("_Date")),
+                            "score": _fmt_number(row.get("score"), 3),
+                            "rank": _fmt_number(row.get("rank"), 0),
+                            "margin": _fmt_number(row.get("margin_score"), 2),
+                            "profitability": _fmt_number(row.get("profitability_score"), 2),
+                            "growth": _fmt_number(row.get("growth_score"), 2),
+                            "value": _fmt_number(row.get("value_score"), 2),
+                            "momentum": _fmt_number(row.get("momentum_score"), 2),
+                            "model": str(row.get("model_version") or ""),
+                        }
+
+                    single_country_rows = [single_country_row_payload(row) for _, row in single_latest.iterrows()]
+                    single_country_history_rows = [
+                        single_country_row_payload(row) for _, row in single_history.iterrows()
+                    ]
+        except Exception as exc:
+            payload["single_country_message"] = str(exc)
+    else:
+        payload["single_country_message"] = "single country score parquet missing"
+
+    payload.update(
+        {
+            "status": "ok",
+            "latest_date": _fmt_date(latest_date),
+            "updated_at": datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds"),
+            "rows": [row_payload(row) for _, row in latest.iterrows()],
+            "history": [row_payload(row) for _, row in history.iterrows()],
+            "single_country_rows": single_country_rows,
+            "single_country_history": single_country_history_rows,
+            "message": f"{len(latest)} latest country rows / {len(single_country_rows)} single-country rows",
+        }
+    )
+    return payload
 
 
 def _latest_backtest_summaries(limit: int = 4) -> list[Path]:
@@ -3559,6 +3909,7 @@ def _dashboard_state_payload() -> dict[str, Any]:
         "quality": quality,
         "production": production,
         "backtest": backtest,
+        "signals": {"regime": _regime_signal_payload(), "country": _country_signal_payload()},
         "config": _config_rows(),
         "launches": _launch_rows(),
         "pipeline": pipeline,
@@ -3760,6 +4111,27 @@ def _build_project_command(project_id: str, mode: str) -> list[str]:
 
 def _build_system_checks_command() -> list[str]:
     return [sys.executable, "-m", "presentation_layer.cli", "system-checks"]
+
+
+def _build_regime_signal_command() -> list[str]:
+    return [
+        sys.executable,
+        "-m",
+        "02_pipelines.refresh_regime",
+        "--regime-output",
+        str(REGIME_SIGNAL_PATH),
+    ]
+
+
+def _build_country_signal_command() -> list[str]:
+    return [
+        sys.executable,
+        str(TP_ROOT / "14_country_model" / "src" / "country_model.py"),
+        "--database-output",
+        str(COUNTRY_DATABASE_PATH),
+        "--signal-output",
+        str(COUNTRY_SIGNAL_PATH),
+    ]
 
 
 def _launch(command: list[str], step: str) -> dict[str, Any]:
@@ -4456,6 +4828,7 @@ def create_app() -> Dash:
         routes_pathname_prefix="/dash/",
         requests_pathname_prefix="/dash/",
     )
+    app.server.json.ensure_ascii = False
     app.index_string = f"""<!DOCTYPE html>
 <html>
     <head>
@@ -4477,6 +4850,16 @@ def create_app() -> Dash:
 </html>"""
     app.layout = _layout()
     server = app.server
+
+    @server.after_request
+    def preserve_dash_json_unicode(response: Response):
+        if request.path.startswith("/dash/_dash-") and response.mimetype == "application/json":
+            try:
+                payload = json.loads(response.get_data(as_text=True))
+            except Exception:
+                return response
+            response.set_data(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+        return response
 
     @server.route("/", methods=["GET"])
     @server.route("/index.html", methods=["GET"])
@@ -4500,6 +4883,14 @@ def create_app() -> Dash:
     @server.route("/api/dashboard/jobs/queue", methods=["GET"])
     def api_dashboard_job_queue():
         return jsonify(system_jobs.queue_status(LAUNCH_DIR))
+
+    @server.route("/api/dashboard/signals/regime", methods=["GET"])
+    def api_dashboard_regime_signal():
+        return jsonify(_regime_signal_payload())
+
+    @server.route("/api/dashboard/signals/country", methods=["GET"])
+    def api_dashboard_country_signal():
+        return jsonify(_country_signal_payload())
 
     @server.route("/api/dashboard/jobs/queue/events", methods=["GET"])
     def api_dashboard_job_queue_events():
@@ -4541,6 +4932,16 @@ def create_app() -> Dash:
     @server.route("/api/dashboard/jobs/system-checks", methods=["POST"])
     def api_dashboard_launch_system_checks():
         record = _submit_job(_build_system_checks_command(), "system_checks")
+        return jsonify({"job": _job_payload_from_record(record), "record": record}), 202
+
+    @server.route("/api/dashboard/jobs/signals/regime", methods=["POST"])
+    def api_dashboard_refresh_regime_signal():
+        record = _submit_job(_build_regime_signal_command(), "signal:regime_risk_budget")
+        return jsonify({"job": _job_payload_from_record(record), "record": record}), 202
+
+    @server.route("/api/dashboard/jobs/signals/country", methods=["POST"])
+    def api_dashboard_refresh_country_signal():
+        record = _submit_job(_build_country_signal_command(), "signal:country_model")
         return jsonify({"job": _job_payload_from_record(record), "record": record}), 202
 
     @server.route("/api/dashboard/jobs/project", methods=["POST"])

@@ -1,0 +1,10 @@
+{
+  "rows": 1140,
+  "dates": 228,
+  "latest_date": "2026-06-30",
+  "max_abs_score_diff_vs_excel": 0.0,
+  "rank_mismatch_count": 0,
+  "signal_schema_valid": true,
+  "signal_schema_errors": [],
+  "signal_schema_warnings": []
+}

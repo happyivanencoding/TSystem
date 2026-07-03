@@ -35,9 +35,23 @@ def _job_id(step: str, now: datetime) -> str:
     return f"{safe_step or 'launch'}_{stamp}"
 
 
-def _latest_points_to(latest_record_path: Path, job_id: str) -> bool:
+def _record_order_key(record: dict[str, Any]) -> str:
+    job_id = str(record.get("job_id") or "")
+    parts = job_id.rsplit("_", 3)
+    job_stamp = "".join(parts[-3:]) if len(parts) >= 3 and all(part.isdigit() for part in parts[-3:]) else ""
+    record_time = str(record.get("queued_at") or record.get("started_at") or record.get("status_updated_at") or "")
+    return f"{record_time}|{job_stamp}" if record_time or job_stamp else ""
+
+
+def _should_update_latest(latest_record_path: Path, record: dict[str, Any]) -> bool:
     latest = _read_json(latest_record_path)
-    return not latest or latest.get("job_id") == job_id
+    if not latest:
+        return True
+    if latest.get("job_id") == record.get("job_id"):
+        return True
+    record_key = _record_order_key(record)
+    latest_key = _record_order_key(latest)
+    return bool(record_key and (not latest_key or record_key >= latest_key))
 
 
 def _write_record(
@@ -58,7 +72,7 @@ def _write_worker_record(record: dict[str, Any], record_path: Path, latest_recor
         record,
         record_path,
         latest_record_path,
-        update_latest=_latest_points_to(latest_record_path, str(record.get("job_id") or "")),
+        update_latest=_should_update_latest(latest_record_path, record),
     )
 
 
@@ -312,21 +326,30 @@ def run_worker(
 
 
 def latest_launch_record(launch_dir: Path) -> dict[str, Any] | None:
+    latest_payload: dict[str, Any] | None = None
     latest_path = launch_dir / "launch_latest.json"
     if latest_path.exists():
         payload = _read_json(latest_path)
         if payload:
             payload["_record_file"] = str(latest_path)
-            return payload
+            latest_payload = payload
     if not launch_dir.exists():
-        return None
-    paths = sorted(launch_dir.glob("*.json"), key=lambda item: item.stat().st_mtime, reverse=True)
+        return latest_payload
+    paths = sorted(
+        (path for path in launch_dir.glob("*.json") if path.name != "launch_latest.json"),
+        key=lambda item: item.stat().st_mtime,
+        reverse=True,
+    )
     for path in paths:
         payload = _read_json(path)
-        if payload:
-            payload["_record_file"] = str(path)
-            return payload
-    return None
+        if not payload:
+            continue
+        payload["_record_file"] = str(path)
+        payload_key = _record_order_key(payload)
+        latest_key = _record_order_key(latest_payload) if latest_payload else ""
+        if latest_payload is None or (payload_key and (not latest_key or payload_key >= latest_key)):
+            latest_payload = payload
+    return latest_payload
 
 
 def launch_record_by_job_id(job_id: str, launch_dir: Path) -> dict[str, Any] | None:

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import importlib
+import json
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -83,9 +86,11 @@ def test_system_dashboard_factory_imports_without_loading_data() -> None:
     assert "/api/dashboard/jobs/latest" in routes
     assert "/api/dashboard/jobs/queue" in routes
     assert "/api/dashboard/jobs/queue/events" in routes
+    assert "/api/dashboard/signals/regime" in routes
     assert "/api/dashboard/jobs/<job_id>" in routes
     assert "/api/dashboard/jobs/<job_id>/events" in routes
     assert "/api/dashboard/jobs/system-checks" in routes
+    assert "/api/dashboard/jobs/signals/regime" in routes
     assert "/api/dashboard/jobs/project" in routes
     assert "/api/dashboard/jobs/pipeline" in routes
     assert "/client/" in routes
@@ -149,6 +154,7 @@ def test_system_dashboard_job_api_exposes_launch_status_and_events(
     )
     assert isinstance(state_payload["overview"], list)
     assert "counts" in state_payload["queue"]
+    assert "regime" in state_payload["signals"]
 
     queue_response = client.get("/api/dashboard/jobs/queue")
     assert queue_response.status_code == 200
@@ -163,6 +169,10 @@ def test_system_dashboard_job_api_exposes_launch_status_and_events(
     assert "event: queue" in queue_event_text
     assert "tp_dashboard_local" in queue_event_text
 
+    regime_response = client.get("/api/dashboard/signals/regime")
+    assert regime_response.status_code == 200
+    assert "rows" in regime_response.get_json()
+
     launch_response = client.post("/api/dashboard/jobs/system-checks")
     assert launch_response.status_code == 202
     launch_payload = launch_response.get_json()
@@ -173,10 +183,17 @@ def test_system_dashboard_job_api_exposes_launch_status_and_events(
     assert launch_payload["job"]["status_updated_at"]
     assert launch_payload["record"]["backend"] == "local_thread_queue"
 
+    regime_launch_response = client.post("/api/dashboard/jobs/signals/regime")
+    assert regime_launch_response.status_code == 202
+    regime_launch_payload = regime_launch_response.get_json()
+    assert regime_launch_payload["job"]["status"] == "queued"
+    assert regime_launch_payload["record"]["step"] == "signal:regime_risk_budget"
+    assert "02_pipelines.refresh_regime" in " ".join(regime_launch_payload["record"]["command"])
+
     job_id = launch_payload["job"]["job_id"]
     latest_response = client.get("/api/dashboard/jobs/latest")
     assert latest_response.status_code == 200
-    assert latest_response.get_json()["job_id"] == job_id
+    assert latest_response.get_json()["job_id"] == regime_launch_payload["job"]["job_id"]
 
     job_response = client.get(f"/api/dashboard/jobs/{job_id}")
     assert job_response.status_code == 200
@@ -411,7 +428,9 @@ def test_system_dashboard_monitoring_rows_are_structured(tmp_path: Path, monkeyp
         _project_has_registered_command,
         _production_rows,
         _project_options,
+        _build_regime_signal_command,
         _read_dashboard_config,
+        _regime_signal_payload,
         _write_dashboard_config,
     )
     from presentation_layer.apps.system_registry import FLOW_EDGES, PROJECT_REGISTRY
@@ -428,6 +447,133 @@ def test_system_dashboard_monitoring_rows_are_structured(tmp_path: Path, monkeyp
         "latest_target_weights",
     }
     assert all("质量" in row for row in production)
+
+    import pandas as pd
+
+    regime_path = tmp_path / "regime_risk_budget.parquet"
+    pd.DataFrame(
+        [
+            {
+                "Date": "2026-05-31",
+                "signal_family": "Regime",
+                "signal_name": "risk_budget_multiplier",
+                "score": 0.9,
+                "region": "US",
+                "raw_value": "震荡",
+                "regime_state": 1,
+                "direction": "lower_risk_budget",
+                "model_version": "test_model",
+                "source_file": str(tmp_path / "regime_US.parquet"),
+            },
+            {
+                "Date": "2026-06-30",
+                "signal_family": "Regime",
+                "signal_name": "risk_budget_multiplier",
+                "score": 1.1,
+                "region": "US",
+                "raw_value": "扩张(Risk-On)",
+                "regime_state": 0,
+                "direction": "higher_risk_budget",
+                "model_version": "test_model",
+                "source_file": str(tmp_path / "regime_US.parquet"),
+            },
+            {
+                "Date": "2026-06-30",
+                "signal_family": "Regime",
+                "signal_name": "risk_budget_multiplier",
+                "score": 0.7,
+                "region": "EU",
+                "raw_value": "压力",
+                "regime_state": 3,
+                "direction": "lower_risk_budget",
+                "model_version": "test_model",
+                "source_file": str(tmp_path / "regime_EU.parquet"),
+            },
+        ]
+    ).to_parquet(regime_path)
+    monkeypatch.setattr(dashboard, "REGIME_SIGNAL_PATH", regime_path)
+    regime_output_dir = tmp_path / "regime_output"
+    regime_output_dir.mkdir()
+    for region in ("US", "EU"):
+        pd.DataFrame(
+            [
+                {"Date": "2026-06-30", "label": "扩张(Risk-On)", "state": 0},
+            ]
+        ).to_parquet(regime_output_dir / f"regime_{region}.parquet")
+        pd.DataFrame(
+            [
+                {"Date": "2026-06-30", "label": "扩张(Risk-On)", "state": 0},
+            ]
+        ).to_parquet(regime_output_dir / f"regime_oos_{region}.parquet")
+    dashboard_data_path = tmp_path / "data.js"
+    dashboard_data_path.write_text(
+        "window.DASHBOARD_DATA = "
+        + json.dumps(
+            {
+                "US": {
+                    "as_of": "2026-06",
+                    "current": {
+                        "label": "扩张(Risk-On)",
+                        "pred_vol": 0.16,
+                        "target_vol": 0.12,
+                        "equity_weight": 0.75,
+                        "state_mult": 1.0,
+                    },
+                    "contrib": [{"feat": "已实现波动(年化)", "contrib": 0.02}],
+                },
+                "EU": {
+                    "as_of": "2026-06",
+                    "current": {
+                        "label": "扩张(Risk-On)",
+                        "pred_vol": 0.14,
+                        "target_vol": 0.12,
+                        "equity_weight": 0.86,
+                        "state_mult": 1.0,
+                    },
+                    "contrib": [{"feat": "收益横截面分散", "contrib": 0.01}],
+                },
+            },
+            ensure_ascii=False,
+        )
+        + ";",
+        encoding="utf-8",
+    )
+    diagnostics_path = tmp_path / "model_diagnostics.json"
+    diagnostics_path.write_text(
+        json.dumps(
+            {
+                "regions": {
+                    "US": {
+                        "direction_models": [{"model": "Logistic", "准确率": 0.61, "AUC": 0.57}],
+                        "volatility_models": [{"model": "Ridge", "高波动AUC": 0.7, "Pearson": 0.4}],
+                        "drawdown_models": [{"model": "GBM", "高波动AUC": 0.65, "Pearson": 0.3}],
+                    },
+                    "EU": {
+                        "direction_models": [{"model": "HMM状态", "准确率": 0.58, "AUC": None}],
+                        "volatility_models": [{"model": "持续性(rvol_ann)", "高波动AUC": 0.68, "Pearson": 0.35}],
+                        "drawdown_models": [{"model": "HMM状态", "高波动AUC": 0.63, "Pearson": 0.25}],
+                    },
+                }
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard, "REGIME_OUTPUT_DIR", regime_output_dir)
+    monkeypatch.setattr(dashboard, "REGIME_DASHBOARD_DATA_PATH", dashboard_data_path)
+    monkeypatch.setattr(dashboard, "REGIME_MODEL_DIAGNOSTICS_PATH", diagnostics_path)
+    regime_payload = _regime_signal_payload()
+    assert regime_payload["status"] == "ok"
+    assert regime_payload["latest_date"] == "2026-06-30"
+    assert {row["region"] for row in regime_payload["rows"]} == {"US", "EU"}
+    assert regime_payload["rows"][0]["risk_budget"]
+    assert len(regime_payload["models"]["state_models"]) == 4
+    assert len(regime_payload["models"]["risk_models"]) == 2
+    assert regime_payload["models"]["direction_models"][0]["model"] == "HMM状态"
+    assert regime_payload["models"]["volatility_models"][0]["model"] == "持续性(rvol_ann)"
+    regime_command = _build_regime_signal_command()
+    assert regime_command[:3] == [sys.executable, "-m", "02_pipelines.refresh_regime"]
+    assert "--regime-output" in regime_command
 
     backtest = _backtest_rows()
     assert backtest
@@ -712,3 +858,113 @@ def test_system_dashboard_monitoring_rows_are_structured(tmp_path: Path, monkeyp
 
     assert _lineage_node_from_click({"points": [{"label": "回测"}]}) == "回测"
     assert _lineage_node_from_click(None) == "核心数据库"
+
+
+def test_refresh_regime_pipeline_runs_detector_before_export(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    refresh_regime = importlib.import_module("02_pipelines.refresh_regime")
+    output = tmp_path / "regime_risk_budget.parquet"
+    calls: list[tuple[str, str, list[str]]] = []
+    manifests: list[object] = []
+
+    class FakeManifest:
+        def __init__(self, step: str, parameters: dict[str, object]) -> None:
+            self.step = step
+            self.parameters = parameters
+            self.inputs: dict[str, object] = {}
+            self.outputs: dict[str, object] = {}
+            self.details: dict[str, object] = {}
+            self.validations: list[dict[str, object]] = []
+            manifests.append(self)
+
+        def add_validation(self, name: str, ok: bool, message: str = "", details: dict[str, object] | None = None) -> None:
+            self.validations.append({"name": name, "ok": ok, "message": message, "details": details or {}})
+
+        def write(self, status: str, *, error: BaseException | None = None) -> Path:
+            self.status = status
+            self.error = error
+            return tmp_path / "refresh_regime_manifest.json"
+
+    def fake_run_python_script(script: Path, args: list[str] = []) -> dict[str, object]:
+        calls.append(("script", Path(script).name, list(args)))
+        return {"command": [sys.executable, str(script), *args], "returncode": 0, "stdout": "", "stderr": ""}
+
+    def fake_run_python_module(module: str, args: list[str] = []) -> dict[str, object]:
+        calls.append(("module", module, list(args)))
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(b"placeholder")
+        return {"command": [sys.executable, "-m", module, *args], "returncode": 0, "stdout": "", "stderr": ""}
+
+    def fake_write_model_diagnostics() -> Path:
+        diagnostics = tmp_path / "model_diagnostics.json"
+        diagnostics.write_text("{}", encoding="utf-8")
+        return diagnostics
+
+    monkeypatch.setattr(refresh_regime, "StepManifest", FakeManifest)
+    monkeypatch.setattr(refresh_regime, "run_python_script", fake_run_python_script)
+    monkeypatch.setattr(refresh_regime, "run_python_module", fake_run_python_module)
+    monkeypatch.setattr(refresh_regime, "write_model_diagnostics", fake_write_model_diagnostics)
+
+    manifest_path = refresh_regime.run_refresh_regime(SimpleNamespace(regime_output=str(output)))
+
+    assert manifest_path.name == "refresh_regime_manifest.json"
+    assert calls[0][:2] == ("script", "build_features.py")
+    assert calls[1][:2] == ("script", "walkforward.py")
+    assert calls[2][0:2] == ("module", "02_pipelines.export_signals")
+    assert "--skip-ml" in calls[2][2]
+    assert "--skip-technical" in calls[2][2]
+    assert "--regime-oos" in calls[2][2]
+    assert calls[3][:2] == ("script", "export_dashboard.py")
+    assert manifests[0].status == "success"
+    assert manifests[0].validations[-1]["ok"] is True
+
+
+def test_run_all_refresh_regime_uses_dedicated_regime_step(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    run_all_module = importlib.import_module("02_pipelines.run_all")
+    calls: list[tuple[str, object]] = []
+
+    class FakeManifest:
+        def __init__(self, step: str, parameters: dict[str, object]) -> None:
+            self.step = step
+            self.parameters = parameters
+            self.details: dict[str, object] = {}
+            self.validations: list[dict[str, object]] = []
+
+        def add_validation(self, name: str, ok: bool, message: str = "", details: dict[str, object] | None = None) -> None:
+            self.validations.append({"name": name, "ok": ok, "message": message, "details": details or {}})
+
+        def write(self, status: str, *, error: BaseException | None = None) -> Path:
+            self.status = status
+            self.error = error
+            return tmp_path / "run_all_manifest.json"
+
+    def fake_refresh_regime(args: SimpleNamespace) -> Path:
+        calls.append(("refresh_regime", args.regime_output))
+        return tmp_path / "refresh_regime_manifest.json"
+
+    def fake_export_signals(args: SimpleNamespace) -> Path:
+        calls.append(("export_signals_skip_regime", args.skip_regime))
+        return tmp_path / "export_signals_manifest.json"
+
+    monkeypatch.setattr(run_all_module, "StepManifest", FakeManifest)
+    monkeypatch.setattr(run_all_module, "run_refresh_regime", fake_refresh_regime)
+    monkeypatch.setattr(run_all_module, "run_export_signals", fake_export_signals)
+
+    manifest = run_all_module.run_all(
+        SimpleNamespace(
+            skip_refresh_data=True,
+            skip_export_signals=False,
+            refresh_regime=True,
+            skip_build_candidates=True,
+            skip_optimize_portfolio=True,
+            skip_backtest=True,
+            skip_report=True,
+            as_of=None,
+            all_history_signals=False,
+            regime_oos=True,
+            regime_region=None,
+        )
+    )
+
+    assert manifest.name == "run_all_manifest.json"
+    assert calls[0][0] == "refresh_regime"
+    assert calls[1] == ("export_signals_skip_regime", True)

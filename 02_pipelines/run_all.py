@@ -15,6 +15,7 @@ from .export_signals import run_export_signals
 from .generate_report import run_generate_report
 from .optimize_portfolio import DEFAULT_OUTPUT as DEFAULT_PORTFOLIO, run_optimize_portfolio
 from .refresh_data import run_refresh_data
+from .refresh_regime import run_refresh_regime
 from .run_backtest import run_backtest_step
 
 
@@ -42,6 +43,12 @@ def run_all(args: argparse.Namespace) -> Path:
                 )
             )
 
+        regime_refreshed = False
+        if args.refresh_regime and not args.skip_export_signals:
+            regime_output = str(TP_ROOT / "04_signals" / "regime_risk_budget.parquet")
+            child_manifests.append(str(run_refresh_regime(Namespace(regime_output=regime_output))))
+            regime_refreshed = True
+
         if not args.skip_export_signals:
             child_manifests.append(
                 str(
@@ -51,13 +58,29 @@ def run_all(args: argparse.Namespace) -> Path:
                             all_history=args.all_history_signals,
                             skip_ml=False,
                             skip_technical=False,
-                            skip_regime=False,
+                            skip_regime=regime_refreshed,
+                            skip_country=getattr(args, "skip_country", False),
                             regime_oos=args.regime_oos,
                             region=args.regime_region,
                             patterns=str(TP_ROOT / "03_technical_analysis" / "output" / "patterns.parquet"),
                             ml_output=str(TP_ROOT / "04_signals" / "ml_signals.parquet"),
                             technical_output=str(TP_ROOT / "04_signals" / "technical_signals.parquet"),
                             regime_output=str(TP_ROOT / "04_signals" / "regime_risk_budget.parquet"),
+                            country_output=getattr(
+                                args,
+                                "country_output",
+                                str(TP_ROOT / "04_signals" / "country_model_signals.parquet"),
+                            ),
+                            country_workbook=getattr(
+                                args,
+                                "country_workbook",
+                                str(TP_ROOT / "14_country_model" / "modele_pays.xlsb"),
+                            ),
+                            country_database=getattr(
+                                args,
+                                "country_database",
+                                str(TP_ROOT / "14_country_model" / "data" / "country_model_database.parquet"),
+                            ),
                         )
                     )
                 )
@@ -157,14 +180,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--inspect-only-refresh-data", action="store_true", help="数据刷新只检查入口和 canonical 路径")
     parser.add_argument("--skip-refresh-data", action="store_true", help="跳过数据刷新")
     parser.add_argument("--skip-export-signals", action="store_true", help="跳过信号导出")
+    parser.add_argument("--skip-country", action="store_true", help="导出信号时跳过国家模型")
     parser.add_argument("--skip-build-candidates", action="store_true", help="跳过候选池")
     parser.add_argument("--skip-optimize-portfolio", action="store_true", help="跳过组合优化")
     parser.add_argument("--skip-backtest", action="store_true", help="跳过回测")
     parser.add_argument("--skip-report", action="store_true", help="跳过报告")
 
     parser.add_argument("--all-history-signals", action="store_true", help="信号导出全历史")
+    parser.add_argument("--refresh-regime", action="store_true", help="刷新 Regime detector、webapp 数据和诊断产物")
     parser.add_argument("--regime-oos", action="store_true", help="Regime 使用 OOS 文件")
     parser.add_argument("--regime-region", action="append", choices=["US", "EU"], help="Regime 区域")
+    parser.add_argument("--country-output", default=str(TP_ROOT / "04_signals" / "country_model_signals.parquet"))
+    parser.add_argument("--country-workbook", default=str(TP_ROOT / "14_country_model" / "modele_pays.xlsb"))
+    parser.add_argument(
+        "--country-database",
+        default=str(TP_ROOT / "14_country_model" / "data" / "country_model_database.parquet"),
+    )
 
     parser.add_argument("--candidates-output", default=str(DEFAULT_CANDIDATES), help="候选池输出路径")
     parser.add_argument("--top-n", type=int, help="候选池选择前 N 名")

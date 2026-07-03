@@ -14,12 +14,13 @@ Bottom-up：把指数成分的个股横截面信息聚合为"市场状态"月度
 - 区间：**2009-03 ~ 2026-05**（指数权重最早可用月份），约 200 个月度样本。
 - 月度收益用 `Total Return`（截至当月末已实现，无前视；`TTR_Fwd1M` 仅留作打标/验证）。
 
-## 特征（28 个，按月按地区）
+## 特征（US 37 个 / EU 32 个，按月按地区）
 - screen 横截面：估值水平/分散、盈利修正广度/成长、质量/杠杆、波动水平/分散、动量、已实现收益分散/偏度/宽度。
 - 因子多空价差(Value/Quality/Mom/LowVol)：每月在 区域×行业 组内做 rank 中性化(小组<5 剔除)，t-1 分位 × t 收益。
 - 周期-防御板块价差 `cyc_def_spread`：周期板块月度收益均值 − 防御板块(食品饮料/医疗/电信/公用)均值，risk-on/off 信号。
 - 日度衍生(`returns.parquet`)：年化已实现波动 `rvol_ann`、成分平均两两相关性 `avg_corr`、近月下跌交易日占比 `down_day_freq`。
-- 宏观金融条件(`macro_data.parquet`)：US 使用 `BFCIUS Index` 与 EWMA，EU 使用 `BFCIEU Index` 与 EWMA；仅接入 OOS 测试中对下月波动有效且更新到最新月的少数变量。
+- 宏观金融条件(`macro_data.parquet`)：US 使用 `BFCIUS Index` 与 EWMA，EU 使用 `BFCIEU Index` 与 EWMA；另从 `maj cycle macro2.xlsx` 统一接入 US/EU 的 Citi Economic Surprise 与 BNP Positioning raw/EWMA。macro2 缺失日期只在两个有效观测之间按时间线性插值，不做首尾外推。
+- 选定的单股波动衍生变量：US K4 主模型接入 `Daily Vol 60J/90J/260J` 的短长波动比与短波动高于长波动占比；EU K4 测试变差，暂不接入。
 
 ## 模型
 - 预处理：少量缺失前向填充；高偏特征(`ret_skew`,`spread_*`)稳健缩放(RobustScaler)，其余标准化(StandardScaler)。
@@ -45,9 +46,10 @@ python -m http.server 49231 --directory webapp   # 浏览器访问 http://localh
 ```
 
 ## 范式对比脚本
-- `ml_compare.py`：预测下月涨跌(方向) OOS 对比 基准/HMM/Logistic/GBM。
-- `vol_compare.py`：预测下月波动/回撤 OOS 对比 持续性/HMM/Ridge/GBM。
+- `ml_compare.py`：预测下月涨跌(方向) OOS 对比 基准/HMM/Logistic+ML_IF/GBM+ML_IF；`Score ML_IF` 接入测试有增量的监督模型。
+- `vol_compare.py`：预测下月波动/回撤 OOS 对比 持续性/HMM/Ridge+ScreenVol/GBM+ML_IF+ScreenVol；`Score ML_IF` 与单股波动衍生变量按地区/目标选择性接入。
 - 结论：方向几乎不可预测、ML 不优于买入持有；波动可预测但点预测用 Ridge/持续性更佳，HMM 强在离散状态识别与危机预警。
+- `.codex_tmp/regime_macro_research/bottom_up_period_hmm_research.py`：post-2020 K3 regime-break 研究配置额外加入 `regime_break_mlif_selected` 与 `regime_break_screen_vol_selected`。
 
 ## 用法
 ```bash

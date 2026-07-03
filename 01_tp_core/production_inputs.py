@@ -374,7 +374,8 @@ def inspect_ciq_parquet(path: Path, root: Path) -> dict[str, Any]:
 
 
 def _collect_incoming_inventory(root: Path, records: list[dict[str, Any]]) -> None:
-    incoming_dir = root / "screen" / "production_inputs" / "incoming"
+    screen_dir = SCREEN_DIR if SCREEN_DIR.is_absolute() else root / SCREEN_DIR
+    incoming_dir = screen_dir / "production_inputs" / "incoming"
     if not incoming_dir.exists():
         return
 
@@ -397,7 +398,7 @@ def _collect_incoming_inventory(root: Path, records: list[dict[str, Any]]) -> No
 
 
 def _collect_legacy_inventory(root: Path, records: list[dict[str, Any]]) -> None:
-    screen_dir = root / "screen"
+    screen_dir = SCREEN_DIR if SCREEN_DIR.is_absolute() else root / SCREEN_DIR
 
     monthly_dir = screen_dir / "monthly"
     monthly_candidates = sorted(monthly_dir.glob("*.xlsx")) if monthly_dir.exists() else []

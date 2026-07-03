@@ -17,6 +17,7 @@ RETURNS_PATH = CANONICAL_RETURNS_PATH
 # 输出目录
 OUTPUT_DIR = Path(__file__).parent / "output"
 MACRO_PATH = Path(__file__).parent / "macro_data.parquet"
+MACRO2_PATH = Path(__file__).parent / "maj cycle macro2.xlsx"
 
 # 地区 -> 指数成分权重列（权重>0 即为当期成分，天然 point-in-time）
 REGION_WEIGHT_COL = {
@@ -33,6 +34,14 @@ MACRO_FEATURE_COLS = {
         "EU_BFCIEU Index": "macro_fin_conditions",
         "EU_BFCIEU Index EWMA": "macro_fin_conditions_ewma",
     },
+}
+
+MACRO2_SHEETS = {"US": "US", "EU": "Europe"}
+MACRO2_FEATURE_COLS = {
+    "macro2_citi_raw": "macro2_citi_raw",
+    "macro2_citi_ewma": "macro2_citi_ewma",
+    "macro2_bnp_raw": "macro2_bnp_raw",
+    "macro2_bnp_ewma": "macro2_bnp_ewma",
 }
 
 # 起始日期：经敏感性检验, 2007(含GFC)为最佳起点; 2005-2006平静牛市无增量且略稀释EU
@@ -56,7 +65,7 @@ GROWTH_COLS = ["EPS Revision Ratio", "EPS NTM 3M Growth", "EPS Growth NTM", "Sal
 # 质量 / 杠杆
 QUALITY_COLS = ["ROE avg FY0", "NetDebt to EBITDA exFIN"]
 # 风险 / 波动（仅用全历史覆盖的字段）
-RISK_COLS = ["Daily Vol 260J", "Daily Vol 90J"]
+RISK_COLS = ["Daily Vol 260J", "Daily Vol 90J", "Daily Vol 60J"]
 # 动量水平
 MOM_COLS = ["MOM Score"]
 # 已实现月度总收益（trailing，无前视）；个股标识用于因子价差的滞后排序

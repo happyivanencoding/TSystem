@@ -17,10 +17,17 @@ from scipy.stats import spearmanr
 
 import config
 import data_loader
+import ml_if_features
 import model
 import returns_loader
+import screen_vol_features
 
 MIN_TRAIN = 60
+
+
+def _join_new_columns(base: pd.DataFrame, extra: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
+    cols = [c for c in cols if c not in base.columns]
+    return base.join(extra[cols]) if cols else base
 
 
 def fwd_risk(region: str) -> pd.DataFrame:
@@ -71,21 +78,53 @@ def _hmm_pred(region: str, index, target: pd.Series) -> np.ndarray:
 def evaluate(region: str, tgt: str) -> pd.DataFrame:
     feats = model.load_features(region).ffill().dropna()
     risk = fwd_risk(region)[tgt]
-    df = feats.join(risk, how="inner").dropna(subset=[tgt])
+    ridge_feats = model.load_features(region)
+    ridge_cols = screen_vol_features.vol_ridge_cols(region, tgt)
+    if ridge_cols:
+        ridge_feats = _join_new_columns(
+            ridge_feats,
+            screen_vol_features.load_region_screen_vol(region, ridge_feats.index),
+            ridge_cols,
+        )
+    df = ridge_feats.ffill().dropna().join(risk, how="inner").dropna(subset=[tgt])
     X = df.drop(columns=[tgt])
     y = df[tgt]
 
     test_idx = X.index[MIN_TRAIN:]
     yt = y.loc[test_idx].values
 
-    ridge_p, gbm_p = [], []
+    ridge_p = []
     for i in range(MIN_TRAIN, len(X)):
         Xtr, ytr = X.iloc[:i], y.iloc[:i]
         sc = StandardScaler().fit(Xtr)
         ridge_p.append(Ridge(alpha=10.0).fit(sc.transform(Xtr), ytr).predict(sc.transform(X.iloc[[i]]))[0])
+
+    gbm_cols = ml_if_features.vol_gbm_cols(region, tgt)
+    screen_vol_cols = screen_vol_features.vol_gbm_cols(region, tgt)
+    gbm_feats = model.load_features(region)
+    if gbm_cols:
+        gbm_feats = _join_new_columns(
+            gbm_feats,
+            ml_if_features.load_region_mlif(region, gbm_feats.index),
+            gbm_cols,
+        )
+    if screen_vol_cols:
+        gbm_feats = _join_new_columns(
+            gbm_feats,
+            screen_vol_features.load_region_screen_vol(region, gbm_feats.index),
+            screen_vol_cols,
+        )
+    gbm_df = gbm_feats.ffill().dropna().join(risk, how="inner").dropna(subset=[tgt])
+    Xg = gbm_df.drop(columns=[tgt])
+    yg = gbm_df[tgt]
+    gbm_idx = Xg.index[MIN_TRAIN:]
+    ytg = yg.loc[gbm_idx].values
+    gbm_p = []
+    for i in range(MIN_TRAIN, len(Xg)):
+        Xtr, ytr = Xg.iloc[:i], yg.iloc[:i]
         gbm = HistGradientBoostingRegressor(max_depth=3, max_iter=200, learning_rate=0.05,
                                             l2_regularization=1.0, random_state=0).fit(Xtr, ytr)
-        gbm_p.append(gbm.predict(X.iloc[[i]])[0])
+        gbm_p.append(gbm.predict(Xg.iloc[[i]])[0])
 
     persist = X.loc[test_idx, "rvol_ann"].values          # 持续性基准
     hmm_p = _hmm_pred(region, test_idx, y)
@@ -93,8 +132,8 @@ def evaluate(region: str, tgt: str) -> pd.DataFrame:
     rows = {
         "持续性(rvol_ann)": _metrics(yt, persist),
         "HMM状态": _metrics(yt, hmm_p),
-        "Ridge": _metrics(yt, np.array(ridge_p)),
-        "GBM": _metrics(yt, np.array(gbm_p)),
+        "Ridge+ScreenVol": _metrics(yt, np.array(ridge_p)),
+        "GBM+ML_IF+ScreenVol": _metrics(ytg, np.array(gbm_p)),
     }
     return pd.DataFrame(rows).T
 

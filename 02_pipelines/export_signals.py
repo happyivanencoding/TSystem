@@ -18,6 +18,7 @@ from .common import StepManifest, path_profile, summarize_frame
 ML_EXPORTER = TP_ROOT / "03_ml_enhanced" / "export_signals.py"
 TECHNICAL_EXPORTER = TP_ROOT / "03_technical_analysis" / "export_technical_signals.py"
 REGIME_EXPORTER = TP_ROOT / "03_regime_model" / "export_risk_budget.py"
+COUNTRY_EXPORTER = TP_ROOT / "14_country_model" / "src" / "country_model.py"
 SIGNALS_DIR = TP_ROOT / "04_signals"
 
 
@@ -59,6 +60,8 @@ def run_export_signals(args: argparse.Namespace) -> Path:
         "ml_exporter": path_profile(ML_EXPORTER),
         "technical_exporter": path_profile(TECHNICAL_EXPORTER),
         "regime_exporter": path_profile(REGIME_EXPORTER),
+        "country_exporter": path_profile(COUNTRY_EXPORTER),
+        "country_workbook": path_profile(Path(args.country_workbook)),
     }
     outputs: dict[str, Path] = {}
     try:
@@ -81,6 +84,14 @@ def run_export_signals(args: argparse.Namespace) -> Path:
                 output=Path(args.regime_output),
                 oos=args.regime_oos,
                 regions=args.region,
+            )
+        if not args.skip_country:
+            module = _load_module(COUNTRY_EXPORTER, "tp_pipeline_country_exporter")
+            outputs["country_model_signals"] = module.export_country_signals(
+                output=Path(args.country_output),
+                workbook=Path(args.country_workbook),
+                database=Path(args.country_database),
+                latest_only=not args.all_history,
             )
 
         manifest.outputs = {name: path_profile(path, parquet=True) for name, path in outputs.items()}
@@ -107,12 +118,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-ml", action="store_true", help="跳过 ML 信号")
     parser.add_argument("--skip-technical", action="store_true", help="跳过技术信号")
     parser.add_argument("--skip-regime", action="store_true", help="跳过 Regime 风险预算信号")
+    parser.add_argument("--skip-country", action="store_true", help="跳过国家模型信号")
     parser.add_argument("--regime-oos", action="store_true", help="使用 regime_oos 文件")
     parser.add_argument("--region", action="append", choices=["US", "EU"], help="Regime 区域，可重复传入")
     parser.add_argument("--patterns", default=str(TP_ROOT / "03_technical_analysis" / "output" / "patterns.parquet"))
     parser.add_argument("--ml-output", default=str(SIGNALS_DIR / "ml_signals.parquet"))
     parser.add_argument("--technical-output", default=str(SIGNALS_DIR / "technical_signals.parquet"))
     parser.add_argument("--regime-output", default=str(SIGNALS_DIR / "regime_risk_budget.parquet"))
+    parser.add_argument("--country-output", default=str(SIGNALS_DIR / "country_model_signals.parquet"))
+    parser.add_argument("--country-workbook", default=str(TP_ROOT / "14_country_model" / "modele_pays.xlsb"))
+    parser.add_argument(
+        "--country-database",
+        default=str(TP_ROOT / "14_country_model" / "data" / "country_model_database.parquet"),
+    )
     return parser
 
 

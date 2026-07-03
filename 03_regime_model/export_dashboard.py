@@ -32,6 +32,10 @@ FEATURE_LABELS = {
     "spread_mom": "动量因子价差", "spread_lowvol": "低波因子价差",
     "cyc_def_spread": "周期-防御价差", "rvol_ann": "已实现波动(年化)",
     "avg_corr": "成分平均相关性", "down_day_freq": "近月下跌日占比",
+    "sv_v60_med": "60日个股波动(中位)", "sv_v60_v1y_ratio": "60日/1年波动比",
+    "sv_v90_v1y_ratio": "90日/1年波动比",
+    "sv_v60_above_v1y_breadth": "60日波动高于1年占比",
+    "sv_v90_above_v1y_breadth": "90日波动高于1年占比",
 }
 
 

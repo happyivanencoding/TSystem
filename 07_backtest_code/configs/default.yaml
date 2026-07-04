@@ -20,9 +20,9 @@ run:
   bench: "STOXX EUROPE 600"
   metrics:
     - "Quality Avg Percentile"
-  percentile: 0.05
+  percentile: 0.2
   top: true
-  ponderation: "Market cap"
+  ponderation: "Racine Cube"
   esg_exclusion: 0.0
   cut_mkt_cap: 0.0
   reco_secto: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]

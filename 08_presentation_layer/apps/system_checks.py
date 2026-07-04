@@ -293,6 +293,59 @@ def project_checks() -> list[ProjectCheck]:
             data_kind="research docs",
             required=False,
         ),
+        ProjectCheck(
+            entry("13_sector_score_model").project_id,
+            entry("13_sector_score_model").project_id,
+            entry("13_sector_score_model").role,
+            [
+                py,
+                "-c",
+                (
+                    "import json; from pathlib import Path; "
+                    "base=Path(r'C:/GoogleDrive/TP/13_sector_score_model'); "
+                    "paths=["
+                    "base/'outputs_fs_sector_default'/'sector_scores_panel.parquet', "
+                    "base/'outputs_fs_sector_default'/'backtest_summary.json', "
+                    "base/'outputs_eu'/'sector_scores_panel.parquet', "
+                    "base/'outputs_eu'/'backtest_summary.json']; "
+                    "missing=[str(p) for p in paths if not p.exists()]; "
+                    "assert not missing, missing; "
+                    "us=json.loads((base/'outputs_fs_sector_default'/'backtest_summary.json').read_text(encoding='utf-8')); "
+                    "eu=json.loads((base/'outputs_eu'/'backtest_summary.json').read_text(encoding='utf-8')); "
+                    "print('US', us['full_period']['end_date'], 'EU', eu['full_period']['end_date'])"
+                ),
+            ],
+            [
+                TP_ROOT / "13_sector_score_model" / "outputs_fs_sector_default" / "sector_scores_panel.parquet",
+                TP_ROOT / "13_sector_score_model" / "outputs_fs_sector_default" / "backtest_summary.json",
+                TP_ROOT / "13_sector_score_model" / "outputs_eu" / "sector_scores_panel.parquet",
+                TP_ROOT / "13_sector_score_model" / "outputs_eu" / "backtest_summary.json",
+            ],
+            data_kind="sector model outputs",
+        ),
+        ProjectCheck(
+            entry("14_country_model").project_id,
+            entry("14_country_model").project_id,
+            entry("14_country_model").role,
+            [
+                py,
+                "-c",
+                (
+                    "import importlib.util; from pathlib import Path; import pandas as pd; "
+                    "module_path=Path(r'C:/GoogleDrive/TP/14_country_model/src/country_model.py'); "
+                    "spec=importlib.util.spec_from_file_location('country_model_smoke', module_path); "
+                    "m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); "
+                    "database=pd.read_parquet(m.COUNTRY_DATABASE_PATH); "
+                    "panel=m.build_country_model_panel(database); "
+                    "signal=m.make_country_signal_frame(panel); "
+                    "out=Path(r'C:/GoogleDrive/TP/.tmp_dashboard_work/system_checks/outputs/country_model_signals_smoke.parquet'); "
+                    "m.write_signal_frame(signal, out); "
+                    "print(len(panel), len(signal), out)"
+                ),
+            ],
+            [_tmp("country_model_signals_smoke.parquet")],
+            data_kind="country model signal parquet",
+        ),
     ]
 
 

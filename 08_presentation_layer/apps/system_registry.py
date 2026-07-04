@@ -264,6 +264,29 @@ PROJECT_REGISTRY: tuple[ProjectRegistryEntry, ...] = (
         status="experimental",
     ),
     ProjectRegistryEntry(
+        project_id="13_sector_score_model",
+        role="行业打分模型、行业偏离回测和行业配置研究",
+        root_path=TP_ROOT / "13_sector_score_model",
+        inputs=("screen_aggregate", "returns", "factset_icb_mapping"),
+        outputs=(
+            "sector_scores_panel_us",
+            "sector_scores_panel_eu",
+            "sector_backtest_summary_us",
+            "sector_backtest_summary_eu",
+        ),
+        commands=(
+            "python 13_sector_score_model/src/sector_score_model.py --market US",
+            "python 13_sector_score_model/src/sector_score_model.py --market EU",
+        ),
+        smoke_test="latest sector model outputs exist",
+        data_assets=(
+            "sector_scores_panel_us",
+            "sector_scores_panel_eu",
+            "sector_backtest_summary_us",
+            "sector_backtest_summary_eu",
+        ),
+    ),
+    ProjectRegistryEntry(
         project_id="14_country_model",
         role="国家模型数据库、Excel 复刻与 country signal",
         root_path=TP_ROOT / "14_country_model",
@@ -324,6 +347,32 @@ DATA_ASSET_REGISTRY: tuple[DataAssetEntry, ...] = (
         TP_ROOT / "14_country_model" / "outputs" / "country_model_single_country_scores.parquet",
         "country model detail parquet",
         "Date",
+    ),
+    DataAssetEntry(
+        "13_sector_score_model",
+        "sector_scores_panel_us",
+        TP_ROOT / "13_sector_score_model" / "outputs_fs_sector_default" / "sector_scores_panel.parquet",
+        "sector model parquet",
+        "Date",
+    ),
+    DataAssetEntry(
+        "13_sector_score_model",
+        "sector_scores_panel_eu",
+        TP_ROOT / "13_sector_score_model" / "outputs_eu" / "sector_scores_panel.parquet",
+        "sector model parquet",
+        "Date",
+    ),
+    DataAssetEntry(
+        "13_sector_score_model",
+        "sector_backtest_summary_us",
+        TP_ROOT / "13_sector_score_model" / "outputs_fs_sector_default" / "backtest_summary.json",
+        "sector model summary json",
+    ),
+    DataAssetEntry(
+        "13_sector_score_model",
+        "sector_backtest_summary_eu",
+        TP_ROOT / "13_sector_score_model" / "outputs_eu" / "backtest_summary.json",
+        "sector model summary json",
     ),
     DataAssetEntry(
         "05_candidates",

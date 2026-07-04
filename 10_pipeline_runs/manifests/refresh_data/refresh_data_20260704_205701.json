@@ -1,9 +1,9 @@
 {
   "step": "refresh_data",
   "status": "success",
-  "started_at": "2026-07-04T20:59:40",
-  "finished_at": "2026-07-04T20:59:40",
-  "duration_seconds": 0.19,
+  "started_at": "2026-07-04T20:57:01",
+  "finished_at": "2026-07-04T20:57:01",
+  "duration_seconds": 0.176,
   "run_type": "production",
   "parameters": {
     "base_dir": null,

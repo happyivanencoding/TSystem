@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib.util
+import json
+import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Iterable
@@ -25,14 +27,32 @@ def _load_monthly_update():
     return run_monthly_update
 
 
-def _load_score_ml_producer():
-    path = TP_ROOT / "03_ml_enhanced" / "produce_score_ml.py"
-    spec = importlib.util.spec_from_file_location("tp_score_ml_producer", path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"无法加载 Score ML 生产模块: {path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.produce_score_ml
+def _extract_last_json_object(text: str) -> dict[str, Any]:
+    for match in reversed(list(re.finditer(r"\{\s*\"", text))):
+        try:
+            return json.loads(text[match.start():])
+        except json.JSONDecodeError:
+            continue
+    raise ValueError("Score ML 生产脚本未返回 JSON 结果")
+
+
+def _run_score_ml_production() -> dict[str, Any]:
+    script = TP_ROOT / "03_ml_enhanced" / "produce_score_ml.py"
+    venv_python = TP_ROOT / ".venv_tp" / "Scripts" / "python.exe"
+    python_exe = venv_python if venv_python.exists() else Path(sys.executable)
+    result = subprocess.run(
+        [str(python_exe), str(script)],
+        cwd=str(TP_ROOT),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    payload = _extract_last_json_object(result.stdout)
+    payload["python_executable"] = str(python_exe)
+    if result.returncode != 0:
+        payload["stderr_tail"] = result.stderr[-4000:]
+        raise RuntimeError(f"Score ML production failed with exit code {result.returncode}")
+    return payload
 
 
 def _is_relative_to(path: Path, parent: Path) -> bool:
@@ -220,7 +240,7 @@ def run_refresh_data(args: argparse.Namespace) -> Path:
                 "reason": "dry_run" if args.dry_run else "returns_only",
             }
         else:
-            score_ml_result = _load_score_ml_producer()()
+            score_ml_result = _run_score_ml_production()
         manifest.details["score_ml_production"] = score_ml_result
         manifest.add_validation(
             "canonical_data_sources_exist",

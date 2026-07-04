@@ -26,6 +26,11 @@ import sitecustomize  # noqa: F401,E402
 from tp_core.data_sources import LAST_SCREEN_PATH, SCREEN_AGGREGATE_PATH  # noqa: E402
 
 DEFAULT_UNIVERSES = ("EU", "US", "OTHER", "EM")
+SCORE_ML_NEUTRALIZATION_GROUP_COLUMNS = [
+    "Date",
+    " Benchmark ICB Supersector ",
+    "Exchange Country Region",
+]
 UNIVERSE_CONFIGS = {
     "EU": "Config.config_EU",
     "US": "Config.config_US",
@@ -76,6 +81,11 @@ def _parse_dates(values: Iterable[str] | None) -> list[pd.Timestamp]:
 
 def _missing_score_dates(screen: pd.DataFrame) -> list[pd.Timestamp]:
     latest_screen_date = pd.Timestamp(screen["Date"].max()).normalize()
+    scored_dates = screen.loc[screen["Score ML"].notna(), "Date"].dropna()
+    if scored_dates.empty:
+        latest_scored_date = None
+    else:
+        latest_scored_date = pd.Timestamp(scored_dates.max()).normalize()
     by_date = (
         screen.groupby("Date")["Score ML"]
         .apply(lambda series: int(series.notna().sum()))
@@ -84,7 +94,9 @@ def _missing_score_dates(screen: pd.DataFrame) -> list[pd.Timestamp]:
     return [
         pd.Timestamp(date).normalize()
         for date, non_null in by_date.items()
-        if pd.Timestamp(date).normalize() <= latest_screen_date and non_null == 0
+        if pd.Timestamp(date).normalize() <= latest_screen_date
+        and (latest_scored_date is None or pd.Timestamp(date).normalize() > latest_scored_date)
+        and non_null == 0
     ]
 
 
@@ -151,6 +163,38 @@ def _read_score_outputs(generated: list[dict[str, object]]) -> pd.DataFrame:
         return pd.DataFrame(columns=["ISIN", "Date", "Score ML"])
     combined = pd.concat(parts, ignore_index=True)
     return combined.sort_values(["ISIN", "Date"]).drop_duplicates(["ISIN", "Date"], keep="last")
+
+
+def _neutralize_score_ml_for_database(screen: pd.DataFrame, affected_dates: list[pd.Timestamp]) -> pd.DataFrame:
+    out = screen.copy()
+    rank_mask = out["Date"].dt.normalize().isin(affected_dates)
+    out.loc[rank_mask, "Score ML"] = (
+        out.loc[rank_mask]
+        .groupby(SCORE_ML_NEUTRALIZATION_GROUP_COLUMNS)["Score ML"]
+        .rank(pct=True, ascending=True)
+        * 10
+    )
+    return out
+
+
+def _validate_score_ml_neutrality(screen: pd.DataFrame, affected_dates: list[pd.Timestamp]) -> dict[str, object]:
+    scoped = screen.loc[screen["Date"].dt.normalize().isin(affected_dates)].copy()
+    scored = scoped.dropna(subset=["Score ML"]).copy()
+    expected = (
+        scored.groupby(SCORE_ML_NEUTRALIZATION_GROUP_COLUMNS)["Score ML"]
+        .rank(pct=True, ascending=True)
+        * 10
+    )
+    diff = (scored["Score ML"] - expected).abs()
+    max_abs_diff = float(diff.max()) if not diff.empty else 0.0
+    return {
+        "required": True,
+        "group_columns": SCORE_ML_NEUTRALIZATION_GROUP_COLUMNS,
+        "checked_rows": int(len(scored)),
+        "group_count": int(scored[SCORE_ML_NEUTRALIZATION_GROUP_COLUMNS].drop_duplicates().shape[0]),
+        "max_abs_diff": max_abs_diff,
+        "ok": max_abs_diff < 1e-12,
+    }
 
 
 def _backup_file(path: Path, run_id: str, label: str) -> str | None:
@@ -275,13 +319,10 @@ def produce_score_ml(
     screen = screen_idx.reset_index()
 
     affected_dates = sorted(score_updates["Date"].dropna().dt.normalize().unique())
-    rank_mask = screen["Date"].dt.normalize().isin(affected_dates)
-    screen.loc[rank_mask, "Score ML"] = (
-        screen.loc[rank_mask]
-        .groupby(["Date", " Benchmark ICB Supersector ", "Exchange Country Region"])["Score ML"]
-        .rank(pct=True, ascending=True)
-        * 10
-    )
+    screen = _neutralize_score_ml_for_database(screen, affected_dates)
+    neutrality_validation = _validate_score_ml_neutrality(screen, affected_dates)
+    if not neutrality_validation["ok"]:
+        raise ValueError(f"Score ML neutrality validation failed: {neutrality_validation}")
 
     _write_screen(screen)
     derived_outputs = _refresh_derived_outputs(screen)
@@ -308,6 +349,11 @@ def produce_score_ml(
         "derived_outputs": derived_outputs,
         "ml_signals_path": str(ml_signals_path),
         "comparison": comparison,
+        "score_ml_database_requirement": {
+            "neutralized_before_database_update": True,
+            "neutralization_group_columns": SCORE_ML_NEUTRALIZATION_GROUP_COLUMNS,
+        },
+        "score_ml_neutrality_validation": neutrality_validation,
     }
 
     QA_DIR.mkdir(parents=True, exist_ok=True)

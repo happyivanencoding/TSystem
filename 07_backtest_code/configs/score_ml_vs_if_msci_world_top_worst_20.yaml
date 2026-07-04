@@ -1,11 +1,11 @@
 app:
   application_name: "Backtest Code"
-  default_user: "research"
+  default_user: "score_ml_vs_if_mw"
   default_mode: "research"
   auto_open_plot: false
 
 user:
-  name: "research"
+  name: "score_ml_vs_if_mw"
 
 paths:
   screen: 'C:/GoogleDrive/TP/00_screen/screen_aggregate.parquet'
@@ -16,10 +16,10 @@ paths:
 
 run:
   mode: "research"
-  ptf_name: "PTF TEST"
-  bench: "STOXX EUROPE 600"
+  ptf_name: "Score ML vs IF MSCI World 20"
+  bench: "MSCI WORLD"
   metrics:
-    - "Quality Avg Percentile"
+    - "Score ML"
   percentile: 0.2
   top: true
   ponderation: "Racine cube"
@@ -33,7 +33,7 @@ run:
   cap_weight_threshold: null
   score_pivot_esg: null
   mode_monthly_prod: false
-  start_date: "2020-01-31"
+  start_date: "2010-06-30"
   freq_rebal: null
   screen_start_date: "mois_impair"
   fill_method: "drift"
@@ -41,8 +41,15 @@ run:
   sector_neutral: false
 
 batch:
-  benches: []
-  metrics: []
-  percentiles: []
-  start_dates: []
-  top_values: []
+  benches:
+    - "MSCI WORLD"
+  metrics:
+    - "Score ML"
+    - "Score ML_IF"
+  percentiles:
+    - 0.2
+  start_dates:
+    - "2010-06-30"
+  top_values:
+    - true
+    - false

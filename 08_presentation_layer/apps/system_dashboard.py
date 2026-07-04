@@ -73,6 +73,35 @@ DATABASE_PROFILE_PATH = (
 FULL_BACKTEST_VALIDATION_PATH = (
     PIPELINE_MANIFESTS_DIR / "run_backtest" / "full_backtest_validation_latest.json"
 )
+SCORE_ML_BACKTEST_RUN_ROOT = (
+    TP_ROOT / "07_backtest_code" / "runs" / "score_ml_vs_if_msci_world_top_worst_20"
+)
+SCORE_ML_SCREEN_PATH = TP_ROOT / "00_screen" / "screen_aggregate.parquet"
+SCORE_ML_COMPONENT_COLUMNS = [
+    "Date",
+    "Name",
+    "Company SEDOL",
+    "Score ML",
+    "Score ML_IF",
+    "Dividend Avg Percentile",
+    "Value Avg Percentile",
+    "Quality Avg Percentile",
+    "Mom Avg Percentile",
+    "Growth Avg Percentile",
+    "LowVol Avg Percentile",
+    "Size Avg Percentile",
+    "PE LTM",
+    "PE FY1",
+    "PE NTM",
+    "EPS Growth FY1",
+    "ROE avg FY0",
+    "DVD Yield FY1",
+    "Earns Yield FY0",
+    "Benchmark Market Value Millions in EUR",
+    " Benchmark ICB Supersector ",
+    "Exchange Country Region",
+    "Benchmark Country English",
+]
 
 ASSET_SUFFIXES = {".parquet", ".xlsx", ".xls", ".csv", ".json", ".md", ".yaml", ".yml"}
 IGNORED_ASSET_PARTS = {
@@ -1764,6 +1793,158 @@ def _read_frame(path: Path) -> pd.DataFrame | None:
         return _frame_cached(str(path), path.stat().st_mtime_ns)
     except Exception:
         return None
+
+
+@lru_cache(maxsize=4)
+def _score_ml_screen_cached(path_text: str, mtime_ns: int) -> pd.DataFrame:
+    del mtime_ns
+    frame = pd.read_parquet(path_text, columns=SCORE_ML_COMPONENT_COLUMNS)
+    if "ISIN" not in frame.columns:
+        frame = frame.reset_index()
+    frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+    return frame
+
+
+def _score_ml_screen_frame() -> pd.DataFrame | None:
+    if not SCORE_ML_SCREEN_PATH.exists():
+        return None
+    try:
+        return _score_ml_screen_cached(str(SCORE_ML_SCREEN_PATH), SCORE_ML_SCREEN_PATH.stat().st_mtime_ns)
+    except Exception:
+        return None
+
+
+def _latest_score_ml_run(side: str) -> Path | None:
+    if side not in {"top", "worst"} or not SCORE_ML_BACKTEST_RUN_ROOT.exists():
+        return None
+    expected_top = side == "top"
+    candidates: list[Path] = []
+    for run_dir in SCORE_ML_BACKTEST_RUN_ROOT.iterdir():
+        if not run_dir.is_dir():
+            continue
+        manifest = run_dir / "manifest.yaml"
+        config = run_dir / "config_snapshot.yaml"
+        sec_list = run_dir / "sec_list.parquet"
+        if not manifest.exists() or not config.exists() or not sec_list.exists():
+            continue
+        manifest_text = manifest.read_text(encoding="utf-8", errors="ignore")
+        if "status: success" not in manifest_text or "- Score ML\n" not in manifest_text:
+            continue
+        text = config.read_text(encoding="utf-8", errors="ignore")
+        if f"top: {str(expected_top).lower()}" not in text:
+            continue
+        candidates.append(run_dir)
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def _score_ml_date_options() -> list[str]:
+    dates: set[str] = set()
+    for side in ("top", "worst"):
+        run_dir = _latest_score_ml_run(side)
+        if run_dir is None:
+            continue
+        try:
+            sec_list = pd.read_parquet(run_dir / "sec_list.parquet", columns=["Date"])
+        except Exception:
+            continue
+        values = pd.to_datetime(sec_list["Date"], errors="coerce").dropna()
+        dates.update(value.date().isoformat() for value in values)
+    return sorted(dates, reverse=True)
+
+
+def _score_ml_components_payload(date: str | None = None, side: str = "top") -> dict[str, Any]:
+    side = side if side in {"top", "worst"} else "top"
+    date_options = _score_ml_date_options()
+    selected_date = date if date in date_options else (date_options[0] if date_options else "")
+    payload: dict[str, Any] = {
+        "status": "missing",
+        "title": "Score ML portfolio components",
+        "default_side": "top",
+        "selected_side": side,
+        "default_date": date_options[0] if date_options else "",
+        "selected_date": selected_date,
+        "date_options": date_options,
+        "rows": [],
+        "run_dir": "",
+        "screen_date": "",
+        "message": "",
+    }
+    run_dir = _latest_score_ml_run(side)
+    if run_dir is None:
+        payload["message"] = "Score ML backtest sec_list missing"
+        return payload
+    payload["run_dir"] = _rel(run_dir)
+    if not selected_date:
+        payload["message"] = "Score ML backtest has no available dates"
+        return payload
+    screen = _score_ml_screen_frame()
+    if screen is None or screen.empty:
+        payload["message"] = "screen_aggregate parquet missing or unreadable"
+        return payload
+    try:
+        sec_list = pd.read_parquet(run_dir / "sec_list.parquet")
+    except Exception as exc:
+        payload.update({"status": "error", "message": str(exc)})
+        return payload
+
+    sec = sec_list.copy()
+    sec["Date"] = pd.to_datetime(sec["Date"], errors="coerce")
+    selected_ts = pd.Timestamp(selected_date)
+    sec = sec[sec["Date"].eq(selected_ts)].copy()
+    if sec.empty:
+        payload["message"] = f"no portfolio components for {selected_date}"
+        return payload
+    screen_dates = screen.loc[screen["Date"].le(selected_ts), "Date"].dropna()
+    if screen_dates.empty:
+        payload["message"] = f"no screen date available before {selected_date}"
+        return payload
+    screen_date = screen_dates.max()
+    snapshot = screen[screen["Date"].eq(screen_date)].copy()
+    merged = sec.merge(snapshot, on="ISIN", how="left", suffixes=("", "_screen"))
+    merged["Weight"] = pd.to_numeric(merged["Weight"], errors="coerce").fillna(0.0)
+    merged = merged.sort_values("Weight", ascending=False, na_position="last")
+
+    def row_payload(row: pd.Series) -> dict[str, str]:
+        return {
+            "Name": str(row.get("Name") or row.get("ISIN") or "N/A"),
+            "ISIN": str(row.get("ISIN") or ""),
+            "SEDOL": str(row.get("Company SEDOL") or ""),
+            "Weight": f"{float(row.get('Weight') or 0) * 100:.2f}%",
+            "Score ML": _fmt_number(row.get("Score ML"), 2),
+            "Score ML_IF": _fmt_number(row.get("Score ML_IF"), 2),
+            "Div": _fmt_number(row.get("Dividend Avg Percentile"), 2),
+            "Value": _fmt_number(row.get("Value Avg Percentile"), 2),
+            "Quality": _fmt_number(row.get("Quality Avg Percentile"), 2),
+            "Momentum": _fmt_number(row.get("Mom Avg Percentile"), 2),
+            "Growth": _fmt_number(row.get("Growth Avg Percentile"), 2),
+            "LowVol": _fmt_number(row.get("LowVol Avg Percentile"), 2),
+            "Size": _fmt_number(row.get("Size Avg Percentile"), 2),
+            "PE LTM": _fmt_number(row.get("PE LTM"), 1),
+            "PE FY1": _fmt_number(row.get("PE FY1"), 1),
+            "PE NTM": _fmt_number(row.get("PE NTM"), 1),
+            "EPS Growth FY1": _fmt_number(row.get("EPS Growth FY1"), 1),
+            "ROE": _fmt_number(row.get("ROE avg FY0"), 1),
+            "Dividend Yield": _fmt_number(row.get("DVD Yield FY1"), 2),
+            "Earnings Yield": _fmt_number(row.get("Earns Yield FY0"), 2),
+            "Mkt Cap EURm": _fmt_number(row.get("Benchmark Market Value Millions in EUR"), 0),
+            "Country": str(row.get("Benchmark Country English") or ""),
+            "Region": str(row.get("Exchange Country Region") or ""),
+            "Sector": _fmt_int(row.get(" Benchmark ICB Supersector ")),
+        }
+
+    rows = [row_payload(row) for _, row in merged.iterrows()]
+    payload.update(
+        {
+            "status": "ok",
+            "selected_date": selected_date,
+            "screen_date": _fmt_date(screen_date),
+            "rows": rows,
+            "message": f"{len(rows)} {side} components",
+        }
+    )
+    return payload
 
 
 def _date_range_text(frame: pd.DataFrame, column: str) -> str:
@@ -4127,6 +4308,7 @@ def _dashboard_state_payload() -> dict[str, Any]:
             "regime": _regime_signal_payload(),
             "country": _country_signal_payload(),
             "sector": _sector_signal_payload(),
+            "score_ml_components": _score_ml_components_payload(),
         },
         "config": _config_rows(),
         "launches": _launch_rows(),
@@ -5114,6 +5296,15 @@ def create_app() -> Dash:
     @server.route("/api/dashboard/signals/sector", methods=["GET"])
     def api_dashboard_sector_signal():
         return jsonify(_sector_signal_payload())
+
+    @server.route("/api/dashboard/score-ml-components", methods=["GET"])
+    def api_dashboard_score_ml_components():
+        return jsonify(
+            _score_ml_components_payload(
+                date=request.args.get("date"),
+                side=request.args.get("side", "top"),
+            )
+        )
 
     @server.route("/api/dashboard/jobs/queue/events", methods=["GET"])
     def api_dashboard_job_queue_events():

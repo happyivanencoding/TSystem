@@ -110,6 +110,18 @@ const EMPTY_DASHBOARD_STATE = {
       rows: [],
       message: '',
     },
+    score_ml_components: {
+      status: 'missing',
+      selected_date: '',
+      selected_side: 'top',
+      default_date: '',
+      default_side: 'top',
+      date_options: [],
+      rows: [],
+      run_dir: '',
+      screen_date: '',
+      message: '',
+    },
   },
   queue: {
     queue_name: '',
@@ -585,6 +597,9 @@ function App() {
   const [submitting, setSubmitting] = useState('')
   const [refreshingState, setRefreshingState] = useState(false)
   const [connection, setConnection] = useState('api')
+  const [scoreMlComponents, setScoreMlComponents] = useState(EMPTY_DASHBOARD_STATE.signals.score_ml_components)
+  const [scoreMlSelection, setScoreMlSelection] = useState({ date: '', side: 'top' })
+  const [scoreMlLoading, setScoreMlLoading] = useState(false)
   const eventSourceRef = useRef(null)
   const queueSourceRef = useRef(null)
   const pollingRef = useRef(null)
@@ -677,6 +692,12 @@ function App() {
     try {
       const nextState = await requestJson('/api/dashboard/state')
       setDashboardState({ ...EMPTY_DASHBOARD_STATE, ...nextState })
+      const nextScoreMlComponents = nextState.signals?.score_ml_components || EMPTY_DASHBOARD_STATE.signals.score_ml_components
+      setScoreMlComponents(nextScoreMlComponents)
+      setScoreMlSelection({
+        date: nextScoreMlComponents.selected_date || nextScoreMlComponents.default_date || '',
+        side: nextScoreMlComponents.selected_side || nextScoreMlComponents.default_side || 'top',
+      })
       if (!quiet) {
         setToast({
           tone: 'good',
@@ -688,6 +709,29 @@ function App() {
       setToast({ tone: 'bad', title: '状态刷新失败', detail: error.message })
     } finally {
       setRefreshingState(false)
+    }
+  }
+
+  const refreshScoreMlComponents = async (nextSelection) => {
+    const selection = {
+      date: nextSelection.date || scoreMlSelection.date || '',
+      side: nextSelection.side || scoreMlSelection.side || 'top',
+    }
+    setScoreMlSelection(selection)
+    setScoreMlLoading(true)
+    try {
+      const payload = await requestJson(
+        `/api/dashboard/score-ml-components?side=${encodeURIComponent(selection.side)}&date=${encodeURIComponent(selection.date)}`,
+      )
+      setScoreMlComponents(payload)
+      setScoreMlSelection({
+        date: payload.selected_date || selection.date,
+        side: payload.selected_side || selection.side,
+      })
+    } catch (error) {
+      setToast({ tone: 'bad', title: 'Score ML 成分读取失败', detail: error.message })
+    } finally {
+      setScoreMlLoading(false)
     }
   }
 
@@ -963,6 +1007,33 @@ function App() {
         names: item.constituents,
       })),
     [sectorSignal],
+  )
+  const scoreMlRows = useMemo(
+    () =>
+      (scoreMlComponents.rows || []).map((item) => ({
+        Name: item.Name,
+        Weight: item.Weight,
+        'Score ML': item['Score ML'],
+        'Score ML_IF': item['Score ML_IF'],
+        Value: item.Value,
+        Quality: item.Quality,
+        Momentum: item.Momentum,
+        Growth: item.Growth,
+        LowVol: item.LowVol,
+        Div: item.Div,
+        Size: item.Size,
+        'PE LTM': item['PE LTM'],
+        'PE FY1': item['PE FY1'],
+        'EPS Growth FY1': item['EPS Growth FY1'],
+        ROE: item.ROE,
+        'Dividend Yield': item['Dividend Yield'],
+        'Earnings Yield': item['Earnings Yield'],
+        Country: item.Country,
+        Region: item.Region,
+        Sector: item.Sector,
+        ISIN: item.ISIN,
+      })),
+    [scoreMlComponents],
   )
 
   return (
@@ -1344,6 +1415,55 @@ function App() {
               columns={['market', 'sector', '最新月份', 'rank', 'recommendation', 'score', 'leverage', 'margin', 'valuation', 'momentum', 'growth', 'lowvol', 'weight', 'names']}
               limit={40}
               rows={sectorRows}
+            />
+          </div>
+
+          <div className="tp-panel tp-wide-panel">
+            <div className="tp-panel-heading tp-score-ml-heading">
+              <div>
+                <p className="tp-kicker">Score ML</p>
+                <h2 className="tp-heading-icon"><BarChart3 size={18} />Portfolio components</h2>
+              </div>
+              {scoreMlLoading && <Loader2 className="tp-spin" size={20} />}
+            </div>
+            <div className="tp-score-ml-controls">
+              <label>
+                <span>Date</span>
+                <select
+                  value={scoreMlSelection.date || scoreMlComponents.selected_date || ''}
+                  onChange={(event) => refreshScoreMlComponents({ ...scoreMlSelection, date: event.target.value })}
+                >
+                  {(scoreMlComponents.date_options || []).map((date) => (
+                    <option value={date} key={date}>{date}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Portfolio</span>
+                <select
+                  value={scoreMlSelection.side || scoreMlComponents.selected_side || 'top'}
+                  onChange={(event) => refreshScoreMlComponents({ ...scoreMlSelection, side: event.target.value })}
+                >
+                  <option value="top">Top</option>
+                  <option value="worst">Worst</option>
+                </select>
+              </label>
+              <div>
+                <span>Screen date</span>
+                <strong>{scoreMlComponents.screen_date || 'N/A'}</strong>
+              </div>
+              <div>
+                <span>Components</span>
+                <strong>{scoreMlRows.length || 'N/A'}</strong>
+              </div>
+            </div>
+            <div className="tp-panel-note">
+              {scoreMlComponents.message || 'N/A'} / {scoreMlComponents.run_dir || 'N/A'}
+            </div>
+            <DataTable
+              columns={['Name', 'Weight', 'Score ML', 'Score ML_IF', 'Value', 'Quality', 'Momentum', 'Growth', 'LowVol', 'Div', 'Size', 'PE LTM', 'PE FY1', 'EPS Growth FY1', 'ROE', 'Dividend Yield', 'Earnings Yield', 'Country', 'Region', 'Sector', 'ISIN']}
+              limit={320}
+              rows={scoreMlRows}
             />
           </div>
 

@@ -779,6 +779,51 @@ select {
   text-align: center;
 }
 
+.tp-score-ml-heading {
+  margin-bottom: 10px;
+}
+
+.tp-score-ml-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.tp-score-ml-controls label,
+.tp-score-ml-controls div {
+  background: var(--surface-soft);
+  border: 1px solid rgba(32, 37, 43, 0.08);
+  border-radius: 8px;
+  min-height: 70px;
+  padding: 10px 12px;
+}
+
+.tp-score-ml-controls span {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 750;
+  margin-bottom: 7px;
+  text-transform: uppercase;
+}
+
+.tp-score-ml-controls select {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 10px;
+}
+
+.tp-score-ml-controls strong {
+  display: block;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
 .tp-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1089,7 +1134,8 @@ select {
 @media (max-width: 1180px) {
   .tp-country-dashboard,
   .tp-country-table-split,
-  .tp-sector-dashboard {
+  .tp-sector-dashboard,
+  .tp-score-ml-controls {
     grid-template-columns: 1fr;
   }
 

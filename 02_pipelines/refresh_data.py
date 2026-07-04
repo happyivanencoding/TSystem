@@ -245,6 +245,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run", action="store_true", help="只校验和生成 QA，不写 canonical parquet")
     parser.add_argument("--inspect-only", action="store_true", help="只检查 canonical 路径和输入目录，不执行月更重计算")
     parser.add_argument("--qa-report", help="显式指定 QA JSON 输出路径")
+    parser.add_argument("--run-type", choices=["production", "smoke", "inspect"], default="production")
     parser.add_argument(
         "--update-mode",
         default="both",

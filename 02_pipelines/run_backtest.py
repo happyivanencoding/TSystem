@@ -101,6 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--screen", help="覆盖 screen parquet")
     parser.add_argument("--returns", help="覆盖 returns parquet")
     parser.add_argument("--user", help="运行用户/产物分组名")
+    parser.add_argument("--run-type", choices=["production", "smoke", "inspect"], default="production")
     parser.add_argument("--inspect-only", action="store_true", help="只检查输入，不执行回测")
     parser.add_argument("--bench", help="benchmark 名称")
     parser.add_argument("--metric", action="append", help="排名字段；可重复传入")

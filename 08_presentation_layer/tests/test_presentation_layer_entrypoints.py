@@ -87,6 +87,7 @@ def test_system_dashboard_factory_imports_without_loading_data() -> None:
     assert "/api/dashboard/jobs/queue" in routes
     assert "/api/dashboard/jobs/queue/events" in routes
     assert "/api/dashboard/signals/regime" in routes
+    assert "/api/dashboard/signals/sector" in routes
     assert "/api/dashboard/jobs/<job_id>" in routes
     assert "/api/dashboard/jobs/<job_id>/events" in routes
     assert "/api/dashboard/jobs/system-checks" in routes
@@ -155,6 +156,7 @@ def test_system_dashboard_job_api_exposes_launch_status_and_events(
     assert isinstance(state_payload["overview"], list)
     assert "counts" in state_payload["queue"]
     assert "regime" in state_payload["signals"]
+    assert "sector" in state_payload["signals"]
 
     queue_response = client.get("/api/dashboard/jobs/queue")
     assert queue_response.status_code == 200
@@ -172,6 +174,10 @@ def test_system_dashboard_job_api_exposes_launch_status_and_events(
     regime_response = client.get("/api/dashboard/signals/regime")
     assert regime_response.status_code == 200
     assert "rows" in regime_response.get_json()
+
+    sector_response = client.get("/api/dashboard/signals/sector")
+    assert sector_response.status_code == 200
+    assert "rows" in sector_response.get_json()
 
     launch_response = client.post("/api/dashboard/jobs/system-checks")
     assert launch_response.status_code == 202

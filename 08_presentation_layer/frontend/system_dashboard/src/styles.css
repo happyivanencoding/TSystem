@@ -734,6 +734,51 @@ select {
   margin-bottom: 7px;
 }
 
+.tp-sector-dashboard {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0 14px;
+  min-width: 0;
+}
+
+.tp-sector-market {
+  min-width: 0;
+}
+
+.tp-sector-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.tp-sector-card {
+  min-height: 236px;
+}
+
+.tp-sector-card .tp-country-card-head strong {
+  font-size: 15px;
+}
+
+.tp-sector-card-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+
+.tp-sector-card-meta span {
+  background: rgba(255, 255, 255, 0.64);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 6px;
+  text-align: center;
+}
+
 .tp-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1043,7 +1088,8 @@ select {
 
 @media (max-width: 1180px) {
   .tp-country-dashboard,
-  .tp-country-table-split {
+  .tp-country-table-split,
+  .tp-sector-dashboard {
     grid-template-columns: 1fr;
   }
 
@@ -1064,7 +1110,8 @@ select {
   .tp-rank-grid,
   .tp-country-status-row,
   .tp-country-card-grid,
-  .tp-single-country-grid {
+  .tp-single-country-grid,
+  .tp-sector-card-grid {
     grid-template-columns: 1fr;
   }
 

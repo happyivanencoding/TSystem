@@ -23,6 +23,7 @@ PIPELINE_MANIFESTS_DIR = PIPELINE_RUNS_DIR / "manifests"
 CANDIDATES_DIR = TP_ROOT / "05_candidates"
 PORTFOLIOS_DIR = TP_ROOT / "06_portfolios"
 REPORTS_DIR = TP_ROOT / "09_reports"
+RUN_TYPES = {"production", "smoke", "inspect"}
 
 
 def timestamp() -> str:
@@ -150,6 +151,13 @@ class StepManifest:
     outputs: dict[str, Any] = field(default_factory=dict)
     validations: list[dict[str, Any]] = field(default_factory=list)
     details: dict[str, Any] = field(default_factory=dict)
+    run_type: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        run_type = str(self.parameters.get("run_type") or "production")
+        if run_type not in RUN_TYPES:
+            raise ValueError(f"run_type 必须是 {sorted(RUN_TYPES)} 之一")
+        self.run_type = run_type
 
     def add_validation(self, name: str, ok: bool, message: str = "", details: Mapping[str, Any] | None = None) -> None:
         self.validations.append(validation(name, ok, message, details))
@@ -162,6 +170,7 @@ class StepManifest:
             "started_at": self.started_at,
             "finished_at": finished_at,
             "duration_seconds": round(time.perf_counter() - self.started_timer, 3),
+            "run_type": self.run_type,
             "parameters": self.parameters,
             "inputs": self.inputs,
             "outputs": self.outputs,
@@ -180,8 +189,9 @@ class StepManifest:
             }
         manifest_dir = PIPELINE_MANIFESTS_DIR / self.step
         manifest_dir.mkdir(parents=True, exist_ok=True)
-        manifest_path = manifest_dir / f"{self.step}_{timestamp()}.json"
-        latest_path = manifest_dir / f"{self.step}_latest.json"
+        suffix = "" if self.run_type == "production" else f"_{self.run_type}"
+        manifest_path = manifest_dir / f"{self.step}{suffix}_{timestamp()}.json"
+        latest_path = manifest_dir / f"{self.step}{suffix}_latest.json"
         atomic_write_json(manifest_path, payload)
         atomic_write_json(latest_path, payload)
         return manifest_path

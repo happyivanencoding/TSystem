@@ -1,35 +1,35 @@
 {
   "full_period": {
     "model": {
-      "months": 196,
-      "annualized_return": 0.12426209933420873,
-      "annualized_volatility": 0.13208097314385897,
-      "sharpe": 0.9408024212455329,
+      "months": 197,
+      "annualized_return": 0.12500748459949262,
+      "annualized_volatility": 0.13176822136005717,
+      "sharpe": 0.9486922059751356,
       "max_drawdown": -0.21982934031864088,
-      "hit_rate": 0.6530612244897959,
-      "total_return": 5.773871894772241
+      "hit_rate": 0.6548223350253807,
+      "total_return": 5.915145836052916
     },
     "benchmark": {
-      "months": 196,
-      "annualized_return": 0.11018875868101619,
-      "annualized_volatility": 0.13268654521766407,
-      "sharpe": 0.8304441004192123,
+      "months": 197,
+      "annualized_return": 0.11137098321544037,
+      "annualized_volatility": 0.13241447802261735,
+      "sharpe": 0.841078595623187,
       "max_drawdown": -0.22683914914931058,
-      "hit_rate": 0.6428571428571429,
-      "total_return": 4.514186918754893
+      "hit_rate": 0.6446700507614214,
+      "total_return": 4.660473957484281
     },
     "active": {
-      "months": 196,
-      "annualized_return": 0.012561276452115466,
-      "annualized_volatility": 0.016753026269815396,
-      "sharpe": 0.7497914854194209,
+      "months": 197,
+      "annualized_return": 0.012146268561911366,
+      "annualized_volatility": 0.016792485055830246,
+      "sharpe": 0.7233157285254964,
       "max_drawdown": -0.027291063512236202,
-      "hit_rate": 0.5867346938775511,
-      "total_return": 0.2261628053570357
+      "hit_rate": 0.583756345177665,
+      "total_return": 0.21920617318472368
     },
-    "relative_annualized_return": 0.012676529592961172,
+    "relative_annualized_return": 0.012269981482329939,
     "start_date": "2010-01-31",
-    "end_date": "2026-04-30"
+    "end_date": "2026-05-31"
   },
   "first_half": {
     "model": {
@@ -65,66 +65,66 @@
   },
   "second_half": {
     "model": {
-      "months": 98,
-      "annualized_return": 0.15430541246419183,
-      "annualized_volatility": 0.14255891753084,
-      "sharpe": 1.0823974756318608,
+      "months": 99,
+      "annualized_return": 0.15552093808928324,
+      "annualized_volatility": 0.14185693014197598,
+      "sharpe": 1.0963224562496297,
       "max_drawdown": -0.21982934031864088,
-      "hit_rate": 0.6836734693877551,
-      "total_return": 2.2281421095085125
+      "hit_rate": 0.6868686868686869,
+      "total_return": 2.2954673211317704
     },
     "benchmark": {
-      "months": 98,
-      "annualized_return": 0.1361728270402709,
-      "annualized_volatility": 0.143613305245145,
-      "sharpe": 0.9481908852931602,
+      "months": 99,
+      "annualized_return": 0.13831561903702916,
+      "annualized_volatility": 0.1429738112243182,
+      "sharpe": 0.967419262678949,
       "max_drawdown": -0.22683914914931058,
-      "hit_rate": 0.673469387755102,
-      "total_return": 1.8365857715781435
+      "hit_rate": 0.6767676767676768,
+      "total_return": 1.9118381594169982
     },
     "active": {
-      "months": 98,
-      "annualized_return": 0.015805033722653183,
-      "annualized_volatility": 0.018140945238857592,
-      "sharpe": 0.8712354022655376,
+      "months": 99,
+      "annualized_return": 0.014943942102595198,
+      "annualized_volatility": 0.018211705972876024,
+      "sharpe": 0.8205679426656823,
       "max_drawdown": -0.027291063512236202,
-      "hit_rate": 0.5918367346938775,
-      "total_return": 0.1366269388563126
+      "hit_rate": 0.5858585858585859,
+      "total_return": 0.13017828823975597
     },
-    "relative_annualized_return": 0.025513753588443322,
+    "relative_annualized_return": 0.024564296679173703,
     "start_date": "2018-03-31",
-    "end_date": "2026-04-30"
+    "end_date": "2026-05-31"
   },
   "post_2020": {
     "model": {
-      "months": 76,
-      "annualized_return": 0.1687486092682362,
-      "annualized_volatility": 0.15162177711056662,
-      "sharpe": 1.1129576007091662,
+      "months": 77,
+      "annualized_return": 0.17014223766909997,
+      "annualized_volatility": 0.15064504289107372,
+      "sharpe": 1.1294247351512523,
       "max_drawdown": -0.14925080954610448,
-      "hit_rate": 0.6973684210526315,
-      "total_return": 1.6847283259440546
+      "hit_rate": 0.7012987012987013,
+      "total_return": 1.7407202546025662
     },
     "benchmark": {
-      "months": 76,
-      "annualized_return": 0.1495818539221827,
-      "annualized_volatility": 0.1515883540792848,
-      "sharpe": 0.9867634940079061,
+      "months": 77,
+      "annualized_return": 0.15219455913165336,
+      "annualized_volatility": 0.15068757582961614,
+      "sharpe": 1.0100007136868483,
       "max_drawdown": -0.14788507866628853,
-      "hit_rate": 0.6842105263157895,
-      "total_return": 1.4177943915700086
+      "hit_rate": 0.6883116883116883,
+      "total_return": 1.4819365737285999
     },
     "active": {
-      "months": 76,
-      "annualized_return": 0.01670134422853553,
-      "annualized_volatility": 0.018142780838159345,
-      "sharpe": 0.9205504039054437,
+      "months": 77,
+      "annualized_return": 0.015581750993276744,
+      "annualized_volatility": 0.018237749873954674,
+      "sharpe": 0.8543680608060669,
       "max_drawdown": -0.02729106351223609,
-      "hit_rate": 0.6052631578947368,
-      "total_return": 0.11060132124913147
+      "hit_rate": 0.5974025974025974,
+      "total_return": 0.10430032692092372
     },
-    "relative_annualized_return": 0.03302007753965186,
+    "relative_annualized_return": 0.031692855121048025,
     "start_date": "2020-01-31",
-    "end_date": "2026-04-30"
+    "end_date": "2026-05-31"
   }
 }

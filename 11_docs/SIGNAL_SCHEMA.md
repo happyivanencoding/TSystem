@@ -7,7 +7,7 @@
 | 字段 | 含义 |
 | --- | --- |
 | `Date` | 信号日期，月末、周末或交易日 |
-| `signal_family` | 信号族：`ML`、`Technical`、`Regime`、`Fundamental`、`Manual` 等 |
+| `signal_family` | 信号族：`ML`、`Technical`、`Regime`、`country_model`、`Sector`、`Fundamental`、`Manual` 等 |
 | `signal_name` | 具体信号名，例如 `score_ml`、`structure_signal`、`risk_budget_multiplier` |
 | `scope` | 信号粒度：`security`、`region`、`portfolio`、`market`、`universe` |
 | `score` | 机器可读分数或乘数 |
@@ -40,6 +40,8 @@
 | `03_ml_enhanced/export_signals.py` | `04_signals/ml_signals.parquet` | security |
 | `03_technical_analysis/export_technical_signals.py` | `04_signals/technical_signals.parquet` | security |
 | `03_regime_model/export_risk_budget.py` | `04_signals/regime_risk_budget.parquet` | region |
+| `14_country_model/src/country_model.py` | `04_signals/country_model_signals.parquet` | region |
+| `13_sector_score_model/src/sector_score_model.py` | `13_sector_score_model/outputs_*/sector_scores_panel.parquet` | sector |
 
 ## 校验命令
 

@@ -115,6 +115,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="导出统一信号表并写 pipeline manifest")
     parser.add_argument("--as-of", help="记录目标日期；当前导出函数按源数据最新可用日期刷新")
     parser.add_argument("--all-history", action="store_true", help="导出全历史；默认每个来源导出最新日期")
+    parser.add_argument("--run-type", choices=["production", "smoke", "inspect"], default="production")
     parser.add_argument("--skip-ml", action="store_true", help="跳过 ML 信号")
     parser.add_argument("--skip-technical", action="store_true", help="跳过技术信号")
     parser.add_argument("--skip-regime", action="store_true", help="跳过 Regime 风险预算信号")

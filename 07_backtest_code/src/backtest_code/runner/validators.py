@@ -13,6 +13,7 @@ from backtest_code.config.settings import AppSettings
 
 
 WEIGHT_PREFIX = "Weight in "
+PARQUET_INDEX_COLUMNS = {"__index_level_0__"}
 CANONICAL_COLUMN_ALIASES: dict[str, list[str]] = {
     "Benchmark Market Value Millions in EUR ": [
         "Benchmark Market Value Millions in EUR ",
@@ -185,6 +186,90 @@ def detect_metric_candidates(dataframe: pd.DataFrame) -> list[str]:
     return sorted(candidates)
 
 
+def detect_metric_candidates_from_columns(columns: list[str], numeric_columns: set[str]) -> list[str]:
+    excluded_exact = {
+        "ESG_ANALYST_SCORE",
+        "Benchmark Market Value Millions in EUR ",
+        "Benchmark Market Value Millions in EUR",
+    }
+    candidates: list[str] = []
+    for column in columns:
+        if column in excluded_exact:
+            continue
+        if column.startswith(WEIGHT_PREFIX):
+            continue
+        if column in {"Date", "Company SEDOL"}:
+            continue
+        if column in numeric_columns:
+            candidates.append(column)
+    return sorted(candidates)
+
+
+def _columns_with_aliases(columns: list[str]) -> list[str]:
+    result = list(columns)
+    for canonical, aliases in CANONICAL_COLUMN_ALIASES.items():
+        if canonical in result:
+            continue
+        if any(alias in result for alias in aliases):
+            result.append(canonical)
+    return result
+
+
+def _parquet_columns_and_numeric(path: Path) -> tuple[int, list[str], set[str]]:
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    parquet_file = pq.ParquetFile(path)
+    schema = parquet_file.schema_arrow
+    columns: list[str] = []
+    numeric_columns: set[str] = set()
+    for field in schema:
+        name = str(field.name)
+        if name in PARQUET_INDEX_COLUMNS:
+            continue
+        columns.append(name)
+        if pa.types.is_integer(field.type) or pa.types.is_floating(field.type) or pa.types.is_decimal(field.type):
+            numeric_columns.add(name)
+    return int(parquet_file.metadata.num_rows), columns, numeric_columns
+
+
+def inspect_screen_parquet(path: Path) -> DatasetInspection:
+    rows, columns, numeric_columns = _parquet_columns_and_numeric(path)
+    columns = _columns_with_aliases(columns)
+    available_dates: list[str] = []
+    if "Date" in columns:
+        dates = pd.to_datetime(pd.read_parquet(path, columns=["Date"])["Date"], errors="coerce").dropna()
+        available_dates = sorted({value.strftime("%Y-%m-%d") for value in dates})
+    return DatasetInspection(
+        file_path=str(path),
+        rows=rows,
+        columns=columns,
+        detected_benchmarks=detect_benchmarks(columns),
+        metric_candidates=detect_metric_candidates_from_columns(columns, numeric_columns),
+        available_dates=available_dates,
+        has_esg="ESG_ANALYST_SCORE" in columns,
+        has_sector_icb19=" Benchmark ICB Supersector " in columns,
+        has_sector_icb11=" Benchmark ICB Industry " in columns,
+        has_market_cap="Benchmark Market Value Millions in EUR " in columns,
+    )
+
+
+def inspect_returns_parquet(path: Path) -> DatasetInspection:
+    rows, columns, _ = _parquet_columns_and_numeric(path)
+    frame = pd.read_parquet(path, columns=[])
+    dates = pd.to_datetime(frame.index, errors="coerce").dropna()
+    return DatasetInspection(
+        file_path=str(path),
+        rows=rows,
+        columns=columns,
+        available_dates=[
+            value.strftime("%Y-%m-%d")
+            for value in dates
+            if isinstance(value, pd.Timestamp) and pd.notna(value)
+        ],
+    )
+
+
 def inspect_screen(dataframe: pd.DataFrame, file_path: str) -> DatasetInspection:
     """Construit une inspection de screen."""
 
@@ -234,15 +319,23 @@ def inspect_file_pair(screen_path: str, returns_path: str) -> tuple[DatasetInspe
 
     if screen_path:
         try:
-            screen_df = load_tabular_file(screen_path)
-            screen_info = inspect_screen(screen_df, screen_path)
+            screen_file = Path(screen_path)
+            if screen_file.suffix.lower() == ".parquet":
+                screen_info = inspect_screen_parquet(screen_file)
+            else:
+                screen_df = load_tabular_file(screen_file)
+                screen_info = inspect_screen(screen_df, screen_path)
         except Exception as exc:  # pragma: no cover - gestion defensive
             report.add_error(f"Impossible de lire le screen : {exc}")
 
     if returns_path:
         try:
-            returns_df = load_tabular_file(returns_path)
-            returns_info = inspect_returns(returns_df, returns_path)
+            returns_file = Path(returns_path)
+            if returns_file.suffix.lower() == ".parquet":
+                returns_info = inspect_returns_parquet(returns_file)
+            else:
+                returns_df = load_tabular_file(returns_file)
+                returns_info = inspect_returns(returns_df, returns_path)
         except Exception as exc:  # pragma: no cover - gestion defensive
             report.add_error(f"Impossible de lire les returns : {exc}")
 

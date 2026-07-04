@@ -15,6 +15,22 @@ from .common import CANDIDATES_DIR, StepManifest, latest_on_or_before, path_prof
 
 
 DEFAULT_OUTPUT = CANDIDATES_DIR / "latest_candidates.parquet"
+SECTOR_OUTPUTS = [
+    ("US", TP_ROOT / "13_sector_score_model" / "outputs_fs_sector_default" / "sector_scores_latest.csv"),
+    ("EU", TP_ROOT / "13_sector_score_model" / "outputs_eu" / "sector_scores_latest.csv"),
+]
+EMU_COUNTRIES = {
+    "AUSTRIA",
+    "BELGIUM",
+    "FINLAND",
+    "FRANCE",
+    "GERMANY",
+    "IRELAND",
+    "ITALY",
+    "NETHERLANDS",
+    "PORTUGAL",
+    "SPAIN",
+}
 SCREEN_COLUMNS = [
     "Company SEDOL",
     "ISIN",
@@ -22,6 +38,7 @@ SCREEN_COLUMNS = [
     "Name",
     "Exchange Country Region",
     "Exchange Country Name",
+    " Benchmark ICB Supersector ",
     "FactSet Ind",
     "FactSet Sector",
     "Weight in STOXX EUROPE 600",
@@ -37,6 +54,14 @@ def _security_signals(repo: PresentationDataRepository, as_of: str | None) -> pd
         signals = signals[pd.to_datetime(signals["Date"], errors="coerce") <= pd.Timestamp(as_of)].copy()
     if signals.empty:
         raise ValueError("没有可用的证券级信号")
+    return signals
+
+
+def _region_signals(repo: PresentationDataRepository, as_of: str | None) -> pd.DataFrame:
+    signals = repo.signals()
+    signals = signals[signals["scope"].eq("region")].copy()
+    if as_of:
+        signals = signals[pd.to_datetime(signals["Date"], errors="coerce") <= pd.Timestamp(as_of)].copy()
     return signals
 
 
@@ -78,6 +103,87 @@ def _technical_component(signals: pd.DataFrame) -> pd.DataFrame:
     return grouped
 
 
+def _regime_component(signals: pd.DataFrame, as_of: str | None) -> tuple[pd.DataFrame, pd.Timestamp | None]:
+    regime_signals, regime_date = _latest_family(signals, "Regime", as_of)
+    if regime_signals.empty:
+        return pd.DataFrame(columns=["regime_region_key", "risk_budget_multiplier", "regime_state"]), regime_date
+    frame = regime_signals[regime_signals["signal_name"].eq("risk_budget_multiplier")].copy()
+    if frame.empty:
+        frame = regime_signals.copy()
+    frame["risk_budget_multiplier"] = pd.to_numeric(frame["score"], errors="coerce")
+    regime_state = frame["raw_value"] if "raw_value" in frame.columns else frame.get("regime_state")
+    return pd.DataFrame(
+        {
+            "regime_region_key": frame["region"],
+            "risk_budget_multiplier": frame["risk_budget_multiplier"],
+            "regime_state": regime_state,
+        }
+    ), regime_date
+
+
+def _country_component(signals: pd.DataFrame, as_of: str | None) -> tuple[pd.DataFrame, pd.Timestamp | None]:
+    country_signals, country_date = _latest_family(signals, "country_model", as_of)
+    if country_signals.empty:
+        return pd.DataFrame(columns=["country_model_region", "country_score_pct", "country_recommendation"]), country_date
+    frame = country_signals[country_signals["signal_name"].eq("country_global_score")].copy()
+    if frame.empty:
+        frame = country_signals.copy()
+    frame["country_score_pct"] = _score_pct(frame)
+    return frame.rename(columns={"region": "country_model_region", "raw_value": "country_recommendation"})[
+        ["country_model_region", "country_score_pct", "country_recommendation"]
+    ], country_date
+
+
+def _sector_component(as_of: str | None) -> tuple[pd.DataFrame, pd.Timestamp | None]:
+    frames: list[pd.DataFrame] = []
+    dates: list[pd.Timestamp] = []
+    for region_key, path in SECTOR_OUTPUTS:
+        if not path.exists():
+            continue
+        frame = pd.read_csv(path, encoding="utf-8-sig")
+        latest_date = latest_on_or_before(frame, as_of)
+        frame = frame[pd.to_datetime(frame["Date"], errors="coerce").eq(latest_date)].copy()
+        if frame.empty:
+            continue
+        frame["sector_region_key"] = region_key
+        frame["sector_code"] = pd.to_numeric(frame["sector_code"], errors="coerce").astype("Int64")
+        frame["sector_score"] = pd.to_numeric(frame["score_final"], errors="coerce")
+        frame["sector_score_pct"] = frame["sector_score"].rank(pct=True)
+        frame["signal_date_sector"] = latest_date
+        if "recommendation" not in frame.columns:
+            frame["recommendation"] = pd.NA
+        frames.append(
+            frame[
+                [
+                    "sector_region_key",
+                    "sector_code",
+                    "sector_score",
+                    "sector_score_pct",
+                    "sector_name",
+                    "recommendation",
+                    "signal_date_sector",
+                ]
+            ].rename(columns={"recommendation": "sector_recommendation"})
+        )
+        dates.append(latest_date)
+    if not frames:
+        return (
+            pd.DataFrame(
+                columns=[
+                    "sector_region_key",
+                    "sector_code",
+                    "sector_score",
+                    "sector_score_pct",
+                    "sector_name",
+                    "sector_recommendation",
+                    "signal_date_sector",
+                ]
+            ),
+            None,
+        )
+    return pd.concat(frames, ignore_index=True), min(dates)
+
+
 def _screen_snapshot(repo: PresentationDataRepository) -> pd.DataFrame:
     screen = repo.screen(last_only=True).copy()
     if "Company SEDOL" not in screen.columns and screen.index.name == "Company SEDOL":
@@ -86,6 +192,31 @@ def _screen_snapshot(repo: PresentationDataRepository) -> pd.DataFrame:
     if "Company SEDOL" not in keep:
         keep.insert(0, "Company SEDOL")
     return screen[keep].drop_duplicates(subset=["Company SEDOL"], keep="first")
+
+
+def _regime_region_key(region: object) -> str | None:
+    value = str(region or "")
+    if value == "North America":
+        return "US"
+    if value == "West Europe":
+        return "EU"
+    return None
+
+
+def _country_model_region(row: pd.Series) -> str | None:
+    country = str(row.get("Exchange Country Name") or "").upper()
+    region = str(row.get("Exchange Country Region") or "")
+    if country == "UNITED STATES":
+        return "US"
+    if country == "JAPAN":
+        return "Japan"
+    if country == "UNITED KINGDOM":
+        return "UK"
+    if country in EMU_COUNTRIES:
+        return "EMU"
+    if region in {"Africa", "Asia", "East Europe", "Mid East", "South America"}:
+        return "EM"
+    return None
 
 
 def _rank_and_select(candidates: pd.DataFrame, *, top_n: int | None, top_pct: float, by_region: bool) -> pd.DataFrame:
@@ -109,6 +240,14 @@ def _rank_and_select(candidates: pd.DataFrame, *, top_n: int | None, top_pct: fl
         else:
             min_rank = max(1, round(len(result) * threshold))
             result["selected"] = result["rank"].le(min_rank)
+    result["selection_reason"] = result.apply(
+        lambda row: f"rank {int(row['rank'])} selected by composite_score" if row["selected"] else pd.NA,
+        axis=1,
+    )
+    result["exclusion_reason"] = result.apply(
+        lambda row: pd.NA if row["selected"] else f"rank {int(row['rank'])} outside selection cutoff",
+        axis=1,
+    )
     return result.sort_values(["selected", "rank"], ascending=[False, True])
 
 
@@ -120,15 +259,20 @@ def build_candidates(
     top_pct: float,
     ml_weight: float,
     technical_weight: float,
+    allocation_weight: float,
     by_region: bool,
 ) -> pd.DataFrame:
     repo = PresentationDataRepository()
-    signals = _security_signals(repo, as_of)
-    ml_signals, ml_date = _latest_family(signals, "ML", as_of)
-    technical_signals, technical_date = _latest_family(signals, "Technical", as_of)
+    security_signals = _security_signals(repo, as_of)
+    region_signals = _region_signals(repo, as_of)
+    ml_signals, ml_date = _latest_family(security_signals, "ML", as_of)
+    technical_signals, technical_date = _latest_family(security_signals, "Technical", as_of)
 
     ml = _ml_component(ml_signals)
     technical = _technical_component(technical_signals)
+    regime, regime_date = _regime_component(region_signals, as_of)
+    country, country_date = _country_component(region_signals, as_of)
+    sector, sector_date = _sector_component(as_of)
     candidates = pd.merge(ml, technical, on="Company SEDOL", how="outer")
     if candidates.empty:
         raise ValueError("ML 和技术信号没有生成任何候选证券")
@@ -146,16 +290,36 @@ def build_candidates(
         weighted = weighted.add(candidates["technical_score_pct"].fillna(0.0) * technical_weight)
         denominator = denominator.add(technical_available.astype(float) * technical_weight)
         weights.append({"component": "technical_score_pct", "weight": technical_weight})
-    candidates["composite_score"] = weighted.div(denominator.replace(0.0, pd.NA))
-    candidates = candidates[candidates["composite_score"].notna()].copy()
+    candidates["security_alpha_score"] = weighted.div(denominator.replace(0.0, pd.NA))
 
     screen = _screen_snapshot(repo)
     candidates = candidates.merge(screen, on="Company SEDOL", how="left")
     candidates["region"] = candidates.get("Exchange Country Region")
-    candidates["candidate_date"] = pd.Timestamp(as_of) if as_of else max(date for date in [ml_date, technical_date] if date is not None)
+    candidates["regime_region_key"] = candidates["region"].map(_regime_region_key)
+    candidates = candidates.merge(regime, on="regime_region_key", how="left")
+    candidates["risk_budget_multiplier"] = pd.to_numeric(candidates["risk_budget_multiplier"], errors="coerce").fillna(1.0)
+    candidates["country_model_region"] = candidates.apply(_country_model_region, axis=1)
+    candidates = candidates.merge(country, on="country_model_region", how="left")
+    candidates["sector_region_key"] = candidates["region"].map(_regime_region_key)
+    candidates["sector_code"] = pd.to_numeric(candidates.get(" Benchmark ICB Supersector "), errors="coerce").astype("Int64")
+    candidates = candidates.merge(sector, on=["sector_region_key", "sector_code"], how="left")
+    allocation_parts = [column for column in ["country_score_pct", "sector_score_pct"] if column in candidates.columns]
+    candidates["allocation_score_pct"] = candidates[allocation_parts].mean(axis=1) if allocation_parts else pd.NA
+    allocation_available = candidates["allocation_score_pct"].notna()
+    weighted = weighted.add(candidates["allocation_score_pct"].fillna(0.0) * allocation_weight)
+    denominator = denominator.add(allocation_available.astype(float) * allocation_weight)
+    weights.append({"component": "allocation_score_pct", "weight": allocation_weight})
+    candidates["composite_score_base"] = weighted.div(denominator.replace(0.0, pd.NA))
+    candidates["composite_score"] = candidates["composite_score_base"] * candidates["risk_budget_multiplier"]
+    candidates = candidates[candidates["composite_score"].notna()].copy()
+    component_dates = [date for date in [ml_date, technical_date, regime_date, country_date, sector_date] if date is not None]
+    candidates["candidate_date"] = min(component_dates) if component_dates else pd.Timestamp(as_of) if as_of else pd.NaT
     candidates["signal_date_ml"] = ml_date
     candidates["signal_date_technical"] = technical_date
-    candidates["candidate_model_version"] = "candidate_composite_v1"
+    candidates["signal_date_regime"] = regime_date
+    candidates["signal_date_country"] = country_date
+    candidates["signal_date_sector"] = sector_date
+    candidates["candidate_model_version"] = "candidate_layered_v2"
     candidates["component_weights"] = str(weights)
 
     candidates = _rank_and_select(candidates, top_n=top_n, top_pct=top_pct, by_region=by_region)
@@ -178,6 +342,7 @@ def run_build_candidates(args: argparse.Namespace) -> Path:
             top_pct=args.top_pct,
             ml_weight=args.ml_weight,
             technical_weight=args.technical_weight,
+            allocation_weight=args.allocation_weight,
             by_region=args.by_region,
         )
         duplicate_count = int(frame.duplicated(subset=["candidate_date", "Company SEDOL"], keep=False).sum())
@@ -197,10 +362,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="从统一信号表生成候选池")
     parser.add_argument("--as-of", help="目标日期；默认使用各信号最新日期")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="候选池 parquet 输出路径")
+    parser.add_argument("--run-type", choices=["production", "smoke", "inspect"], default="production")
     parser.add_argument("--top-n", type=int, help="选择前 N 名；传入后优先于 top-pct")
     parser.add_argument("--top-pct", type=float, default=0.10, help="默认选择前 10%%")
     parser.add_argument("--ml-weight", type=float, default=0.70, help="ML 分数组合权重")
     parser.add_argument("--technical-weight", type=float, default=0.30, help="技术分数组合权重")
+    parser.add_argument("--allocation-weight", type=float, default=0.20, help="国家/行业配置分数组合权重")
     parser.add_argument("--by-region", action="store_true", help="按 region 分组选择候选")
     parser.add_argument("--signals-dir", default=str(TP_ROOT / "04_signals"), help="仅用于 manifest 记录")
     parser.add_argument("--last-screen", default=str(LAST_SCREEN_PATH), help="仅用于 manifest 记录")

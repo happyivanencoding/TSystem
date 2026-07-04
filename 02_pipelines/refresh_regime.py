@@ -88,6 +88,7 @@ def run_refresh_regime(args: argparse.Namespace) -> Path:
     build_features_script = REGIME_DIR / "build_features.py"
     walkforward_script = REGIME_DIR / "walkforward.py"
     output = Path(args.regime_output)
+    run_type = getattr(args, "run_type", "production")
     manifest.inputs = {
         "build_features": path_profile(build_features_script),
         "walkforward": path_profile(walkforward_script),
@@ -109,6 +110,8 @@ def run_refresh_regime(args: argparse.Namespace) -> Path:
             "--regime-oos",
             "--regime-output",
             str(output),
+            "--run-type",
+            run_type,
         ]
         export_result = run_python_module("02_pipelines.export_signals", export_args)
         _ensure_success(export_result, "export_signals")
@@ -143,6 +146,7 @@ def run_refresh_regime(args: argparse.Namespace) -> Path:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="刷新 Regime detector 并导出统一风险预算信号")
     parser.add_argument("--regime-output", default=str(DEFAULT_REGIME_OUTPUT), help="Regime 风险预算信号输出路径")
+    parser.add_argument("--run-type", choices=["production", "smoke", "inspect"], default="production")
     return parser
 
 

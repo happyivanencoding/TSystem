@@ -38,17 +38,19 @@ python -m 02_pipelines.run_all --dry-run-data --inspect-only-backtest
 
 ## Manifest
 
-每次运行都会写两份 JSON：
+每次 production 运行都会写两份 JSON：
 
 - `10_pipeline_runs/manifests/<step>/<step>_YYYYMMDD_HHMMSS.json`
 - `10_pipeline_runs/manifests/<step>/<step>_latest.json`
 
-manifest 记录参数、输入文件概况、输出文件概况、校验结果、运行耗时和错误栈。日常先看 latest；排查历史问题时再看时间戳文件。
+`--run-type smoke|inspect` 会写到 `<step>_<run_type>_YYYYMMDD_HHMMSS.json` 和 `<step>_<run_type>_latest.json`，不覆盖 production latest 指针。
+
+manifest 记录参数、run_type、输入文件概况、输出文件概况、校验结果、运行耗时和错误栈。日常先看 production latest；排查历史问题或健康检查时再看对应 run_type 的时间戳文件。
 
 ## 当前实现边界
 
 - `refresh_data` 调用 `00_screen/monthly_update.py::run_monthly_update()`。
 - `export_signals` 调用 `03_ml_enhanced`、`03_technical_analysis`、`03_regime_model` 的现有导出函数。
-- `build_candidates` 当前使用 ML 与技术信号 percentile 的可解释组合分数。
-- `optimize_portfolio` 当前是 baseline 权重生成器，支持分数加权、等权、单股上限和旧组合换手估算；更复杂的行业/国家/风险约束后续继续收敛到 `06_optimiser/` 或 `tp_core.optimization`。
+- `build_candidates` 当前使用证券 alpha、国家/行业配置倾斜和 Regime 风险预算乘数的分层可解释组合分数。
+- `optimize_portfolio` 默认使用 constrained optimizer，优先复用 `06_optimiser/optimizer_engine.py` 的 cvxpy 求解入口；环境不可用时回退到 scipy SLSQP，并保留 `score_weight`、`equal_weight` 作为 smoke/debug 方法。
 - `run_backtest` 包装 `07_backtest_code/run_backtest.py`，默认可用 `--inspect-only` 做轻量校验。

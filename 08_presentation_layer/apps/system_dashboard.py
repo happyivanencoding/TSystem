@@ -54,6 +54,14 @@ COUNTRY_DATABASE_PATH = TP_ROOT / "14_country_model" / "data" / "country_model_d
 COUNTRY_SINGLE_COUNTRY_SCORE_PATH = (
     TP_ROOT / "14_country_model" / "outputs" / "country_model_single_country_scores.parquet"
 )
+SECTOR_SIGNAL_PATHS = (
+    ("US", TP_ROOT / "13_sector_score_model" / "outputs_fs_sector_default" / "sector_scores_panel.parquet"),
+    ("EU", TP_ROOT / "13_sector_score_model" / "outputs_eu" / "sector_scores_panel.parquet"),
+)
+SECTOR_RECOMMENDATION_PATHS = (
+    ("US", TP_ROOT / "13_sector_score_model" / "outputs_fs_sector_default" / "sector_scores_latest.csv"),
+    ("EU", TP_ROOT / "13_sector_score_model" / "outputs_eu" / "sector_scores_latest.csv"),
+)
 REGIME_OUTPUT_DIR = TP_ROOT / "03_regime_model" / "output"
 REGIME_DASHBOARD_DATA_PATH = TP_ROOT / "03_regime_model" / "webapp" / "data.js"
 REGIME_MODEL_DIAGNOSTICS_PATH = REGIME_OUTPUT_DIR / "model_diagnostics.json"
@@ -90,7 +98,7 @@ DEFAULT_DASHBOARD_CONFIG: dict[str, Any] = {
     "ml_weight": 0.7,
     "technical_weight": 0.3,
     "max_weight": 0.05,
-    "optimizer_method": "score_weight",
+    "optimizer_method": "constrained",
     "portfolio_region": "",
     "backtest_profile": "default",
     "bench": "",
@@ -110,6 +118,7 @@ QUALITY_KEYS = {
     "country_model_database": ("Date", "country"),
     "country_model_signals": ("Date", "signal_family", "signal_name", "region"),
     "country_model_single_country_scores": ("Date", "country"),
+    "sector_score_model": ("Date", "sector_code"),
     "latest_candidates": ("candidate_date", "Company SEDOL"),
     "latest_target_weights": ("candidate_date", "Company SEDOL"),
 }
@@ -903,7 +912,7 @@ TP_JOB_EVENT_SCRIPT = """
       ml_weight: state.ml_weight,
       technical_weight: state.technical_weight,
       max_weight: state.max_weight,
-      optimizer_method: state.optimizer_method || "score_weight",
+      optimizer_method: state.optimizer_method || "constrained",
       portfolio_region: state.portfolio_region || "",
       backtest_profile: state.backtest_profile || "",
       bench: state.bench || "",
@@ -1869,12 +1878,41 @@ def _portfolio_summary_row(path: Path) -> dict[str, Any]:
     }
 
 
+def _sector_summary_row() -> dict[str, Any]:
+    frames: list[pd.DataFrame] = []
+    for region, path in SECTOR_SIGNAL_PATHS:
+        latest_path = next((item for market, item in SECTOR_RECOMMENDATION_PATHS if market == region), path)
+        if not latest_path.exists():
+            continue
+        frame = pd.read_csv(latest_path, encoding="utf-8-sig")
+        if frame.empty:
+            continue
+        copy = frame.copy()
+        copy["region"] = region
+        frames.append(copy)
+    if not frames:
+        return {"产物": "sector_score_model", "状态": "缺失/空", "日期范围": "", "覆盖/数量": "", "分布": "", "Top": "", "质量": ""}
+    frame = pd.concat(frames, ignore_index=True)
+    score_column = "score_final" if "score_final" in frame.columns else "rank"
+    sector_count = frame["sector_code"].dropna().nunique() if "sector_code" in frame.columns else 0
+    return {
+        "产物": "sector_score_model",
+        "状态": "OK",
+        "日期范围": _date_range_text(frame, "Date"),
+        "覆盖/数量": f"{_fmt_int(len(frame))} rows / {_fmt_int(sector_count)} sectors",
+        "分布": _top_counts(frame, "region"),
+        "Top": _top_row_text(frame, score_column),
+        "质量": _quality_text(frame, list(QUALITY_KEYS.get("sector_score_model", ()))),
+    }
+
+
 def _production_rows() -> list[dict[str, Any]]:
     return [
         _signal_summary_row("ml_signals", TP_ROOT / "04_signals" / "ml_signals.parquet"),
         _signal_summary_row("technical_signals", TP_ROOT / "04_signals" / "technical_signals.parquet"),
         _signal_summary_row("regime_risk_budget", TP_ROOT / "04_signals" / "regime_risk_budget.parquet"),
         _signal_summary_row("country_model_signals", COUNTRY_SIGNAL_PATH),
+        _sector_summary_row(),
         _candidate_summary_row(TP_ROOT / "05_candidates" / "latest_candidates.parquet"),
         _portfolio_summary_row(TP_ROOT / "06_portfolios" / "latest_target_weights.parquet"),
     ]
@@ -2203,6 +2241,114 @@ def _country_signal_payload() -> dict[str, Any]:
             "message": f"{len(latest)} latest country rows / {len(single_country_rows)} single-country rows",
         }
     )
+    return payload
+
+
+def _sector_signal_payload() -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "name": "sector_recommendation",
+        "title": "Sector recommendation",
+        "status": "missing",
+        "latest_date": "",
+        "updated_at": "",
+        "paths": {market: _rel(path) for market, path in SECTOR_RECOMMENDATION_PATHS},
+        "markets": [],
+        "rows": [],
+    }
+    frames: list[pd.DataFrame] = []
+    updated_times: list[float] = []
+    errors: list[str] = []
+    for market, path in SECTOR_RECOMMENDATION_PATHS:
+        if not path.exists():
+            errors.append(f"{market}: missing")
+            continue
+        try:
+            frame = pd.read_csv(path, encoding="utf-8-sig")
+        except Exception as exc:
+            errors.append(f"{market}: {exc}")
+            continue
+        if frame.empty or "Date" not in frame.columns:
+            errors.append(f"{market}: empty or missing Date")
+            continue
+        data = frame.copy()
+        data["market"] = market
+        data["_Date"] = pd.to_datetime(data["Date"], errors="coerce")
+        data = data.dropna(subset=["_Date"])
+        if data.empty:
+            errors.append(f"{market}: no valid Date")
+            continue
+        frames.append(data)
+        updated_times.append(path.stat().st_mtime)
+
+    if not frames:
+        payload["message"] = "; ".join(errors) or "sector recommendation csv missing"
+        return payload
+
+    def text(value: Any, default: str = "") -> str:
+        if value is None or pd.isna(value):
+            return default
+        result = str(value).strip()
+        return result or default
+
+    def row_payload(row: pd.Series) -> dict[str, str]:
+        return {
+            "market": text(row.get("market"), "N/A"),
+            "sector_code": _fmt_int(row.get("sector_code")),
+            "sector_name": text(row.get("sector_name"), text(row.get("sector_code"), "N/A")),
+            "最新月份": _fmt_date(row.get("_Date")),
+            "rank": _fmt_number(row.get("rank"), 0),
+            "recommendation": text(row.get("recommendation"), "Neutral"),
+            "score": _fmt_number(row.get("score_final"), 3),
+            "fs_score": _fmt_number(row.get("score_final_fs_sector"), 3),
+            "factor_score": _fmt_number(row.get("fs_sector_factor_score"), 3),
+            "margin": _fmt_number(row.get("margin"), 2),
+            "valuation": _fmt_number(row.get("valuation"), 2),
+            "growth": _fmt_number(row.get("growth"), 2),
+            "lowvol": _fmt_number(row.get("lowvol"), 2),
+            "sector_weight": _fmt_pct(row.get("sector_weight"), 1),
+            "constituents": _fmt_int(row.get("constituents")),
+            "forward_return": _fmt_pct(row.get("sector_forward_return"), 1),
+        }
+
+    data = pd.concat(frames, ignore_index=True)
+    markets: list[dict[str, str]] = []
+    rows: list[dict[str, str]] = []
+    latest_dates: list[pd.Timestamp] = []
+    for market, path in SECTOR_RECOMMENDATION_PATHS:
+        market_data = data[data["market"].eq(market)]
+        if market_data.empty:
+            continue
+        latest_date = market_data["_Date"].max()
+        latest_dates.append(latest_date)
+        latest = market_data[market_data["_Date"].eq(latest_date)].copy()
+        latest["_rank_sort"] = pd.to_numeric(latest.get("rank"), errors="coerce")
+        latest = latest.sort_values(["_rank_sort", "sector_name"], na_position="last")
+        recommendation_counts = latest["recommendation"].fillna("N/A").astype(str).value_counts()
+        markets.append(
+            {
+                "market": market,
+                "latest_date": _fmt_date(latest_date),
+                "path": _rel(path),
+                "sectors": _fmt_int(len(latest)),
+                "positive": _fmt_int(recommendation_counts.get("Positive", 0)),
+                "neutral": _fmt_int(recommendation_counts.get("Neutral", 0)),
+                "negative": _fmt_int(recommendation_counts.get("Negative", 0)),
+            }
+        )
+        rows.extend(row_payload(row) for _, row in latest.iterrows())
+
+    payload.update(
+        {
+            "status": "ok",
+            "latest_date": _fmt_date(max(latest_dates)) if latest_dates else "",
+            "updated_at": datetime.fromtimestamp(max(updated_times)).isoformat(timespec="seconds") if updated_times else "",
+            "markets": markets,
+            "rows": rows,
+            "message": f"{len(rows)} latest sector rows / {len(markets)} markets",
+        }
+    )
+    if errors:
+        payload["warning"] = "; ".join(errors)
     return payload
 
 
@@ -3594,6 +3740,71 @@ def _project_health_card_payload(check_rows: list[dict[str, Any]] | None = None)
     return ("项目健康度", f"{passed}/{total}", note, css_class)
 
 
+def _latest_date_from_text(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if "->" in text:
+        text = text.split("->")[-1].strip()
+    return _fmt_date(text)
+
+
+def _date_timestamp(value: Any) -> pd.Timestamp | None:
+    text = _latest_date_from_text(value)
+    if not text:
+        return None
+    try:
+        timestamp = pd.Timestamp(text)
+    except Exception:
+        return None
+    if pd.isna(timestamp):
+        return None
+    return timestamp.normalize()
+
+
+def _row_latest_date(rows: list[dict[str, Any]], key: str, label: str) -> str:
+    row = next((item for item in rows if item.get(key) == label), {})
+    return _latest_date_from_text(row.get("日期范围"))
+
+
+def _freshness_overview_card_payload(
+    production_rows: list[dict[str, Any]] | None,
+    backtest_rows: list[dict[str, Any]] | None,
+    assets: dict[str, dict[str, Any]],
+) -> tuple[str, str, str, str]:
+    production = production_rows if production_rows is not None else _production_rows()
+    del backtest_rows
+    backtest_manifest = _latest_manifest("run_backtest") or {}
+    report_manifest = _latest_manifest("generate_report") or {}
+    signal_dates = [
+        _row_latest_date(production, "产物", label)
+        for label in ("ml_signals", "technical_signals", "regime_risk_budget", "country_model_signals", "sector_score_model")
+    ]
+    signal_timestamps = [timestamp for timestamp in (_date_timestamp(item) for item in signal_dates) if timestamp is not None]
+    signal_date = min(signal_timestamps).date().isoformat() if signal_timestamps else ""
+    dates = {
+        "数据": _latest_date_from_text(assets.get("screen_aggregate", {}).get("日期范围")),
+        "信号": signal_date,
+        "候选池": _row_latest_date(production, "产物", "latest_candidates"),
+        "组合": _row_latest_date(production, "产物", "latest_target_weights"),
+        "回测": _latest_date_from_text(backtest_manifest.get("finished_at")),
+        "报告": _latest_date_from_text(report_manifest.get("finished_at")),
+    }
+    anchor = _date_timestamp(dates["数据"])
+    stale: list[str] = []
+    if anchor is None:
+        stale.append("数据")
+    else:
+        for label, value in dates.items():
+            timestamp = _date_timestamp(value)
+            if timestamp is None or abs((timestamp - anchor).days) > 7:
+                stale.append(label)
+    value = "OK" if not stale else f"过期 {len(stale)}"
+    note = " / ".join(f"{label} {date or 'N/A'}" for label, date in dates.items())
+    css_class = "tp-status-success" if not stale else "tp-status-warning"
+    return ("链路新鲜度", value, note, css_class)
+
+
 def _latest_portfolio_card_payload(production_rows: list[dict[str, Any]] | None = None) -> tuple[str, str, str, str]:
     rows = production_rows if production_rows is not None else _production_rows()
     portfolio = next((row for row in rows if row.get("产物") == "latest_target_weights"), {})
@@ -3632,6 +3843,7 @@ def _overview_card_payloads(
     audit_status = returns_audit.get("governance_status", "unknown")
     audit_class = "tp-status-success" if audit_status == "passed" else "tp-status-warning"
     return [
+        _freshness_overview_card_payload(production_rows, backtest_rows, assets),
         ("核心 Screen", last_screen.get("日期范围", "").split(" -> ")[-1], screen.get("行", ""), "tp-status-muted"),
         ("Returns 更新", returns.get("日期范围", "").split(" -> ")[-1], returns.get("行", ""), "tp-status-muted"),
         _project_health_card_payload(check_rows),
@@ -3909,7 +4121,11 @@ def _dashboard_state_payload() -> dict[str, Any]:
         "quality": quality,
         "production": production,
         "backtest": backtest,
-        "signals": {"regime": _regime_signal_payload(), "country": _country_signal_payload()},
+        "signals": {
+            "regime": _regime_signal_payload(),
+            "country": _country_signal_payload(),
+            "sector": _sector_signal_payload(),
+        },
         "config": _config_rows(),
         "launches": _launch_rows(),
         "pipeline": pipeline,
@@ -4307,6 +4523,7 @@ def _control_panel() -> html.Div:
                                 dcc.Dropdown(
                                     id="tp-optimizer-method",
                                     options=[
+                                        {"label": "constrained", "value": "constrained"},
                                         {"label": "score_weight", "value": "score_weight"},
                                         {"label": "equal_weight", "value": "equal_weight"},
                                     ],
@@ -4891,6 +5108,10 @@ def create_app() -> Dash:
     @server.route("/api/dashboard/signals/country", methods=["GET"])
     def api_dashboard_country_signal():
         return jsonify(_country_signal_payload())
+
+    @server.route("/api/dashboard/signals/sector", methods=["GET"])
+    def api_dashboard_sector_signal():
+        return jsonify(_sector_signal_payload())
 
     @server.route("/api/dashboard/jobs/queue/events", methods=["GET"])
     def api_dashboard_job_queue_events():

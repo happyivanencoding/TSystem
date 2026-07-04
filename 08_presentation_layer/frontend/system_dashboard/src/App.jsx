@@ -32,7 +32,7 @@ const DEFAULT_PIPELINE_PAYLOAD = {
   ml_weight: 0.7,
   technical_weight: 0.3,
   max_weight: 0.05,
-  optimizer_method: 'score_weight',
+  optimizer_method: 'constrained',
   portfolio_region: '',
   backtest_profile: 'default',
   bench: '',
@@ -99,6 +99,15 @@ const EMPTY_DASHBOARD_STATE = {
       history: [],
       single_country_rows: [],
       single_country_history: [],
+      message: '',
+    },
+    sector: {
+      status: 'missing',
+      latest_date: '',
+      updated_at: '',
+      paths: {},
+      markets: [],
+      rows: [],
       message: '',
     },
   },
@@ -438,6 +447,99 @@ function SingleCountryBoard({ rows }) {
         ))}
       </div>
     </div>
+  )
+}
+
+const SECTOR_FACTORS = [
+  ['margin', 'Margin'],
+  ['valuation', 'Value'],
+  ['growth', 'Growth'],
+  ['lowvol', 'Low vol'],
+  ['factor_score', 'Factor'],
+]
+
+function sectorProfile(item) {
+  const score = Number.parseFloat(item.score)
+  const recommendation = cellText(item.recommendation).toLowerCase()
+  if (recommendation.includes('positive') || score >= 6.5) {
+    return { color: '#167768', soft: '#e7f3ef' }
+  }
+  if (recommendation.includes('negative') || score <= 4.5) {
+    return { color: '#b33f55', soft: '#f8e7eb' }
+  }
+  return { color: '#315d9f', soft: '#e9eef8' }
+}
+
+function SectorFactorBars({ item }) {
+  return (
+    <div className="tp-country-factors">
+      {SECTOR_FACTORS.map(([key, label]) => (
+        <div className="tp-country-factor" key={key}>
+          <span>{label}</span>
+          <div className="tp-country-factor-track">
+            <i style={{ width: countryScoreWidth(item[key]) }} />
+          </div>
+          <strong>{cellText(item[key])}</strong>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function SectorCard({ item }) {
+  const profile = sectorProfile(item)
+  return (
+    <div
+      className="tp-country-card tp-sector-card"
+      style={{ '--country-color': profile.color, '--country-soft': profile.soft }}
+    >
+      <div className="tp-country-card-head">
+        <div>
+          <span>{cellText(item.market)} sector</span>
+          <strong>{cellText(item.sector_name)}</strong>
+        </div>
+        <em>{cellText(item.recommendation)}</em>
+      </div>
+      <div className="tp-country-score-line">
+        <strong>{cellText(item.score)}</strong>
+        <span>rank #{cellText(item.rank)} / {cellText(item.最新月份)}</span>
+      </div>
+      <div className="tp-country-score-track" aria-label={`${item.market} ${item.sector_name} sector score`}>
+        <i style={{ width: countryScoreWidth(item.score) }} />
+      </div>
+      <div className="tp-sector-card-meta">
+        <span>{cellText(item.sector_weight)} weight</span>
+        <span>{cellText(item.constituents)} names</span>
+        <span>{cellText(item.forward_return)} fwd</span>
+      </div>
+      <SectorFactorBars item={item} />
+    </div>
+  )
+}
+
+function SectorMarketBoard({ market, rows }) {
+  const marketRows = rows.filter((item) => item.market === market.market)
+  return (
+    <section className="tp-sector-market">
+      <div className="tp-model-section-head">
+        <div>
+          <p className="tp-kicker">{cellText(market.market)} sector scorecard</p>
+          <h3>行业推荐排名</h3>
+        </div>
+        <span>
+          +{cellText(market.positive)} / ={cellText(market.neutral)} / -{cellText(market.negative)}
+        </span>
+      </div>
+      <div className="tp-panel-note">
+        {cellText(market.latest_date)} / {cellText(market.sectors)} sectors / {cellText(market.path)}
+      </div>
+      <div className="tp-sector-card-grid">
+        {marketRows.map((item) => (
+          <SectorCard item={item} key={`${item.market}-${item.sector_code}-${item.最新月份}`} />
+        ))}
+        {!marketRows.length && <div className="tp-empty">暂无 Sector recommendation</div>}
+      </div>
+    </section>
   )
 }
 
@@ -837,6 +939,27 @@ function App() {
       })),
     [countrySignal],
   )
+  const sectorSignal = dashboardState.signals?.sector || EMPTY_DASHBOARD_STATE.signals.sector
+  const sectorMarkets = sectorSignal.markets || []
+  const sectorVisualRows = sectorSignal.rows || []
+  const sectorRows = useMemo(
+    () =>
+      (sectorSignal.rows || []).map((item) => ({
+        market: item.market,
+        sector: item.sector_name,
+        最新月份: item.最新月份,
+        rank: item.rank,
+        recommendation: item.recommendation,
+        score: item.score,
+        margin: item.margin,
+        valuation: item.valuation,
+        growth: item.growth,
+        lowvol: item.lowvol,
+        weight: item.sector_weight,
+        names: item.constituents,
+      })),
+    [sectorSignal],
+  )
 
   return (
     <div className="tp-shell">
@@ -1179,6 +1302,45 @@ function App() {
             </div>
             <div className="tp-panel-note">最近历史</div>
             <DataTable columns={['region', '月份', 'score', 'rank', 'recommendation']} limit={10} rows={countryHistoryRows} />
+          </div>
+
+          <div className="tp-panel tp-wide-panel">
+            <div className="tp-panel-heading">
+              <div>
+                <p className="tp-kicker">Signals / Sector</p>
+                <h2 className="tp-heading-icon"><BarChart3 size={18} />Sector recommendation</h2>
+              </div>
+            </div>
+            <div className="tp-country-status-row">
+              <div>
+                <span>最新月份</span>
+                <strong>{sectorSignal.latest_date || 'N/A'}</strong>
+              </div>
+              <div>
+                <span>状态</span>
+                <strong>{sectorSignal.status || 'N/A'}</strong>
+              </div>
+              <div>
+                <span>Markets</span>
+                <strong>{sectorMarkets.length || 'N/A'}</strong>
+              </div>
+              <div>
+                <span>Updated</span>
+                <strong>{sectorSignal.updated_at || 'N/A'}</strong>
+              </div>
+            </div>
+            <div className="tp-sector-dashboard">
+              {sectorMarkets.map((market) => (
+                <SectorMarketBoard market={market} rows={sectorVisualRows} key={market.market} />
+              ))}
+              {!sectorMarkets.length && <div className="tp-empty">{sectorSignal.message || '暂无 Sector recommendation'}</div>}
+            </div>
+            <div className="tp-panel-note">明细 / {Object.values(sectorSignal.paths || {}).join(' / ') || 'N/A'}</div>
+            <DataTable
+              columns={['market', 'sector', '最新月份', 'rank', 'recommendation', 'score', 'margin', 'valuation', 'growth', 'lowvol', 'weight', 'names']}
+              limit={40}
+              rows={sectorRows}
+            />
           </div>
 
           <div className="tp-panel tp-wide-panel">

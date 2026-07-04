@@ -408,6 +408,19 @@ def compute_sector_forward_returns(
     return pd.DataFrame(records)
 
 
+def _build_scored_and_sector_scores(
+    screen_path: Path = SCREEN_AGGREGATE_PATH,
+    mapping_path: Path = FACTSET_ICB_MAPPING_PATH,
+    start_date: str = "2010-01-01",
+    market: str = "US",
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    sector_mapping = _load_sector_mapping(mapping_path)
+    screen = load_screen_universe(screen_path, start_date=start_date, market=market)
+    scored = add_stock_scores(screen)
+    sector_scores = aggregate_sector_scores(scored, sector_mapping, market=market)
+    return scored, sector_scores
+
+
 def build_panel(
     screen_path: Path = SCREEN_AGGREGATE_PATH,
     returns_path: Path = RETURNS_PATH,
@@ -415,10 +428,12 @@ def build_panel(
     start_date: str = "2010-01-01",
     market: str = "US",
 ) -> pd.DataFrame:
-    sector_mapping = _load_sector_mapping(mapping_path)
-    screen = load_screen_universe(screen_path, start_date=start_date, market=market)
-    scored = add_stock_scores(screen)
-    sector_scores = aggregate_sector_scores(scored, sector_mapping, market=market)
+    scored, sector_scores = _build_scored_and_sector_scores(
+        screen_path=screen_path,
+        mapping_path=mapping_path,
+        start_date=start_date,
+        market=market,
+    )
     sector_returns = compute_sector_forward_returns(scored, sector_scores, returns_path)
     panel = sector_scores.merge(sector_returns, on=["Date", "sector_code"], how="inner")
     panel = panel.sort_values(["Date", "sector_code"]).reset_index(drop=True)
@@ -628,6 +643,7 @@ def write_outputs(
     score_column: str,
     top_n: int,
     bottom_n: int,
+    latest_scores: pd.DataFrame | None = None,
 ) -> dict[str, str]:
     output_dir.mkdir(parents=True, exist_ok=True)
     factor_effectiveness = evaluate_factor_effectiveness(panel, top_n=top_n, bottom_n=bottom_n)
@@ -635,7 +651,12 @@ def write_outputs(
         panel, score_column=score_column, top_n=top_n, bottom_n=bottom_n
     )
     summary = summarize_backtest(backtest)
-    latest = add_latest_recommendations(panel, score_column, top_n, bottom_n)
+    latest = add_latest_recommendations(
+        latest_scores if latest_scores is not None else panel,
+        score_column,
+        top_n,
+        bottom_n,
+    )
 
     paths = {
         "sector_scores_panel": output_dir / "sector_scores_panel.parquet",
@@ -666,18 +687,21 @@ def run_model(
     bottom_n: int = 3,
     market: str = "US",
 ) -> dict[str, object]:
-    panel = build_panel(
+    scored, sector_scores = _build_scored_and_sector_scores(
         screen_path=screen_path,
-        returns_path=returns_path,
         mapping_path=mapping_path,
         start_date=start_date,
         market=market,
     )
-    paths = write_outputs(panel, output_dir, score_column, top_n, bottom_n)
+    sector_returns = compute_sector_forward_returns(scored, sector_scores, returns_path)
+    panel = sector_scores.merge(sector_returns, on=["Date", "sector_code"], how="inner")
+    panel = panel.sort_values(["Date", "sector_code"]).reset_index(drop=True)
+    paths = write_outputs(panel, output_dir, score_column, top_n, bottom_n, latest_scores=sector_scores)
     return {
         "panel_rows": int(len(panel)),
         "market": market.upper(),
         "months": int(panel["Date"].nunique()),
+        "latest_date": str(sector_scores["Date"].max().date()),
         "start_date": str(panel["Date"].min().date()),
         "end_date": str(panel["Date"].max().date()),
         "outputs": paths,

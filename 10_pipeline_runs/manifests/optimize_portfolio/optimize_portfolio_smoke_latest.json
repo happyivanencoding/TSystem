@@ -1,0 +1,51 @@
+{
+  "step": "optimize_portfolio",
+  "status": "failed",
+  "started_at": "2026-07-04T19:27:50",
+  "finished_at": "2026-07-04T19:27:50",
+  "duration_seconds": 0.062,
+  "run_type": "smoke",
+  "parameters": {
+    "as_of": null,
+    "candidates": ".tmp_dashboard_work/system_checks/outputs/latest_candidates_dev.parquet",
+    "output": ".tmp_dashboard_work/system_checks/outputs/latest_target_weights_constrained_dev.parquet",
+    "run_type": "smoke",
+    "method": "constrained",
+    "max_weight": 0.05,
+    "min_weight": 0.0,
+    "benchmark_active_limit": 0.03,
+    "country_margin": 0.05,
+    "sector_margin": 0.04,
+    "max_turnover": null,
+    "transaction_cost": 0.001,
+    "country_tilt_strength": 0.15,
+    "sector_tilt_strength": 0.1,
+    "region": null,
+    "old_portfolio": null
+  },
+  "inputs": {
+    "candidates": {
+      "path": ".tmp_dashboard_work\\system_checks\\outputs\\latest_candidates_dev.parquet",
+      "exists": true,
+      "bytes": 420163,
+      "modified_at": "2026-07-04T19:26:32",
+      "format": "parquet",
+      "rows": 3614,
+      "columns": 43,
+      "row_groups": 1
+    },
+    "old_portfolio": null
+  },
+  "outputs": {},
+  "validations": [],
+  "details": {},
+  "idempotency": {
+    "policy": "标准产物使用固定 latest 路径覆盖写入；每次运行另写时间戳 manifest 保留审计证据。",
+    "no_duplicate_rows_expected": true
+  },
+  "error": {
+    "type": "TypeError",
+    "message": "boolean value of NA is ambiguous",
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\optimize_portfolio.py\", line 182, in _constrained_weights\n    cp = optimizer_engine._require_cvxpy()\n  File \"C:\\GoogleDrive\\TP\\06_optimiser\\optimizer_engine.py\", line 23, in _require_cvxpy\n    raise ImportError(\n    ...<2 lines>...\n    )\nImportError: cvxpy is required for the download_09 optimizer engine, but it cannot be imported. Original error: No module named 'cvxpy'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"C:\\Users\\jingx\\AppData\\Roaming\\Python\\Python314\\site-packages\\numpy\\_core\\fromnumeric.py\", line 57, in _wrapfunc\n    return bound(*args, **kwds)\n  File \"pandas/_libs/missing.pyx\", line 392, in pandas._libs.missing.NAType.__bool__\nTypeError: boolean value of NA is ambiguous\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\optimize_portfolio.py\", line 388, in run_optimize_portfolio\n    frame = optimize_portfolio(\n        candidates_path=Path(args.candidates),\n    ...<12 lines>...\n        sector_tilt_strength=args.sector_tilt_strength,\n    )\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\optimize_portfolio.py\", line 307, in optimize_portfolio\n    selected[\"target_weight\"], constraint_audit = _constrained_weights(\n                                                  ~~~~~~~~~~~~~~~~~~~~^\n        selected,\n        ^^^^^^^^^\n    ...<9 lines>...\n        sector_tilt_strength=sector_tilt_strength,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\optimize_portfolio.py\", line 223, in _constrained_weights\n    idx = np.flatnonzero(selected[\"country_model_region\"].astype(\"string\").eq(str(group)).to_numpy())\n  File \"C:\\Users\\jingx\\AppData\\Roaming\\Python\\Python314\\site-packages\\numpy\\_core\\numeric.py\", line 719, in flatnonzero\n    return np.nonzero(np.ravel(a))[0]\n           ~~~~~~~~~~^^^^^^^^^^^^^\n  File \"C:\\Users\\jingx\\AppData\\Roaming\\Python\\Python314\\site-packages\\numpy\\_core\\fromnumeric.py\", line 2111, in nonzero\n    return _wrapfunc(a, 'nonzero')\n  File \"C:\\Users\\jingx\\AppData\\Roaming\\Python\\Python314\\site-packages\\numpy\\_core\\fromnumeric.py\", line 66, in _wrapfunc\n    return _wrapit(obj, method, *args, **kwds)\n  File \"C:\\Users\\jingx\\AppData\\Roaming\\Python\\Python314\\site-packages\\numpy\\_core\\fromnumeric.py\", line 46, in _wrapit\n    result = getattr(arr, method)(*args, **kwds)\n  File \"pandas/_libs/missing.pyx\", line 392, in pandas._libs.missing.NAType.__bool__\nTypeError: boolean value of NA is ambiguous\n"
+  }
+}

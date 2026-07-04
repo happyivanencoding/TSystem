@@ -451,8 +451,10 @@ function SingleCountryBoard({ rows }) {
 }
 
 const SECTOR_FACTORS = [
+  ['leverage', 'Low leverage'],
   ['margin', 'Margin'],
   ['valuation', 'Value'],
+  ['momentum', 'Momentum'],
   ['growth', 'Growth'],
   ['lowvol', 'Low vol'],
   ['factor_score', 'Factor'],
@@ -951,8 +953,10 @@ function App() {
         rank: item.rank,
         recommendation: item.recommendation,
         score: item.score,
+        leverage: item.leverage,
         margin: item.margin,
         valuation: item.valuation,
+        momentum: item.momentum,
         growth: item.growth,
         lowvol: item.lowvol,
         weight: item.sector_weight,
@@ -1337,7 +1341,7 @@ function App() {
             </div>
             <div className="tp-panel-note">明细 / {Object.values(sectorSignal.paths || {}).join(' / ') || 'N/A'}</div>
             <DataTable
-              columns={['market', 'sector', '最新月份', 'rank', 'recommendation', 'score', 'margin', 'valuation', 'growth', 'lowvol', 'weight', 'names']}
+              columns={['market', 'sector', '最新月份', 'rank', 'recommendation', 'score', 'leverage', 'margin', 'valuation', 'momentum', 'growth', 'lowvol', 'weight', 'names']}
               limit={40}
               rows={sectorRows}
             />

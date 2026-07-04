@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import shutil
 import sys
 from pathlib import Path
@@ -22,6 +23,16 @@ def _load_monthly_update():
     from monthly_update import run_monthly_update
 
     return run_monthly_update
+
+
+def _load_score_ml_producer():
+    path = TP_ROOT / "03_ml_enhanced" / "produce_score_ml.py"
+    spec = importlib.util.spec_from_file_location("tp_score_ml_producer", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"无法加载 Score ML 生产模块: {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.produce_score_ml
 
 
 def _is_relative_to(path: Path, parent: Path) -> bool:
@@ -203,6 +214,14 @@ def run_refresh_data(args: argparse.Namespace) -> Path:
             dry_run=bool(args.dry_run),
         )
         manifest.details["input_batch_archive"] = archive_result
+        if args.dry_run or args.update_mode == "returns_only":
+            score_ml_result = {
+                "action": "skipped",
+                "reason": "dry_run" if args.dry_run else "returns_only",
+            }
+        else:
+            score_ml_result = _load_score_ml_producer()()
+        manifest.details["score_ml_production"] = score_ml_result
         manifest.add_validation(
             "canonical_data_sources_exist",
             all(data_source_status.values()),
@@ -227,6 +246,14 @@ def run_refresh_data(args: argparse.Namespace) -> Path:
             if archive_result.get("action") == "moved"
             else f"生产输入批次归档跳过或失败: {archive_result.get('reason')}",
             archive_result,
+        )
+        manifest.add_validation(
+            "score_ml_production",
+            score_ml_result.get("action") in {"updated", "skipped"},
+            "Score ML 生产已执行或无缺失月份"
+            if score_ml_result.get("action") in {"updated", "skipped"}
+            else "Score ML 生产失败",
+            score_ml_result,
         )
         return manifest.write("success")
     except Exception as exc:

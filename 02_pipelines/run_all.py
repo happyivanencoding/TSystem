@@ -213,7 +213,7 @@ def run_all(args: argparse.Namespace) -> Path:
                             country_workbook=getattr(
                                 args,
                                 "country_workbook",
-                                str(TP_ROOT / "14_country_model" / "modele_pays.xlsb"),
+                                str(TP_ROOT / "00_screen" / "production_inputs" / "modele_pays.xlsb"),
                             ),
                             country_database=getattr(
                                 args,
@@ -369,7 +369,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--regime-oos", action="store_true", help="Regime 使用 OOS 文件")
     parser.add_argument("--regime-region", action="append", choices=["US", "EU"], help="Regime 区域")
     parser.add_argument("--country-output", default=str(TP_ROOT / "04_signals" / "country_model_signals.parquet"))
-    parser.add_argument("--country-workbook", default=str(TP_ROOT / "14_country_model" / "modele_pays.xlsb"))
+    parser.add_argument("--country-workbook", default=str(TP_ROOT / "00_screen" / "production_inputs" / "modele_pays.xlsb"))
     parser.add_argument(
         "--country-database",
         default=str(TP_ROOT / "14_country_model" / "data" / "country_model_database.parquet"),

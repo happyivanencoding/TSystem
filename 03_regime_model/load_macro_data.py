@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 
 BASE = Path(__file__).resolve().parent
-SRC = BASE / "maj cycle macro2.xlsx"
+SRC = BASE.parent / "00_screen" / "production_inputs" / "maj cycle macro2.xlsx"
 
 
 def load_sheet(sheet: str, usecols: str) -> pd.DataFrame:

@@ -7,6 +7,7 @@
 | 层级 | 位置 | 职责 |
 | --- | --- | --- |
 | 工作区入口 | [`../README.md`](../README.md) | 告诉读者先读哪些文档 |
+| 对话接手层 | [`../_context/`](../_context/) | 当前接手状态、handoff、子项目提示和 skill 审视 |
 | 文档中枢 | `11_docs/` | 项目地图、研究方法、文档治理 |
 | 数据权威文档 | [`../DATA_SOURCES.md`](../DATA_SOURCES.md)、[`../DATA_CONTRACT.md`](../DATA_CONTRACT.md) | canonical 路径、主键、日期、字段族、共享 API |
 | Screen 生产文档 | [`../00_screen/README.md`](../00_screen/README.md)、[`../00_screen/production_inputs/README.md`](../00_screen/production_inputs/README.md) | 月更入口、输入归档、QA、回滚边界 |
@@ -19,6 +20,8 @@
 
 | 问题 | 去哪里看 |
 | --- | --- |
+| 新对话接手当前 TP 工作 | [`../_context/README.md`](../_context/README.md)、[`../_context/active_work.md`](../_context/active_work.md) |
+| TP skill 触发词、边界和定期审视 | [`../_context/skill_review.md`](../_context/skill_review.md) |
 | TP 里每个小项目是做什么的 | [`PROJECTS.md`](PROJECTS.md) |
 | TP 专用 Python 环境怎么用 | [`ENVIRONMENT.md`](ENVIRONMENT.md) |
 | 按 00/01/02 看主线步骤 | [`../00_项目主线索引/README.md`](../00_项目主线索引/README.md) |

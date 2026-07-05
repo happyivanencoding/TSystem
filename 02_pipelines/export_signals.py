@@ -127,7 +127,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--technical-output", default=str(SIGNALS_DIR / "technical_signals.parquet"))
     parser.add_argument("--regime-output", default=str(SIGNALS_DIR / "regime_risk_budget.parquet"))
     parser.add_argument("--country-output", default=str(SIGNALS_DIR / "country_model_signals.parquet"))
-    parser.add_argument("--country-workbook", default=str(TP_ROOT / "14_country_model" / "modele_pays.xlsb"))
+    parser.add_argument("--country-workbook", default=str(TP_ROOT / "00_screen" / "production_inputs" / "modele_pays.xlsb"))
     parser.add_argument(
         "--country-database",
         default=str(TP_ROOT / "14_country_model" / "data" / "country_model_database.parquet"),

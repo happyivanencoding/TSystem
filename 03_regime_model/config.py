@@ -17,7 +17,7 @@ RETURNS_PATH = CANONICAL_RETURNS_PATH
 # 输出目录
 OUTPUT_DIR = Path(__file__).parent / "output"
 MACRO_PATH = Path(__file__).parent / "macro_data.parquet"
-MACRO2_PATH = Path(__file__).parent / "maj cycle macro2.xlsx"
+MACRO2_PATH = _TP_ROOT / "00_screen" / "production_inputs" / "maj cycle macro2.xlsx"
 
 # 地区 -> 指数成分权重列（权重>0 即为当期成分，天然 point-in-time）
 REGION_WEIGHT_COL = {

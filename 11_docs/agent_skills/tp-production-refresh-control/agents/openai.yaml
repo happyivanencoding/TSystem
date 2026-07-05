@@ -1,0 +1,4 @@
+interface:
+  display_name: "TP Production Refresh Control"
+  short_description: "Control TP production refreshes and manifests"
+  default_prompt: "Use $tp-production-refresh-control to run and verify a TP production refresh."

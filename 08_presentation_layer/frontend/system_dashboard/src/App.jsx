@@ -2,18 +2,61 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   BarChart3,
+  Building2,
   CheckCircle2,
+  Cpu,
   Database,
+  Factory,
   Gauge,
+  HeartPulse,
+  Home,
+  Landmark,
   Loader2,
   Play,
   RefreshCw,
   Server,
   ShieldCheck,
+  ShoppingBag,
   TrendingUp,
+  Truck,
+  Zap,
 } from 'lucide-react'
 
 const API_BASE = import.meta.env.VITE_TP_DASHBOARD_API || ''
+const MODULE_ORDER_STORAGE_KEY = 'tp-dashboard-module-order-v1'
+const DEFAULT_MODULE_ORDER = {
+  production: ['run-control', 'live-job', 'queue', 'core-database', 'project-assets', 'pipeline-status', 'data-assets'],
+  results: ['overview', 'alerts', 'regime', 'country', 'sector', 'score-ml'],
+}
+const COUNTRY_FLAGS = {
+  EM: '🌐',
+  EMU: '🇪🇺',
+  EU: '🇪🇺',
+  Europe: '🇪🇺',
+  France: '🇫🇷',
+  Germany: '🇩🇪',
+  Italy: '🇮🇹',
+  Japan: '🇯🇵',
+  Spain: '🇪🇸',
+  UK: '🇬🇧',
+  US: '🇺🇸',
+  USA: '🇺🇸',
+}
+const SECTOR_ICON_KEYS = [
+  ['bank', Landmark],
+  ['financial', Landmark],
+  ['technology', Cpu],
+  ['tech', Cpu],
+  ['industrial', Factory],
+  ['health', HeartPulse],
+  ['consumer', ShoppingBag],
+  ['retail', ShoppingBag],
+  ['energy', Zap],
+  ['utility', Zap],
+  ['real estate', Home],
+  ['property', Home],
+  ['transport', Truck],
+]
 
 const PHASES = [
   ['submitted', '已提交'],
@@ -164,6 +207,53 @@ function cellText(value) {
   return String(value)
 }
 
+function loadModuleOrder() {
+  if (typeof window === 'undefined') return DEFAULT_MODULE_ORDER
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(MODULE_ORDER_STORAGE_KEY) || '{}')
+    return {
+      production: mergeModuleOrder(parsed.production, DEFAULT_MODULE_ORDER.production),
+      results: mergeModuleOrder(parsed.results, DEFAULT_MODULE_ORDER.results),
+    }
+  } catch {
+    return DEFAULT_MODULE_ORDER
+  }
+}
+
+function mergeModuleOrder(savedOrder, defaultOrder) {
+  if (!Array.isArray(savedOrder)) return defaultOrder
+  const known = savedOrder.filter((item) => defaultOrder.includes(item))
+  return [...known, ...defaultOrder.filter((item) => !known.includes(item))]
+}
+
+function saveModuleOrder(order) {
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(MODULE_ORDER_STORAGE_KEY, JSON.stringify(order))
+  }
+}
+
+function moveItem(items, fromId, toId) {
+  if (!fromId || !toId || fromId === toId) return items
+  const next = [...items]
+  const fromIndex = next.indexOf(fromId)
+  const toIndex = next.indexOf(toId)
+  if (fromIndex < 0 || toIndex < 0) return items
+  next.splice(fromIndex, 1)
+  next.splice(toIndex, 0, fromId)
+  return next
+}
+
+function countryFlag(value) {
+  const text = cellText(value)
+  return COUNTRY_FLAGS[text] || COUNTRY_FLAGS[text.toUpperCase()] || '🌐'
+}
+
+function sectorIconFor(value) {
+  const text = cellText(value).toLowerCase()
+  const match = SECTOR_ICON_KEYS.find(([keyword]) => text.includes(keyword))
+  return match ? match[1] : Building2
+}
+
 function statusTone(value) {
   const text = cellText(value).toLowerCase()
   if (['ok', 'success', 'passed', 'completed', '已完成'].some((item) => text.includes(item))) return 'is-ok'
@@ -193,6 +283,28 @@ function ActionButton({ icon: Icon, label, description, disabled, active = false
 
 function StatusPill({ value }) {
   return <span className={`tp-status-pill ${statusTone(value)}`}>{cellText(value)}</span>
+}
+
+function PageTabs({ activePage, onChange }) {
+  const pages = [
+    ['production', '生产流程', '启动、队列、资产和 pipeline'],
+    ['results', '结果展示', 'Regime、Country、Sector 和 Score ML'],
+  ]
+  return (
+    <nav className="tp-page-tabs" aria-label="Dashboard pages">
+      {pages.map(([value, label, description]) => (
+        <button
+          className={activePage === value ? 'is-active' : ''}
+          key={value}
+          onClick={() => onChange(value)}
+          type="button"
+        >
+          <strong>{label}</strong>
+          <span>{description}</span>
+        </button>
+      ))}
+    </nav>
+  )
 }
 
 function regimeProfile(item) {
@@ -377,15 +489,19 @@ function CountryFactorBars({ item }) {
 
 function CountryRegionCard({ item }) {
   const profile = countryProfile(item)
+  const flag = countryFlag(item.region)
   return (
     <div
       className="tp-country-card"
       style={{ '--country-color': profile.color, '--country-soft': profile.soft }}
     >
       <div className="tp-country-card-head">
-        <div>
-          <span>{cellText(item.country_label)}</span>
-          <strong>{cellText(item.region)}</strong>
+        <div className="tp-country-title">
+          <b>{flag}</b>
+          <div>
+            <span>{cellText(item.country_label)}</span>
+            <strong>{cellText(item.region)}</strong>
+          </div>
         </div>
         <em>{cellText(item.recommendation || profile.label)}</em>
       </div>
@@ -407,13 +523,14 @@ function CountryRegionCard({ item }) {
 
 function SingleCountryTile({ item }) {
   const profile = countryProfile(item)
+  const flag = countryFlag(item.country)
   return (
     <div
       className="tp-single-country-tile"
       style={{ '--country-color': profile.color, '--country-soft': profile.soft }}
     >
       <div className="tp-single-country-head">
-        <span>{cellText(item.country)}</span>
+        <span><b>{flag}</b>{cellText(item.country)}</span>
         <strong>#{cellText(item.rank)}</strong>
       </div>
       <small>{cellText(item.country_label)}</small>
@@ -431,6 +548,7 @@ function SingleCountryBoard({ rows }) {
   if (!rows.length) return <div className="tp-empty">暂无单个国家分数</div>
   const [leader, ...rest] = rows
   const leaderProfile = countryProfile(leader)
+  const leaderFlag = countryFlag(leader.country)
   return (
     <div className="tp-single-country-board">
       <div
@@ -438,9 +556,12 @@ function SingleCountryBoard({ rows }) {
         style={{ '--country-color': leaderProfile.color, '--country-soft': leaderProfile.soft }}
       >
         <div className="tp-country-card-head">
-          <div>
-            <span>Top single country</span>
-            <strong>{cellText(leader.country)}</strong>
+          <div className="tp-country-title">
+            <b>{leaderFlag}</b>
+            <div>
+              <span>Top single country</span>
+              <strong>{cellText(leader.country)}</strong>
+            </div>
           </div>
           <em>#{cellText(leader.rank)}</em>
         </div>
@@ -502,15 +623,19 @@ function SectorFactorBars({ item }) {
 
 function SectorCard({ item }) {
   const profile = sectorProfile(item)
+  const Icon = sectorIconFor(item.sector_name)
   return (
     <div
       className="tp-country-card tp-sector-card"
       style={{ '--country-color': profile.color, '--country-soft': profile.soft }}
     >
       <div className="tp-country-card-head">
-        <div>
-          <span>{cellText(item.market)} sector</span>
-          <strong>{cellText(item.sector_name)}</strong>
+        <div className="tp-country-title">
+          <span className="tp-sector-icon"><Icon size={18} /></span>
+          <div>
+            <span>{countryFlag(item.market)} {cellText(item.market)} sector</span>
+            <strong>{cellText(item.sector_name)}</strong>
+          </div>
         </div>
         <em>{cellText(item.recommendation)}</em>
       </div>
@@ -558,33 +683,58 @@ function SectorMarketBoard({ market, rows }) {
 }
 
 function DataTable({ columns, rows, limit = 8 }) {
-  const visibleRows = rows.slice(0, limit)
+  const shouldPaginate = rows.length > 20
+  const pageSize = shouldPaginate ? 20 : limit
+  const [page, setPage] = useState(0)
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize))
+  const safePage = Math.min(page, pageCount - 1)
+  const start = safePage * pageSize
+  const visibleRows = rows.slice(start, start + pageSize)
+  useEffect(() => {
+    setPage(0)
+  }, [rows.length, pageSize])
   if (!visibleRows.length) {
     return <div className="tp-empty">暂无数据</div>
   }
   return (
-    <div className="tp-table-wrap">
-      <table className="tp-data-table">
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th key={column}>{column}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {visibleRows.map((row, rowIndex) => (
-            <tr key={`${rowIndex}-${columns.map((column) => row[column]).join('-')}`}>
+    <>
+      <div className="tp-table-wrap">
+        <table className="tp-data-table">
+          <thead>
+            <tr>
               {columns.map((column) => (
-                <td key={column} title={cellText(row[column])}>
-                  {column.includes('状态') ? <StatusPill value={row[column]} /> : cellText(row[column])}
-                </td>
+                <th key={column}>{column}</th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {visibleRows.map((row, rowIndex) => (
+              <tr key={`${start + rowIndex}-${columns.map((column) => row[column]).join('-')}`}>
+                {columns.map((column) => (
+                  <td key={column} title={cellText(row[column])}>
+                    {column.includes('状态') ? <StatusPill value={row[column]} /> : cellText(row[column])}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {shouldPaginate && (
+        <div className="tp-table-pager">
+          <span>{start + 1}-{Math.min(start + pageSize, rows.length)} / {rows.length}</span>
+          <div>
+            <button disabled={safePage === 0} onClick={() => setPage((value) => Math.max(0, value - 1))} type="button">
+              上一页
+            </button>
+            <strong>{safePage + 1} / {pageCount}</strong>
+            <button disabled={safePage >= pageCount - 1} onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))} type="button">
+              下一页
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -600,11 +750,17 @@ function App() {
   const [scoreMlComponents, setScoreMlComponents] = useState(EMPTY_DASHBOARD_STATE.signals.score_ml_components)
   const [scoreMlSelection, setScoreMlSelection] = useState({ date: '', side: 'top' })
   const [scoreMlLoading, setScoreMlLoading] = useState(false)
+  const [activePage, setActivePage] = useState(() => {
+    if (typeof window === 'undefined') return 'production'
+    return window.location.hash === '#results' ? 'results' : 'production'
+  })
+  const [moduleOrder, setModuleOrder] = useState(loadModuleOrder)
   const eventSourceRef = useRef(null)
   const queueSourceRef = useRef(null)
   const pollingRef = useRef(null)
   const queuePollingRef = useRef(null)
   const pollingInFlightRef = useRef(false)
+  const dragModuleRef = useRef('')
 
   const activePhase = phaseIndex(job.phase)
   const isBusy = submitting !== '' || ['queued', 'running'].includes(job.status)
@@ -810,6 +966,53 @@ function App() {
       stopQueuePolling()
     }
   }, [])
+
+  useEffect(() => {
+    const onHashChange = () => {
+      setActivePage(window.location.hash === '#results' ? 'results' : 'production')
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  const changePage = (page) => {
+    setActivePage(page)
+    if (typeof window !== 'undefined') {
+      window.location.hash = page === 'results' ? 'results' : 'production'
+    }
+  }
+
+  const reorderModules = (page, fromId, toId) => {
+    setModuleOrder((current) => {
+      const next = {
+        ...current,
+        [page]: moveItem(current[page] || DEFAULT_MODULE_ORDER[page], fromId, toId),
+      }
+      saveModuleOrder(next)
+      return next
+    })
+  }
+
+  const moduleDragProps = (page, id) => ({
+    draggable: true,
+    onDragStart: (event) => {
+      dragModuleRef.current = id
+      event.dataTransfer.effectAllowed = 'move'
+      event.dataTransfer.setData('text/plain', id)
+    },
+    onDragOver: (event) => {
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+    },
+    onDrop: (event) => {
+      event.preventDefault()
+      reorderModules(page, event.dataTransfer.getData('text/plain') || dragModuleRef.current, id)
+    },
+    style: {
+      order: Math.max(0, (moduleOrder[page] || DEFAULT_MODULE_ORDER[page]).indexOf(id)),
+    },
+    title: '拖动模块排序',
+  })
 
   const launchJob = async (kind) => {
     const targets = {
@@ -1068,8 +1271,10 @@ function App() {
           ))}
         </section>
 
-        <section className="tp-workspace">
-          <div className="tp-panel tp-run-panel">
+        <PageTabs activePage={activePage} onChange={changePage} />
+
+        <section className={`tp-dashboard-grid tp-page-${activePage}`}>
+          <div className="tp-panel tp-run-panel tp-production-module" {...moduleDragProps('production', 'run-control')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Run control</p>
@@ -1157,7 +1362,7 @@ function App() {
             </div>
           </div>
 
-          <div className="tp-panel">
+          <div className="tp-panel tp-production-module" {...moduleDragProps('production', 'live-job')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Live job</p>
@@ -1207,10 +1412,7 @@ function App() {
 
             <pre className="tp-log">{job.log_tail || '暂无日志摘要'}</pre>
           </div>
-        </section>
-
-        <section className="tp-dashboard-grid">
-          <div className="tp-panel">
+          <div className="tp-panel tp-results-module" {...moduleDragProps('results', 'overview')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">State API</p>
@@ -1229,7 +1431,7 @@ function App() {
             </div>
           </div>
 
-          <div className="tp-panel">
+          <div className="tp-panel tp-results-module" {...moduleDragProps('results', 'alerts')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Alerts</p>
@@ -1250,7 +1452,7 @@ function App() {
             </div>
           </div>
 
-          <div className="tp-panel tp-wide-panel">
+          <div className="tp-panel tp-wide-panel tp-results-module" {...moduleDragProps('results', 'regime')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Signals / Regime</p>
@@ -1297,7 +1499,7 @@ function App() {
             <DataTable columns={['region', '月份', 'regime', '风险预算', '状态']} limit={6} rows={regimeHistoryRows} />
           </div>
 
-          <div className="tp-panel tp-wide-panel">
+          <div className="tp-panel tp-wide-panel tp-results-module" {...moduleDragProps('results', 'country')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Signals / Country</p>
@@ -1379,7 +1581,7 @@ function App() {
             <DataTable columns={['region', '月份', 'score', 'rank', 'recommendation']} limit={10} rows={countryHistoryRows} />
           </div>
 
-          <div className="tp-panel tp-wide-panel">
+          <div className="tp-panel tp-wide-panel tp-results-module" {...moduleDragProps('results', 'sector')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Signals / Sector</p>
@@ -1418,7 +1620,7 @@ function App() {
             />
           </div>
 
-          <div className="tp-panel tp-wide-panel">
+          <div className="tp-panel tp-wide-panel tp-results-module" {...moduleDragProps('results', 'score-ml')}>
             <div className="tp-panel-heading tp-score-ml-heading">
               <div>
                 <p className="tp-kicker">Score ML</p>
@@ -1467,7 +1669,7 @@ function App() {
             />
           </div>
 
-          <div className="tp-panel tp-wide-panel">
+          <div className="tp-panel tp-wide-panel tp-production-module" {...moduleDragProps('production', 'queue')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Queue stream</p>
@@ -1477,7 +1679,7 @@ function App() {
             <DataTable columns={['job_id', '状态', 'step', '更新时间', 'backend']} rows={queueRows} />
           </div>
 
-          <div className="tp-panel tp-wide-panel">
+          <div className="tp-panel tp-wide-panel tp-production-module" {...moduleDragProps('production', 'core-database')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Core database</p>
@@ -1487,7 +1689,7 @@ function App() {
             <DataTable columns={['数据资产', '更新状态', '最新日期', '行', 'Schema']} rows={dashboardState.core_database} />
           </div>
 
-          <div className="tp-panel tp-wide-panel">
+          <div className="tp-panel tp-wide-panel tp-production-module" {...moduleDragProps('production', 'project-assets')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Project assets</p>
@@ -1500,7 +1702,7 @@ function App() {
             />
           </div>
 
-          <div className="tp-panel tp-wide-panel">
+          <div className="tp-panel tp-wide-panel tp-production-module" {...moduleDragProps('production', 'pipeline-status')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Pipeline</p>
@@ -1510,7 +1712,7 @@ function App() {
             <DataTable columns={['步骤', '状态', '最近完成', '未通过校验']} rows={dashboardState.pipeline} />
           </div>
 
-          <div className="tp-panel tp-wide-panel">
+          <div className="tp-panel tp-wide-panel tp-production-module" {...moduleDragProps('production', 'data-assets')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Data assets</p>

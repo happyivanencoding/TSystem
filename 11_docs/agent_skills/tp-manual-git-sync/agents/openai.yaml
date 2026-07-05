@@ -1,0 +1,4 @@
+interface:
+  display_name: "TP Manual Git Sync"
+  short_description: "Guarded manual TP code sync"
+  default_prompt: "Use $tp-manual-git-sync to sync TP code, config, docs, and small files safely."

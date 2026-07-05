@@ -1,0 +1,4 @@
+interface:
+  display_name: "TP Dashboard Workflow"
+  short_description: "Update and verify the TP dashboard"
+  default_prompt: "Use $tp-dashboard-workflow to update or verify the TP system dashboard."

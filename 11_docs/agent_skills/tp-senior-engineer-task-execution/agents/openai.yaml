@@ -1,0 +1,4 @@
+interface:
+  display_name: "TP Senior Engineer Execution"
+  short_description: "Plan and verify TP changes with senior rigor"
+  default_prompt: "Use $tp-senior-engineer-task-execution to plan, implement, verify, and report a TP repo change safely."

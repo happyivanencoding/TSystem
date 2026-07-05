@@ -1,0 +1,4 @@
+interface:
+  display_name: "TP Quant Research Workflow"
+  short_description: "Research TP factors, signals, and models"
+  default_prompt: "Use $tp-quant-research-workflow to research a TP factor, signal, or model hypothesis."

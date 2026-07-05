@@ -22,7 +22,7 @@ from tp_core.signals import validate_signal_frame, write_signal_frame  # noqa: E
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
-SOURCE_WORKBOOK = PROJECT_DIR / "modele_pays.xlsb"
+SOURCE_WORKBOOK = TP_ROOT / "00_screen" / "production_inputs" / "modele_pays.xlsb"
 DATA_DIR = PROJECT_DIR / "data"
 OUTPUT_DIR = PROJECT_DIR / "outputs"
 COUNTRY_DATABASE_PATH = DATA_DIR / "country_model_database.parquet"

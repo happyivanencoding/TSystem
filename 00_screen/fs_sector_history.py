@@ -10,7 +10,7 @@ import pandas as pd
 
 
 TP_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_FS_SECTOR_WORKBOOK_DIR = TP_ROOT / "13_sector_score_model"
+DEFAULT_FS_SECTOR_WORKBOOK_DIR = TP_ROOT / "00_screen" / "production_inputs"
 
 DATE_COLUMN = "Date"
 MARKET_COLUMN = "FS_MARKET_FS_SECTOR"

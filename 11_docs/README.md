@@ -36,7 +36,7 @@
 | 统一信号表字段和导出规则 | [`SIGNAL_SCHEMA.md`](SIGNAL_SCHEMA.md) |
 | 以后新文档怎么命名、哪些文档不要再新建 | [`DOCUMENTATION_GOVERNANCE.md`](DOCUMENTATION_GOVERNANCE.md) |
 | 根目录为什么还有 md、哪些文件能留在根目录 | [`DOCUMENTATION_GOVERNANCE.md`](DOCUMENTATION_GOVERNANCE.md) |
-| 历史 documentation 计划、旧 cartographie、旧月更审计在哪里 | [`archive/`](archive/) |
+| 历史 documentation 计划、旧 cartographie、旧月更审计、零散 md 归档在哪里 | [`archive/`](archive/) |
 
 ## 当前注意事项
 
@@ -44,7 +44,7 @@
 - 不再维护多个生产版 `screen_aggregate` 或 `returns`。旧 `.pkl`、旧 parquet 和 notebook 内硬编码路径只允许作为历史参考。
 - 冻结目录统一进入 `99_archive/frozen_20260629/`；新代码引用检查见 `python -m 01_tp_core.legacy_policy`。
 - 展示/报告项目共享 `08_presentation_layer/` 数据 repository；模型信号统一进入 `04_signals/`；主流水线入口统一在 `02_pipelines/`。
-- `08_company_analysis/Inspiration_Claude` 是外部参考模板库，不纳入 TP 生产文档体系，也不在本轮改写。
+- 外部参考模板库 `08_company_analysis/Inspiration_Claude` 已归档到 `99_archive/external_references_20260705/Inspiration_Claude`，不纳入 TP 生产文档体系。
 - 文档描述默认使用中文；项目里已有英文或法文技术注释可以保留，但面向使用者的说明应逐步中文化。
 - 根目录非文件夹文件只保留入口、数据契约和工程配置；普通说明文档归入 `11_docs/` 或项目 README，历史材料归入 `11_docs/archive/`。
 

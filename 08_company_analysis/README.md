@@ -2,7 +2,7 @@
 
 ## 定位
 
-`Company_Analysis` 包含公司分析后端、前端组件、估值模板和外部灵感材料，用于公司级信息整理和分析。
+`Company_Analysis` 包含公司分析后端、前端组件和估值模板，用于公司级信息整理和分析。
 
 ## 数据来源
 
@@ -21,7 +21,6 @@
 | `backend/` | 公司分析后端逻辑 |
 | `frontend/` | 前端相关文件 |
 | `Company_Valo.jsx` | 公司估值/展示组件 |
-| `Inspiration_Claude/` | 外部参考模板库，不纳入 TP 生产文档体系 |
 | `start_app.ps1` | 本地启动脚本 |
 
 ## 运行入口
@@ -30,7 +29,7 @@
 
 ## 维护状态
 
-应用/模板型项目。`Inspiration_Claude` 只作为参考资料，默认不改写其中的第三方文档。
+应用/模板型项目。外部参考模板库 `Inspiration_Claude` 已归档到 [`../99_archive/external_references_20260705/Inspiration_Claude`](../99_archive/external_references_20260705/Inspiration_Claude)，不作为 TP 生产文档或应用入口。
 
 
 ## 共享展示/报告数据层

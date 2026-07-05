@@ -56,4 +56,4 @@ npm run dev
 - 控制塔 lineage 图支持点击节点查看对应项目、输入输出、登记命令和最近 manifest 状态。
 - 控制塔审计日志读取 `10_pipeline_runs/manifests`，支持按 step、status、日期范围、as-of 和 input-month 筛选历史运行。
 - 控制塔可显式保存当前 pipeline / 子项目运行配置到 `.tmp_dashboard_work/dashboard_config.json`；保存配置不会启动 pipeline，也不会修改生产 parquet。
-- `08_company_analysis/Inspiration_Claude` 仍作为外部参考模板库，不纳入生产展示/报告层。
+- 外部参考模板库已归档到 `99_archive/external_references_20260705/Inspiration_Claude`，不纳入生产展示/报告层。

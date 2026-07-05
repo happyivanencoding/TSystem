@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-07-05",
+  "action": "archive_external_reference_template_library",
+  "original_path": "C:\\GoogleDrive\\TP\\08_company_analysis\\Inspiration_Claude",
+  "archived_path": "C:\\GoogleDrive\\TP\\99_archive\\external_references_20260705\\Inspiration_Claude",
+  "reason": "外部参考模板库包含大量 Markdown，不属于 TP 生产文档体系，也没有代码引用；归档以减少 active 项目文档噪音",
+  "file_count": 180,
+  "markdown_count": 137,
+  "policy": "archive-only; do not use as production entrypoint"
+}

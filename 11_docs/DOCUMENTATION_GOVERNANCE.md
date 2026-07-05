@@ -165,4 +165,6 @@ review 后先把小问题记录到 `_context/skill_review.md`。如果需要真�
 
 - 根目录保留：`README.md`、`DATA_SOURCES.md`、`DATA_CONTRACT.md`、`pyproject.toml`、`environment.yml`、`sitecustomize.py`。
 - 已归档到 `11_docs/archive/`：`DOCUMENTATION_UPDATE_PLAN.md`、`TP_Projet_Cartographie.md`、`screen_monthly_update_audit.md`。
+- 2026-07-05 已归档根目录 planning 文件、`12_small_cap/cols.md`、旧 ML GUI 规格文档；manifest 见 `11_docs/archive/documentation_cleanup_20260705/manifest.json`。
+- 2026-07-05 已将外部参考模板库 `08_company_analysis/Inspiration_Claude` 归档到 `99_archive/external_references_20260705/`。
 - 归档 manifest：`11_docs/archive/manifest.json`。

@@ -1,6 +1,6 @@
 # TP 小项目地图
 
-最后更新：2026-06-30
+最后更新：2026-07-05
 
 本文档只记录当前目录结构下每个小项目的角色、文档入口、数据依赖和处置状态。具体运行细节仍放在项目自己的 `README.md` 或 `11_docs/README.md` 中。根目录的 [`../00_项目主线索引/README.md`](../00_项目主线索引/README.md) 记录物理编号目录和兼容层。
 
@@ -62,7 +62,7 @@
 | `99_backtest_gui_legacy/` | 原 PySide6 桌面回测入口 | [`../99_backtest_gui_legacy/README.md`](../99_backtest_gui_legacy/README.md) | canonical screen/returns | GUI 和源码副本已隔离，保留历史参考 |
 | `03_regime_model/` | US/EU bottom-up regime 识别和风险仪表盘 | [`../03_regime_model/README.md`](../03_regime_model/README.md) | canonical screen/returns | 活跃研究 |
 | `08_web_app_des_companies/` | Dash 公司与指数成分展示应用实现目录 | [`../08_web_app_des_companies/README.md`](../08_web_app_des_companies/README.md) | 通过 `presentation_layer` 读取 canonical screen | 兼容实现目录 |
-| `08_company_analysis/` | 公司分析后端、前端和估值模板实现目录 | [`../08_company_analysis/README.md`](../08_company_analysis/README.md) | 通过 `presentation_layer` 读取 last_screen/screen/returns | 兼容实现目录；`Inspiration_Claude` 为外部参考 |
+| `08_company_analysis/` | 公司分析后端、前端和估值模板实现目录 | [`../08_company_analysis/README.md`](../08_company_analysis/README.md) | 通过 `presentation_layer` 读取 last_screen/screen/returns | 兼容实现目录；外部参考模板库已归档 |
 | `08_dashboard_analysis/` | 组合/指数分析和 PDF 报告实现目录 | [`../08_dashboard_analysis/README.md`](../08_dashboard_analysis/README.md) | 通过 `presentation_layer` 读取 screen/returns | 兼容实现目录 |
 | `03_ml_enhanced/` | 新版 ML 训练、预测、监控和组合输出 | [`../03_ml_enhanced/README.md`](../03_ml_enhanced/README.md) | canonical screen/returns，输出 `04_signals/ml_signals.parquet` | 主要 ML 版本；已固定信号导出入口 |
 | `03_technical_analysis/` | 技术指标和形态信号生产 | [`../03_technical_analysis/README.md`](../03_technical_analysis/README.md) | canonical screen/returns，输出 `patterns.parquet` 和 `04_signals/technical_signals.parquet` | 活跃技术信号；不再自带主回测核心 |
@@ -79,7 +79,7 @@
 | `99_archive/frozen_20260629/回测第一版/` | 第一代回测目录 | [`../99_archive/frozen_20260629/README.md`](../99_archive/frozen_20260629/README.md) | 已冻结 |
 | `06_optimiser/` | Python 组合优化器主线 | [`../06_optimiser/README.md`](../06_optimiser/README.md) | 候选池、signals、旧组合、约束 | 活跃主线 |
 | `99_optimiseur_legacy/` | 旧 notebook/xlsm 优化器说明 | [`../99_optimiseur_legacy/README.md`](../99_optimiseur_legacy/README.md) | 不作为输入 | 历史说明 |
-| `12_small_cap/` | 小盘研究片段和字段列表 | [`../12_small_cap/README.md`](../12_small_cap/README.md) | 辅助研究；`cols.md` 不是 canonical 字典 |
+| `12_small_cap/` | 小盘研究片段 | [`../12_small_cap/README.md`](../12_small_cap/README.md) | 辅助研究；历史字段快照已归档，不是 canonical 字典 |
 | `99_archive/frozen_20260629/cyc/` | 早期周期研究片段 | [`../99_archive/frozen_20260629/README.md`](../99_archive/frozen_20260629/README.md) | 已冻结；有价值逻辑后续并入 `03_regime_model/` |
 | `99_archive/frozen_20260629/技术分析和深度学习__深度学习/` | 旧深度学习 pipeline | [`../99_archive/frozen_20260629/README.md`](../99_archive/frozen_20260629/README.md) | 已冻结；职责并入 `03_ml_enhanced/` |
 | `99_archive/notebook_cleanup_20260629/` | 根目录旧测试 notebook 和临时产物 | [`../99_archive/notebook_cleanup_20260629/manifest.json`](../99_archive/notebook_cleanup_20260629/manifest.json) | 已归档，不作为生产入口 |

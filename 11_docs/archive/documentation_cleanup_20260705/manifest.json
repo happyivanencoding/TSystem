@@ -1,0 +1,32 @@
+{
+  "created_at": "2026-07-05",
+  "action": "documentation_cleanup_archive_misc_markdown",
+  "policy": "root keeps only workspace entrypoint, data contracts, and engineering config files; historical snapshots move to archive",
+  "items": [
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\task_plan.md",
+      "archived_path": "C:\\GoogleDrive\\TP\\11_docs\\archive\\documentation_cleanup_20260705\\root_planning\\task_plan.md",
+      "reason": "上一轮 planning-with-files 临时计划，任务已完成，不应继续留在根目录"
+    },
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\progress.md",
+      "archived_path": "C:\\GoogleDrive\\TP\\11_docs\\archive\\documentation_cleanup_20260705\\root_planning\\progress.md",
+      "reason": "上一轮 planning-with-files 临时进度，任务已完成，不应继续留在根目录"
+    },
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\findings.md",
+      "archived_path": "C:\\GoogleDrive\\TP\\11_docs\\archive\\documentation_cleanup_20260705\\root_planning\\findings.md",
+      "reason": "上一轮 planning-with-files 临时发现记录，任务已完成，不应继续留在根目录"
+    },
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\12_small_cap\\cols.md",
+      "archived_path": "C:\\GoogleDrive\\TP\\11_docs\\archive\\documentation_cleanup_20260705\\12_small_cap\\cols.md",
+      "reason": "历史字段列表快照，缺少生成日期和数据版本，不是 canonical 字段字典"
+    },
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\Backtest_GUI_Cahier_des_charges.md",
+      "archived_path": "C:\\GoogleDrive\\TP\\11_docs\\archive\\documentation_cleanup_20260705\\03_ml_enhanced\\Backtest_GUI_Cahier_des_charges.md",
+      "reason": "旧 GUI 规格文档，当前回测和展示入口已由 07_backtest_code 与 08_presentation_layer 承担"
+    }
+  ]
+}

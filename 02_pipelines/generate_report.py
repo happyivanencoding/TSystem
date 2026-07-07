@@ -32,7 +32,7 @@ DEFAULT_STEPS = [
     "generate_report",
     "run_all",
 ]
-FRESHNESS_WINDOW_DAYS = 7
+FRESHNESS_WINDOW_DAYS = 31
 
 
 def _read_latest_manifest(step: str) -> dict | None:

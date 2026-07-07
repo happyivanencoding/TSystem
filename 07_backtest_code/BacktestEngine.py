@@ -99,18 +99,18 @@ class PtfBuilder:
         
         # Initialize backtest engines
         self.backtest_engine = BacktestEngine(returns=returns)
-        self.optimized_backtest_engine = BacktestEngineOptimized(returns=returns)
+        self._optimized_backtest_engine = None
         self.portfolio_builder.returns = self.backtest_engine.returns
         self.optimizer_config = optimizer_config or {}
         
-        # Initialize data loader
+        # Keep the legacy data_loader attribute without duplicating loaded frames.
         self.data_loader = DataLoader()
-        self.data_loader.load_screen(screen)
-        self.data_loader.load_returns(returns)
         
         # Store original parameters for compatibility
         self.screen = self.portfolio_builder.screen
         self.returns = self.backtest_engine.returns
+        self.data_loader.screen = self.screen
+        self.data_loader.returns = self.returns
         self.bench = bench
         self.percentile = percentile
         self.metrics = metrics
@@ -129,6 +129,13 @@ class PtfBuilder:
         self.perf_bench = None
         self.perf_optimized = None
         self.buy_list = None
+
+    @property
+    def optimized_backtest_engine(self):
+        """Lazily initialize the optimized engine only for optimizer backtests."""
+        if self._optimized_backtest_engine is None:
+            self._optimized_backtest_engine = BacktestEngineOptimized(returns=self.returns)
+        return self._optimized_backtest_engine
     
     def sec_list_spot(self, screen_agg_monthly: Optional[pd.DataFrame] = None):
         """Generate security list for a single month."""

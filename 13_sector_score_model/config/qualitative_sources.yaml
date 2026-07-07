@@ -1,0 +1,62 @@
+# Public no-key sources for qualitative sector research.
+# The first version uses these as optional RSS/web inputs; Codex-assisted
+# monthly research can still provide richer evidence via --evidence-jsonl.
+sources:
+  - name: SEC Press Releases
+    url: https://www.sec.gov/news/pressreleases.rss
+    region: US
+    subjects: [Financials, Technology, Energy]
+  - name: Federal Reserve Press Releases
+    url: https://www.federalreserve.gov/feeds/press_all.xml
+    region: US
+    subjects: [Financials, Utilities, Real Estate]
+  - name: ECB Press Releases
+    url: https://www.ecb.europa.eu/rss/press.html
+    region: EU
+    subjects: [Financials, Banks, Insurance]
+  - name: Eurostat News
+    url: https://ec.europa.eu/eurostat/api/dissemination/catalogue/rss/en/statistics-update.rss
+    region: EU
+    subjects: [Industrials, Consumer Staples, Energy]
+  - name: Guardian Business
+    url: https://www.theguardian.com/uk/business/rss
+    region: GLOBAL
+    subjects: [Technology, Energy, Automobiles and Parts, Basic Resources]
+  - name: Yahoo Finance News
+    url: https://finance.yahoo.com/news/rssindex
+    region: GLOBAL
+    subjects: [Technology, Financials, Energy, Real Estate]
+  - name: MarketWatch Top Stories
+    url: https://feeds.content.dowjones.io/public/rss/mw_topstories
+    region: GLOBAL
+    subjects: [Technology, Financials, Energy, Consumer]
+
+public_pages:
+  - name: Microsoft Investor Relations
+    url: https://www.microsoft.com/en-us/investor
+    region: US
+    subjects: [Technology, AI Capex, Cloud Infrastructure]
+  - name: Alphabet Investor Relations
+    url: https://abc.xyz/investor/
+    region: US
+    subjects: [Technology, Advertising, Cloud Infrastructure]
+  - name: ExxonMobil Investor Relations
+    url: https://investor.exxonmobil.com/
+    region: US
+    subjects: [Energy, Oil, Gas]
+  - name: ASML Investor Relations
+    url: https://www.asml.com/en/investors
+    region: EU
+    subjects: [Technology, Semiconductors]
+  - name: Shell Investor Relations
+    url: https://www.shell.com/investors.html
+    region: EU
+    subjects: [Energy, LNG, Oil]
+  - name: ING Investor Relations
+    url: https://www.ing.com/Investor-relations.htm
+    region: EU
+    subjects: [Banks, Financials]
+  - name: Eurostat News Releases
+    url: https://ec.europa.eu/eurostat/web/rss
+    region: EU
+    subjects: [Macro, Consumer, Industrials, Energy]

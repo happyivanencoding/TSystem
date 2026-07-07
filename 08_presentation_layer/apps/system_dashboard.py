@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -62,6 +63,12 @@ SECTOR_RECOMMENDATION_PATHS = (
     ("US", TP_ROOT / "13_sector_score_model" / "outputs_fs_sector_default" / "sector_scores_latest.csv"),
     ("EU", TP_ROOT / "13_sector_score_model" / "outputs_eu" / "sector_scores_latest.csv"),
 )
+SECTOR_MONTHLY_VIEW_DIR = (
+    TP_ROOT.parent / "笔记" / "卡片盒子" / "10_Investment" / "02_Sectors" / "Monthly_Sector_Views"
+)
+NEWS_ROOM_DIR = TP_ROOT.parent / "笔记" / "卡片盒子" / "40_News_Room"
+NEWS_OKF_BUNDLE_DIR = TP_ROOT.parent / "笔记" / "_okf_bundles" / "personal_knowledge_catalog" / "news"
+SECTOR_QUALITATIVE_OUTPUT_DIR = TP_ROOT / "13_sector_score_model" / "outputs_qualitative"
 REGIME_OUTPUT_DIR = TP_ROOT / "03_regime_model" / "output"
 REGIME_DASHBOARD_DATA_PATH = TP_ROOT / "03_regime_model" / "webapp" / "data.js"
 REGIME_MODEL_DIAGNOSTICS_PATH = REGIME_OUTPUT_DIR / "model_diagnostics.json"
@@ -77,6 +84,10 @@ SCORE_ML_BACKTEST_RUN_ROOT = (
     TP_ROOT / "07_backtest_code" / "runs" / "score_ml_vs_if_msci_world_top_worst_20"
 )
 SCORE_ML_SCREEN_PATH = TP_ROOT / "00_screen" / "screen_aggregate.parquet"
+COMPANY_DES_PATH = TP_ROOT / "08_web_app_des_companies" / "data" / "last_DES.parquet"
+COMPANY_NEWS_PATH = TP_ROOT / "08_web_app_des_companies" / "data" / "Last_NEWS_3months.parquet"
+TECHNICAL_SIGNAL_PATH = TP_ROOT / "04_signals" / "technical_signals.parquet"
+TECHNICAL_SCREEN_PATH = TP_ROOT / "00_screen" / "last_screen.parquet"
 SCORE_ML_COMPONENT_COLUMNS = [
     "Date",
     "Name",
@@ -102,6 +113,118 @@ SCORE_ML_COMPONENT_COLUMNS = [
     "Exchange Country Region",
     "Benchmark Country English",
 ]
+
+TECHNICAL_MARKETS = ("SP500", "STOXX EUROPE 600", "MSCI WORLD", "NASDAQ COMP")
+TECHNICAL_METRIC_DEFINITIONS = (
+    {
+        "metric": "technical_structure_score",
+        "label": "Structure",
+        "source": "structure_signal",
+        "kind": "discrete",
+        "description": "HH=1, HL=0.5, LH=-0.5, LL=-1",
+    },
+    {
+        "metric": "technical_momentum_10",
+        "label": "Momentum 10",
+        "source": "momentum_10",
+        "kind": "continuous",
+        "description": "10 日动量原始值，高值为好",
+    },
+    {
+        "metric": "technical_macdh_12_26_9",
+        "label": "MACDh",
+        "source": "MACDh_12_26_9",
+        "kind": "continuous",
+        "description": "MACD histogram 原始值，高值为好",
+    },
+    {
+        "metric": "technical_rsi_14_midpoint",
+        "label": "RSI midpoint",
+        "source": "rsi_14",
+        "kind": "continuous",
+        "description": "-abs(RSI14 - 50)，越接近 50 越高",
+    },
+    {
+        "metric": "technical_triangle_score",
+        "label": "Triangle",
+        "source": "triangle_pattern",
+        "kind": "pattern",
+        "description": "Ascending Triangle=1, Descending Triangle=-1, None=0",
+    },
+    {
+        "metric": "technical_wedge_score",
+        "label": "Wedge",
+        "source": "wedge_pattern",
+        "kind": "pattern",
+        "description": "Wedge Down=1, Wedge Up=-1, None=0",
+    },
+    {
+        "metric": "technical_double_score",
+        "label": "Double",
+        "source": "double_pattern",
+        "kind": "pattern",
+        "description": "Double Bottom=1, Double Top=-1, None=0",
+    },
+    {
+        "metric": "technical_composite",
+        "label": "Composite",
+        "source": "derived",
+        "kind": "composite",
+        "description": "子信号横截面 percentile rank 等权平均，至少 3 个有效子信号",
+    },
+)
+TECHNICAL_PATTERN_SCORE_COLUMNS = {
+    "technical_triangle_score",
+    "technical_wedge_score",
+    "technical_double_score",
+}
+TECHNICAL_METRIC_LABELS = {item["metric"]: item["label"] for item in TECHNICAL_METRIC_DEFINITIONS}
+TECHNICAL_MARKET_RULES = {
+    "SP500": {
+        "technical_triangle_score": ("正向保留", "显著正向", "高分端", "官方 Top/Worst 显示突破形态在 SP500 更有延续性"),
+        "technical_momentum_10": ("正向保留", "显著正向", "高分端", "大型股信息扩散慢，短期趋势延续更稳定"),
+        "technical_macdh_12_26_9": ("正向保留", "显著正向", "高分端", "趋势加速度在 SP500 中可作为动量确认"),
+        "technical_composite": ("正向保留", "显著正向", "高分端", "多子信号合成后能降低单一形态噪音"),
+        "technical_rsi_14_midpoint": ("反向使用", "反向有效", "低分端", "中性 RSI 不一定是优势，更像趋势不足或过热规避"),
+        "technical_wedge_score": ("反向使用", "反向有效", "低分端", "楔形信号在大型股中更偏拥挤交易的反向提示"),
+        "technical_structure_score": ("反向使用", "反向有效", "低分端", "简单 HH/HL 结构容易落后于已兑现趋势"),
+        "technical_double_score": ("风险过滤", "弱证据", "高分端", "形态离散且样本少，只适合作辅助过滤"),
+    },
+    "STOXX EUROPE 600": {
+        "technical_triangle_score": ("正向保留", "显著正向", "高分端", "欧洲市场分散，突破形态更可能代表渐进式重定价"),
+        "technical_momentum_10": ("正向保留", "显著正向", "高分端", "短期动量在欧洲横截面中仍有延续性"),
+        "technical_macdh_12_26_9": ("弱辅助", "弱证据", "高分端", "可做趋势确认，但不宜单独主导排序"),
+        "technical_composite": ("弱辅助", "弱证据", "高分端", "综合分在欧洲更适合风险过滤而非强 alpha"),
+        "technical_rsi_14_midpoint": ("反向使用", "反向有效", "低分端", "RSI 中位回归假设在欧洲样本中偏弱"),
+        "technical_wedge_score": ("反向使用", "反向有效", "低分端", "楔形更像失败突破或拥挤信号"),
+        "technical_double_score": ("反向使用", "反向有效", "低分端", "双顶/双底离散度高，官方回测更支持反向端"),
+        "technical_structure_score": ("风险过滤", "弱证据", "高分端", "结构标签证据不足，只保留辅助意义"),
+    },
+    "MSCI WORLD": {
+        "technical_triangle_score": ("正向保留", "显著正向", "高分端", "全球指数中突破形态受行业和地区趋势共同放大"),
+        "technical_momentum_10": ("正向保留", "显著正向", "高分端", "跨市场信息扩散和趋势跟随支持短期动量"),
+        "technical_macdh_12_26_9": ("正向保留", "显著正向", "高分端", "MACDh 对全球趋势加速度有辅助解释力"),
+        "technical_composite": ("正向保留", "显著正向", "高分端", "全球样本中合成分更能平均掉单市场噪音"),
+        "technical_rsi_14_midpoint": ("反向使用", "反向有效", "低分端", "RSI midpoint 更像趋势不足而非 alpha"),
+        "technical_wedge_score": ("反向使用", "反向有效", "低分端", "楔形在全球样本中偏失败趋势提示"),
+        "technical_structure_score": ("弱辅助", "弱证据", "高分端", "结构标签方向不稳定"),
+        "technical_double_score": ("弱辅助", "弱证据", "高分端", "双顶/双底样本少且并列多"),
+    },
+    "NASDAQ COMP": {
+        "technical_wedge_score": ("弱正向", "弱证据", "高分端", "成长股高波动下楔形只保留弱正向观察"),
+        "technical_momentum_10": ("反向使用", "反向有效", "低分端", "NASDAQ 短期动量更像过热/拥挤后的反转提示"),
+        "technical_rsi_14_midpoint": ("反向使用", "反向有效", "低分端", "RSI midpoint 在成长股中更接近反转或热度信号"),
+        "technical_triangle_score": ("风险过滤", "弱证据", "高分端", "突破形态不作为主 alpha，可过滤极端弱势"),
+        "technical_double_score": ("风险过滤", "弱证据", "高分端", "离散形态只做风险筛选"),
+        "technical_composite": ("风险过滤", "弱证据", "高分端", "综合趋势分不强行迁移到 NASDAQ"),
+        "technical_macdh_12_26_9": ("弱辅助", "弱证据", "高分端", "趋势加速度需结合波动和拥挤度解释"),
+        "technical_structure_score": ("弱辅助", "弱证据", "高分端", "结构标签不足以单独排序"),
+    },
+}
+
+SECTOR_MONTHLY_HEADING_RE = re.compile(r"^#### \[\[(?P<region>US|EU) (?P<sector>.+?)\]\] - (?P<view>.+?)\s*$")
+WIKILINK_RE = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
+FRONTMATTER_LINE_RE = re.compile(r'^([A-Za-z0-9_-]+):\s*"?([^"]*)"?\s*$')
 
 ASSET_SUFFIXES = {".parquet", ".xlsx", ".xls", ".csv", ".json", ".md", ".yaml", ".yml"}
 IGNORED_ASSET_PARTS = {
@@ -1814,6 +1937,117 @@ def _score_ml_screen_frame() -> pd.DataFrame | None:
         return None
 
 
+@lru_cache(maxsize=2)
+def _technical_screen_cached(path_text: str, mtime_ns: int) -> pd.DataFrame:
+    del mtime_ns
+    frame = pd.read_parquet(path_text)
+    if "ISIN" not in frame.columns:
+        frame = frame.reset_index()
+    if "Date" in frame.columns:
+        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+    return frame
+
+
+def _technical_screen_frame() -> pd.DataFrame | None:
+    if not TECHNICAL_SCREEN_PATH.exists():
+        return None
+    try:
+        return _technical_screen_cached(str(TECHNICAL_SCREEN_PATH), TECHNICAL_SCREEN_PATH.stat().st_mtime_ns)
+    except Exception:
+        return None
+
+
+@lru_cache(maxsize=2)
+def _company_des_cached(path_text: str, mtime_ns: int) -> pd.DataFrame:
+    del mtime_ns
+    frame = pd.read_parquet(path_text)
+    if "Date" in frame.columns:
+        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+    return frame
+
+
+@lru_cache(maxsize=2)
+def _company_news_cached(path_text: str, mtime_ns: int) -> pd.DataFrame:
+    del mtime_ns
+    frame = pd.read_parquet(path_text)
+    if "Date" in frame.columns:
+        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+    return frame
+
+
+def _company_frame(path: Path, loader: Any) -> pd.DataFrame | None:
+    if not path.exists():
+        return None
+    try:
+        return loader(str(path), path.stat().st_mtime_ns)
+    except Exception:
+        return None
+
+
+def _json_text(value: Any, default: str = "") -> str:
+    if value is None or pd.isna(value):
+        return default
+    result = str(value).strip()
+    return result or default
+
+
+def _company_detail_payload(isin: str) -> dict[str, Any]:
+    isin = str(isin or "").strip()
+    payload: dict[str, Any] = {
+        "status": "missing",
+        "isin": isin,
+        "identity": {},
+        "description": {},
+        "news": [],
+        "message": "",
+    }
+    if not isin:
+        payload["message"] = "missing ISIN"
+        return payload
+
+    des = _company_frame(COMPANY_DES_PATH, _company_des_cached)
+    news = _company_frame(COMPANY_NEWS_PATH, _company_news_cached)
+    if des is None or des.empty or "ISIN" not in des.columns:
+        payload["message"] = "company description parquet missing or unreadable"
+        return payload
+
+    desc_rows = des[des["ISIN"].astype(str).eq(isin)].copy()
+    if desc_rows.empty:
+        payload["message"] = f"no company description for {isin}"
+    else:
+        desc_rows = desc_rows.sort_values("Date", ascending=False, na_position="last")
+        row = desc_rows.iloc[0]
+        payload["identity"] = {
+            "name": _json_text(row.get("NAME"), _json_text(row.get("Company"), isin)),
+            "company": _json_text(row.get("COMPANY"), _json_text(row.get("Company"), "")),
+            "country": _json_text(row.get("COUNTRY")),
+            "sector": _json_text(row.get("SECTOR")),
+        }
+        payload["description"] = {
+            "date": _fmt_date(row.get("Date")),
+            "title": _json_text(row.get("Title"), "Description"),
+            "body": _json_text(row.get("HTMLbody")),
+        }
+
+    if news is not None and not news.empty and "ISIN" in news.columns:
+        news_rows = news[news["ISIN"].astype(str).eq(isin)].copy()
+        if not news_rows.empty:
+            news_rows = news_rows.sort_values("Date", ascending=False, na_position="last").head(8)
+            payload["news"] = [
+                {
+                    "date": _fmt_date(row.get("Date")),
+                    "title": _json_text(row.get("Title"), "Actualité"),
+                    "body": _json_text(row.get("HTMLbody")),
+                }
+                for _, row in news_rows.iterrows()
+            ]
+
+    if payload["description"] or payload["news"]:
+        payload["status"] = "ok"
+        payload["message"] = f"{len(payload['news'])} recent news"
+    return payload
+
+
 def _latest_score_ml_run(side: str) -> Path | None:
     if side not in {"top", "worst"} or not SCORE_ML_BACKTEST_RUN_ROOT.exists():
         return None
@@ -1942,6 +2176,289 @@ def _score_ml_components_payload(date: str | None = None, side: str = "top") -> 
             "screen_date": _fmt_date(screen_date),
             "rows": rows,
             "message": f"{len(rows)} {side} components",
+        }
+    )
+    return payload
+
+
+def _technical_text(value: Any, default: str = "") -> str:
+    if value is None:
+        return default
+    try:
+        if pd.isna(value):
+            return default
+    except (TypeError, ValueError):
+        pass
+    result = str(value).strip()
+    return result or default
+
+
+def _technical_market_rule(market: str, metric: str) -> dict[str, str]:
+    action, evidence, side, note = TECHNICAL_MARKET_RULES.get(market, {}).get(
+        metric,
+        ("弱辅助", "弱证据", "高分端", "该市场缺少明确稳健证据，只作辅助观察"),
+    )
+    return {"处理": action, "证据": evidence, "推荐端": side, "说明": note}
+
+
+def _latest_technical_metric_frame(signal_frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.Timestamp | None]:
+    required = {"Date", "signal_name", "Company SEDOL", "score", "raw_value"}
+    if signal_frame.empty or not required.issubset(signal_frame.columns):
+        return pd.DataFrame(), None
+
+    data = signal_frame.copy()
+    data["_Date"] = pd.to_datetime(data["Date"], errors="coerce")
+    data = data.dropna(subset=["_Date"])
+    if data.empty:
+        return pd.DataFrame(), None
+
+    latest_date = data["_Date"].max()
+    latest = data[data["_Date"].eq(latest_date)].copy()
+    latest["Company SEDOL"] = latest["Company SEDOL"].astype("string").str.strip()
+    latest = latest[latest["Company SEDOL"].notna() & latest["Company SEDOL"].ne("")]
+    if latest.empty:
+        return pd.DataFrame(), latest_date
+
+    base_columns = ["Company SEDOL"]
+    if "ISIN" in latest.columns:
+        base_columns.append("ISIN")
+    base = latest[base_columns].drop_duplicates("Company SEDOL").set_index("Company SEDOL")
+    metrics = base.copy()
+
+    def assign_metric(source: str, metric: str, values: pd.Series) -> None:
+        part = latest[latest["signal_name"].eq(source)].copy()
+        if part.empty:
+            metrics[metric] = pd.NA
+            return
+        part["_technical_metric"] = pd.to_numeric(values.loc[part.index], errors="coerce")
+        series = (
+            part.dropna(subset=["_technical_metric"])
+            .groupby("Company SEDOL", dropna=False)["_technical_metric"]
+            .mean()
+        )
+        metrics[metric] = series
+
+    score = pd.to_numeric(latest["score"], errors="coerce")
+    assign_metric("structure_signal", "technical_structure_score", score)
+    assign_metric("momentum_10", "technical_momentum_10", score)
+    assign_metric("MACDh_12_26_9", "technical_macdh_12_26_9", score)
+    assign_metric("rsi_14", "technical_rsi_14_midpoint", -(score - 50.0).abs())
+
+    raw_text = latest["raw_value"].astype("string").str.strip()
+    assign_metric(
+        "triangle_pattern",
+        "technical_triangle_score",
+        raw_text.map({"Ascending Triangle": 1.0, "Descending Triangle": -1.0}),
+    )
+    assign_metric(
+        "wedge_pattern",
+        "technical_wedge_score",
+        raw_text.map({"Wedge Down": 1.0, "Wedge Up": -1.0}),
+    )
+    assign_metric(
+        "double_pattern",
+        "technical_double_score",
+        raw_text.map({"Double Bottom": 1.0, "Double Top": -1.0}),
+    )
+
+    for metric in TECHNICAL_PATTERN_SCORE_COLUMNS:
+        if metric in metrics.columns:
+            metrics[metric] = pd.to_numeric(metrics[metric], errors="coerce").fillna(0.0)
+
+    base_metric_columns = [
+        item["metric"]
+        for item in TECHNICAL_METRIC_DEFINITIONS
+        if item["metric"] != "technical_composite"
+    ]
+    for metric in base_metric_columns:
+        if metric not in metrics.columns:
+            metrics[metric] = pd.NA
+
+    numeric_metrics = metrics[base_metric_columns].apply(pd.to_numeric, errors="coerce")
+    valid_count = numeric_metrics.notna().sum(axis=1)
+    rank_frame = numeric_metrics.rank(method="average", pct=True)
+    metrics["technical_composite"] = rank_frame.mean(axis=1).where(valid_count >= 3)
+    metrics["technical_valid_metrics"] = valid_count
+    return metrics.reset_index(), latest_date
+
+
+def _technical_signal_payload() -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "name": "technical_latest_metrics",
+        "title": "Latest Technical metrics by market",
+        "status": "missing",
+        "latest_date": "",
+        "screen_date": "",
+        "updated_at": "",
+        "signal_path": _rel(TECHNICAL_SIGNAL_PATH),
+        "screen_path": _rel(TECHNICAL_SCREEN_PATH),
+        "availability_note": (
+            "展示源为最新 production technical_signals；此前审查发现上游 weekly pattern 日期口径可能是周初标签，"
+            "交易或回测结论应以 availability-adjusted 版本为准。"
+        ),
+        "metric_definitions": [
+            {
+                "metric": item["metric"],
+                "label": item["label"],
+                "source": item["source"],
+                "description": item["description"],
+            }
+            for item in TECHNICAL_METRIC_DEFINITIONS
+        ],
+        "markets": [],
+        "metric_rows": [],
+        "security_rows": [],
+        "message": "",
+    }
+    signal_frame = _read_frame(TECHNICAL_SIGNAL_PATH)
+    screen = _technical_screen_frame()
+    if signal_frame is None or signal_frame.empty:
+        payload["message"] = "technical_signals parquet missing or empty"
+        return payload
+    if screen is None or screen.empty or "Date" not in screen.columns:
+        payload["message"] = "last_screen parquet missing or unreadable"
+        return payload
+
+    metric_frame, latest_date = _latest_technical_metric_frame(signal_frame)
+    if metric_frame.empty or latest_date is None:
+        payload["message"] = "no latest technical metrics could be reconstructed"
+        return payload
+
+    screen_data = screen.copy()
+    screen_data["_Date"] = pd.to_datetime(screen_data["Date"], errors="coerce")
+    screen_data = screen_data.dropna(subset=["_Date"])
+    if screen_data.empty:
+        payload["message"] = "last_screen has no valid Date"
+        return payload
+    screen_date = screen_data["_Date"].max()
+    screen_latest = screen_data[screen_data["_Date"].eq(screen_date)].copy()
+    screen_latest["Company SEDOL"] = screen_latest["Company SEDOL"].astype("string").str.strip()
+    screen_latest = screen_latest[screen_latest["Company SEDOL"].notna() & screen_latest["Company SEDOL"].ne("")]
+
+    metric_columns = [item["metric"] for item in TECHNICAL_METRIC_DEFINITIONS]
+    metric_lookup = {item["metric"]: item for item in TECHNICAL_METRIC_DEFINITIONS}
+    market_rows: list[dict[str, str]] = []
+    metric_rows: list[dict[str, Any]] = []
+    security_rows: list[dict[str, str]] = []
+
+    def clean_sector(value: Any) -> str:
+        return _fmt_int(value) or _technical_text(value, "N/A")
+
+    for market in TECHNICAL_MARKETS:
+        weight_column = f"Weight in {market}"
+        if weight_column not in screen_latest.columns:
+            continue
+        constituents = screen_latest.copy()
+        constituents["_technical_weight"] = pd.to_numeric(constituents[weight_column], errors="coerce").fillna(0.0)
+        constituents = constituents[constituents["_technical_weight"].gt(0)].copy()
+        if constituents.empty:
+            continue
+        merged = constituents.merge(metric_frame, on="Company SEDOL", how="left", suffixes=("", "_technical"))
+        available_metrics = merged[metric_columns].apply(pd.to_numeric, errors="coerce")
+        covered = int(available_metrics.notna().any(axis=1).sum())
+        universe = int(len(merged))
+        rules = TECHNICAL_MARKET_RULES.get(market, {})
+        positive = [
+            TECHNICAL_METRIC_LABELS.get(metric, metric)
+            for metric, rule in rules.items()
+            if rule[0] in {"正向保留", "弱正向"}
+        ]
+        reverse = [
+            TECHNICAL_METRIC_LABELS.get(metric, metric)
+            for metric, rule in rules.items()
+            if rule[0] == "反向使用"
+        ]
+        auxiliary = [
+            TECHNICAL_METRIC_LABELS.get(metric, metric)
+            for metric, rule in rules.items()
+            if rule[0] in {"弱辅助", "风险过滤"}
+        ]
+        market_rows.append(
+            {
+                "market": market,
+                "screen_date": _fmt_date(screen_date),
+                "signal_date": _fmt_date(latest_date),
+                "universe": _fmt_int(universe),
+                "covered": _fmt_int(covered),
+                "coverage": _fmt_pct(covered / universe if universe else None, 1),
+                "positive": ", ".join(positive) or "N/A",
+                "reverse": ", ".join(reverse) or "N/A",
+                "auxiliary": ", ".join(auxiliary) or "N/A",
+            }
+        )
+
+        for metric in metric_columns:
+            info = metric_lookup[metric]
+            rule = _technical_market_rule(market, metric)
+            series = pd.to_numeric(merged.get(metric), errors="coerce")
+            valid = series.dropna()
+            valid_count = int(valid.shape[0])
+            coverage = valid_count / universe if universe else None
+            tie_rate = float(valid.value_counts(normalize=True, dropna=True).iloc[0]) if valid_count else None
+            event_rate = ""
+            if metric in TECHNICAL_PATTERN_SCORE_COLUMNS and valid_count:
+                event_rate = _fmt_pct(float(valid.ne(0).mean()), 1)
+            metric_rows.append(
+                {
+                    "市场": market,
+                    "metric": info["label"],
+                    "metric_code": metric,
+                    "处理": rule["处理"],
+                    "证据": rule["证据"],
+                    "推荐端": rule["推荐端"],
+                    "覆盖": f"{_fmt_int(valid_count)} / {_fmt_int(universe)}",
+                    "覆盖率": _fmt_pct(coverage, 1),
+                    "均值": _fmt_number(valid.mean(), 3) if valid_count else "",
+                    "中位数": _fmt_number(valid.median(), 3) if valid_count else "",
+                    "最小": _fmt_number(valid.min(), 3) if valid_count else "",
+                    "最大": _fmt_number(valid.max(), 3) if valid_count else "",
+                    "并列率": _fmt_pct(tie_rate, 1) if tie_rate is not None else "",
+                    "事件率": event_rate,
+                    "说明": rule["说明"],
+                }
+            )
+
+            if not valid_count:
+                continue
+            side_is_low = rule["推荐端"] == "低分端"
+            sample = merged.loc[valid.index].copy()
+            sample["_technical_metric_value"] = valid
+            sample = sample.sort_values(
+                ["_technical_metric_value", "_technical_weight"],
+                ascending=[side_is_low, False],
+                na_position="last",
+            ).head(3)
+            for _, row in sample.iterrows():
+                security_rows.append(
+                    {
+                        "市场": market,
+                        "metric": info["label"],
+                        "处理": rule["处理"],
+                        "推荐端": rule["推荐端"],
+                        "Name": _technical_text(row.get("Name"), _technical_text(row.get("ISIN"), "N/A")),
+                        "score": _fmt_number(row.get("_technical_metric_value"), 3),
+                        "Weight": _fmt_pct(row.get("_technical_weight"), 2),
+                        "Country": _technical_text(row.get("Benchmark Country English")),
+                        "Region": _technical_text(row.get("Exchange Country Region")),
+                        "Sector": clean_sector(row.get(" Benchmark ICB Supersector ")),
+                        "ISIN": _technical_text(row.get("ISIN")),
+                    }
+                )
+
+    latest_updated = max(
+        TECHNICAL_SIGNAL_PATH.stat().st_mtime if TECHNICAL_SIGNAL_PATH.exists() else 0,
+        TECHNICAL_SCREEN_PATH.stat().st_mtime if TECHNICAL_SCREEN_PATH.exists() else 0,
+    )
+    payload.update(
+        {
+            "status": "ok",
+            "latest_date": _fmt_date(latest_date),
+            "screen_date": _fmt_date(screen_date),
+            "updated_at": datetime.fromtimestamp(latest_updated).isoformat(timespec="seconds"),
+            "markets": market_rows,
+            "metric_rows": metric_rows,
+            "security_rows": security_rows,
+            "message": f"{len(market_rows)} markets / {len(metric_rows)} metric rows / {len(security_rows)} current samples",
         }
     )
     return payload
@@ -2425,6 +2942,223 @@ def _country_signal_payload() -> dict[str, Any]:
     return payload
 
 
+def _sector_monthly_report_candidates(month: str) -> list[Path]:
+    candidates: list[Path] = []
+    if month:
+        candidates.append(SECTOR_MONTHLY_VIEW_DIR / f"{month} TP 行业观点.md")
+        candidates.append(SECTOR_QUALITATIVE_OUTPUT_DIR / f"{month}_all_ready" / "final_commentary_no_citations.md")
+        candidates.append(SECTOR_QUALITATIVE_OUTPUT_DIR / f"{month}_all_ready" / "report.md")
+        candidates.append(SECTOR_QUALITATIVE_OUTPUT_DIR / month / "final_commentary_no_citations.md")
+        candidates.append(SECTOR_QUALITATIVE_OUTPUT_DIR / month / "report.md")
+    return candidates
+
+
+def _clean_sector_markdown(value: str) -> str:
+    text_value = WIKILINK_RE.sub(lambda match: match.group(2) or match.group(1), value)
+    return " ".join(text_value.replace("**", "").strip().split())
+
+
+def _clean_brief_markdown(value: str) -> str:
+    text_value = WIKILINK_RE.sub(lambda match: match.group(2) or match.group(1), value)
+    return text_value.replace("**", "").strip()
+
+
+def _latest_market_brief_candidates() -> list[Path]:
+    if not NEWS_ROOM_DIR.exists():
+        return []
+    candidates = list(NEWS_ROOM_DIR.glob("*_Clippings/*欧美金融市场日内复盘.md"))
+    return sorted(candidates, key=lambda path: path.stat().st_mtime, reverse=True)
+
+
+def _okf_market_brief_path(path: Path) -> str:
+    try:
+        relative = path.relative_to(NEWS_ROOM_DIR)
+    except ValueError:
+        return ""
+    bundled = NEWS_OKF_BUNDLE_DIR / relative
+    return _rel(bundled) if bundled.exists() else ""
+
+
+@lru_cache(maxsize=8)
+def _parse_market_brief(path_text: str, mtime: float) -> dict[str, Any]:
+    path = Path(path_text)
+    if not path.exists():
+        return {"status": "missing", "sections": []}
+
+    lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    frontmatter: dict[str, str] = {}
+    body_start = 0
+    if lines and lines[0].strip() == "---":
+        for index, line in enumerate(lines[1:], start=1):
+            if line.strip() == "---":
+                body_start = index + 1
+                break
+            match = FRONTMATTER_LINE_RE.match(line.strip())
+            if match:
+                frontmatter[match.group(1)] = match.group(2)
+
+    title = frontmatter.get("title") or path.stem
+    body_lines = lines[body_start:]
+    for line in body_lines:
+        if line.startswith("# "):
+            title = line[2:].strip()
+            break
+
+    sections: list[dict[str, str]] = []
+    current: dict[str, Any] | None = None
+
+    def finish_section() -> None:
+        nonlocal current
+        if not current:
+            return
+        text = _clean_brief_markdown("\n".join(current.pop("_lines", [])).strip())
+        if text:
+            sections.append({"heading": str(current["heading"]), "body": text[:2600]})
+        current = None
+
+    for line in body_lines:
+        if line.startswith("## "):
+            finish_section()
+            current = {"heading": line[3:].strip(), "_lines": []}
+            continue
+        if current is None:
+            continue
+        if line.startswith("# "):
+            continue
+        current["_lines"].append(line)
+    finish_section()
+
+    for target_heading in ("对股票仓位的直接影响",):
+        current_lines: list[str] = []
+        collecting = False
+        for line in body_lines:
+            if line.startswith("### ") and line[4:].strip() == target_heading:
+                collecting = True
+                continue
+            if collecting and (line.startswith("## ") or line.startswith("### ")):
+                break
+            if collecting:
+                current_lines.append(line)
+        text = _clean_brief_markdown("\n".join(current_lines).strip())
+        if text:
+            sections.append({"heading": target_heading, "body": text[:2600]})
+
+    preferred = ("摘要", "发生了什么", "对股票仓位的直接影响", "OKF 解释框架", "股票交易框架")
+    ordered_sections = [
+        section
+        for heading in preferred
+        for section in sections
+        if section["heading"] == heading
+    ]
+    if len(ordered_sections) < 3:
+        ordered_sections = sections[:5]
+
+    return {
+        "status": "ok",
+        "title": title,
+        "created": frontmatter.get("created", ""),
+        "source_scope": frontmatter.get("source_scope", ""),
+        "okf_refresh": frontmatter.get("okf_refresh", ""),
+        "path": _rel(path),
+        "okf_path": _okf_market_brief_path(path),
+        "updated_at": datetime.fromtimestamp(mtime).isoformat(timespec="seconds"),
+        "sections": ordered_sections[:5],
+        "section_count": _fmt_int(len(sections)),
+    }
+
+
+def _latest_market_brief_payload() -> dict[str, Any]:
+    for path in _latest_market_brief_candidates():
+        return _parse_market_brief(str(path), path.stat().st_mtime)
+    return {
+        "status": "missing",
+        "title": "",
+        "created": "",
+        "source_scope": "",
+        "okf_refresh": "",
+        "path": "",
+        "okf_path": "",
+        "updated_at": "",
+        "sections": [],
+        "section_count": "0",
+    }
+
+
+@lru_cache(maxsize=8)
+def _parse_sector_monthly_report(path_text: str, mtime: float) -> dict[tuple[str, str], dict[str, Any]]:
+    path = Path(path_text)
+    if not path.exists():
+        return {}
+    lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    blocks: dict[tuple[str, str], dict[str, Any]] = {}
+    current: dict[str, Any] | None = None
+    mode = "summary"
+
+    def finish_block() -> None:
+        nonlocal current
+        if not current:
+            return
+        summary = _clean_sector_markdown(" ".join(current.pop("_summary_lines", [])))
+        evidence = [_clean_sector_markdown(item[2:]) for item in current.pop("_evidence_lines", []) if item.startswith("- ")]
+        key = (str(current["market"]), str(current["sector_name"]))
+        blocks[key] = {
+            **current,
+            "summary": summary,
+            "evidence_block": evidence,
+            "evidence_count": _fmt_int(len(evidence)),
+            "report_path": _rel(path),
+            "report_updated_at": datetime.fromtimestamp(mtime).isoformat(timespec="seconds"),
+        }
+        current = None
+
+    for line in lines:
+        heading = SECTOR_MONTHLY_HEADING_RE.match(line)
+        if heading:
+            finish_block()
+            current = {
+                "market": heading.group("region"),
+                "sector_name": heading.group("sector"),
+                "note_title": f"{heading.group('region')} {heading.group('sector')}",
+                "view": heading.group("view"),
+                "_summary_lines": [],
+                "_evidence_lines": [],
+            }
+            mode = "summary"
+            continue
+        if current is None:
+            continue
+        if line.startswith("##### Evidence block"):
+            mode = "evidence"
+            continue
+        if line.startswith("#### [["):
+            finish_block()
+            mode = "summary"
+            continue
+        if not line.strip():
+            continue
+        if mode == "summary":
+            current["_summary_lines"].append(line.strip())
+        elif line.startswith("- "):
+            current["_evidence_lines"].append(line.strip())
+
+    finish_block()
+    return blocks
+
+
+def _sector_monthly_analysis_payload(month: str) -> tuple[dict[tuple[str, str], dict[str, Any]], dict[str, str]]:
+    for path in _sector_monthly_report_candidates(month):
+        if path.exists():
+            parsed = _parse_sector_monthly_report(str(path), path.stat().st_mtime)
+            return parsed, {
+                "status": "ok" if parsed else "empty",
+                "month": month,
+                "path": _rel(path),
+                "sectors": _fmt_int(len(parsed)),
+                "updated_at": datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds"),
+            }
+    return {}, {"status": "missing", "month": month, "path": "", "sectors": "0", "updated_at": ""}
+
+
 def _sector_signal_payload() -> dict[str, Any]:
     payload: dict[str, Any] = {
         "name": "sector_recommendation",
@@ -2433,6 +3167,7 @@ def _sector_signal_payload() -> dict[str, Any]:
         "latest_date": "",
         "updated_at": "",
         "paths": {market: _rel(path) for market, path in SECTOR_RECOMMENDATION_PATHS},
+        "monthly_report": {"status": "missing", "month": "", "path": "", "sectors": "0", "updated_at": ""},
         "markets": [],
         "rows": [],
     }
@@ -2471,11 +3206,16 @@ def _sector_signal_payload() -> dict[str, Any]:
         result = str(value).strip()
         return result or default
 
-    def row_payload(row: pd.Series) -> dict[str, str]:
+    monthly_analysis: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def row_payload(row: pd.Series) -> dict[str, Any]:
+        market = text(row.get("market"), "N/A")
+        sector_name = text(row.get("sector_name"), text(row.get("sector_code"), "N/A"))
+        analysis = monthly_analysis.get((market, sector_name), {})
         return {
-            "market": text(row.get("market"), "N/A"),
+            "market": market,
             "sector_code": _fmt_int(row.get("sector_code")),
-            "sector_name": text(row.get("sector_name"), text(row.get("sector_code"), "N/A")),
+            "sector_name": sector_name,
             "最新月份": _fmt_date(row.get("_Date")),
             "rank": _fmt_number(row.get("rank"), 0),
             "recommendation": text(row.get("recommendation"), "Neutral"),
@@ -2491,6 +3231,7 @@ def _sector_signal_payload() -> dict[str, Any]:
             "sector_weight": _fmt_pct(row.get("sector_weight"), 1),
             "constituents": _fmt_int(row.get("constituents")),
             "forward_return": _fmt_pct(row.get("sector_forward_return"), 1),
+            "monthly_analysis": analysis,
         }
 
     data = pd.concat(frames, ignore_index=True)
@@ -2503,6 +3244,10 @@ def _sector_signal_payload() -> dict[str, Any]:
             continue
         latest_date = market_data["_Date"].max()
         latest_dates.append(latest_date)
+        month = _fmt_date(latest_date)[:7]
+        if not monthly_analysis:
+            monthly_analysis, monthly_report = _sector_monthly_analysis_payload(month)
+            payload["monthly_report"] = monthly_report
         latest = market_data[market_data["_Date"].eq(latest_date)].copy()
         latest["_rank_sort"] = pd.to_numeric(latest.get("rank"), errors="coerce")
         latest = latest.sort_values(["_rank_sort", "sector_name"], na_position="last")
@@ -4295,6 +5040,7 @@ def _dashboard_state_payload() -> dict[str, Any]:
         "root": _rel(TP_ROOT),
         "manifest_dir": _rel(PIPELINE_MANIFESTS_DIR),
         "overview": overview,
+        "latest_market_brief": _latest_market_brief_payload(),
         "alerts": _alert_rows(core_database, checks, pipeline, quality, production),
         "projects": _project_asset_summary_rows(assets),
         "lineage_edges": _lineage_edge_rows(),
@@ -4308,6 +5054,7 @@ def _dashboard_state_payload() -> dict[str, Any]:
             "regime": _regime_signal_payload(),
             "country": _country_signal_payload(),
             "sector": _sector_signal_payload(),
+            "technical": _technical_signal_payload(),
             "score_ml_components": _score_ml_components_payload(),
         },
         "config": _config_rows(),
@@ -5297,6 +6044,10 @@ def create_app() -> Dash:
     def api_dashboard_sector_signal():
         return jsonify(_sector_signal_payload())
 
+    @server.route("/api/dashboard/signals/technical", methods=["GET"])
+    def api_dashboard_technical_signal():
+        return jsonify(_technical_signal_payload())
+
     @server.route("/api/dashboard/score-ml-components", methods=["GET"])
     def api_dashboard_score_ml_components():
         return jsonify(
@@ -5305,6 +6056,10 @@ def create_app() -> Dash:
                 side=request.args.get("side", "top"),
             )
         )
+
+    @server.route("/api/dashboard/company-detail/<isin>", methods=["GET"])
+    def api_dashboard_company_detail(isin: str):
+        return jsonify(_company_detail_payload(isin))
 
     @server.route("/api/dashboard/jobs/queue/events", methods=["GET"])
     def api_dashboard_job_queue_events():

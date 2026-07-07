@@ -110,6 +110,51 @@ def detect_pattern_(returns,period='week',library='tradingpatterns',start_date=N
     return patterns
 
 
+def build_period_availability(returns_index, period='week'):
+    """
+    Build period start/end and first tradable availability date from a returns calendar.
+
+    For weekly technical patterns, the pattern row dated at the first trading day of
+    the week is only fully available after the last trading day of that same week.
+    """
+    dates = pd.DatetimeIndex(pd.to_datetime(returns_index)).dropna().sort_values().unique()
+    if dates.empty:
+        return pd.DataFrame(columns=['period_key', 'technical_period_start', 'technical_period_end', 'technical_available_date'])
+
+    calendar = pd.DataFrame({'return_date': dates})
+    if period == 'week':
+        calendar['period_key'] = calendar['return_date'].dt.strftime('%G-W%V')
+    else:
+        calendar['period_key'] = calendar['return_date'].dt.strftime('%Y-%m')
+
+    availability = (
+        calendar.groupby('period_key', as_index=False)['return_date']
+        .agg(technical_period_start='min', technical_period_end='max')
+    )
+    ordered_dates = pd.DatetimeIndex(calendar['return_date'])
+
+    def next_trading_day(period_end):
+        candidates = ordered_dates[ordered_dates > pd.Timestamp(period_end)]
+        return candidates[0] if len(candidates) else pd.NaT
+
+    availability['technical_available_date'] = availability['technical_period_end'].map(next_trading_day)
+    return availability
+
+
+def add_period_availability_columns(patterns, returns_index, date_col='Date', period='week'):
+    """Attach availability metadata to a patterns dataframe without changing its Date label."""
+    frame = patterns.copy()
+    frame[date_col] = pd.to_datetime(frame[date_col], errors='coerce')
+    availability = build_period_availability(returns_index, period=period)
+    if period == 'week':
+        frame['period_key'] = frame[date_col].dt.strftime('%G-W%V')
+    else:
+        frame['period_key'] = frame[date_col].dt.strftime('%Y-%m')
+    frame = frame.merge(availability, on='period_key', how='left')
+    frame.drop(columns=['period_key'], inplace=True)
+    return frame
+
+
 def calcul_indicator(group):
     """
     Calcul des indicateurs financiers techniques avec la librairie pandas-ta

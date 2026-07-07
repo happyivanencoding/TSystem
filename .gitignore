@@ -11,6 +11,7 @@
 03_ml_enhanced/_quarantine_*/
 07_backtest_code/runs/
 08_dashboard_analysis/outputs/
+13_sector_score_model/outputs_qualitative/
 10_pipeline_runs/notebook_execution/
 **/optimizer_debug/
 *.log

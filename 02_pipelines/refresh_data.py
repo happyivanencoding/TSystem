@@ -12,10 +12,19 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable
 
+import pandas as pd
+
 from tp_core.data_sources import LAST_SCREEN_PATH, PRODUCTION_INCOMING_DIR, RETURNS_PATH, SCREEN_AGGREGATE_PATH, TP_ROOT
 from tp_core.data_sources import validate_data_sources
+from tp_core.returns_audit import audit_returns_file
 
 from .common import StepManifest, path_profile, timestamp
+
+
+RETURNS_AUDIT_DIR = TP_ROOT / "00_screen" / "qa" / "returns_anomaly_governance"
+RETURNS_AUDIT_LATEST = RETURNS_AUDIT_DIR / "returns_extreme_audit_latest.json"
+RETURNS_FLAGS_LATEST = RETURNS_AUDIT_DIR / "returns_extreme_flags_latest.csv"
+RETURNS_REVIEW_TEMPLATE_LATEST = RETURNS_AUDIT_DIR / "returns_extreme_review_template_latest.csv"
 
 
 def _load_monthly_update():
@@ -99,6 +108,26 @@ def _archive_processed_input_batch(input_batch_dir: str | None, *, dry_run: bool
     if dry_run:
         result["reason"] = "dry_run"
         return result
+
+
+def _run_returns_extreme_audit() -> dict[str, Any]:
+    report = audit_returns_file(
+        RETURNS_PATH,
+        report_path=RETURNS_AUDIT_LATEST,
+        flagged_csv_path=RETURNS_FLAGS_LATEST,
+        review_template_path=RETURNS_REVIEW_TEMPLATE_LATEST,
+    )
+    returns_profile = path_profile(RETURNS_PATH, parquet=True)
+    report_date = str(report.get("date_max", ""))[:10]
+    report["current_with_returns"] = report_date == str(_returns_index_max_date())
+    report["returns_profile"] = returns_profile
+    return report
+
+
+def _returns_index_max_date() -> str | None:
+    frame = pd.read_parquet(RETURNS_PATH, columns=[])
+    dates = pd.to_datetime(frame.index, errors="coerce").dropna()
+    return dates.max().date().isoformat() if len(dates) else None
     if not input_batch_dir:
         result["reason"] = "no_standard_input_batch"
         return result
@@ -196,16 +225,29 @@ def run_refresh_data(args: argparse.Namespace) -> Path:
     try:
         if getattr(args, "inspect_only", False):
             data_source_status = validate_data_sources()
+            returns_audit = _run_returns_extreme_audit()
             manifest.outputs = {
                 "screen_after": path_profile(SCREEN_AGGREGATE_PATH, parquet=True),
                 "returns_after": path_profile(RETURNS_PATH, parquet=True),
                 "last_screen": path_profile(LAST_SCREEN_PATH, parquet=True),
+                "returns_extreme_audit": path_profile(RETURNS_AUDIT_LATEST),
+                "returns_extreme_flags": path_profile(RETURNS_FLAGS_LATEST),
+                "returns_review_template": path_profile(RETURNS_REVIEW_TEMPLATE_LATEST),
             }
+            manifest.details["returns_extreme_audit"] = returns_audit
             manifest.add_validation(
                 "canonical_data_sources_exist",
                 all(data_source_status.values()),
                 "screen_aggregate 和 returns 均存在" if all(data_source_status.values()) else "canonical 数据源缺失",
                 data_source_status,
+            )
+            manifest.add_validation(
+                "returns_extreme_audit_current",
+                bool(returns_audit.get("current_with_returns")),
+                "returns 异常审计覆盖当前 returns 最新日期"
+                if returns_audit.get("current_with_returns")
+                else "returns 异常审计未覆盖当前 returns 最新日期",
+                returns_audit,
             )
             manifest.add_validation("monthly_update_import_skipped", True, "inspect-only 未执行重计算月更")
             return manifest.write("success")
@@ -222,13 +264,18 @@ def run_refresh_data(args: argparse.Namespace) -> Path:
             dry_run=args.dry_run,
         )
         data_source_status = validate_data_sources()
+        returns_audit = _run_returns_extreme_audit()
         manifest.outputs = {
             "screen_after": path_profile(SCREEN_AGGREGATE_PATH, parquet=True),
             "returns_after": path_profile(RETURNS_PATH, parquet=True),
             "last_screen": path_profile(LAST_SCREEN_PATH, parquet=True),
             "qa_report": path_profile(result.get("qa_report_path")) if result.get("qa_report_path") else None,
+            "returns_extreme_audit": path_profile(RETURNS_AUDIT_LATEST),
+            "returns_extreme_flags": path_profile(RETURNS_FLAGS_LATEST),
+            "returns_review_template": path_profile(RETURNS_REVIEW_TEMPLATE_LATEST),
         }
         manifest.details["monthly_update_result"] = result
+        manifest.details["returns_extreme_audit"] = returns_audit
         archive_result = _archive_processed_input_batch(
             result.get("input_batch_dir"),
             dry_run=bool(args.dry_run),
@@ -252,6 +299,14 @@ def run_refresh_data(args: argparse.Namespace) -> Path:
             "qa_report_written",
             bool(result.get("qa_report_path")),
             "月更 QA 报告已生成" if result.get("qa_report_path") else "未返回 QA 报告路径",
+        )
+        manifest.add_validation(
+            "returns_extreme_audit_current",
+            bool(returns_audit.get("current_with_returns")),
+            "returns 异常审计覆盖当前 returns 最新日期"
+            if returns_audit.get("current_with_returns")
+            else "returns 异常审计未覆盖当前 returns 最新日期",
+            returns_audit,
         )
         if result.get("screen_idempotency"):
             manifest.add_validation("screen_idempotency_recorded", True, "screen 幂等性报告已记录")

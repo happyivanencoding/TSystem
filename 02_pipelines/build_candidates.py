@@ -194,6 +194,14 @@ def _screen_snapshot(repo: PresentationDataRepository) -> pd.DataFrame:
     return screen[keep].drop_duplicates(subset=["Company SEDOL"], keep="first")
 
 
+def _screen_latest_date(repo: PresentationDataRepository) -> pd.Timestamp | None:
+    screen = repo.screen(last_only=True)
+    if "Date" not in screen.columns:
+        return None
+    dates = pd.to_datetime(screen["Date"], errors="coerce").dropna()
+    return pd.Timestamp(dates.max()).normalize() if not dates.empty else None
+
+
 def _regime_region_key(region: object) -> str | None:
     value = str(region or "")
     if value == "North America":
@@ -260,11 +268,15 @@ def build_candidates(
     ml_weight: float,
     technical_weight: float,
     allocation_weight: float,
+    candidate_date_policy: str,
+    max_component_lag_days: int,
+    allow_stale_technical: bool,
     by_region: bool,
 ) -> pd.DataFrame:
     repo = PresentationDataRepository()
     security_signals = _security_signals(repo, as_of)
     region_signals = _region_signals(repo, as_of)
+    screen_latest_date = _screen_latest_date(repo)
     ml_signals, ml_date = _latest_family(security_signals, "ML", as_of)
     technical_signals, technical_date = _latest_family(security_signals, "Technical", as_of)
 
@@ -313,12 +325,45 @@ def build_candidates(
     candidates["composite_score"] = candidates["composite_score_base"] * candidates["risk_budget_multiplier"]
     candidates = candidates[candidates["composite_score"].notna()].copy()
     component_dates = [date for date in [ml_date, technical_date, regime_date, country_date, sector_date] if date is not None]
-    candidates["candidate_date"] = min(component_dates) if component_dates else pd.Timestamp(as_of) if as_of else pd.NaT
+    if component_dates:
+        candidate_date = min(component_dates) if candidate_date_policy == "min_component" else max(component_dates)
+    else:
+        candidate_date = pd.Timestamp(as_of) if as_of else pd.NaT
+    candidates["candidate_date"] = candidate_date
     candidates["signal_date_ml"] = ml_date
     candidates["signal_date_technical"] = technical_date
     candidates["signal_date_regime"] = regime_date
     candidates["signal_date_country"] = country_date
     candidates["signal_date_sector"] = sector_date
+    lag_reference = pd.Timestamp(candidate_date).normalize() if pd.notna(candidate_date) else None
+    technical_lag_days = (
+        int((lag_reference - pd.Timestamp(technical_date).normalize()).days)
+        if lag_reference is not None and technical_date is not None
+        else None
+    )
+    stale_technical = technical_lag_days is None or technical_lag_days > int(max_component_lag_days)
+    candidate_lag_days = (
+        int((screen_latest_date - pd.Timestamp(candidate_date).normalize()).days)
+        if screen_latest_date is not None and pd.notna(candidate_date)
+        else None
+    )
+    if candidate_lag_days is None or candidate_lag_days > int(max_component_lag_days):
+        raise ValueError(
+            "Candidate date is stale versus last_screen: "
+            f"candidate_date={candidate_date}, screen_latest_date={screen_latest_date}, "
+            f"max_component_lag_days={max_component_lag_days}"
+        )
+    if stale_technical and not allow_stale_technical:
+        raise ValueError(
+            "Technical signal is missing or stale: "
+            f"technical_date={technical_date}, candidate_date={candidate_date}, "
+            f"max_component_lag_days={max_component_lag_days}"
+        )
+    candidates["freshness_warning"] = (
+        f"candidate_lag_days={candidate_lag_days}; technical_lag_days={technical_lag_days}; allowed={max_component_lag_days}"
+        if stale_technical or (candidate_lag_days is not None and candidate_lag_days > 0)
+        else pd.NA
+    )
     candidates["candidate_model_version"] = "candidate_layered_v2"
     candidates["component_weights"] = str(weights)
 
@@ -343,15 +388,73 @@ def run_build_candidates(args: argparse.Namespace) -> Path:
             ml_weight=args.ml_weight,
             technical_weight=args.technical_weight,
             allocation_weight=args.allocation_weight,
+            candidate_date_policy=getattr(args, "candidate_date_policy", "max_component"),
+            max_component_lag_days=getattr(args, "max_component_lag_days", 31),
+            allow_stale_technical=getattr(args, "allow_stale_technical", False),
             by_region=args.by_region,
         )
         duplicate_count = int(frame.duplicated(subset=["candidate_date", "Company SEDOL"], keep=False).sum())
         selected_count = int(frame["selected"].sum())
         manifest.outputs = {"candidates": path_profile(args.output, parquet=True)}
         manifest.details["candidate_summary"] = summarize_frame(frame, date_column="candidate_date")
+        component_dates = {}
+        for key, column in {
+            "ml": "signal_date_ml",
+            "technical": "signal_date_technical",
+            "regime": "signal_date_regime",
+            "country": "signal_date_country",
+            "sector": "signal_date_sector",
+        }.items():
+            values = pd.to_datetime(frame[column], errors="coerce").dropna() if column in frame else pd.Series(dtype="datetime64[ns]")
+            component_dates[key] = values.max() if not values.empty else None
+        candidate_date = pd.to_datetime(frame["candidate_date"], errors="coerce").dropna().max()
+        technical_date = pd.to_datetime(frame["signal_date_technical"], errors="coerce").dropna().max()
+        last_screen_dates = pd.to_datetime(pd.read_parquet(LAST_SCREEN_PATH, columns=["Date"])["Date"], errors="coerce").dropna()
+        screen_latest_date = last_screen_dates.max() if not last_screen_dates.empty else None
+        max_component_lag_days = getattr(args, "max_component_lag_days", 31)
+        allow_stale_technical = getattr(args, "allow_stale_technical", False)
+        technical_lag_days = (
+            int((candidate_date.normalize() - technical_date.normalize()).days)
+            if pd.notna(candidate_date) and pd.notna(technical_date)
+            else None
+        )
+        candidate_lag_days = (
+            int((screen_latest_date.normalize() - candidate_date.normalize()).days)
+            if screen_latest_date is not None and pd.notna(screen_latest_date) and pd.notna(candidate_date)
+            else None
+        )
+        manifest.details["component_freshness"] = {
+            "candidate_date_policy": getattr(args, "candidate_date_policy", "max_component"),
+            "candidate_date": candidate_date.date().isoformat() if pd.notna(candidate_date) else None,
+            "screen_latest_date": screen_latest_date.date().isoformat()
+            if screen_latest_date is not None and pd.notna(screen_latest_date)
+            else None,
+            "candidate_lag_days": candidate_lag_days,
+            "component_dates": {
+                key: value.date().isoformat() if value is not None and pd.notna(value) else None
+                for key, value in component_dates.items()
+            },
+            "technical_lag_days": technical_lag_days,
+            "max_component_lag_days": max_component_lag_days,
+            "allow_stale_technical": allow_stale_technical,
+        }
         manifest.add_validation("candidate_table_non_empty", not frame.empty, "候选池非空")
         manifest.add_validation("candidate_keys_unique", duplicate_count == 0, "候选池主键无重复", {"duplicate_rows": duplicate_count})
         manifest.add_validation("selected_candidates_non_empty", selected_count > 0, "入选候选证券非空", {"selected_count": selected_count})
+        candidate_ok = candidate_lag_days is not None and candidate_lag_days <= max_component_lag_days
+        manifest.add_validation(
+            "candidate_date_fresh",
+            candidate_ok,
+            "候选池日期相对 last_screen 在允许窗口内" if candidate_ok else "候选池日期相对 last_screen 过旧",
+            manifest.details["component_freshness"],
+        )
+        component_ok = technical_lag_days is not None and technical_lag_days <= max_component_lag_days
+        manifest.add_validation(
+            "technical_component_fresh",
+            component_ok or allow_stale_technical,
+            "technical 组件日期在允许窗口内" if component_ok else "technical 组件缺失或过旧",
+            manifest.details["component_freshness"],
+        )
         return manifest.write("success")
     except Exception as exc:
         manifest.write("failed", error=exc)
@@ -368,6 +471,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ml-weight", type=float, default=0.70, help="ML 分数组合权重")
     parser.add_argument("--technical-weight", type=float, default=0.30, help="技术分数组合权重")
     parser.add_argument("--allocation-weight", type=float, default=0.20, help="国家/行业配置分数组合权重")
+    parser.add_argument("--candidate-date-policy", choices=["max_component", "min_component"], default="max_component")
+    parser.add_argument("--max-component-lag-days", type=int, default=31, help="technical 相对候选日期允许滞后天数")
+    parser.add_argument("--allow-stale-technical", action="store_true", help="允许 technical 缺失或过旧时仍生成候选池")
     parser.add_argument("--by-region", action="store_true", help="按 region 分组选择候选")
     parser.add_argument("--signals-dir", default=str(TP_ROOT / "04_signals"), help="仅用于 manifest 记录")
     parser.add_argument("--last-screen", default=str(LAST_SCREEN_PATH), help="仅用于 manifest 记录")

@@ -19,15 +19,66 @@ import {
   ShoppingBag,
   TrendingUp,
   Truck,
+  X,
   Zap,
 } from 'lucide-react'
 
 const API_BASE = import.meta.env.VITE_TP_DASHBOARD_API || ''
 const MODULE_ORDER_STORAGE_KEY = 'tp-dashboard-module-order-v1'
 const DEFAULT_MODULE_ORDER = {
-  production: ['run-control', 'live-job', 'queue', 'core-database', 'project-assets', 'pipeline-status', 'data-assets'],
-  results: ['overview', 'alerts', 'regime', 'country', 'sector', 'score-ml'],
+  market: ['brief'],
+  production: ['overview', 'alerts', 'run-control', 'live-job', 'queue', 'core-database', 'project-assets', 'pipeline-status', 'data-assets'],
+  results: ['regime', 'country', 'sector', 'score-ml'],
+  technical: ['latest'],
 }
+const NAV_SECTIONS = [
+  {
+    page: 'market',
+    label: '市场概况',
+    description: '最新市场讯息',
+    modules: [
+      ['brief', '市场概况', '欧美金融市场日内复盘'],
+    ],
+  },
+  {
+    page: 'results',
+    label: '结果展示',
+    description: '模型、信号和组合结果',
+    modules: [
+      ['regime', 'Regime', '市场状态识别'],
+      ['country', 'Country', '国家与区域评分'],
+      ['sector', 'Sector', '行业推荐'],
+      ['score-ml', 'Score ML', '组合成分对比'],
+    ],
+  },
+  {
+    page: 'technical',
+    label: '技术面',
+    description: '最新 Technical metrics',
+    modules: [
+      ['latest', 'Technical', '按市场查看最新技术面'],
+    ],
+  },
+  {
+    page: 'production',
+    label: '生产流程',
+    description: '系统运行、队列、资产和 pipeline',
+    modules: [
+      ['overview', '总览', '状态快照与核心指标'],
+      ['alerts', '告警', '生产健康信号'],
+      ['run-control', '启动任务', '运行 pipeline 与检查'],
+      ['live-job', '实时任务', '当前 job 与日志'],
+      ['queue', '任务队列', '后台队列任务'],
+      ['core-database', '核心数据库', '数据资产质量'],
+      ['project-assets', '项目资产', '项目产物覆盖'],
+      ['pipeline-status', 'Pipeline 状态', '步骤完成情况'],
+      ['data-assets', '数据资产', '注册与发现资产'],
+    ],
+  },
+]
+const DEFAULT_MODULE_BY_PAGE = Object.fromEntries(NAV_SECTIONS.map((section) => [section.page, section.modules[0][0]]))
+const MODULE_PAGE = Object.fromEntries(NAV_SECTIONS.flatMap((section) => section.modules.map(([id]) => [id, section.page])))
+const DEFAULT_PAGE = NAV_SECTIONS[0].page
 const COUNTRY_FLAGS = {
   EM: '🌐',
   EMU: '🇪🇺',
@@ -107,6 +158,18 @@ const EMPTY_JOB = {
 const EMPTY_DASHBOARD_STATE = {
   generated_at: '',
   overview: [],
+  latest_market_brief: {
+    status: 'missing',
+    title: '',
+    created: '',
+    source_scope: '',
+    okf_refresh: '',
+    path: '',
+    okf_path: '',
+    updated_at: '',
+    sections: [],
+    section_count: '0',
+  },
   alerts: [],
   projects: [],
   assets: [],
@@ -149,8 +212,23 @@ const EMPTY_DASHBOARD_STATE = {
       latest_date: '',
       updated_at: '',
       paths: {},
+      monthly_report: { status: 'missing', month: '', path: '', sectors: '0', updated_at: '' },
       markets: [],
       rows: [],
+      message: '',
+    },
+    technical: {
+      status: 'missing',
+      latest_date: '',
+      screen_date: '',
+      updated_at: '',
+      signal_path: '',
+      screen_path: '',
+      availability_note: '',
+      metric_definitions: [],
+      markets: [],
+      metric_rows: [],
+      security_rows: [],
       message: '',
     },
     score_ml_components: {
@@ -207,14 +285,23 @@ function cellText(value) {
   return String(value)
 }
 
+function parseDashboardRoute(hash = '') {
+  const [rawPage, rawModule] = hash.replace(/^#/, '').split('/')
+  const page = NAV_SECTIONS.some((section) => section.page === rawPage) ? rawPage : MODULE_PAGE[rawModule] || DEFAULT_PAGE
+  const moduleId = MODULE_PAGE[rawModule] === page ? rawModule : DEFAULT_MODULE_BY_PAGE[page]
+  return { page, moduleId }
+}
+
 function loadModuleOrder() {
   if (typeof window === 'undefined') return DEFAULT_MODULE_ORDER
   try {
     const parsed = JSON.parse(window.localStorage.getItem(MODULE_ORDER_STORAGE_KEY) || '{}')
-    return {
-      production: mergeModuleOrder(parsed.production, DEFAULT_MODULE_ORDER.production),
-      results: mergeModuleOrder(parsed.results, DEFAULT_MODULE_ORDER.results),
-    }
+    return Object.fromEntries(
+      NAV_SECTIONS.map((section) => [
+        section.page,
+        mergeModuleOrder(parsed[section.page], DEFAULT_MODULE_ORDER[section.page]),
+      ]),
+    )
   } catch {
     return DEFAULT_MODULE_ORDER
   }
@@ -262,6 +349,15 @@ function statusTone(value) {
   return 'is-muted'
 }
 
+function technicalTone(value) {
+  const text = cellText(value)
+  if (text.includes('正向') || text.includes('保留') || text.includes('高分')) return 'is-positive'
+  if (text.includes('反向') || text.includes('低分')) return 'is-reverse'
+  if (text.includes('过滤')) return 'is-filter'
+  if (text.includes('弱')) return 'is-weak'
+  return 'is-muted'
+}
+
 function ActionButton({ icon: Icon, label, description, disabled, active = false, busy = false, onClick }) {
   const ButtonIcon = busy ? Loader2 : Icon
   return (
@@ -285,23 +381,35 @@ function StatusPill({ value }) {
   return <span className={`tp-status-pill ${statusTone(value)}`}>{cellText(value)}</span>
 }
 
-function PageTabs({ activePage, onChange }) {
-  const pages = [
-    ['production', '生产流程', '启动、队列、资产和 pipeline'],
-    ['results', '结果展示', 'Regime、Country、Sector 和 Score ML'],
-  ]
+function PageTabs({ activePage, activeModule, onChange, onModuleChange }) {
   return (
-    <nav className="tp-page-tabs" aria-label="Dashboard pages">
-      {pages.map(([value, label, description]) => (
-        <button
-          className={activePage === value ? 'is-active' : ''}
-          key={value}
-          onClick={() => onChange(value)}
-          type="button"
-        >
-          <strong>{label}</strong>
-          <span>{description}</span>
-        </button>
+    <nav className="tp-page-tabs" aria-label="Dashboard navigation">
+      {NAV_SECTIONS.map((section) => (
+        <section className="tp-nav-section" key={section.page}>
+          <button
+            className={activePage === section.page ? 'tp-nav-group is-active' : 'tp-nav-group'}
+            onClick={() => onChange(section.page)}
+            type="button"
+          >
+            <strong>{section.label}</strong>
+            <span>{section.description}</span>
+          </button>
+          {section.modules.length > 1 && (
+            <div className="tp-nav-modules">
+              {section.modules.map(([id, label, description]) => (
+                <button
+                  className={activeModule === id ? 'tp-nav-module is-active' : 'tp-nav-module'}
+                  key={id}
+                  onClick={() => onModuleChange(section.page, id)}
+                  type="button"
+                >
+                  <strong>{label}</strong>
+                  <span>{description}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
       ))}
     </nav>
   )
@@ -621,13 +729,17 @@ function SectorFactorBars({ item }) {
   )
 }
 
-function SectorCard({ item }) {
+function SectorCard({ item, onSelect, selected }) {
   const profile = sectorProfile(item)
   const Icon = sectorIconFor(item.sector_name)
+  const analysis = item.monthly_analysis || {}
   return (
-    <div
-      className="tp-country-card tp-sector-card"
+    <button
+      aria-pressed={selected ? 'true' : 'false'}
+      className={selected ? 'tp-country-card tp-sector-card is-selected' : 'tp-country-card tp-sector-card'}
+      onClick={() => onSelect(item)}
       style={{ '--country-color': profile.color, '--country-soft': profile.soft }}
+      type="button"
     >
       <div className="tp-country-card-head">
         <div className="tp-country-title">
@@ -651,12 +763,15 @@ function SectorCard({ item }) {
         <span>{cellText(item.constituents)} names</span>
         <span>{cellText(item.forward_return)} fwd</span>
       </div>
+      <p className="tp-sector-card-summary">
+        {analysis.summary || '月度 Obsidian 分析暂未匹配'}
+      </p>
       <SectorFactorBars item={item} />
-    </div>
+    </button>
   )
 }
 
-function SectorMarketBoard({ market, rows }) {
+function SectorMarketBoard({ market, rows, onSelect, selectedSector }) {
   const marketRows = rows.filter((item) => item.market === market.market)
   return (
     <section className="tp-sector-market">
@@ -674,7 +789,12 @@ function SectorMarketBoard({ market, rows }) {
       </div>
       <div className="tp-sector-card-grid">
         {marketRows.map((item) => (
-          <SectorCard item={item} key={`${item.market}-${item.sector_code}-${item.最新月份}`} />
+          <SectorCard
+            item={item}
+            key={`${item.market}-${item.sector_code}-${item.最新月份}`}
+            onSelect={onSelect}
+            selected={selectedSector?.market === item.market && selectedSector?.sector_name === item.sector_name}
+          />
         ))}
         {!marketRows.length && <div className="tp-empty">暂无 Sector recommendation</div>}
       </div>
@@ -682,7 +802,154 @@ function SectorMarketBoard({ market, rows }) {
   )
 }
 
-function DataTable({ columns, rows, limit = 8 }) {
+function SectorAnalysisDrawer({ item, monthlyReport, onClose }) {
+  useEffect(() => {
+    if (!item) return undefined
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [item, onClose])
+
+  if (!item) return null
+  const analysis = item.monthly_analysis || {}
+  const evidence = analysis.evidence_block || []
+  const profile = sectorProfile(item)
+  return (
+    <div className="tp-sector-drawer-backdrop" onClick={onClose}>
+      <aside
+        aria-label={`${item.market} ${item.sector_name} 月度分析`}
+        aria-modal="true"
+        className="tp-sector-drawer"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        style={{ '--country-color': profile.color, '--country-soft': profile.soft }}
+      >
+        <div className="tp-sector-drawer-head">
+          <div>
+            <p className="tp-kicker">Obsidian monthly view</p>
+            <h3>{countryFlag(item.market)} {cellText(item.market)} {cellText(item.sector_name)}</h3>
+            <span>{cellText(monthlyReport?.month)} / {cellText(analysis.view || item.recommendation)} / rank #{cellText(item.rank)}</span>
+          </div>
+          <button aria-label="关闭行业分析抽屉" className="tp-icon-only-button" onClick={onClose} type="button">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="tp-sector-drawer-score">
+          <div>
+            <span>综合分</span>
+            <strong>{cellText(item.score)}</strong>
+          </div>
+          <div>
+            <span>核心因子</span>
+            <strong>Trend {cellText(item.momentum)} / Growth {cellText(item.growth)}</strong>
+          </div>
+        </div>
+
+        <section className="tp-sector-drawer-section">
+          <h4>总结文字</h4>
+          <p>{analysis.summary || '该 sector 尚未匹配到本月 Obsidian 分析。'}</p>
+        </section>
+
+        <section className="tp-sector-drawer-section">
+          <h4>Evidence block</h4>
+          {evidence.length ? (
+            <ul className="tp-sector-evidence-list">
+              {evidence.map((line, index) => (
+                <li key={`${item.market}-${item.sector_name}-evidence-${index}`}>{line}</li>
+              ))}
+            </ul>
+          ) : (
+            <div className="tp-empty">暂无 evidence block</div>
+          )}
+        </section>
+
+        <div className="tp-panel-note">
+          {analysis.report_path || monthlyReport?.path || 'N/A'}
+        </div>
+      </aside>
+    </div>
+  )
+}
+
+function CompanyDetailDrawer({ company, loading, error, onClose }) {
+  useEffect(() => {
+    if (!company && !loading && !error) return undefined
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [company, loading, error, onClose])
+
+  if (!company && !loading && !error) return null
+  const identity = company?.identity || {}
+  const description = company?.description || {}
+  const news = company?.news || []
+  const title = identity.name || company?.isin || 'Company detail'
+  return (
+    <div className="tp-sector-drawer-backdrop tp-company-drawer-backdrop" onClick={onClose}>
+      <aside
+        aria-label={`${title} 公司详情`}
+        aria-modal="true"
+        className="tp-sector-drawer tp-company-drawer"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        style={{ '--country-color': 'var(--green)', '--country-soft': 'var(--green-soft)' }}
+      >
+        <div className="tp-sector-drawer-head">
+          <div>
+            <p className="tp-kicker">Company detail</p>
+            <h3>{title}</h3>
+            <span>{company?.isin || 'N/A'} / {identity.country || 'N/A'} / {identity.sector || 'N/A'}</span>
+          </div>
+          <button aria-label="关闭公司详情抽屉" className="tp-icon-only-button" onClick={onClose} type="button">
+            <X size={18} />
+          </button>
+        </div>
+
+        {loading && <div className="tp-empty">正在读取公司简介和最近新闻...</div>}
+        {error && <div className="tp-empty">{error}</div>}
+
+        {!loading && !error && (
+          <>
+            <section className="tp-sector-drawer-section tp-company-detail-section">
+              <h4>公司简介</h4>
+              <div className="tp-company-meta-row">
+                <span>{description.date || 'N/A'}</span>
+                <strong>{description.title || 'Description'}</strong>
+              </div>
+              <div className="tp-company-markdown">
+                {description.body || '暂无公司简介。'}
+              </div>
+            </section>
+
+            <section className="tp-sector-drawer-section tp-company-detail-section">
+              <h4>最近新闻</h4>
+              {news.length ? (
+                <div className="tp-company-news-list">
+                  {news.map((item, index) => (
+                    <article className="tp-company-news-item" key={`${company?.isin || 'company'}-${index}`}>
+                      <span>{item.date || 'N/A'}</span>
+                      <strong>{item.title || 'Actualité'}</strong>
+                      <p>{item.body || '暂无新闻正文。'}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="tp-empty">最近 3 个月暂无新闻。</div>
+              )}
+            </section>
+          </>
+        )}
+      </aside>
+    </div>
+  )
+}
+
+function DataTable({ columns, rows, limit = 8, renderCell }) {
   const shouldPaginate = rows.length > 20
   const pageSize = shouldPaginate ? 20 : limit
   const [page, setPage] = useState(0)
@@ -712,7 +979,11 @@ function DataTable({ columns, rows, limit = 8 }) {
               <tr key={`${start + rowIndex}-${columns.map((column) => row[column]).join('-')}`}>
                 {columns.map((column) => (
                   <td key={column} title={cellText(row[column])}>
-                    {column.includes('状态') ? <StatusPill value={row[column]} /> : cellText(row[column])}
+                    {renderCell
+                      ? renderCell(column, row, start + rowIndex)
+                      : column.includes('状态')
+                        ? <StatusPill value={row[column]} />
+                        : cellText(row[column])}
                   </td>
                 ))}
               </tr>
@@ -750,9 +1021,17 @@ function App() {
   const [scoreMlComponents, setScoreMlComponents] = useState(EMPTY_DASHBOARD_STATE.signals.score_ml_components)
   const [scoreMlSelection, setScoreMlSelection] = useState({ date: '', side: 'top' })
   const [scoreMlLoading, setScoreMlLoading] = useState(false)
+  const [selectedSector, setSelectedSector] = useState(null)
+  const [companyDetail, setCompanyDetail] = useState(null)
+  const [companyDetailLoading, setCompanyDetailLoading] = useState(false)
+  const [companyDetailError, setCompanyDetailError] = useState('')
   const [activePage, setActivePage] = useState(() => {
-    if (typeof window === 'undefined') return 'production'
-    return window.location.hash === '#results' ? 'results' : 'production'
+    if (typeof window === 'undefined') return DEFAULT_PAGE
+    return parseDashboardRoute(window.location.hash).page
+  })
+  const [activeModule, setActiveModule] = useState(() => {
+    if (typeof window === 'undefined') return DEFAULT_MODULE_BY_PAGE[DEFAULT_PAGE]
+    return parseDashboardRoute(window.location.hash).moduleId
   })
   const [moduleOrder, setModuleOrder] = useState(loadModuleOrder)
   const eventSourceRef = useRef(null)
@@ -891,6 +1170,32 @@ function App() {
     }
   }
 
+  const openCompanyDetail = async (row) => {
+    const isin = row?.ISIN
+    if (!isin) return
+    setCompanyDetail({
+      status: 'loading',
+      isin,
+      identity: { name: row.Name, country: row.Country, sector: row.Sector },
+      description: {},
+      news: [],
+      message: '',
+    })
+    setCompanyDetailError('')
+    setCompanyDetailLoading(true)
+    try {
+      const detail = await requestJson(`/api/dashboard/company-detail/${encodeURIComponent(isin)}`)
+      setCompanyDetail(detail)
+      if (detail.status !== 'ok') {
+        setCompanyDetailError(detail.message || '未找到公司详情')
+      }
+    } catch (error) {
+      setCompanyDetailError(error.message)
+    } finally {
+      setCompanyDetailLoading(false)
+    }
+  }
+
   const startJobPolling = (jobId) => {
     stopPolling()
     if (!jobId) {
@@ -969,16 +1274,28 @@ function App() {
 
   useEffect(() => {
     const onHashChange = () => {
-      setActivePage(window.location.hash === '#results' ? 'results' : 'production')
+      const route = parseDashboardRoute(window.location.hash)
+      setActivePage(route.page)
+      setActiveModule(route.moduleId)
     }
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
 
   const changePage = (page) => {
+    const moduleId = DEFAULT_MODULE_BY_PAGE[page]
+    setActiveModule(moduleId)
     setActivePage(page)
     if (typeof window !== 'undefined') {
-      window.location.hash = page === 'results' ? 'results' : 'production'
+      window.location.hash = `${page}/${moduleId}`
+    }
+  }
+
+  const changeModule = (page, moduleId) => {
+    setActivePage(page)
+    setActiveModule(moduleId)
+    if (typeof window !== 'undefined') {
+      window.location.hash = `${page}/${moduleId}`
     }
   }
 
@@ -1013,6 +1330,13 @@ function App() {
     },
     title: '拖动模块排序',
   })
+
+  const panelClass = (page, id, extra = '') => [
+    'tp-panel',
+    extra,
+    `tp-${page}-module`,
+    activePage === page && activeModule === id ? 'is-active-module' : '',
+  ].filter(Boolean).join(' ')
 
   const launchJob = async (kind) => {
     const targets = {
@@ -1098,6 +1422,7 @@ function App() {
     ],
     [connection, dashboardState, job],
   )
+  const latestMarketBrief = dashboardState.latest_market_brief || EMPTY_DASHBOARD_STATE.latest_market_brief
 
   const queueRows = useMemo(
     () =>
@@ -1191,6 +1516,13 @@ function App() {
   const sectorSignal = dashboardState.signals?.sector || EMPTY_DASHBOARD_STATE.signals.sector
   const sectorMarkets = sectorSignal.markets || []
   const sectorVisualRows = sectorSignal.rows || []
+  const selectedSectorRow = useMemo(
+    () =>
+      sectorVisualRows.find(
+        (item) => item.market === selectedSector?.market && item.sector_name === selectedSector?.sector_name,
+      ) || selectedSector,
+    [sectorVisualRows, selectedSector],
+  )
   const sectorRows = useMemo(
     () =>
       (sectorSignal.rows || []).map((item) => ({
@@ -1238,43 +1570,148 @@ function App() {
       })),
     [scoreMlComponents],
   )
+  const technicalSignal = dashboardState.signals?.technical || EMPTY_DASHBOARD_STATE.signals.technical
+  const technicalMetricRows = useMemo(
+    () =>
+      (technicalSignal.metric_rows || []).map((item) => ({
+        市场: item.市场,
+        metric: item.metric,
+        处理: item.处理,
+        证据: item.证据,
+        推荐端: item.推荐端,
+        覆盖: item.覆盖,
+        覆盖率: item.覆盖率,
+        均值: item.均值,
+        中位数: item.中位数,
+        最小: item.最小,
+        最大: item.最大,
+        并列率: item.并列率,
+        事件率: item.事件率,
+        说明: item.说明,
+      })),
+    [technicalSignal],
+  )
+  const technicalSecurityRows = useMemo(
+    () =>
+      (technicalSignal.security_rows || []).map((item) => ({
+        市场: item.市场,
+        metric: item.metric,
+        处理: item.处理,
+        推荐端: item.推荐端,
+        Name: item.Name,
+        score: item.score,
+        Weight: item.Weight,
+        Country: item.Country,
+        Region: item.Region,
+        Sector: item.Sector,
+        ISIN: item.ISIN,
+      })),
+    [technicalSignal],
+  )
+  const renderTechnicalCell = (column, row) => {
+    if (column === 'Name' && row.ISIN) {
+      return (
+        <button className="tp-table-link" onClick={() => openCompanyDetail(row)} type="button">
+          {cellText(row.Name)}
+        </button>
+      )
+    }
+    if (['处理', '证据', '推荐端'].includes(column)) {
+      return <span className={`tp-technical-tag ${technicalTone(row[column])}`}>{cellText(row[column])}</span>
+    }
+    return cellText(row[column])
+  }
+  const renderScoreMlCell = (column, row) => {
+    if (column === 'Name' && row.ISIN) {
+      return (
+        <button className="tp-table-link" onClick={() => openCompanyDetail(row)} type="button">
+          {cellText(row.Name)}
+        </button>
+      )
+    }
+    if (column.includes('状态')) return <StatusPill value={row[column]} />
+    return cellText(row[column])
+  }
+  const activeSection = NAV_SECTIONS.find((section) => section.page === activePage) || NAV_SECTIONS[0]
+  const activeModuleConfig = activeSection.modules.find(([id]) => id === activeModule) || activeSection.modules[0]
 
   return (
     <div className="tp-shell">
-      <header className="tp-topbar">
-        <div>
+      <aside className="tp-sidebar">
+        <div className="tp-brand">
           <p className="tp-kicker">React job control</p>
           <h1>TP System Dashboard</h1>
+          <span>{job.status_label || 'IDLE'} / {connection}</span>
         </div>
-        <button
-          className="tp-icon-button"
-          disabled={refreshingState}
-          onClick={() => {
-            refreshLatestJob().catch((error) => setToast({ tone: 'bad', title: '状态读取失败', detail: error.message }))
-            refreshDashboardState()
-          }}
-          type="button"
-        >
-          <RefreshCw className={refreshingState ? 'tp-spin' : ''} size={18} />
-          <span>刷新状态</span>
-        </button>
-      </header>
+        <PageTabs activePage={activePage} activeModule={activeModule} onChange={changePage} onModuleChange={changeModule} />
+      </aside>
 
-      <main className="tp-main">
-        <section className="tp-status-strip">
-          {metrics.map(([label, value, note]) => (
-            <div className="tp-metric" key={label}>
-              <span>{label}</span>
-              <strong>{value}</strong>
-              <small>{note}</small>
+      <div className="tp-content">
+        <header className="tp-topbar">
+          <div>
+            <p className="tp-kicker">{activeSection.label}</p>
+            <h1>{activeModuleConfig[1]}</h1>
+            <span className="tp-topbar-subtitle">{activeModuleConfig[2]}</span>
+          </div>
+          <button
+            className="tp-icon-button"
+            disabled={refreshingState}
+            onClick={() => {
+              refreshLatestJob().catch((error) => setToast({ tone: 'bad', title: '状态读取失败', detail: error.message }))
+              refreshDashboardState()
+            }}
+            type="button"
+          >
+            <RefreshCw className={refreshingState ? 'tp-spin' : ''} size={18} />
+            <span>刷新状态</span>
+          </button>
+        </header>
+
+        <main className="tp-main">
+          <section className={`tp-dashboard-grid tp-page-${activePage} tp-module-${activeModule}`}>
+          <div className={panelClass('market', 'brief', 'tp-market-panel')} {...moduleDragProps('market', 'brief')}>
+            <div className="tp-panel-heading">
+              <div>
+                <p className="tp-kicker">Latest market brief</p>
+                <h2>市场概况</h2>
+              </div>
+              {refreshingState && <Loader2 className="tp-spin" size={20} />}
             </div>
-          ))}
-        </section>
+            <section className="tp-market-brief">
+              <div className="tp-market-brief-head">
+                <div>
+                  <p className="tp-kicker">News Room / OKF</p>
+                  <h3>{latestMarketBrief.title || '最新市场讯息'}</h3>
+                </div>
+                <span>{latestMarketBrief.created || latestMarketBrief.updated_at || 'N/A'}</span>
+              </div>
+              {latestMarketBrief.status === 'ok' ? (
+                <>
+                  <div className="tp-market-brief-meta">
+                    <span>{latestMarketBrief.source_scope || 'source: N/A'}</span>
+                    <span>OKF {latestMarketBrief.okf_refresh || 'N/A'}</span>
+                    <span>{latestMarketBrief.section_count || '0'} sections</span>
+                  </div>
+                  <div className="tp-market-brief-sections">
+                    {(latestMarketBrief.sections || []).map((section) => (
+                      <article className="tp-market-brief-section" key={section.heading}>
+                        <h4>{section.heading}</h4>
+                        <p>{section.body}</p>
+                      </article>
+                    ))}
+                  </div>
+                  <div className="tp-market-brief-path">
+                    {latestMarketBrief.path || 'N/A'}
+                    {latestMarketBrief.okf_path ? ` / OKF: ${latestMarketBrief.okf_path}` : ''}
+                  </div>
+                </>
+              ) : (
+                <div className="tp-empty">暂无市场复盘 clipping</div>
+              )}
+            </section>
+          </div>
 
-        <PageTabs activePage={activePage} onChange={changePage} />
-
-        <section className={`tp-dashboard-grid tp-page-${activePage}`}>
-          <div className="tp-panel tp-run-panel tp-production-module" {...moduleDragProps('production', 'run-control')}>
+            <div className={panelClass('production', 'run-control', 'tp-run-panel')} {...moduleDragProps('production', 'run-control')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Run control</p>
@@ -1362,7 +1799,7 @@ function App() {
             </div>
           </div>
 
-          <div className="tp-panel tp-production-module" {...moduleDragProps('production', 'live-job')}>
+          <div className={panelClass('production', 'live-job')} {...moduleDragProps('production', 'live-job')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Live job</p>
@@ -1412,7 +1849,7 @@ function App() {
 
             <pre className="tp-log">{job.log_tail || '暂无日志摘要'}</pre>
           </div>
-          <div className="tp-panel tp-results-module" {...moduleDragProps('results', 'overview')}>
+          <div className={panelClass('production', 'overview')} {...moduleDragProps('production', 'overview')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">State API</p>
@@ -1420,6 +1857,15 @@ function App() {
               </div>
               {refreshingState && <Loader2 className="tp-spin" size={20} />}
             </div>
+            <section className="tp-status-strip">
+              {metrics.map(([label, value, note]) => (
+                <div className="tp-metric" key={label}>
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                  <small>{note}</small>
+                </div>
+              ))}
+            </section>
             <div className="tp-signal-list">
               {dashboardState.overview.map((item) => (
                 <div className="tp-signal-row" key={item.label}>
@@ -1431,7 +1877,7 @@ function App() {
             </div>
           </div>
 
-          <div className="tp-panel tp-results-module" {...moduleDragProps('results', 'alerts')}>
+          <div className={panelClass('production', 'alerts')} {...moduleDragProps('production', 'alerts')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Alerts</p>
@@ -1452,7 +1898,7 @@ function App() {
             </div>
           </div>
 
-          <div className="tp-panel tp-wide-panel tp-results-module" {...moduleDragProps('results', 'regime')}>
+          <div className={panelClass('results', 'regime', 'tp-wide-panel')} {...moduleDragProps('results', 'regime')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Signals / Regime</p>
@@ -1499,7 +1945,7 @@ function App() {
             <DataTable columns={['region', '月份', 'regime', '风险预算', '状态']} limit={6} rows={regimeHistoryRows} />
           </div>
 
-          <div className="tp-panel tp-wide-panel tp-results-module" {...moduleDragProps('results', 'country')}>
+          <div className={panelClass('results', 'country', 'tp-wide-panel')} {...moduleDragProps('results', 'country')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Signals / Country</p>
@@ -1581,7 +2027,7 @@ function App() {
             <DataTable columns={['region', '月份', 'score', 'rank', 'recommendation']} limit={10} rows={countryHistoryRows} />
           </div>
 
-          <div className="tp-panel tp-wide-panel tp-results-module" {...moduleDragProps('results', 'sector')}>
+          <div className={panelClass('results', 'sector', 'tp-wide-panel')} {...moduleDragProps('results', 'sector')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Signals / Sector</p>
@@ -1605,13 +2051,31 @@ function App() {
                 <span>Updated</span>
                 <strong>{sectorSignal.updated_at || 'N/A'}</strong>
               </div>
+              <div>
+                <span>Monthly note</span>
+                <strong>{sectorSignal.monthly_report?.sectors || '0'} sectors</strong>
+              </div>
+            </div>
+            <div className="tp-panel-note">
+              月报 / {sectorSignal.monthly_report?.path || 'N/A'}
             </div>
             <div className="tp-sector-dashboard">
               {sectorMarkets.map((market) => (
-                <SectorMarketBoard market={market} rows={sectorVisualRows} key={market.market} />
+                <SectorMarketBoard
+                  market={market}
+                  rows={sectorVisualRows}
+                  key={market.market}
+                  onSelect={setSelectedSector}
+                  selectedSector={selectedSectorRow}
+                />
               ))}
               {!sectorMarkets.length && <div className="tp-empty">{sectorSignal.message || '暂无 Sector recommendation'}</div>}
             </div>
+            <SectorAnalysisDrawer
+              item={selectedSectorRow}
+              monthlyReport={sectorSignal.monthly_report}
+              onClose={() => setSelectedSector(null)}
+            />
             <div className="tp-panel-note">明细 / {Object.values(sectorSignal.paths || {}).join(' / ') || 'N/A'}</div>
             <DataTable
               columns={['market', 'sector', '最新月份', 'rank', 'recommendation', 'score', 'leverage', 'margin', 'valuation', 'momentum', 'growth', 'lowvol', 'weight', 'names']}
@@ -1620,7 +2084,104 @@ function App() {
             />
           </div>
 
-          <div className="tp-panel tp-wide-panel tp-results-module" {...moduleDragProps('results', 'score-ml')}>
+          <div className={panelClass('technical', 'latest', 'tp-wide-panel')} {...moduleDragProps('technical', 'latest')}>
+            <div className="tp-panel-heading">
+              <div>
+                <p className="tp-kicker">Signals / Technical</p>
+                <h2 className="tp-heading-icon"><Activity size={18} />Latest Technical metrics</h2>
+              </div>
+            </div>
+            <div className="tp-country-status-row">
+              <div>
+                <span>Signal date</span>
+                <strong>{technicalSignal.latest_date || 'N/A'}</strong>
+              </div>
+              <div>
+                <span>Screen date</span>
+                <strong>{technicalSignal.screen_date || 'N/A'}</strong>
+              </div>
+              <div>
+                <span>Status</span>
+                <strong>{technicalSignal.status || 'N/A'}</strong>
+              </div>
+              <div>
+                <span>Rows</span>
+                <strong>{technicalMetricRows.length || 'N/A'} metrics</strong>
+              </div>
+            </div>
+            <div className="tp-panel-note">
+              {technicalSignal.message || 'N/A'} / {technicalSignal.signal_path || 'N/A'} / {technicalSignal.screen_path || 'N/A'}
+            </div>
+            {technicalSignal.availability_note && (
+              <div className="tp-panel-note tp-technical-warning">{technicalSignal.availability_note}</div>
+            )}
+            <div className="tp-technical-market-grid">
+              {(technicalSignal.markets || []).map((item) => (
+                <article className="tp-technical-market-card" key={item.market}>
+                  <div className="tp-technical-market-head">
+                    <div>
+                      <p className="tp-kicker">Market</p>
+                      <h3>{item.market}</h3>
+                    </div>
+                    <strong>{item.coverage || 'N/A'}</strong>
+                  </div>
+                  <div className="tp-technical-market-meta">
+                    <span>{item.universe || '0'} names</span>
+                    <span>{item.covered || '0'} covered</span>
+                    <span>{item.signal_date || 'N/A'}</span>
+                  </div>
+                  <div className="tp-technical-pill-row">
+                    <span className="tp-technical-tag is-positive">保留 {item.positive || 'N/A'}</span>
+                    <span className="tp-technical-tag is-reverse">反向 {item.reverse || 'N/A'}</span>
+                    <span className="tp-technical-tag is-filter">辅助 {item.auxiliary || 'N/A'}</span>
+                  </div>
+                </article>
+              ))}
+              {!(technicalSignal.markets || []).length && <div className="tp-empty">{technicalSignal.message || '暂无 Technical metrics'}</div>}
+            </div>
+            <div className="tp-technical-section">
+              <div className="tp-model-section-head">
+                <div>
+                  <p className="tp-kicker">Metric evidence map</p>
+                  <h3>按市场的保留、反向与弱证据</h3>
+                </div>
+                <span>{technicalSignal.updated_at || 'N/A'}</span>
+              </div>
+              <DataTable
+                columns={['市场', 'metric', '处理', '证据', '推荐端', '覆盖', '覆盖率', '均值', '中位数', '最小', '最大', '并列率', '事件率', '说明']}
+                limit={40}
+                renderCell={renderTechnicalCell}
+                rows={technicalMetricRows}
+              />
+            </div>
+            <div className="tp-technical-section">
+              <div className="tp-model-section-head">
+                <div>
+                  <p className="tp-kicker">Current names</p>
+                  <h3>最新一期推荐端样本</h3>
+                </div>
+                <span>{technicalSecurityRows.length || 0} rows</span>
+              </div>
+              <DataTable
+                columns={['市场', 'metric', '处理', '推荐端', 'Name', 'score', 'Weight', 'Country', 'Region', 'Sector', 'ISIN']}
+                limit={120}
+                renderCell={renderTechnicalCell}
+                rows={technicalSecurityRows}
+              />
+            </div>
+            <CompanyDetailDrawer
+              company={companyDetail}
+              error={companyDetailError}
+              loading={companyDetailLoading}
+              onClose={() => {
+                setCompanyDetail(null)
+                setCompanyDetailError('')
+                setCompanyDetailLoading(false)
+              }}
+            />
+          </div>
+
+          <div className={panelClass('results', 'score-ml', 'tp-wide-panel')} {...moduleDragProps('results', 'score-ml')}>
             <div className="tp-panel-heading tp-score-ml-heading">
               <div>
                 <p className="tp-kicker">Score ML</p>
@@ -1665,11 +2226,22 @@ function App() {
             <DataTable
               columns={['Name', 'Weight', 'Score ML', 'Score ML_IF', 'Value', 'Quality', 'Momentum', 'Growth', 'LowVol', 'Div', 'Size', 'PE LTM', 'PE FY1', 'EPS Growth FY1', 'ROE', 'Dividend Yield', 'Earnings Yield', 'Country', 'Region', 'Sector', 'ISIN']}
               limit={320}
+              renderCell={renderScoreMlCell}
               rows={scoreMlRows}
+            />
+            <CompanyDetailDrawer
+              company={companyDetail}
+              error={companyDetailError}
+              loading={companyDetailLoading}
+              onClose={() => {
+                setCompanyDetail(null)
+                setCompanyDetailError('')
+                setCompanyDetailLoading(false)
+              }}
             />
           </div>
 
-          <div className="tp-panel tp-wide-panel tp-production-module" {...moduleDragProps('production', 'queue')}>
+          <div className={panelClass('production', 'queue', 'tp-wide-panel')} {...moduleDragProps('production', 'queue')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Queue stream</p>
@@ -1679,7 +2251,7 @@ function App() {
             <DataTable columns={['job_id', '状态', 'step', '更新时间', 'backend']} rows={queueRows} />
           </div>
 
-          <div className="tp-panel tp-wide-panel tp-production-module" {...moduleDragProps('production', 'core-database')}>
+          <div className={panelClass('production', 'core-database', 'tp-wide-panel')} {...moduleDragProps('production', 'core-database')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Core database</p>
@@ -1689,7 +2261,7 @@ function App() {
             <DataTable columns={['数据资产', '更新状态', '最新日期', '行', 'Schema']} rows={dashboardState.core_database} />
           </div>
 
-          <div className="tp-panel tp-wide-panel tp-production-module" {...moduleDragProps('production', 'project-assets')}>
+          <div className={panelClass('production', 'project-assets', 'tp-wide-panel')} {...moduleDragProps('production', 'project-assets')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Project assets</p>
@@ -1702,7 +2274,7 @@ function App() {
             />
           </div>
 
-          <div className="tp-panel tp-wide-panel tp-production-module" {...moduleDragProps('production', 'pipeline-status')}>
+          <div className={panelClass('production', 'pipeline-status', 'tp-wide-panel')} {...moduleDragProps('production', 'pipeline-status')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Pipeline</p>
@@ -1712,7 +2284,7 @@ function App() {
             <DataTable columns={['步骤', '状态', '最近完成', '未通过校验']} rows={dashboardState.pipeline} />
           </div>
 
-          <div className="tp-panel tp-wide-panel tp-production-module" {...moduleDragProps('production', 'data-assets')}>
+          <div className={panelClass('production', 'data-assets', 'tp-wide-panel')} {...moduleDragProps('production', 'data-assets')}>
             <div className="tp-panel-heading">
               <div>
                 <p className="tp-kicker">Data assets</p>
@@ -1734,7 +2306,8 @@ function App() {
             <span>{toast.detail}</span>
           </div>
         </section>
-      </main>
+        </main>
+      </div>
     </div>
   )
 }

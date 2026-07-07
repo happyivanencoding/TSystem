@@ -84,6 +84,7 @@ if __name__ == "__main__":
     patterns_total = pd.concat([patterns_inter,indicator.iloc[:,4:]],axis=1)
 
     patterns_total = patterns_total.reset_index()
+    patterns_total = add_period_availability_columns(patterns_total, returns.index, date_col="Date", period="week")
     patterns_total.set_index("Company SEDOL", inplace = True, drop = True)
 
 

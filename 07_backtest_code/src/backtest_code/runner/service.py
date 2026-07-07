@@ -268,6 +268,8 @@ class BacktestService:
         settings: AppSettings,
         *,
         progress_callback: ProgressCallback | None = None,
+        screen_df: pd.DataFrame | None = None,
+        returns_df: pd.DataFrame | None = None,
     ) -> SingleRunResult:
         """Execute un run individuel."""
 
@@ -280,8 +282,10 @@ class BacktestService:
         save_config_snapshot(settings, run_dir)
 
         try:
-            screen_df = load_tabular_file(settings.paths.screen)
-            returns_df = load_tabular_file(settings.paths.returns)
+            if screen_df is None:
+                screen_df = load_tabular_file(settings.paths.screen)
+            if returns_df is None:
+                returns_df = load_tabular_file(settings.paths.returns)
         except Exception as exc:
             summary = f"{type(exc).__name__}: {exc}"
             details = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).strip()
@@ -377,8 +381,8 @@ class BacktestService:
         try:
             with redirect_stdout(relay), redirect_stderr(relay):
                 builder = engine_module.PtfBuilder(
-                    screen=prepared_screen.copy(),
-                    returns=prepared_returns.copy(),
+                    screen=prepared_screen,
+                    returns=prepared_returns,
                     bench=settings.run.bench,
                     percentile=settings.run.percentile,
                     metrics=settings.run.metrics if len(settings.run.metrics) > 1 else settings.run.metrics[0],
@@ -411,7 +415,7 @@ class BacktestService:
                     max_weight=settings.run.max_weight,
                     sector_neutral=settings.run.sector_neutral,
                 )
-                builder.backtest_get_bench_perf(prepared_screen.copy(), builder.start_date, settings.run.bench)
+                builder.backtest_get_bench_perf(prepared_screen, builder.start_date, settings.run.bench)
                 builder.backtest_plot_ptf_bench(
                     title=run_label,
                     save_path=str(artifacts.plot),
@@ -521,11 +525,24 @@ class BacktestService:
         generated_settings = self._build_batch_settings(settings)
         results: list[SingleRunResult] = []
         total = len(generated_settings)
+        try:
+            shared_screen_df = load_tabular_file(settings.paths.screen)
+            shared_returns_df = load_tabular_file(settings.paths.returns)
+        except Exception:
+            shared_screen_df = None
+            shared_returns_df = None
 
         for index, one_settings in enumerate(generated_settings, start=1):
             if progress_callback is not None:
                 progress_callback(f"Lancement du batch {index}/{total}")
             logger.info("Lancement du batch %s/%s", index, total)
-            results.append(self._run_single(one_settings, progress_callback=progress_callback))
+            results.append(
+                self._run_single(
+                    one_settings,
+                    progress_callback=progress_callback,
+                    screen_df=shared_screen_df,
+                    returns_df=shared_returns_df,
+                )
+            )
 
         return ServiceResult(is_batch=True, runs=results)

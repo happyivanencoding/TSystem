@@ -135,6 +135,8 @@ def validate_signal_frame(frame: pd.DataFrame, *, strict: bool = False) -> Signa
     security_rows = standardized["scope"].eq("security")
     if security_rows.any() and standardized.loc[security_rows, "Company SEDOL"].isna().any():
         errors.append("scope=security 的行必须有 Company SEDOL")
+    if security_rows.any() and standardized.loc[security_rows, "ISIN"].isna().any():
+        warnings.append("scope=security 的行存在空 ISIN；写出前会尝试用 last_screen 回填")
 
     key_columns = [
         "Date",
@@ -156,6 +158,37 @@ def validate_signal_frame(frame: pd.DataFrame, *, strict: bool = False) -> Signa
             warnings.append(message)
 
     return SignalValidationResult(not errors, errors, warnings)
+
+
+def fill_security_isin_from_last_screen(frame: pd.DataFrame) -> pd.DataFrame:
+    """用 last_screen 的 Company SEDOL -> ISIN 映射补齐证券级信号 ISIN。"""
+
+    result = standardize_signal_frame(frame)
+    security_rows = result["scope"].eq("security")
+    if not security_rows.any() or "Company SEDOL" not in result.columns or "ISIN" not in result.columns:
+        return result
+    blank_isin = result["ISIN"].astype("string").str.strip().eq("").fillna(False)
+    missing_isin = security_rows & (result["ISIN"].isna() | blank_isin)
+    if not missing_isin.any():
+        return result
+
+    try:
+        from .io import read_last_screen
+
+        try:
+            mapping = read_last_screen(columns=["Company SEDOL", "ISIN"])
+        except Exception:
+            mapping = read_last_screen()
+    except Exception:
+        return result
+
+    if "Company SEDOL" not in mapping.columns or "ISIN" not in mapping.columns:
+        return result
+    mapping = mapping.dropna(subset=["Company SEDOL", "ISIN"]).drop_duplicates(subset=["Company SEDOL"], keep="first")
+    isin_by_sedol = mapping.set_index(mapping["Company SEDOL"].astype("string"))["ISIN"].astype("string")
+    fill_values = result.loc[missing_isin, "Company SEDOL"].astype("string").map(isin_by_sedol)
+    result.loc[missing_isin, "ISIN"] = fill_values.combine_first(result.loc[missing_isin, "ISIN"])
+    return standardize_signal_frame(result)
 
 
 def make_security_signal_frame(
@@ -222,7 +255,7 @@ def make_security_signal_frame(
 def write_signal_frame(frame: pd.DataFrame, output_path: str | Path, *, strict: bool = False) -> Path:
     """校验并写出统一信号表 parquet。"""
 
-    standardized = standardize_signal_frame(frame)
+    standardized = fill_security_isin_from_last_screen(frame)
     validation = validate_signal_frame(standardized, strict=strict)
     if not validation.is_valid:
         raise ValueError(validation.as_text())

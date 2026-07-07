@@ -19,6 +19,8 @@ from .generate_report import run_generate_report
 from .optimize_portfolio import DEFAULT_OUTPUT as DEFAULT_PORTFOLIO, run_optimize_portfolio
 from .refresh_data import run_refresh_data
 from .refresh_regime import run_refresh_regime
+from .refresh_technical import DEFAULT_PATTERNS as DEFAULT_TECHNICAL_PATTERNS
+from .refresh_technical import run_refresh_technical
 from .run_backtest import run_backtest_step
 
 
@@ -84,7 +86,7 @@ def _freshness_entry(name: str, date: pd.Timestamp | None, anchor: pd.Timestamp,
 
 
 def _check_freshness(args: argparse.Namespace) -> dict[str, object]:
-    window_days = int(getattr(args, "freshness_window_days", 7))
+    window_days = int(getattr(args, "freshness_window_days", 31))
     screen_date = _max_parquet_date(SCREEN_AGGREGATE_PATH, "Date")
     if screen_date is None:
         raise ValueError(f"无法读取 canonical screen 日期: {SCREEN_AGGREGATE_PATH}")
@@ -160,6 +162,9 @@ def run_all(args: argparse.Namespace) -> Path:
     transaction_cost = getattr(args, "transaction_cost", 0.0)
     country_tilt_strength = getattr(args, "country_tilt_strength", 0.25)
     sector_tilt_strength = getattr(args, "sector_tilt_strength", 0.2)
+    technical_patterns_output = getattr(args, "technical_patterns_output", str(DEFAULT_TECHNICAL_PATTERNS))
+    technical_max_lag_days = getattr(args, "technical_max_lag_days", 31)
+    candidate_max_component_lag_days = getattr(args, "candidate_max_component_lag_days", 31)
     try:
         if not args.skip_refresh_data:
             child_manifests.append(
@@ -188,6 +193,23 @@ def run_all(args: argparse.Namespace) -> Path:
             child_manifests.append(str(run_refresh_regime(Namespace(regime_output=regime_output, run_type=run_type))))
             regime_refreshed = True
 
+        if not args.skip_export_signals and not getattr(args, "skip_refresh_technical", False):
+            child_manifests.append(
+                str(
+                    run_refresh_technical(
+                        Namespace(
+                            returns=str(RETURNS_PATH),
+                            screen=str(SCREEN_AGGREGATE_PATH),
+                            output=technical_patterns_output,
+                            max_lag_days=technical_max_lag_days,
+                            timeout_seconds=getattr(args, "technical_timeout_seconds", 1800),
+                            inspect_only=getattr(args, "inspect_only_technical", False),
+                            run_type=run_type,
+                        )
+                    )
+                )
+            )
+
         if not args.skip_export_signals:
             child_manifests.append(
                 str(
@@ -201,7 +223,7 @@ def run_all(args: argparse.Namespace) -> Path:
                             skip_country=getattr(args, "skip_country", False),
                             regime_oos=args.regime_oos,
                             region=args.regime_region,
-                            patterns=str(TP_ROOT / "03_technical_analysis" / "output" / "patterns.parquet"),
+                            patterns=technical_patterns_output,
                             ml_output=str(TP_ROOT / "04_signals" / "ml_signals.parquet"),
                             technical_output=str(TP_ROOT / "04_signals" / "technical_signals.parquet"),
                             regime_output=str(TP_ROOT / "04_signals" / "regime_risk_budget.parquet"),
@@ -238,6 +260,9 @@ def run_all(args: argparse.Namespace) -> Path:
                             ml_weight=args.ml_weight,
                             technical_weight=args.technical_weight,
                             allocation_weight=allocation_weight,
+                            candidate_date_policy=getattr(args, "candidate_date_policy", "max_component"),
+                            max_component_lag_days=candidate_max_component_lag_days,
+                            allow_stale_technical=getattr(args, "allow_stale_technical", False),
                             by_region=args.by_region,
                             signals_dir=str(TP_ROOT / "04_signals"),
                             last_screen=str(LAST_SCREEN_PATH),
@@ -349,7 +374,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="按顺序运行 TP 主流水线")
     parser.add_argument("--as-of", help="目标日期，传给信号、候选池、优化和报告环节")
     parser.add_argument("--run-type", choices=["production", "smoke", "inspect"], default="production")
-    parser.add_argument("--freshness-window-days", type=int, default=7, help="全链路 freshness 允许偏离天数")
+    parser.add_argument("--freshness-window-days", type=int, default=31, help="全链路 freshness 允许偏离天数")
     parser.add_argument("--input-month", help="月更输入批次 YYYYMM")
     parser.add_argument("--update-mode", choices=["both", "screen_only", "returns_only"], default="both")
     parser.add_argument("--ciq-dir", help="CIQ 文件或目录")
@@ -357,6 +382,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run-data", action="store_true", help="数据刷新只 dry-run")
     parser.add_argument("--inspect-only-refresh-data", action="store_true", help="数据刷新只检查入口和 canonical 路径")
     parser.add_argument("--skip-refresh-data", action="store_true", help="跳过数据刷新")
+    parser.add_argument("--skip-refresh-technical", action="store_true", help="跳过 technical patterns 刷新")
+    parser.add_argument("--inspect-only-technical", action="store_true", help="只检查已有 technical patterns，不重算")
+    parser.add_argument("--technical-patterns-output", default=str(DEFAULT_TECHNICAL_PATTERNS), help="technical patterns 输出路径")
+    parser.add_argument("--technical-max-lag-days", type=int, default=31, help="technical patterns 相对 screen 月末允许滞后天数")
+    parser.add_argument("--technical-timeout-seconds", type=int, default=1800)
     parser.add_argument("--skip-export-signals", action="store_true", help="跳过信号导出")
     parser.add_argument("--skip-country", action="store_true", help="导出信号时跳过国家模型")
     parser.add_argument("--skip-build-candidates", action="store_true", help="跳过候选池")
@@ -381,6 +411,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ml-weight", type=float, default=0.70)
     parser.add_argument("--technical-weight", type=float, default=0.30)
     parser.add_argument("--allocation-weight", type=float, default=0.20)
+    parser.add_argument("--candidate-date-policy", choices=["max_component", "min_component"], default="max_component")
+    parser.add_argument("--candidate-max-component-lag-days", type=int, default=31)
+    parser.add_argument("--allow-stale-technical", action="store_true", help="允许 technical 缺失或过旧时仍生成候选池")
     parser.add_argument("--by-region", action="store_true", help="候选池按 region 分组选")
 
     parser.add_argument("--portfolio-output", default=str(DEFAULT_PORTFOLIO), help="目标权重输出路径")

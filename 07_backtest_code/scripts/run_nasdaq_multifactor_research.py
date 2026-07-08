@@ -15,7 +15,7 @@ from datetime import datetime
 import io
 from itertools import combinations
 import json
-from math import sqrt
+from math import ceil, sqrt
 from pathlib import Path
 import re
 import sys
@@ -92,13 +92,21 @@ RAW_METRICS: tuple[RawMetricSpec, ...] = (
     RawMetricSpec("EPS Growth NTM", "growth", 1, "core", "forward EPS growth"),
     RawMetricSpec("EPS Growth FY1", "growth", 1, "core", "forward EPS growth"),
     RawMetricSpec("Revenue 5Y CAGR", "growth", 1, "supplement", "CIQ long-term growth, low coverage"),
+    RawMetricSpec("Sales Growth FY1 CIQ", "growth", 1, "supplement", "CIQ FY1 sales growth"),
+    RawMetricSpec("SP Est 5Y EPS Gr CIQ", "growth", 1, "supplement", "CIQ street 5Y EPS growth estimate"),
     RawMetricSpec("EPS Growth FY1 CIQ", "growth", 1, "supplement", "CIQ FY1 growth, low coverage"),
     RawMetricSpec("EBITDA Growth FY1 CIQ", "growth", 1, "supplement", "CIQ EBITDA growth, low coverage"),
+    RawMetricSpec("Ebit 5Y CAGR", "growth", 1, "supplement", "CIQ long-term EBIT growth"),
+    RawMetricSpec("CFO 5Y CAGR", "growth", 1, "supplement", "CIQ long-term operating cash-flow growth"),
+    RawMetricSpec("Const Earning 5Y CAGR", "growth", 1, "supplement", "CIQ long-term continuing earnings growth"),
+    RawMetricSpec("Gross Profit 5Y CAGR", "growth", 1, "supplement", "CIQ long-term gross profit growth"),
     RawMetricSpec("Ebitda 5Y CAGR", "growth", 1, "supplement", "CIQ long-term EBITDA growth, low coverage"),
     RawMetricSpec("Earns Yield FY1", "value", 1, "core", "earnings yield"),
     RawMetricSpec("Earns Yield NTM", "value", 1, "core", "earnings yield"),
     RawMetricSpec("PE FY1", "value", -1, "core", "lower valuation multiple"),
+    RawMetricSpec("PE FY1 CIQ", "value", -1, "supplement", "lower CIQ valuation multiple"),
     RawMetricSpec("PE NTM", "value", -1, "core", "lower valuation multiple"),
+    RawMetricSpec("EV to Ebit FY1 CIQ", "value", -1, "supplement", "lower CIQ enterprise-value multiple"),
     RawMetricSpec("EV To EBITDA FY1", "value", -1, "core", "lower valuation multiple"),
     RawMetricSpec("EV To EBITDA NTM", "value", -1, "core", "lower valuation multiple"),
     RawMetricSpec("EV to Sales FY1", "value", -1, "core", "lower valuation multiple"),
@@ -496,6 +504,152 @@ def select_metric_columns(args: argparse.Namespace, metric_specs: list[ModelSpec
     if raw == "all_metrics":
         return all_metrics
     return parse_csv_arg(args.metrics, all_metrics)
+
+
+def raw_source_hint(metric_diag_row: pd.Series) -> str:
+    text = f"{metric_diag_row.get('metric', '')} {metric_diag_row.get('label', '')} {metric_diag_row.get('note', '')}"
+    return "CIQ" if "CIQ" in text else "screen"
+
+
+def build_raw_validation_gate(
+    summary: pd.DataFrame,
+    metric_diag: pd.DataFrame,
+    *,
+    min_coverage: float,
+    min_ratio_cagr: float,
+    min_top_worst_ratio_return: float,
+    min_robust_score: float,
+) -> pd.DataFrame:
+    if summary.empty or metric_diag.empty:
+        return pd.DataFrame()
+
+    top = summary[(summary["side"].eq("Top")) & (summary["status"].eq("success"))].copy()
+    status = summary.pivot_table(index="metric", columns="side", values="status", aggfunc="first")
+    top_by_metric = top.set_index("metric").to_dict(orient="index")
+    rows = []
+    for _, diag in metric_diag[metric_diag["family"].astype(str).str.startswith("raw_")].iterrows():
+        metric = str(diag["metric"])
+        perf = top_by_metric.get(metric, {})
+        family = str(diag["family"]).replace("raw_", "", 1)
+        coverage = float(diag.get("coverage", np.nan))
+        ratio_cagr = float(perf.get("ratio_cagr", np.nan))
+        top_worst = float(perf.get("top_worst_ratio_return", np.nan))
+        robust_score = float(perf.get("robust_score", np.nan))
+        top_ok = status.get("Top", pd.Series(dtype=object)).get(metric) == "success" if not status.empty else False
+        worst_ok = status.get("Worst", pd.Series(dtype=object)).get(metric) == "success" if not status.empty else False
+        checks = {
+            "coverage": coverage >= min_coverage,
+            "ratio_cagr": ratio_cagr > min_ratio_cagr,
+            "top_worst_ratio_return": top_worst > min_top_worst_ratio_return,
+            "robust_score": robust_score > min_robust_score,
+            "top_worst_success": bool(top_ok and worst_ok),
+        }
+        fail_reasons = [name for name, passed in checks.items() if not passed]
+        rows.append(
+            {
+                "metric": metric,
+                "raw_variable": str(diag.get("label", "")).split(": ", 1)[-1],
+                "family": family,
+                "role": diag.get("role", ""),
+                "source_hint": raw_source_hint(diag),
+                "coverage": coverage,
+                "top_ratio_cagr": ratio_cagr,
+                "top_worst_ratio_return": top_worst,
+                "robust_score": robust_score,
+                "top_success": bool(top_ok),
+                "worst_success": bool(worst_ok),
+                "pass_coverage": checks["coverage"],
+                "pass_ratio_cagr": checks["ratio_cagr"],
+                "pass_top_worst_ratio_return": checks["top_worst_ratio_return"],
+                "pass_robust_score": checks["robust_score"],
+                "passed": not fail_reasons,
+                "fail_reasons": ";".join(fail_reasons),
+            }
+        )
+    return pd.DataFrame(rows).sort_values(["passed", "family", "robust_score"], ascending=[False, True, False])
+
+
+def read_raw_validation_gate(path_text: str) -> pd.DataFrame:
+    path = Path(path_text)
+    gate_path = path / "raw_validation_gate.csv" if path.is_dir() else path
+    if gate_path.exists():
+        return pd.read_csv(gate_path)
+    summary = pd.read_csv(path / "performance_summary.csv")
+    metric_diag = pd.read_csv(path / "metric_diagnostics.csv")
+    return build_raw_validation_gate(
+        summary,
+        metric_diag,
+        min_coverage=0.75,
+        min_ratio_cagr=0.0,
+        min_top_worst_ratio_return=0.0,
+        min_robust_score=0.0,
+    )
+
+
+def add_validated_metrics(screen: pd.DataFrame, metrics: list[ModelSpec], gate: pd.DataFrame) -> tuple[pd.DataFrame, list[ModelSpec]]:
+    passed = gate[gate["passed"].astype(bool)].copy() if not gate.empty else pd.DataFrame()
+    if passed.empty:
+        return screen, metrics
+
+    new_columns: dict[str, pd.Series] = {}
+    new_specs: list[ModelSpec] = []
+    family_scores: dict[str, str] = {}
+    for family, group in passed.groupby("family", sort=True):
+        raw_cols = [metric for metric in group["metric"].astype(str) if metric in screen.columns]
+        if not raw_cols:
+            continue
+        min_count = 1 if len(raw_cols) == 1 else ceil(len(raw_cols) / 2)
+        family_col = f"nasdaq_validated_{family}"
+        new_columns[family_col] = average_scores(screen, raw_cols, min_count)
+        family_scores[str(family)] = family_col
+        new_specs.append(
+            ModelSpec(
+                family_col,
+                f"validated {family}",
+                "validated_family",
+                {column: 1.0 for column in raw_cols},
+                f"raw-gate passing variables only; min_count={min_count}",
+            )
+        )
+        if len(raw_cols) >= 2:
+            for omitted in raw_cols:
+                loo_cols = [column for column in raw_cols if column != omitted]
+                loo_min_count = 1 if len(loo_cols) == 1 else ceil(len(loo_cols) / 2)
+                loo_col = f"{family_col}_loo_{slugify(omitted.replace('nasdaq_', ''))}"
+                new_columns[loo_col] = average_scores(screen, loo_cols, loo_min_count)
+                new_specs.append(
+                    ModelSpec(
+                        loo_col,
+                        f"validated {family} leave-one-out",
+                        "validated_leave_one_out",
+                        {column: 1.0 for column in loo_cols},
+                        f"family leave-one-out excluding {omitted}; min_count={loo_min_count}",
+                    )
+                )
+
+    families = list(family_scores)
+    for size in range(2, len(families) + 1):
+        for combo in combinations(families, size):
+            col = "nasdaq_validated_combo_" + "_".join(combo)
+            components = {family_scores[family]: 1 / size for family in combo}
+            new_columns[col] = weighted_scores(screen, components, max(2, min(4, len(components))))
+            new_specs.append(
+                ModelSpec(
+                    col,
+                    " + ".join(combo),
+                    "validated_family_combo",
+                    components,
+                    f"validated family subset: {', '.join(combo)}",
+                )
+            )
+
+    if new_columns:
+        duplicate_columns = [column for column in new_columns if column in screen.columns]
+        if duplicate_columns:
+            screen = screen.drop(columns=duplicate_columns)
+        screen = pd.concat([screen, pd.DataFrame(new_columns, index=screen.index)], axis=1).copy()
+        metrics = [*metrics, *new_specs]
+    return screen, metrics
 
 
 def run_official_backtests(
@@ -954,6 +1108,12 @@ def write_report(
     top_summary = pd.DataFrame()
     if not summary.empty and "robust_score" in summary.columns:
         top_summary = summary[(summary["status"].eq("success")) & (summary["side"].eq("Top"))].sort_values("robust_score", ascending=False)
+    if args.raw_only:
+        scope_text = "raw-only: 每个 raw variable score 先单独跑官方 Top/Worst，并生成 raw_validation_gate.csv。"
+    elif args.validated_from:
+        scope_text = "validated-from: 只使用 raw gate 通过的变量重建 family，并补跑 validated family、family subset、leave-one-out。"
+    else:
+        scope_text = "六个重建家族因子的全部 63 个非空等权组合，每个组合同时跑 Top 与 Worst。"
     lines = [
         "# Nasdaq Composite 六风格多因子模型研究报告",
         "",
@@ -961,7 +1121,7 @@ def write_report(
         f"- 证据口径: official exact backtest",
         f"- 模式: {'smoke' if args.smoke else 'full'}",
         f"- Universe / Benchmark: `{BENCHMARK}`",
-        "- 默认测试范围: 六个重建家族因子的全部 63 个非空等权组合，每个组合同时跑 Top 与 Worst。",
+        f"- 测试范围: {scope_text}",
         f"- 研究目录: `{output_dir}`",
         "",
         "## 数据构造检查",
@@ -972,6 +1132,41 @@ def write_report(
         "",
         frame_to_markdown(metric_diag.sort_values(["family", "coverage"], ascending=[True, False]), max_rows=80),
         "",
+    ]
+    gate_path = output_dir / "raw_validation_gate.csv"
+    if not gate_path.exists():
+        gate_path = output_dir / "raw_validation_gate_source.csv"
+    if gate_path.exists():
+        gate = pd.read_csv(gate_path)
+        passed_count = int(gate["passed"].map(lambda value: str(value).lower() == "true").sum()) if "passed" in gate.columns else 0
+        gate_cols = [
+            "metric",
+            "raw_variable",
+            "family",
+            "role",
+            "source_hint",
+            "coverage",
+            "top_ratio_cagr",
+            "top_worst_ratio_return",
+            "robust_score",
+            "passed",
+            "fail_reasons",
+        ]
+        gate_cols = [column for column in gate_cols if column in gate.columns]
+        lines.extend(
+            [
+                "## Raw Variable Gate",
+                "",
+                f"- gate 文件: `{gate_path}`",
+                f"- 通过数量: {passed_count} / {len(gate)}",
+                "- core/supplement 仅作为诊断标签；CIQ、FactSet、database、本地衍生字段使用同一套门槛。",
+                "",
+                frame_to_markdown(gate[gate_cols].sort_values(["passed", "family", "robust_score"], ascending=[False, True, False]), max_rows=90),
+                "",
+            ]
+        )
+    lines.extend(
+        [
         "## 回测运行状态",
         "",
         frame_to_markdown(run_results[["metric", "side", "start_date", "status", "message", "run_dir"]], max_rows=140)
@@ -980,7 +1175,8 @@ def write_report(
         "",
         "## 稳健性排序",
         "",
-    ]
+        ]
+    )
     if top_summary.empty:
         lines.append("暂无成功回测可汇总。")
     else:
@@ -1036,6 +1232,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="all/combos = 63 family combinations; all_metrics includes raw and anchors; or comma-separated columns.",
     )
     parser.add_argument("--smoke", action="store_true", help="Only run the six-family equal combination Top/Worst.")
+    parser.add_argument("--raw-only", action="store_true", help="Run every raw variable score Top/Worst and write raw_validation_gate.csv.")
+    parser.add_argument("--validated-from", default="", help="Raw run directory or raw_validation_gate.csv used to build validated families.")
+    parser.add_argument("--gate-coverage", type=float, default=0.75)
+    parser.add_argument("--gate-ratio-cagr", type=float, default=0.0)
+    parser.add_argument("--gate-top-worst-ratio-return", type=float, default=0.0)
+    parser.add_argument("--gate-robust-score", type=float, default=0.0)
     parser.add_argument("--build-only", action="store_true", help="Build diagnostics and factor screen without official backtests.")
     parser.add_argument("--force-rebuild", action="store_true", help="Rebuild research screen if it already exists.")
     parser.add_argument("--max-runs", type=int, default=None, help="Optional cap on official runs.")
@@ -1057,11 +1259,30 @@ def main(argv: Iterable[str] | None = None) -> int:
     returns.index = pd.to_datetime(returns.index, errors="coerce")
     returns = returns.sort_index()
     screen, checks, metric_diag, metric_specs = build_research_screen(screen_path, returns, output_dir, force=args.force_rebuild)
+    gate = pd.DataFrame()
+    if args.validated_from:
+        gate = read_raw_validation_gate(args.validated_from)
+        gate.to_csv(output_dir / "raw_validation_gate_source.csv", index=False)
+        screen, metric_specs = add_validated_metrics(screen, metric_specs, gate)
+        screen.to_parquet(output_dir / "nasdaq_multifactor_screen.parquet", index=False)
+        metric_diag = metric_diagnostics(screen, metric_specs, [spec for spec in RAW_METRICS if spec.column in screen.columns])
     checks.to_csv(output_dir / "data_construction_checks.csv", index=False)
     metric_diag.to_csv(output_dir / "metric_diagnostics.csv", index=False)
 
     all_metrics = [spec.column for spec in metric_specs if spec.column in screen.columns]
-    metric_columns = select_metric_columns(args, metric_specs, screen)
+    requested = (args.metrics or "all").strip().lower()
+    if requested not in {"all", "combos", "all_combinations"}:
+        metric_columns = parse_csv_arg(args.metrics, all_metrics)
+    elif args.raw_only:
+        metric_columns = [spec.column for spec in metric_specs if spec.family.startswith("raw_") and spec.column in screen.columns]
+    elif args.validated_from:
+        metric_columns = [
+            spec.column
+            for spec in metric_specs
+            if spec.family in {"validated_family", "validated_family_combo", "validated_leave_one_out"} and spec.column in screen.columns
+        ]
+    else:
+        metric_columns = select_metric_columns(args, metric_specs, screen)
     unknown = sorted(set(metric_columns).difference(all_metrics))
     if unknown:
         raise ValueError(f"Unknown metrics: {unknown}")
@@ -1093,6 +1314,16 @@ def main(argv: Iterable[str] | None = None) -> int:
         run_results.to_csv(output_dir / "official_run_results.csv", index=False)
         summary = summarize_runs(run_results, metric_diag)
         summary.to_csv(output_dir / "performance_summary.csv", index=False)
+        if args.raw_only:
+            gate = build_raw_validation_gate(
+                summary,
+                metric_diag,
+                min_coverage=args.gate_coverage,
+                min_ratio_cagr=args.gate_ratio_cagr,
+                min_top_worst_ratio_return=args.gate_top_worst_ratio_return,
+                min_robust_score=args.gate_robust_score,
+            )
+            gate.to_csv(output_dir / "raw_validation_gate.csv", index=False)
         plot_paths = write_plotly_outputs(summary, run_results, output_dir)
 
     report_path = write_report(
@@ -1111,6 +1342,9 @@ def main(argv: Iterable[str] | None = None) -> int:
         "benchmark": BENCHMARK,
         "metrics": metric_columns,
         "smoke": bool(args.smoke),
+        "raw_only": bool(args.raw_only),
+        "validated_from": str(args.validated_from),
+        "raw_gate_pass_count": int(gate["passed"].sum()) if not gate.empty and "passed" in gate.columns else 0,
         "build_only": bool(args.build_only),
         "resume": bool(args.resume),
         "expected_run_count": int(2 * len(metric_columns)),

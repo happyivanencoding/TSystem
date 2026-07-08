@@ -12,6 +12,7 @@ import argparse
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from datetime import datetime
+import hashlib
 from itertools import combinations
 import io
 import json
@@ -60,6 +61,7 @@ SEDOL_COL = "Company SEDOL"
 SECTOR_COL = " Benchmark ICB Supersector "
 MKT_CAP_COL = "Benchmark Market Value Millions in EUR"
 PERCENTILE = 0.2
+FAMILY_ORDER = ["growth", "value", "quality", "lowvol", "momentum", "dividend"]
 
 
 @dataclass(frozen=True)
@@ -485,6 +487,142 @@ def parse_csv_arg(raw: str | None, default: list[str]) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
+def raw_source(spec: RawMetricSpec) -> str:
+    text = f"{spec.column} {spec.note}".lower()
+    if "ciq" in text:
+        return "CIQ"
+    if any(token in text for token in ["daily vol", "drawdown", "beta", "pmom", "total return", "revision", "3m estimate"]):
+        return "local_or_derived"
+    return "FactSet_or_database"
+
+
+def raw_gate_table(
+    *,
+    summary: pd.DataFrame,
+    metric_diag: pd.DataFrame,
+    metric_specs: list[ModelSpec],
+    min_coverage: float,
+    min_ratio_cagr: float,
+    min_top_worst_ratio: float,
+    min_robust_score: float,
+) -> pd.DataFrame:
+    spec_map = {spec.column: spec for spec in metric_specs}
+    raw_lookup = {spec.score_column: spec for spec in RAW_METRICS}
+    diag_map = (
+        metric_diag.drop_duplicates("metric", keep="last").set_index("metric").to_dict(orient="index")
+        if not metric_diag.empty
+        else {}
+    )
+    top = summary[(summary["status"].eq("success")) & (summary["side"].eq("Top"))].copy()
+    top = top[top["metric"].isin(raw_lookup)]
+    rows = []
+    for _, row in top.iterrows():
+        metric = str(row["metric"])
+        raw_spec = raw_lookup[metric]
+        coverage = float(row.get("coverage", diag_map.get(metric, {}).get("coverage", np.nan)))
+        ratio_cagr = float(row.get("ratio_cagr", np.nan))
+        top_worst = float(row.get("top_worst_ratio_return", np.nan))
+        robust = float(row.get("robust_score", np.nan))
+        failures = []
+        if not np.isfinite(coverage) or coverage < min_coverage:
+            failures.append(f"coverage<{min_coverage:g}")
+        if not np.isfinite(ratio_cagr) or ratio_cagr <= min_ratio_cagr:
+            failures.append(f"ratio_cagr<={min_ratio_cagr:g}")
+        if not np.isfinite(top_worst) or top_worst <= min_top_worst_ratio:
+            failures.append(f"top_worst_ratio_return<={min_top_worst_ratio:g}")
+        if not np.isfinite(robust) or robust <= min_robust_score:
+            failures.append(f"robust_score<={min_robust_score:g}")
+        rows.append(
+            {
+                "metric": metric,
+                "raw_column": raw_spec.column,
+                "family": raw_spec.family,
+                "role": raw_spec.role,
+                "source": raw_source(raw_spec),
+                "direction": raw_spec.direction,
+                "label": spec_map.get(metric, ModelSpec(metric, metric, "", {}, "")).label,
+                "coverage": coverage,
+                "ratio_cagr": ratio_cagr,
+                "top_worst_ratio_return": top_worst,
+                "robust_score": robust,
+                "ratio_max_drawdown": row.get("ratio_max_drawdown", np.nan),
+                "tracking_error": row.get("tracking_error", np.nan),
+                "annual_active_hit_rate": row.get("annual_active_hit_rate", np.nan),
+                "pass_gate": not failures,
+                "fail_reasons": "; ".join(failures),
+                "note": raw_spec.note,
+            }
+        )
+    gate = pd.DataFrame(rows)
+    if gate.empty:
+        return gate
+    return gate.sort_values(["pass_gate", "family", "robust_score"], ascending=[False, True, False]).reset_index(drop=True)
+
+
+def apply_validated_families(
+    *,
+    screen: pd.DataFrame,
+    metric_specs: list[ModelSpec],
+    gate: pd.DataFrame,
+) -> tuple[pd.DataFrame, list[ModelSpec], list[str], list[str]]:
+    if gate.empty or "pass_gate" not in gate.columns:
+        raise ValueError("Raw validation gate is empty; run --raw-only official backtests first.")
+    passed = gate[gate["pass_gate"].astype(bool)].copy()
+    family_scores: dict[str, str] = {}
+    new_specs: list[ModelSpec] = []
+    for family in FAMILY_ORDER:
+        cols = [metric for metric in passed.loc[passed["family"].eq(family), "metric"].tolist() if metric in screen.columns]
+        if not cols:
+            continue
+        score_col = f"stoxx600_validated_{family}"
+        min_count = max(1, (len(cols) + 1) // 2)
+        screen[score_col] = average_scores(screen, cols, min_count)
+        family_scores[family] = score_col
+        new_specs.append(
+            ModelSpec(
+                score_col,
+                f"validated {family}",
+                "validated_family",
+                {col: 1.0 for col in cols},
+                f"raw-gated family; min_count={min_count}; core/supplement labels diagnostic only",
+            )
+        )
+        if len(cols) >= 2:
+            for omitted in cols:
+                loo_cols = [col for col in cols if col != omitted]
+                loo_col = f"{score_col}_loo_without_{slugify(omitted)}"
+                screen[loo_col] = average_scores(screen, loo_cols, max(1, (len(loo_cols) + 1) // 2))
+                new_specs.append(
+                    ModelSpec(
+                        loo_col,
+                        f"{family} leave-one-out without {omitted}",
+                        "validated_raw_leave_one_out",
+                        {col: 1.0 for col in loo_cols},
+                        "family internal leave-one-out evidence; not a final model candidate",
+                    )
+                )
+
+    combo_specs: list[ModelSpec] = []
+    valid_families = [family for family in FAMILY_ORDER if family in family_scores]
+    for size in range(1, len(valid_families) + 1):
+        for subset in combinations(valid_families, size):
+            col = "stoxx600_validated_combo_" + "_".join(subset)
+            combo_specs.append(
+                ModelSpec(
+                    col,
+                    " + ".join(subset),
+                    "validated_family_combinations",
+                    {family_scores[key]: 1.0 / size for key in subset},
+                    "equal-weight subset of raw-gated family scores",
+                )
+            )
+    for spec in combo_specs:
+        screen[spec.column] = weighted_scores(screen, spec.components, max(1, min(4, len(spec.components))))
+    updated_specs = metric_specs + new_specs + combo_specs
+    default_metrics = [spec.column for spec in combo_specs + new_specs if spec.family in {"validated_family_combinations", "validated_raw_leave_one_out"}]
+    return screen, updated_specs, default_metrics, valid_families
+
+
 def run_official_backtests(
     *,
     screen: pd.DataFrame,
@@ -494,6 +632,7 @@ def run_official_backtests(
     run_root_name: str,
     metrics: list[str],
     max_runs: int | None,
+    results_path: Path | None = None,
     existing_results: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     service = BacktestService()
@@ -505,6 +644,12 @@ def run_official_backtests(
             completed_pairs.add((str(row["metric"]), str(row["side"])))
         records.extend(reusable.to_dict("records"))
     launched = 0
+
+    def flush() -> None:
+        if results_path is not None:
+            pd.DataFrame(records).to_csv(results_path, index=False)
+
+    flush()
     for metric in metrics:
         if metric not in screen.columns:
             continue
@@ -513,6 +658,7 @@ def run_official_backtests(
             if (metric, side) in completed_pairs:
                 continue
             if max_runs is not None and launched >= max_runs:
+                flush()
                 return pd.DataFrame(records)
             record = {
                 "benchmark": BENCHMARK,
@@ -526,6 +672,8 @@ def run_official_backtests(
             }
             if start is None:
                 records.append(record)
+                completed_pairs.add((metric, side))
+                flush()
                 continue
 
             settings = load_settings("default")
@@ -551,7 +699,9 @@ def run_official_backtests(
 
             record.update(run_single_official_engine(service, settings, screen=screen, returns=returns, side=side))
             records.append(record)
+            completed_pairs.add((metric, side))
             launched += 1
+            flush()
     return pd.DataFrame(records)
 
 
@@ -565,8 +715,13 @@ def run_single_official_engine(
 ) -> dict[str, str]:
     """Run the official engine without the GUI logger relay, which can recurse on stderr."""
 
+    metric_name = settings.run.metrics[0]
+    metric_label = metric_name
+    if len(metric_label) > 80:
+        digest = hashlib.md5(metric_label.encode("utf-8")).hexdigest()[:10]
+        metric_label = f"{metric_label[:68]}_{digest}"
     run_label = (
-        f"{settings.run.mode}_{settings.run.bench}_{settings.run.metrics[0]}_"
+        f"{settings.run.mode}_{settings.run.bench}_{metric_label}_"
         f"{side}_{settings.run.start_date}"
     )
     run_dir = create_run_directory(settings.user.name, run_label)
@@ -790,7 +945,11 @@ def average_turnover(path_text: str) -> float:
 
 
 def summarize_runs(run_results: pd.DataFrame, metric_diag: pd.DataFrame) -> pd.DataFrame:
-    diag_map = metric_diag.set_index("metric").to_dict(orient="index") if not metric_diag.empty else {}
+    diag_map = (
+        metric_diag.drop_duplicates("metric", keep="last").set_index("metric").to_dict(orient="index")
+        if not metric_diag.empty
+        else {}
+    )
     rows = []
     for _, run in run_results.iterrows():
         base = {
@@ -941,9 +1100,9 @@ def write_report(
         "",
         f"- 运行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         f"- 证据口径: official exact backtest",
-        f"- 模式: {'smoke' if args.smoke else 'full'}",
+        f"- 模式: {'raw-only' if getattr(args, 'raw_only', False) else 'validated-gated' if getattr(args, 'validated_from', '') else 'smoke' if args.smoke else 'full'}",
         f"- Universe / Benchmark: `{BENCHMARK}`",
-        "- 组合全集: 六个重建风格因子的全部非空等权子集，共 63 个组合；另含 raw sub-signal、现有数据库因子和少量解释型倾斜候选。",
+        "- 组合说明: raw-only 阶段只验证 raw variable；validated-gated 阶段只用通过 raw gate 的变量重建 family，并补 family subset 与 raw leave-one-out。",
         "- 官方回测参数: Top/Worst 20%，Market cap 权重，ICB 19 score/weight neutral，max_weight=1.0，fill_method=drift。",
         f"- 研究目录: `{output_dir}`",
         "",
@@ -955,6 +1114,25 @@ def write_report(
         "",
         frame_to_markdown(metric_diag.sort_values(["family", "coverage"], ascending=[True, False]), max_rows=80),
         "",
+    ]
+    gate_path = output_dir / "raw_validation_gate.csv"
+    if gate_path.exists():
+        gate = pd.read_csv(gate_path)
+        pass_count = int(gate["pass_gate"].sum()) if "pass_gate" in gate.columns else 0
+        lines.extend(
+            [
+                "## Raw Variable Gate",
+                "",
+                f"- 通过 raw gate: {pass_count} / {len(gate)}。",
+                "- Gate: coverage >= 阈值，Top/Benchmark ratio CAGR > 阈值，Top/Worst ratio return > 阈值，robust score > 阈值；CIQ、FactSet、database、本地衍生字段同门槛。",
+                "- `core` / `supplement` 只作为诊断标签，不决定入选。",
+                "",
+                frame_to_markdown(gate.sort_values(["pass_gate", "family", "robust_score"], ascending=[False, True, False]), max_rows=80),
+                "",
+            ]
+        )
+    lines.extend(
+        [
         "## 回测运行状态",
         "",
         frame_to_markdown(run_results[["metric", "side", "start_date", "status", "message", "run_dir"]], max_rows=120)
@@ -963,7 +1141,8 @@ def write_report(
         "",
         "## 稳健性排序",
         "",
-    ]
+        ]
+    )
     if top_summary.empty:
         lines.append("暂无成功回测可汇总。")
     else:
@@ -1018,6 +1197,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--force-rebuild", action="store_true", help="Rebuild research screen if it already exists.")
     parser.add_argument("--max-runs", type=int, default=None, help="Optional cap on official runs.")
     parser.add_argument("--resume", action="store_true", help="Reuse successful official runs already listed in output-dir.")
+    parser.add_argument("--raw-only", action="store_true", help="Run only raw-variable official Top/Worst tests.")
+    parser.add_argument("--validated-from", default="", help="Directory containing raw-variable performance_summary.csv for gate-based family construction.")
+    parser.add_argument("--gate-coverage", type=float, default=0.75)
+    parser.add_argument("--gate-ratio-cagr", type=float, default=0.0)
+    parser.add_argument("--gate-top-worst-ratio", type=float, default=0.0)
+    parser.add_argument("--gate-robust-score", type=float, default=0.0)
     return parser
 
 
@@ -1036,11 +1221,43 @@ def main(argv: Iterable[str] | None = None) -> int:
     returns = returns.sort_index()
     screen, checks, metric_diag, metric_specs = build_research_screen(screen_path, returns, output_dir, force=args.force_rebuild)
     checks.to_csv(output_dir / "data_construction_checks.csv", index=False)
+
+    raw_gate = pd.DataFrame()
+    validated_default_metrics: list[str] = []
+    validated_families: list[str] = []
+    if args.validated_from:
+        raw_summary_path = Path(args.validated_from) / "performance_summary.csv"
+        if not raw_summary_path.exists():
+            raise FileNotFoundError(f"Missing raw performance summary: {raw_summary_path}")
+        raw_summary = pd.read_csv(raw_summary_path)
+        raw_gate = raw_gate_table(
+            summary=raw_summary,
+            metric_diag=metric_diag,
+            metric_specs=metric_specs,
+            min_coverage=args.gate_coverage,
+            min_ratio_cagr=args.gate_ratio_cagr,
+            min_top_worst_ratio=args.gate_top_worst_ratio,
+            min_robust_score=args.gate_robust_score,
+        )
+        raw_gate.to_csv(output_dir / "raw_validation_gate.csv", index=False)
+        screen, metric_specs, validated_default_metrics, validated_families = apply_validated_families(
+            screen=screen,
+            metric_specs=metric_specs,
+            gate=raw_gate,
+        )
+        research_screen_path = output_dir / "stoxx600_multifactor_screen.parquet"
+        screen.to_parquet(research_screen_path, index=False)
+        (output_dir / "metric_definitions.json").write_text(
+            json.dumps([metric.__dict__ for metric in metric_specs], ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        metric_diag = metric_diagnostics(screen, metric_specs, list(RAW_METRICS))
     metric_diag.to_csv(output_dir / "metric_diagnostics.csv", index=False)
 
     all_metrics = [spec.column for spec in metric_specs if spec.column in screen.columns]
+    raw_metrics = [spec.column for spec in metric_specs if spec.family.startswith("raw_") and spec.column in screen.columns]
     combo_metrics = [spec.column for spec in metric_specs if spec.family == "all_family_combinations"]
-    default_metrics = combo_metrics or all_metrics
+    default_metrics = validated_default_metrics if args.validated_from else raw_metrics if args.raw_only else combo_metrics or all_metrics
     metric_columns = ["stoxx600_mf_6_equal"] if args.smoke else parse_csv_arg(args.metrics, default_metrics)
     unknown = sorted(set(metric_columns).difference(all_metrics))
     if unknown:
@@ -1067,6 +1284,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             run_root_name=run_root_name,
             metrics=metric_columns,
             max_runs=args.max_runs,
+            results_path=existing_results_path,
             existing_results=existing_results,
         )
         run_results.to_csv(output_dir / "official_run_results.csv", index=False)
@@ -1089,6 +1307,11 @@ def main(argv: Iterable[str] | None = None) -> int:
         "report": str(report_path),
         "benchmark": BENCHMARK,
         "metrics": metric_columns,
+        "raw_only": bool(args.raw_only),
+        "validated_from": str(args.validated_from),
+        "validated_families": validated_families,
+        "raw_gate_pass_count": int(raw_gate["pass_gate"].sum()) if not raw_gate.empty and "pass_gate" in raw_gate.columns else 0,
+        "raw_gate_total_count": int(len(raw_gate)) if not raw_gate.empty else 0,
         "smoke": bool(args.smoke),
         "build_only": bool(args.build_only),
         "resume": bool(args.resume),

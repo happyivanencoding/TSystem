@@ -217,6 +217,10 @@ def weighted_scores(frame: pd.DataFrame, weights: dict[str, float], min_count: i
     return weighted.where(data.notna().sum(axis=1) >= min_count)
 
 
+def include_in_rebuilt_family(spec: RawMetricSpec) -> bool:
+    return spec.role == "core"
+
+
 def compute_forward_returns(screen: pd.DataFrame, returns: pd.DataFrame) -> pd.Series:
     out = pd.Series(np.nan, index=screen.index, dtype=float)
     returns = returns.copy()
@@ -382,7 +386,7 @@ def build_research_screen(screen_path: Path, returns: pd.DataFrame, output_dir: 
     family_scores: dict[str, str] = {}
     min_counts = {"growth": 3, "value": 4, "quality": 2, "lowvol": 2, "momentum": 2, "dividend": 2}
     for family in ["growth", "value", "quality", "lowvol", "momentum", "dividend"]:
-        cols = [spec.score_column for spec in raw_specs if spec.family == family and spec.role == "core"]
+        cols = [spec.score_column for spec in raw_specs if spec.family == family and include_in_rebuilt_family(spec)]
         score_col = f"eu_small_{family}_rebuilt"
         screen[score_col] = average_scores(screen, cols, min_counts[family])
         family_scores[family] = score_col

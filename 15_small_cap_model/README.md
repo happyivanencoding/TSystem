@@ -1,6 +1,6 @@
-# Europe Small Cap Defensive Tilt Model
+# Europe Small Cap Raw-Gated QVM Model
 
-This module promotes the MSCI EUR SMALL six-style factor research into a
+This module promotes the MSCI EUR SMALL raw-gated factor research into a
 production-refreshable model.
 
 ## Scope
@@ -19,20 +19,20 @@ Every raw variable is transformed so that a higher score is better:
 2. winsorize by month at 1% / 99% when enough observations exist;
 3. rank by month and ICB supersector into a 0-10 percentile score;
 4. average variables within each subfactor with no missing-value fill;
-5. combine subfactors with the defensive tilt:
+5. combine only subfactors whose raw variables passed the official Top/Worst
+   gate:
 
 | Subfactor | Weight |
 | --- | ---: |
-| Low volatility | 25% |
-| Quality | 25% |
-| Value | 15% |
-| Momentum | 15% |
-| Growth | 10% |
-| Dividend | 10% |
+| Quality | 40% |
+| Value | 30% |
+| Momentum | 30% |
 
-The weights come from the official Top/Worst research package completed on
-2026-07-07, where the defensive tilt was preferred for drawdown and volatility
-robustness rather than raw CAGR.
+The current production default is `eu_small_validated_qvm_v1`. It comes from
+the supplemental raw-gate official Top/Worst package completed on 2026-07-08:
+`07_backtest_code/runs/ad_hoc/eu_small_validated_gate_20260708_official`.
+LowVol is intentionally excluded because no low-volatility raw variable passed
+the default raw validation gate.
 
 ## Commands
 
@@ -41,4 +41,3 @@ python 15_small_cap_model/src/small_cap_model.py
 python -m 02_pipelines.refresh_small_cap
 python -m 02_pipelines.refresh_small_cap --inspect-only
 ```
-

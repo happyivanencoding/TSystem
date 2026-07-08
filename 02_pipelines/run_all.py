@@ -20,6 +20,7 @@ from .optimize_portfolio import DEFAULT_OUTPUT as DEFAULT_PORTFOLIO, run_optimiz
 from .refresh_data import run_refresh_data
 from .refresh_ml import run_refresh_ml
 from .refresh_small_cap import DEFAULT_OUTPUT_DIR as DEFAULT_SMALL_CAP_OUTPUT_DIR
+from .refresh_small_cap import DEFAULT_CONFIG as DEFAULT_SMALL_CAP_CONFIG
 from .refresh_small_cap import DEFAULT_SIGNAL_OUTPUT as DEFAULT_SMALL_CAP_SIGNAL_OUTPUT
 from .refresh_small_cap import run_refresh_small_cap
 from .refresh_regime import run_refresh_regime
@@ -283,7 +284,7 @@ def run_all(args: argparse.Namespace) -> Path:
                         Namespace(
                             as_of=args.as_of,
                             screen=str(SCREEN_AGGREGATE_PATH),
-                            config=str(TP_ROOT / "15_small_cap_model" / "config" / "eu_small_defensive_tilt.json"),
+                            config=str(DEFAULT_SMALL_CAP_CONFIG),
                             output_dir=getattr(args, "small_cap_output_dir", str(DEFAULT_SMALL_CAP_OUTPUT_DIR)),
                             signal_output=getattr(args, "small_cap_signal_output", str(DEFAULT_SMALL_CAP_SIGNAL_OUTPUT)),
                             all_history=args.all_history_signals,

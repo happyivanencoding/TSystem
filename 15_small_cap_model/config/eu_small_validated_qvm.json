@@ -1,0 +1,53 @@
+{
+  "model_version": "eu_small_validated_qvm_v1",
+  "signal_name": "eu_small_validated_qvm",
+  "description": "Raw-gated MSCI EUR SMALL quality/value/momentum model selected from official Top/Worst supplemental research.",
+  "benchmark": "MSCI EUR SMALL",
+  "weight_column": "Weight in MSCI EUR SMALL",
+  "sector_column": " Benchmark ICB Supersector ",
+  "score_scale": 10.0,
+  "winsorize": {
+    "lower_quantile": 0.01,
+    "upper_quantile": 0.99,
+    "min_observations": 20
+  },
+  "subfactors": {
+    "quality": {
+      "min_count": 2,
+      "variables": [
+        {"column": "ROE avg FY0", "direction": 1},
+        {"column": "Oper Margin", "direction": 1},
+        {"column": "NetDebt to EBITDA exFIN", "direction": -1}
+      ]
+    },
+    "value": {
+      "min_count": 2,
+      "variables": [
+        {"column": "Earns Yield FY1", "direction": 1},
+        {"column": "Earns Yield NTM", "direction": 1},
+        {"column": "PFCF LTM", "direction": -1}
+      ]
+    },
+    "momentum": {
+      "min_count": 2,
+      "variables": [
+        {"column": "EPS Revision Ratio", "direction": 1},
+        {"column": "PMOM 12M1M", "direction": 1}
+      ]
+    }
+  },
+  "final_weights": {
+    "quality": 0.40,
+    "value": 0.30,
+    "momentum": 0.30
+  },
+  "final_min_count": 2,
+  "raw_gate": {
+    "source_run_dir": "07_backtest_code/runs/ad_hoc/eu_small_multifactor_20260707_085611",
+    "supplemental_run_dir": "07_backtest_code/runs/ad_hoc/eu_small_validated_gate_20260708_official",
+    "coverage_min": 0.75,
+    "ratio_cagr_min": 0.0,
+    "top_worst_ratio_return_min": 0.0,
+    "robust_score_min": 0.0
+  }
+}

@@ -3040,6 +3040,8 @@ def _small_cap_signal_payload() -> dict[str, Any]:
         if column not in latest.columns:
             continue
         values = pd.to_numeric(latest[column], errors="coerce")
+        if not values.notna().any():
+            continue
         factor_rows.append(
             {
                 "factor": label,

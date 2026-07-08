@@ -14,7 +14,7 @@ from .common import StepManifest, path_profile
 
 
 MODEL_SCRIPT = TP_ROOT / "15_small_cap_model" / "src" / "small_cap_model.py"
-DEFAULT_CONFIG = TP_ROOT / "15_small_cap_model" / "config" / "eu_small_defensive_tilt.json"
+DEFAULT_CONFIG = TP_ROOT / "15_small_cap_model" / "config" / "eu_small_validated_qvm.json"
 DEFAULT_OUTPUT_DIR = TP_ROOT / "15_small_cap_model" / "outputs"
 DEFAULT_SIGNAL_OUTPUT = TP_ROOT / "04_signals" / "small_cap_model_signals.parquet"
 

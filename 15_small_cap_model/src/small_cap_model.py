@@ -24,17 +24,17 @@ from tp_core.signals import standardize_signal_frame, validate_signal_frame, wri
 
 
 MODULE_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CONFIG = MODULE_ROOT / "config" / "eu_small_defensive_tilt.json"
+DEFAULT_CONFIG = MODULE_ROOT / "config" / "eu_small_validated_qvm.json"
 DEFAULT_OUTPUT_DIR = MODULE_ROOT / "outputs"
 DEFAULT_SIGNAL_OUTPUT = TP_ROOT / "04_signals" / "small_cap_model_signals.parquet"
 DATE_COL = "Date"
 ISIN_COL = "ISIN"
 SEDOL_COL = "Company SEDOL"
 NAME_COL = "Name"
-MODEL_SCORE_COL = "eu_small_defensive_tilt_score"
-MODEL_RANK_COL = "eu_small_defensive_tilt_rank"
-MODEL_PCT_COL = "eu_small_defensive_tilt_pct"
-MODEL_BUCKET_COL = "eu_small_defensive_tilt_bucket"
+MODEL_SCORE_COL = "eu_small_model_score"
+MODEL_RANK_COL = "eu_small_model_rank"
+MODEL_PCT_COL = "eu_small_model_pct"
+MODEL_BUCKET_COL = "eu_small_model_bucket"
 
 
 def _slugify(text: str) -> str:
@@ -210,7 +210,7 @@ def _make_signal_frame(panel: pd.DataFrame, config: dict[str, Any]) -> pd.DataFr
         {
             "Date": panel[DATE_COL],
             "signal_family": "small_cap_model",
-            "signal_name": "eu_small_defensive_tilt",
+            "signal_name": config.get("signal_name", "eu_small_validated_qvm"),
             "scope": "security",
             "score": panel[MODEL_SCORE_COL],
             "direction": "higher_is_better",
@@ -228,7 +228,7 @@ def _make_signal_frame(panel: pd.DataFrame, config: dict[str, Any]) -> pd.DataFr
             "effective_date": panel[DATE_COL],
             "horizon": "1M",
             "confidence": panel["eu_small_valid_subfactors"] / max(1, len(config["final_weights"])),
-            "signal_description": "MSCI EUR SMALL defensive six-style rebuilt multifactor score.",
+            "signal_description": config.get("description", "MSCI EUR SMALL raw-gated rebuilt multifactor score."),
             "Name": panel.get(NAME_COL, pd.NA),
             "rank": panel[MODEL_RANK_COL],
             "bucket": panel[MODEL_BUCKET_COL],

@@ -1,20 +1,20 @@
 {
   "step": "refresh_small_cap",
   "status": "success",
-  "started_at": "2026-07-08T13:00:21",
-  "finished_at": "2026-07-08T13:00:24",
-  "duration_seconds": 3.601,
+  "started_at": "2026-07-08T12:59:07",
+  "finished_at": "2026-07-08T12:59:10",
+  "duration_seconds": 3.502,
   "run_type": "smoke",
   "parameters": {
     "as_of": null,
+    "run_type": "smoke",
     "screen": "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate.parquet",
     "config": "C:\\GoogleDrive\\TP\\15_small_cap_model\\config\\eu_small_validated_qvm.json",
     "output_dir": "C:\\GoogleDrive\\TP\\15_small_cap_model\\outputs",
     "signal_output": "C:\\GoogleDrive\\TP\\04_signals\\small_cap_model_signals.parquet",
     "all_history": false,
     "inspect_only": false,
-    "min_coverage": 0.5,
-    "run_type": "smoke"
+    "min_coverage": 0.5
   },
   "inputs": {
     "screen_aggregate": {
@@ -56,13 +56,13 @@
       "exists": true,
       "type": "file",
       "bytes": 2633,
-      "modified_at": "2026-07-08T13:00:24"
+      "modified_at": "2026-07-08T12:59:10"
     },
     "panel": {
       "path": "C:\\GoogleDrive\\TP\\15_small_cap_model\\outputs\\eu_small_model_scores_latest.parquet",
       "exists": true,
       "bytes": 197294,
-      "modified_at": "2026-07-08T13:00:24",
+      "modified_at": "2026-07-08T12:59:10",
       "format": "parquet",
       "rows": 836,
       "columns": 36,
@@ -73,13 +73,13 @@
       "exists": true,
       "type": "file",
       "bytes": 721,
-      "modified_at": "2026-07-08T13:00:24"
+      "modified_at": "2026-07-08T12:59:10"
     },
     "small_cap_model_signals": {
       "path": "C:\\GoogleDrive\\TP\\04_signals\\small_cap_model_signals.parquet",
       "exists": true,
       "bytes": 104410,
-      "modified_at": "2026-07-08T13:00:24",
+      "modified_at": "2026-07-08T12:59:10",
       "format": "parquet",
       "rows": 836,
       "columns": 35,

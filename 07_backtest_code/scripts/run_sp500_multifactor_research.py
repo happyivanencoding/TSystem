@@ -40,21 +40,24 @@ def combo_column(families: tuple[str, ...]) -> str:
     return "sp500_mf_" + "_".join(families)
 
 
-def add_family_combinations(screen: pd.DataFrame, metric_specs: list[base.ModelSpec]) -> list[base.ModelSpec]:
+def add_family_combinations(
+    screen: pd.DataFrame,
+    metric_specs: list[base.ModelSpec],
+    families: tuple[str, ...] = FAMILIES,
+) -> list[base.ModelSpec]:
     family_scores = {family: f"eu_small_{family}_rebuilt" for family in FAMILIES}
-    missing = [column for column in family_scores.values() if column not in screen.columns]
+    missing = [family_scores[family] for family in families if family_scores[family] not in screen.columns]
     if missing:
         raise ValueError(f"Missing rebuilt family columns: {missing}")
 
     specs = list(metric_specs)
     existing_metrics = {spec.column for spec in specs}
-    for size in range(1, len(FAMILIES) + 1):
-        for subset in combinations(FAMILIES, size):
+    for size in range(1, len(families) + 1):
+        for subset in combinations(families, size):
             column = combo_column(subset)
             components = {family_scores[family]: 1.0 / size for family in subset}
             min_count = 1 if size == 1 else min(size, 4)
-            if column not in screen.columns:
-                screen[column] = base.weighted_scores(screen, components, min_count)
+            screen[column] = base.weighted_scores(screen, components, min_count)
             if column in existing_metrics:
                 continue
             specs.append(
@@ -178,6 +181,105 @@ def parse_metric_set(raw: str | None, default: list[str]) -> list[str]:
     return base.parse_csv_arg(raw, default)
 
 
+def raw_metric_specs(metric_specs: list[base.ModelSpec]) -> list[base.ModelSpec]:
+    return [spec for spec in metric_specs if spec.family.startswith("raw_") and spec.column]
+
+
+def resolve_summary_path(raw: str) -> Path:
+    path = Path(raw)
+    return path / "performance_summary.csv" if path.is_dir() else path
+
+
+def apply_validated_family_components(
+    *,
+    screen: pd.DataFrame,
+    metric_specs: list[base.ModelSpec],
+    metric_diag: pd.DataFrame,
+    validation_summary_path: Path,
+    min_coverage: float,
+    min_robust_score: float,
+    min_ratio_cagr: float,
+    min_top_worst_ratio: float,
+    output_dir: Path,
+) -> list[base.ModelSpec]:
+    validation = pd.read_csv(validation_summary_path)
+    top = validation[(validation["status"].eq("success")) & (validation["side"].eq("Top"))].copy()
+    diag = metric_diag.set_index("metric").to_dict(orient="index") if not metric_diag.empty else {}
+    passing: dict[str, list[base.ModelSpec]] = {family: [] for family in FAMILIES}
+    rows = []
+
+    raw_specs = raw_metric_specs(metric_specs)
+    raw_by_column = {spec.column: spec for spec in raw_specs}
+    for _, row in top.iterrows():
+        metric = str(row.get("metric", ""))
+        spec = raw_by_column.get(metric)
+        if spec is None:
+            continue
+        family = spec.family.removeprefix("raw_")
+        coverage = float(diag.get(metric, {}).get("coverage", float("nan")))
+        robust_score = float(row.get("robust_score", float("nan")))
+        ratio_cagr = float(row.get("ratio_cagr", float("nan")))
+        top_worst_ratio = float(row.get("top_worst_ratio_return", float("nan")))
+        passed = (
+            coverage >= min_coverage
+            and robust_score > min_robust_score
+            and ratio_cagr > min_ratio_cagr
+            and top_worst_ratio > min_top_worst_ratio
+        )
+        rows.append(
+            {
+                "metric": metric,
+                "family": family,
+                "coverage": coverage,
+                "ratio_cagr": ratio_cagr,
+                "top_worst_ratio_return": top_worst_ratio,
+                "robust_score": robust_score,
+                "passed": passed,
+                "label": spec.label,
+                "note": spec.note,
+            }
+        )
+        if passed:
+            passing.setdefault(family, []).append(spec)
+
+    pd.DataFrame(rows).sort_values(["family", "passed", "robust_score"], ascending=[True, False, False]).to_csv(
+        output_dir / "raw_validation_gate.csv",
+        index=False,
+    )
+
+    specs_by_column = {
+        spec.column: spec
+        for spec in metric_specs
+        if spec.column not in {f"eu_small_{family}_rebuilt" for family in FAMILIES}
+        and not spec.column.startswith("sp500_mf_")
+    }
+    min_counts = {"growth": 3, "value": 4, "quality": 2, "lowvol": 2, "momentum": 2, "dividend": 2}
+    for family in FAMILIES:
+        selected = passing.get(family, [])
+        columns = [spec.column for spec in selected]
+        score_col = f"eu_small_{family}_rebuilt"
+        min_count = max(1, min(min_counts[family], len(columns))) if columns else 1
+        screen[score_col] = base.average_scores(screen, columns, min_count) if columns else pd.NA
+        specs_by_column[score_col] = base.ModelSpec(
+            score_col,
+            f"{family} validated rebuilt",
+            f"validated_{family}",
+            {column: 1.0 for column in columns},
+            f"raw-validated average; {len(columns)} components passed gate",
+        )
+    return list(specs_by_column.values())
+
+
+def enabled_families(metric_specs: list[base.ModelSpec]) -> tuple[str, ...]:
+    specs = {spec.column: spec for spec in metric_specs}
+    enabled = []
+    for family in FAMILIES:
+        spec = specs.get(f"eu_small_{family}_rebuilt")
+        if spec is not None and spec.components:
+            enabled.append(family)
+    return tuple(enabled)
+
+
 def run_official_backtests_incremental(
     *,
     screen: pd.DataFrame,
@@ -271,6 +373,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-runs", type=int, default=None, help="Optional cap on official runs.")
     parser.add_argument("--resume", action="store_true", help="Reuse successful official runs already listed in output-dir.")
     parser.add_argument("--candidate-only", action="store_true", help="Run only rebuilt SP500 family combinations, excluding database anchors.")
+    parser.add_argument("--raw-only", action="store_true", help="Run only raw rebuilt-variable scores.")
+    parser.add_argument("--validated-from", default="", help="Raw-variable performance_summary.csv or its run directory.")
+    parser.add_argument("--min-raw-coverage", type=float, default=0.75)
+    parser.add_argument("--min-raw-robust-score", type=float, default=0.0)
+    parser.add_argument("--min-raw-ratio-cagr", type=float, default=0.0)
+    parser.add_argument("--min-raw-top-worst-ratio", type=float, default=0.0)
     return parser
 
 
@@ -289,7 +397,22 @@ def main(argv: Iterable[str] | None = None) -> int:
     returns.index = pd.to_datetime(returns.index, errors="coerce")
     returns = returns.sort_index()
     screen, checks, _, metric_specs = base.build_research_screen(screen_path, returns, output_dir, force=args.force_rebuild)
-    metric_specs = add_family_combinations(screen, metric_specs)
+    metric_specs = list({spec.column: spec for spec in metric_specs}.values())
+    metric_diag = base.metric_diagnostics(screen, metric_specs, list(base.RAW_METRICS)).drop_duplicates("metric", keep="last")
+    if args.validated_from:
+        metric_specs = apply_validated_family_components(
+            screen=screen,
+            metric_specs=metric_specs,
+            metric_diag=metric_diag,
+            validation_summary_path=resolve_summary_path(args.validated_from),
+            min_coverage=args.min_raw_coverage,
+            min_robust_score=args.min_raw_robust_score,
+            min_ratio_cagr=args.min_raw_ratio_cagr,
+            min_top_worst_ratio=args.min_raw_top_worst_ratio,
+            output_dir=output_dir,
+        )
+    combo_families = enabled_families(metric_specs) if args.validated_from else FAMILIES
+    metric_specs = add_family_combinations(screen, metric_specs, combo_families)
     metric_specs = list({spec.column: spec for spec in metric_specs}.values())
 
     research_screen_path = output_dir / "sp500_multifactor_screen.parquet"
@@ -304,7 +427,8 @@ def main(argv: Iterable[str] | None = None) -> int:
     metric_diag.to_csv(output_dir / "metric_diagnostics.csv", index=False)
 
     combo_metrics = [spec.column for spec in metric_specs if spec.column.startswith("sp500_mf_")]
-    all_metrics = combo_metrics if args.candidate_only else [spec.column for spec in metric_specs if spec.column in screen.columns]
+    raw_metrics = [spec.column for spec in raw_metric_specs(metric_specs) if spec.column in screen.columns]
+    all_metrics = raw_metrics if args.raw_only else combo_metrics if args.candidate_only else [spec.column for spec in metric_specs if spec.column in screen.columns]
     metric_columns = [combo_column(FAMILIES)] if args.smoke else parse_metric_set(args.metrics, all_metrics)
     unknown = sorted(set(metric_columns).difference(all_metrics))
     if unknown:
@@ -358,6 +482,14 @@ def main(argv: Iterable[str] | None = None) -> int:
         "build_only": bool(args.build_only),
         "resume": bool(args.resume),
         "candidate_only": bool(args.candidate_only),
+        "raw_only": bool(args.raw_only),
+        "validated_from": str(args.validated_from),
+        "raw_gate": {
+            "min_coverage": args.min_raw_coverage,
+            "min_robust_score": args.min_raw_robust_score,
+            "min_ratio_cagr": args.min_raw_ratio_cagr,
+            "min_top_worst_ratio": args.min_raw_top_worst_ratio,
+        },
         "expected_run_count": int(2 * len(metric_columns)),
         "run_count": int(len(run_results)),
         "success_count": int(run_results["status"].eq("success").sum()) if not run_results.empty else 0,

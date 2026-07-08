@@ -2164,9 +2164,9 @@ function App() {
                 />
               </div>
               <div>
-                <div className="tp-panel-note">最终权重 / lowvol 25%, quality 25%, value 15%, momentum 15%, growth 10%, dividend 10%</div>
+                <div className="tp-panel-note">最终权重 / quality 40%, value 30%, momentum 30%；raw gate 后不含 lowvol</div>
                 <DataTable
-                  columns={['Name', 'score', 'rank', 'bucket', 'LowVol', 'Quality', 'Value', 'Momentum', 'Growth', 'Dividend', 'Weight', 'Country', 'Sector']}
+                  columns={['Name', 'score', 'rank', 'bucket', 'Quality', 'Value', 'Momentum', 'Weight', 'Country', 'Sector']}
                   limit={8}
                   renderCell={renderSmallCapCell}
                   rows={smallCapTopRows}
@@ -2185,7 +2185,7 @@ function App() {
                 <div>
                   <div className="tp-panel-note">Top 20</div>
                   <DataTable
-                    columns={['Name', 'score', 'rank', 'bucket', 'LowVol', 'Quality', 'Value', 'Momentum', 'Growth', 'Dividend', 'Weight', 'Country', 'Sector']}
+                    columns={['Name', 'score', 'rank', 'bucket', 'Quality', 'Value', 'Momentum', 'Weight', 'Country', 'Sector']}
                     limit={20}
                     renderCell={renderSmallCapCell}
                     rows={smallCapTopRows}
@@ -2194,7 +2194,7 @@ function App() {
                 <div>
                   <div className="tp-panel-note">Worst 20</div>
                   <DataTable
-                    columns={['Name', 'score', 'rank', 'bucket', 'LowVol', 'Quality', 'Value', 'Momentum', 'Growth', 'Dividend', 'Weight', 'Country', 'Sector']}
+                    columns={['Name', 'score', 'rank', 'bucket', 'Quality', 'Value', 'Momentum', 'Weight', 'Country', 'Sector']}
                     limit={20}
                     renderCell={renderSmallCapCell}
                     rows={smallCapWorstRows}

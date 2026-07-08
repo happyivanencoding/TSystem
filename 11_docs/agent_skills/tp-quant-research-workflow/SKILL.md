@@ -1,6 +1,6 @@
 ---
 name: tp-quant-research-workflow
-description: Use this skill for TP quantitative research workflows, including factor research, region/size/universe multifactor rebuilds, regime-feature research, available-data audits beyond existing factor columns, qualitative hypothesis narrowing, creative but explainable candidate signal construction, official top/worst backtests, fast-screen versus official evidence separation, and Chinese research reports with Plotly comparison artifacts.
+description: Use this skill for TP quantitative research workflows, including factor research, region/size/universe multifactor rebuilds, raw-variable validation gates before family construction, regime-feature research, available-data audits beyond existing factor columns, qualitative hypothesis narrowing, creative but explainable candidate signal construction, official top/worst backtests, fast-screen versus official evidence separation, and Chinese research reports with Plotly comparison artifacts.
 ---
 
 # TP Quant Research Workflow
@@ -26,8 +26,9 @@ Primary locations:
 4. Construct only explainable candidate signals: ranks, z-scores, historical percentiles, rolling changes, lagged values, residualized variables, spreads, and simple combinations with a clear story.
 5. Separate fast or approximate screening from official exact evidence.
 6. Use official exact runs for conclusions. Label screening output clearly.
-7. Keep Top, Worst, Benchmark, and Top/Worst ratio evidence together unless the user narrows the scope.
-8. Generate Plotly Top / Worst / Benchmark and Top/Worst ratio comparisons by default for factor backtests unless the user opts out.
+7. For rebuilt factor families, validate raw variables with official Top/Worst evidence before allowing them into a family composite.
+8. Keep Top, Worst, Benchmark, and Top/Worst ratio evidence together unless the user narrows the scope.
+9. Generate Plotly Top / Worst / Benchmark and Top/Worst ratio comparisons by default for factor backtests unless the user opts out.
 
 ## Region/Size Factor Rebuild Playbook
 
@@ -35,19 +36,33 @@ Use this template when the user asks for a reusable factor model across a region
 
 1. Define the exact universe rule and benchmark first. Prefer benchmark weight columns such as `Weight in <BENCHMARK> > 0`; verify first date, last date, monthly name count, and SEDOL overlap with `00_screen/returns.parquet`.
 2. Rebuild factors from raw variables before comparing with database factor columns. Treat existing style scores as comparison anchors, not as the research starting point.
-3. Organize variables by economic family, such as growth, value, quality, lowvol, momentum, dividend, revision, liquidity, leverage, profitability, or sector-specific fundamentals. Mark each variable as `core` or `supplement`; low-coverage supplements are diagnostic evidence unless the user explicitly accepts sparse signals.
+3. Organize variables by economic family, such as growth, value, quality, lowvol, momentum, dividend, revision, liquidity, leverage, profitability, or sector-specific fundamentals. Mark each variable as `core` or `supplement` for diagnostics, but do not let that label alone decide family membership.
 4. Convert every raw variable into "higher is better" before aggregation. For each month, winsorize the cross-section, then rank within the neutralization bucket. Default to ICB 19 sector-neutral percentile rank scaled to `0-10`; consider country-neutral or country+sector neutral versions when the universe has strong country bias.
-5. Do not fill missing fundamentals with arbitrary values. Build each subfactor from available core variables with a minimum-count rule, and write coverage diagnostics. If a factor only has a short history, label its backtest as weak evidence.
-6. Build a small set of explainable composites: equal-weight full model, defensive quality/lowvol tilt, value+quality core, no-low-coverage-factor variant, and optionally a trailing-IC adaptive blend that uses only past information.
-7. Run official Top/Worst backtests for raw variables, rebuilt subfactors, existing database factors, and final candidates. Use fast screening only to decide what deserves exact runs; do not use it for conclusions.
-8. Select the final model by robustness first: Top/Benchmark ratio drawdown, tracking error, rolling 3-year failure, annual hit rate, Top/Worst ratio, Worst underperformance, turnover, and average holdings. Do not mechanically pick the highest CAGR.
-9. Explain the final weights economically. For small-cap universes, quality and lowvol often deserve higher weight because financing risk, liquidity shocks, and earnings fragility dominate; value should usually be capped unless it is paired with quality or improvement; momentum/revision is often a timing overlay.
+5. Run official Top/Worst backtests for every candidate raw variable before building family composites. CIQ, FactSet, database, and locally-derived fields use the same evidence gate; no source gets automatic inclusion or exclusion.
+6. Build validated family composites only from raw variables that pass the gate. Use explicit thresholds for coverage, Top/Benchmark ratio CAGR, robust score, and Top/Worst ratio. Write `raw_validation_gate.csv` or an equivalent audit table. If no raw variable in a family passes, exclude that family from candidate composites instead of creating a misleading empty family.
+7. Do not fill missing fundamentals with arbitrary values. Build each validated subfactor from passing variables with a minimum-count rule, and write coverage diagnostics. If a factor only has short history or low coverage, label its backtest as weak evidence.
+8. Build explainable composites from validated families: equal-weight full validated model, value+quality, quality+momentum, growth+value+quality, growth+quality+momentum, and other subsets justified by passed family coverage. Optionally add a trailing-IC adaptive blend that uses only past information.
+9. Run official Top/Worst backtests for validated subfactors, existing database factors, and final candidates. Use fast screening only to decide what deserves exact runs; do not use it for conclusions.
+10. Select the final model by robustness first: Top/Benchmark ratio drawdown, tracking error, rolling 3-year failure, annual hit rate, Top/Worst ratio, Worst underperformance, turnover, and average holdings. Do not mechanically pick the highest CAGR.
+11. Explain final weights from the evidence gate upward: raw variable pass/fail, family composition, family combination, then final model economics.
+
+## Raw Validation Gate
+
+Use this mandatory gate for family rebuild work unless the user explicitly requests a looser exploratory run:
+
+- First construct and save all raw variable scores with directions normalized to higher-is-better.
+- Run official exact Top/Worst backtests for each raw score before aggregating it into a family.
+- Require at minimum positive Top/Benchmark ratio CAGR, positive Top/Worst ratio return, positive robust score, and acceptable coverage. A practical default is `coverage >= 0.75`, `ratio_cagr > 0`, `top_worst_ratio_return > 0`, and `robust_score > 0`.
+- Treat CIQ fields exactly like other fields. Include CIQ only when it passes the same raw gate; exclude it when it fails, even if it is economically plausible.
+- Exclude any family with zero passing raw variables from downstream combination tests. Do not generate candidate names that imply exposure to a family whose validated score is empty.
+- Keep rejected raw variables in diagnostics and reports so the user can see what failed and why.
 
 Implementation pattern:
 
 - Put one-off research scripts under `07_backtest_code/scripts/` and outputs under `07_backtest_code/runs/ad_hoc/`.
 - Write `metric_definitions.json`, `data_construction_checks.csv`, `metric_diagnostics.csv`, `official_run_results.csv`, `performance_summary.csv`, Plotly HTML files, and a Chinese markdown report.
 - Add `--metrics`, `--max-runs`, and `--resume` to long official-run scripts so multi-hour Top/Worst matrices can be resumed without repeating successful runs.
+- For reusable universe runners, add or use a two-stage interface like `--raw-only` followed by `--validated-from <raw_run_dir_or_summary>` so raw evidence gates family construction.
 - If the GUI `BacktestService` logger relay fails or recurses during batch runs, call the same official engine path directly while preserving `PtfBuilder`, `generic_histo_seclist`, `backtest`, benchmark performance, and artifact outputs.
 - Do not modify production screen, signal, dashboard, model, or portfolio contracts unless the user explicitly asks to promote the research result.
 
@@ -124,6 +139,8 @@ For decision-ready research, produce:
 - Do not overwrite historical run directories.
 - Do not present screening output as final official performance.
 - Do not claim exhaustive search unless every subset was tested.
+- Do not claim a family has internal synergy unless raw variables, leave-one-out tests, or family-subset tests support that claim.
+- Do not include a raw variable in a final rebuilt family merely because it is a known data source, a `core` label, or an economically plausible field.
 - Do not change production screen, signal, dashboard, model, or portfolio contracts during research unless asked.
 - Do not brute-force large variable grids without an ex ante qualitative rationale.
 - Do not use transformations that cannot be explained economically, operationally, or behaviorally.

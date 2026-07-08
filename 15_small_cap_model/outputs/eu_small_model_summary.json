@@ -1,0 +1,275 @@
+{
+  "model_version": "eu_small_defensive_tilt_v1",
+  "benchmark": "MSCI EUR SMALL",
+  "latest_date": "2026-06-30",
+  "rows": 836,
+  "latest_rows": 836,
+  "latest_coverage": 1.0,
+  "final_weights": {
+    "lowvol": 0.25,
+    "quality": 0.25,
+    "value": 0.15,
+    "momentum": 0.15,
+    "growth": 0.1,
+    "dividend": 0.1
+  },
+  "available_variables": {
+    "growth": 6,
+    "value": 12,
+    "quality": 4,
+    "lowvol": 3,
+    "momentum": 4,
+    "dividend": 5
+  },
+  "variable_coverage": [
+    {
+      "family": "growth",
+      "column": "Sales Growth NTM",
+      "direction": 1.0,
+      "score_column": "eu_small_growth_sales_growth_ntm_score",
+      "coverage": 0.9688710204208595
+    },
+    {
+      "family": "growth",
+      "column": "Sales Growth FY1",
+      "direction": 1.0,
+      "score_column": "eu_small_growth_sales_growth_fy1_score",
+      "coverage": 0.9663592391557927
+    },
+    {
+      "family": "growth",
+      "column": "Gross Income Growth NTM",
+      "direction": 1.0,
+      "score_column": "eu_small_growth_gross_income_growth_ntm_score",
+      "coverage": 0.9603558486399054
+    },
+    {
+      "family": "growth",
+      "column": "Gross Income Growth FY1",
+      "direction": 1.0,
+      "score_column": "eu_small_growth_gross_income_growth_fy1_score",
+      "coverage": 0.9577974088993265
+    },
+    {
+      "family": "growth",
+      "column": "EPS Growth NTM",
+      "direction": 1.0,
+      "score_column": "eu_small_growth_eps_growth_ntm_score",
+      "coverage": 0.8977012924397717
+    },
+    {
+      "family": "growth",
+      "column": "EPS Growth FY1",
+      "direction": 1.0,
+      "score_column": "eu_small_growth_eps_growth_fy1_score",
+      "coverage": 0.8834160225204909
+    },
+    {
+      "family": "value",
+      "column": "Earns Yield FY1",
+      "direction": 1.0,
+      "score_column": "eu_small_value_earns_yield_fy1_score",
+      "coverage": 0.9912515358414856
+    },
+    {
+      "family": "value",
+      "column": "Earns Yield NTM",
+      "direction": 1.0,
+      "score_column": "eu_small_value_earns_yield_ntm_score",
+      "coverage": 0.9912515358414856
+    },
+    {
+      "family": "value",
+      "column": "PE FY1",
+      "direction": -1.0,
+      "score_column": "eu_small_value_pe_fy1_score",
+      "coverage": 0.8998009238378152
+    },
+    {
+      "family": "value",
+      "column": "PE NTM",
+      "direction": -1.0,
+      "score_column": "eu_small_value_pe_ntm_score",
+      "coverage": 0.927477176229062
+    },
+    {
+      "family": "value",
+      "column": "EV To EBITDA FY1",
+      "direction": -1.0,
+      "score_column": "eu_small_value_ev_to_ebitda_fy1_score",
+      "coverage": 0.8998709115510832
+    },
+    {
+      "family": "value",
+      "column": "EV To EBITDA NTM",
+      "direction": -1.0,
+      "score_column": "eu_small_value_ev_to_ebitda_ntm_score",
+      "coverage": 0.8997775946000591
+    },
+    {
+      "family": "value",
+      "column": "EV to Sales FY1",
+      "direction": -1.0,
+      "score_column": "eu_small_value_ev_to_sales_fy1_score",
+      "coverage": 0.9051044372210212
+    },
+    {
+      "family": "value",
+      "column": "EV to Sales NTM",
+      "direction": -1.0,
+      "score_column": "eu_small_value_ev_to_sales_ntm_score",
+      "coverage": 0.9058276435914584
+    },
+    {
+      "family": "value",
+      "column": "PB LTM",
+      "direction": -1.0,
+      "score_column": "eu_small_value_pb_ltm_score",
+      "coverage": 0.8837270790239047
+    },
+    {
+      "family": "value",
+      "column": "PFCF LTM",
+      "direction": -1.0,
+      "score_column": "eu_small_value_pfcf_ltm_score",
+      "coverage": 0.7707591333965815
+    },
+    {
+      "family": "value",
+      "column": "Price to FreeCF FY1",
+      "direction": -1.0,
+      "score_column": "eu_small_value_price_to_freecf_fy1_score",
+      "coverage": 0.5471717187427096
+    },
+    {
+      "family": "value",
+      "column": "Price to Book FY1",
+      "direction": -1.0,
+      "score_column": "eu_small_value_price_to_book_fy1_score",
+      "coverage": 0.9349192030732383
+    },
+    {
+      "family": "quality",
+      "column": "ROE avg FY0",
+      "direction": 1.0,
+      "score_column": "eu_small_quality_roe_avg_fy0_score",
+      "coverage": 0.9852325925004277
+    },
+    {
+      "family": "quality",
+      "column": "Oper Margin",
+      "direction": 1.0,
+      "score_column": "eu_small_quality_oper_margin_score",
+      "coverage": 0.9908704916248037
+    },
+    {
+      "family": "quality",
+      "column": "FCF Conversion",
+      "direction": 1.0,
+      "score_column": "eu_small_quality_fcf_conversion_score",
+      "coverage": 0.13910446832667153
+    },
+    {
+      "family": "quality",
+      "column": "NetDebt to EBITDA exFIN",
+      "direction": -1.0,
+      "score_column": "eu_small_quality_netdebt_to_ebitda_exfin_score",
+      "coverage": 0.8552498561363672
+    },
+    {
+      "family": "lowvol",
+      "column": "Daily Vol 260J",
+      "direction": -1.0,
+      "score_column": "eu_small_lowvol_daily_vol_260j_score",
+      "coverage": 0.9991834766785387
+    },
+    {
+      "family": "lowvol",
+      "column": "Daily Vol 90J",
+      "direction": -1.0,
+      "score_column": "eu_small_lowvol_daily_vol_90j_score",
+      "coverage": 0.9991212653778558
+    },
+    {
+      "family": "lowvol",
+      "column": "Daily Vol 60J",
+      "direction": -1.0,
+      "score_column": "eu_small_lowvol_daily_vol_60j_score",
+      "coverage": 0.9990901597275145
+    },
+    {
+      "family": "momentum",
+      "column": "PMOM 12M1M",
+      "direction": 1.0,
+      "score_column": "eu_small_momentum_pmom_12m1m_score",
+      "coverage": 0.986274631786864
+    },
+    {
+      "family": "momentum",
+      "column": "Total Return",
+      "direction": 1.0,
+      "score_column": "eu_small_momentum_total_return_score",
+      "coverage": 0.9983669533570773
+    },
+    {
+      "family": "momentum",
+      "column": "EPS Revision Ratio",
+      "direction": 1.0,
+      "score_column": "eu_small_momentum_eps_revision_ratio_score",
+      "coverage": 0.9790581209076629
+    },
+    {
+      "family": "momentum",
+      "column": "EPS NTM 3M Growth",
+      "direction": 1.0,
+      "score_column": "eu_small_momentum_eps_ntm_3m_growth_score",
+      "coverage": 0.9731713765805559
+    },
+    {
+      "family": "dividend",
+      "column": "DVD Yield NTM",
+      "direction": 1.0,
+      "score_column": "eu_small_dividend_dvd_yield_ntm_score",
+      "coverage": 0.9990512776645878
+    },
+    {
+      "family": "dividend",
+      "column": "DVD Yield FY1",
+      "direction": 1.0,
+      "score_column": "eu_small_dividend_dvd_yield_fy1_score",
+      "coverage": 0.9979548034900539
+    },
+    {
+      "family": "dividend",
+      "column": "DPS 1Y Growth NTM",
+      "direction": 1.0,
+      "score_column": "eu_small_dividend_dps_1y_growth_ntm_score",
+      "coverage": 0.8412600898953295
+    },
+    {
+      "family": "dividend",
+      "column": "DPS 1Y Growth FY1",
+      "direction": 1.0,
+      "score_column": "eu_small_dividend_dps_1y_growth_fy1_score",
+      "coverage": 0.7892436661119492
+    },
+    {
+      "family": "dividend",
+      "column": "DVD Payout FY0",
+      "direction": -1.0,
+      "score_column": "eu_small_dividend_dvd_payout_fy0_score",
+      "coverage": 1.0
+    }
+  ],
+  "signal_validation": {
+    "is_valid": true,
+    "errors": [],
+    "warnings": []
+  },
+  "outputs": {
+    "panel": "C:\\GoogleDrive\\TP\\15_small_cap_model\\outputs\\eu_small_model_scores_latest.parquet",
+    "summary": "C:\\GoogleDrive\\TP\\15_small_cap_model\\outputs\\eu_small_model_summary.json",
+    "variable_coverage": "C:\\GoogleDrive\\TP\\15_small_cap_model\\outputs\\eu_small_variable_coverage.csv",
+    "signal": "C:\\GoogleDrive\\TP\\04_signals\\small_cap_model_signals.parquet"
+  }
+}

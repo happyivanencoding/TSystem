@@ -1,4 +1,4 @@
 interface:
   display_name: "TP Quant Research Workflow"
-  short_description: "Research TP factors, signals, and models"
-  default_prompt: "Use $tp-quant-research-workflow to research a TP factor, signal, or model hypothesis."
+  short_description: "Research TP factors and region-size models"
+  default_prompt: "Use $tp-quant-research-workflow to rebuild and test a TP factor model for a specific region, size bucket, or universe."

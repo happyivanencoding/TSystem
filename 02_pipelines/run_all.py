@@ -18,6 +18,10 @@ from .export_signals import run_export_signals
 from .generate_report import run_generate_report
 from .optimize_portfolio import DEFAULT_OUTPUT as DEFAULT_PORTFOLIO, run_optimize_portfolio
 from .refresh_data import run_refresh_data
+from .refresh_ml import run_refresh_ml
+from .refresh_small_cap import DEFAULT_OUTPUT_DIR as DEFAULT_SMALL_CAP_OUTPUT_DIR
+from .refresh_small_cap import DEFAULT_SIGNAL_OUTPUT as DEFAULT_SMALL_CAP_SIGNAL_OUTPUT
+from .refresh_small_cap import run_refresh_small_cap
 from .refresh_regime import run_refresh_regime
 from .refresh_technical import DEFAULT_PATTERNS as DEFAULT_TECHNICAL_PATTERNS
 from .refresh_technical import run_refresh_technical
@@ -118,6 +122,12 @@ def _check_freshness(args: argparse.Namespace) -> dict[str, object]:
             window_days,
         ),
         _freshness_entry(
+            "signal_small_cap",
+            _max_parquet_date(Path(getattr(args, "small_cap_signal_output", DEFAULT_SMALL_CAP_SIGNAL_OUTPUT)), "Date"),
+            anchor,
+            window_days,
+        ),
+        _freshness_entry(
             "signal_sector",
             _min_existing_date(
                 [
@@ -193,6 +203,23 @@ def run_all(args: argparse.Namespace) -> Path:
             child_manifests.append(str(run_refresh_regime(Namespace(regime_output=regime_output, run_type=run_type))))
             regime_refreshed = True
 
+        if getattr(args, "refresh_ml", False) and not args.skip_export_signals:
+            child_manifests.append(
+                str(
+                    run_refresh_ml(
+                        Namespace(
+                            date=getattr(args, "ml_date", None),
+                            from_date=getattr(args, "ml_from_date", None),
+                            to_date=getattr(args, "ml_to_date", None),
+                            universe=getattr(args, "ml_universe", None),
+                            inspect_only=getattr(args, "inspect_only_ml", False),
+                            timeout_seconds=getattr(args, "ml_timeout_seconds", 7200),
+                            run_type=run_type,
+                        )
+                    )
+                )
+            )
+
         if not args.skip_export_signals and not getattr(args, "skip_refresh_technical", False):
             child_manifests.append(
                 str(
@@ -224,6 +251,7 @@ def run_all(args: argparse.Namespace) -> Path:
                             regime_oos=args.regime_oos,
                             region=args.regime_region,
                             patterns=technical_patterns_output,
+                            returns=str(RETURNS_PATH),
                             ml_output=str(TP_ROOT / "04_signals" / "ml_signals.parquet"),
                             technical_output=str(TP_ROOT / "04_signals" / "technical_signals.parquet"),
                             regime_output=str(TP_ROOT / "04_signals" / "regime_risk_budget.parquet"),
@@ -242,6 +270,25 @@ def run_all(args: argparse.Namespace) -> Path:
                                 "country_database",
                                 str(TP_ROOT / "14_country_model" / "data" / "country_model_database.parquet"),
                             ),
+                            run_type=run_type,
+                        )
+                    )
+                )
+            )
+
+        if not getattr(args, "skip_refresh_small_cap", False):
+            child_manifests.append(
+                str(
+                    run_refresh_small_cap(
+                        Namespace(
+                            as_of=args.as_of,
+                            screen=str(SCREEN_AGGREGATE_PATH),
+                            config=str(TP_ROOT / "15_small_cap_model" / "config" / "eu_small_defensive_tilt.json"),
+                            output_dir=getattr(args, "small_cap_output_dir", str(DEFAULT_SMALL_CAP_OUTPUT_DIR)),
+                            signal_output=getattr(args, "small_cap_signal_output", str(DEFAULT_SMALL_CAP_SIGNAL_OUTPUT)),
+                            all_history=args.all_history_signals,
+                            inspect_only=getattr(args, "inspect_only_small_cap", False),
+                            min_coverage=getattr(args, "small_cap_min_coverage", 0.5),
                             run_type=run_type,
                         )
                     )
@@ -389,12 +436,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--technical-timeout-seconds", type=int, default=1800)
     parser.add_argument("--skip-export-signals", action="store_true", help="跳过信号导出")
     parser.add_argument("--skip-country", action="store_true", help="导出信号时跳过国家模型")
+    parser.add_argument("--skip-refresh-small-cap", action="store_true", help="跳过 Europe small-cap 模型刷新")
+    parser.add_argument("--inspect-only-small-cap", action="store_true", help="只检查已有 Europe small-cap 产物，不重算")
+    parser.add_argument("--small-cap-output-dir", default=str(DEFAULT_SMALL_CAP_OUTPUT_DIR))
+    parser.add_argument("--small-cap-signal-output", default=str(DEFAULT_SMALL_CAP_SIGNAL_OUTPUT))
+    parser.add_argument("--small-cap-min-coverage", type=float, default=0.5)
     parser.add_argument("--skip-build-candidates", action="store_true", help="跳过候选池")
     parser.add_argument("--skip-optimize-portfolio", action="store_true", help="跳过组合优化")
     parser.add_argument("--skip-backtest", action="store_true", help="跳过回测")
     parser.add_argument("--skip-report", action="store_true", help="跳过报告")
 
     parser.add_argument("--all-history-signals", action="store_true", help="信号导出全历史")
+    parser.add_argument("--refresh-ml", action="store_true", help="运行 ML_Enhanced Score ML CLI 后再导出 ML 信号")
+    parser.add_argument("--inspect-only-ml", action="store_true", help="只检查 Score ML 覆盖，不重算")
+    parser.add_argument("--ml-date", action="append", help="Score ML 目标月末日期，可重复")
+    parser.add_argument("--ml-from-date", help="Score ML 起始日期")
+    parser.add_argument("--ml-to-date", help="Score ML 截止日期")
+    parser.add_argument("--ml-universe", action="append", choices=["EU", "US", "OTHER", "EM"], help="Score ML universe，可重复")
+    parser.add_argument("--ml-timeout-seconds", type=int, default=7200)
     parser.add_argument("--refresh-regime", action="store_true", help="刷新 Regime detector、webapp 数据和诊断产物")
     parser.add_argument("--regime-oos", action="store_true", help="Regime 使用 OOS 文件")
     parser.add_argument("--regime-region", action="append", choices=["US", "EU"], help="Regime 区域")

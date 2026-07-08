@@ -11,14 +11,15 @@ import numpy as np
 import pandas as pd
 from openpyxl import load_workbook
 
-ROOT = Path(__file__).resolve().parents[1]
-TEMPLATE = ROOT / "08_dashboard_analysis" / "analyse.xlsx"
+ROOT = Path(__file__).resolve().parents[3]
+APP_ROOT = Path(__file__).resolve().parent
+TEMPLATE = APP_ROOT / "analyse.xlsx"
 RUN_DIR = ROOT / "07_backtest_code" / "runs" / "ad_hoc" / "min_te_score_ml_202505_140_160_20260701_120512"
 SEC_LIST_PATH = RUN_DIR / "sec_list_min_te_score_ml_202505_140_160.parquet"
 OPT_RESULT_PATH = RUN_DIR / "optimizer_result_min_te_score_ml_202505_140_160.parquet"
 SUMMARY_PATH = RUN_DIR / "summary.json"
 RETURNS_PATH = ROOT / "00_screen" / "returns.parquet"
-OUT_DIR = ROOT / "08_dashboard_analysis" / "outputs"
+OUT_DIR = APP_ROOT / "outputs"
 OUT_PATH = OUT_DIR / "analyse_min_te_score_ml_202505_template_copy.xlsx"
 
 NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"

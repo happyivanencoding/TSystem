@@ -48,7 +48,7 @@ def test_system_worker_cli_once_on_empty_queue(tmp_path: Path, capsys: pytest.Ca
 def test_report_wrapper_exposes_lazy_entrypoints() -> None:
     from presentation_layer.reports import portfolio_dashboard
 
-    assert portfolio_dashboard.DASHBOARD_ROOT.name == "08_dashboard_analysis"
+    assert portfolio_dashboard.DASHBOARD_ROOT.name == "dashboard_analysis"
     assert callable(portfolio_dashboard.get_dashboard_class)
 
 
@@ -958,6 +958,7 @@ def test_run_all_refresh_regime_uses_dedicated_regime_step(tmp_path: Path, monke
     manifest = run_all_module.run_all(
         SimpleNamespace(
             skip_refresh_data=True,
+            skip_refresh_technical=True,
             skip_export_signals=False,
             refresh_regime=True,
             skip_build_candidates=True,

@@ -26,20 +26,20 @@
 | 共享库 | `01_tp_core/` | 数据路径、契约、IO、回测/优化共享逻辑 | 保留并扩展，应吸收重复工具函数 |
 | 文档中枢 | `11_docs/` | 全局架构、数据规则、研究方法、治理 | 保留 |
 | 回测主线 | `07_backtest_code/` | 传统代码版回测引擎、YAML 配置、批量运行和产物保存 | 保留为主线，不再维护独立 Web/GUI 前端 |
-| 回测 Web/GUI 旧入口 | `99_backtest_web_app_legacy/`、`99_backtest_gui_legacy/` | 原 Streamlit/FastAPI/PySide6 入口和重复核心 | 前端与重复核心已隔离，只保留历史参考 |
+| 回测 Web/GUI 旧入口 | `99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/`、`99_archive/project_cleanup_20260707/99_backtest_gui_legacy/` | 原 Streamlit/FastAPI/PySide6 入口和重复核心 | 已归档，只保留历史参考 |
 | ML 主线 | `03_ml_enhanced/` | 当前主要 ML 信号生产候选 | 保留为主线，清理内部数据副本 |
 | Regime | `03_regime_model/` | 市场状态、风险预算、配置建议 | 保留并接入信号层 |
 | 技术信号 | `03_technical_analysis/` | 技术指标和形态信号生产 | 保留 V2，冻结 V1 |
-| 公司展示 | `08_web_app_des_companies/` | 公司/行业/指数成分展示 | 与 Company_Analysis、dashboard_analysis 合并为展示/报告层 |
-| 公司分析 | `08_company_analysis/` | 公司研究、估值、模板 | 保留业务价值，剥离外部模板和本地 venv/node_modules |
-| 报告脚本 | `08_dashboard_analysis/` | PDF/报告生成和组合分析脚本 | 合并到报告层，不单独做数据源 |
+| 公司展示 | `08_presentation_layer/legacy_apps/web_app_des_companies/` | 公司/行业/指数成分展示 | 已并入展示/报告层 |
+| 公司分析 | `08_presentation_layer/legacy_apps/company_analysis/` | 公司研究、估值、模板 | 已并入展示/报告层；保留业务价值 |
+| 报告脚本 | `08_presentation_layer/legacy_apps/dashboard_analysis/` | PDF/报告生成和组合分析脚本 | 已并入展示/报告层，不单独做数据源 |
 | 组合优化 | `06_optimiser/` | Python 优化器候选 | 保留核心算法，合并 Excel/旧版 |
-| 组合优化旧版 | `99_optimiseur_legacy/` | notebook/xlsm 旧界面 | 冻结或迁入 optimizer docs，不做主线代码 |
+| 组合优化旧版 | `99_archive/project_cleanup_20260707/99_optimiseur_legacy/` | notebook/xlsm 旧界面 | 已归档，不做主线代码 |
 | 旧 FactSet/Excel | `99_archive/frozen_20260629/factsetProd第一版/` | 历史生产链路参考 | 已冻结，不作为当前入口 |
 | 旧回测 | `99_archive/frozen_20260629/backtest/`、`99_archive/frozen_20260629/回测第一版/` | 历史回测实现 | 已冻结；当前主线为 `07_backtest_code/` |
 | 旧 ML | `99_archive/frozen_20260629/ML/`、`99_archive/frozen_20260629/ML第一版/` | 历史 ML 实现 | 已冻结，保留可追溯，不再作为生产 |
 | 周期研究 | `99_archive/frozen_20260629/cyc/` | 周期/宏观早期研究 | 已冻结；有价值逻辑后续并入 `03_regime_model` |
-| 小盘研究 | `12_small_cap/` | 小盘 universe/研究片段 | 并入研究文档或候选池规则 |
+| 小盘研究 | `99_archive/project_cleanup_20260707/12_small_cap/` | 小盘 universe/研究片段 | 已归档；后续如恢复，应并入候选池规则或正式研究文档 |
 
 ## 3. 明确重复和可合并项
 
@@ -48,10 +48,10 @@
 | 目录 | 问题 | 建议 |
 | --- | --- | --- |
 | `99_archive/frozen_20260629/backtest/` | `BacktestEngine.py` 与 `BacktestEngine - 副本.py` 内容完全相同 | 已冻结；如果还有有用逻辑，迁入 `tp_core.backtesting` |
-| `99_backtest_web_app_legacy/_quarantine_20260629/legacy_backtest_core/BacktestEngine_original.py` | 仍保留 pickle 读取逻辑，是历史实现 | 已隔离；当前入口使用 `backtest_code` / `tp_core.backtesting` |
-| `技术分析和深度学习/技术分析_V1/backtest_core/` | 多个文件与 `99_backtest_web_app_legacy/core/` 完全重复，例如 attribution、metrics、financial_filter、weight_manager | 删除或隔离 V1 的重复 core，只保留 V2 技术信号逻辑 |
+| `99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/_quarantine_20260629/legacy_backtest_core/BacktestEngine_original.py` | 仍保留 pickle 读取逻辑，是历史实现 | 已归档；当前入口使用 `backtest_code` / `tp_core.backtesting` |
+| `技术分析和深度学习/技术分析_V1/backtest_core/` | 多个文件与旧 Web 回测 core 完全重复，例如 attribution、metrics、financial_filter、weight_manager | 删除或隔离 V1 的重复 core，只保留 V2 技术信号逻辑 |
 | `回测第一版/` | 老 pickle/Excel 逻辑，与当前 parquet 主线冲突 | 冻结归档 |
-| `99_backtest_gui_legacy/` | GUI 维护成本高，且与代码主线重复 | GUI 前端已隔离；无界面 runner/config 能力迁入 `backtest_code` |
+| `99_archive/project_cleanup_20260707/99_backtest_gui_legacy/` | GUI 维护成本高，且与代码主线重复 | 已归档；无界面 runner/config 能力迁入 `backtest_code` |
 
 ### 3.2 ML 重复
 
@@ -59,7 +59,7 @@
 | --- | --- | --- |
 | `ML/` | 上一版 ML，含大量 `.pkl` 数据和旧 notebook | 冻结归档，只保留必要历史输出 |
 | `ML第一版/` | 第一代 ML，pickle 输出和旧 API | 冻结归档 |
-| `03_ml_enhanced/` | 当前主线；原 `Input_files/` 的 00_screen/returns 副本、旧 `test_bench.ipynb`、旧 ptf 版 Monitoring 和 EM 参考 notebook 已隔离 | 保留代码，继续把训练、预测、监控入口生产化，并统一输出信号表 |
+| `03_ml_enhanced/` | 当前主线；原 `Input_files/` 的 00_screen/returns 副本、旧 `test_bench.ipynb`、旧 ptf 版 Monitoring 和 EM 参考 notebook 已隔离 | 保留代码；已建立 CLI 覆盖检查、显式 Score ML 生产和统一信号表导出 |
 | `99_archive/frozen_20260629/技术分析和深度学习__深度学习/` | 与 ML_PIPELINE/ML_PREPROCESS/PREDICTOR 类功能重叠 | 已冻结；有价值部分后续迁到 `03_ml_enhanced` 或统一 `models/` |
 
 ### 3.3 数据副本重复
@@ -80,7 +80,7 @@
 | 目录 | 问题 | 建议 |
 | --- | --- | --- |
 | `06_optimiser/` | Python 版组合优化主线 | 已切到 download_09 标准 `optimizer_engine.py`，旧优化器已隔离 |
-| `99_optimiseur_legacy/` | notebook + xlsm 版本 | 作为历史/人工界面参考，不作为生产 |
+| `99_archive/project_cleanup_20260707/99_optimiseur_legacy/` | notebook + xlsm 版本 | 已归档，不作为生产 |
 | `factsetProd第一版/func_optim_MAI.py` 与 `回测第一版/func_optim_MAI.py` | 内容完全重复 | 归档，不再维护两份 |
 | `06_optimiser/sec_list_generation.py` 与 `回测第一版/sec_list_generation.py` | 内容完全重复 | 旧 `sec_list_generation.py` 已隔离；生产优化器入口为 `06_optimiser/optimizer_engine.py` |
 
@@ -88,11 +88,11 @@
 
 | 目录 | 问题 | 建议 |
 | --- | --- | --- |
-| `08_web_app_des_companies/` | 公司/行业/指数展示，结构相对清楚 | 保留为公司展示基础 |
-| `08_company_analysis/` | 同样做公司分析和前端，还含外部模板、本地 venv、node_modules | 合并业务逻辑；依赖目录应隔离或重建，不进主线 |
-| `08_dashboard_analysis/` | PDF/report 和 dashboard 脚本 | 吸收到统一报告层 |
+| `08_presentation_layer/legacy_apps/web_app_des_companies/` | 公司/行业/指数展示，结构相对清楚 | 已作为 presentation layer 内部实现保留 |
+| `08_presentation_layer/legacy_apps/company_analysis/` | 公司分析和前端 | 已作为 presentation layer 内部实现保留 |
+| `08_presentation_layer/legacy_apps/dashboard_analysis/` | PDF/report 和 dashboard 脚本 | 已作为 presentation layer 内部实现保留 |
 | `03_regime_model/webapp/` | Regime 专属 dashboard | 可以作为统一投资 dashboard 的一个页面 |
-| `99_backtest_web_app_legacy/streamlit_app/` | 回测前端维护成本高 | 已隔离；回测结果先以 `07_backtest_code/runs/` 产物供后续 dashboard 消费 |
+| `99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/` | 回测前端维护成本高 | 已归档；回测结果先以 `07_backtest_code/runs/` 产物供后续 dashboard 消费 |
 
 ## 4. 推荐目标架构
 
@@ -149,7 +149,7 @@ flowchart LR
 
 ### 5.2 特征层
 
-主责目录：`03_ml_enhanced/`、`03_regime_model/`、`03_technical_analysis/`、`08_company_analysis/`。
+主责目录：`03_ml_enhanced/`、`03_regime_model/`、`03_technical_analysis/`、`08_presentation_layer/legacy_apps/company_analysis/`。
 
 目标是统一输出表：
 
@@ -207,7 +207,7 @@ flowchart LR
 
 ### 5.7 展示与报告层
 
-主责合并：`web_app_des_companies`、`Company_Analysis`、`dashboard_analysis`、`03_regime_model/webapp`。回测展示暂不维护独立前端，先消费 `07_backtest_code/runs/`。
+主责目录：`08_presentation_layer/`。公司展示、公司分析和组合 dashboard/PDF 已迁入 `08_presentation_layer/legacy_apps/`；`03_regime_model/webapp` 后续可作为统一投资 dashboard 的一个页面。回测展示暂不维护独立前端，先消费 `07_backtest_code/runs/`。
 
 已建立 `08_presentation_layer/` 作为展示/报告共享数据 repository。后续统一 dashboard 可按下面页面组演进：
 
@@ -233,18 +233,18 @@ flowchart LR
 3. `03_ml_enhanced/Input_files/` 和 `03_technical_analysis/data/` 中的 00_screen/returns 副本已隔离；旧 ML `.pkl`、旧 EM 参考 notebook 和项目派生快照后续按 manifest 再处理。
 4. 回测主线已切到 `07_backtest_code/`；Web/API/GUI 前端入口与旧项目重复核心已隔离，`tp_core.backtesting` 暴露核心类。
 5. 已建立统一信号表 schema：`tp_core.signals`、`11_docs/SIGNAL_SCHEMA.md`、`04_signals/` 输出目录。
-6. 已建立不破坏代码路径的编号索引：`00_项目主线索引/`。
+6. 已建立编号索引并在 2026-07-07 并入 `11_docs/PROJECTS.md`，历史目录归档到 `99_archive/project_cleanup_20260707/00_项目主线索引/`。
 7. 已完成 notebook 清理第一轮：根目录测试 notebook、早期 `backtest/`、早期 `cyc/`、旧深度学习 pipeline 已归档或冻结。
 
 ### P1：合并能力层
 
 状态：已完成入口层收敛，模型内部生产化仍需继续。
 
-1. `03_ml_enhanced` 已固定 `export_signals.py`，输出 `04_signals/ml_signals.parquet`；训练/预测/监控 CLI 仍待固化。
+1. `03_ml_enhanced` 已固定 `python -m 03_ml_enhanced.cli export-signals`，输出 `04_signals/ml_signals.parquet`；缺失月份 Score ML 可通过 `python -m 02_pipelines.refresh_ml` 显式生产，notebook 训练/监控研究流程后续再拆。
 2. `regime_model` 已固定 `export_risk_budget.py`，输出 `04_signals/regime_risk_budget.parquet`。
 3. `03_technical_analysis` 已固定 `export_technical_signals.py`，输出 `04_signals/technical_signals.parquet`；主回测逻辑收敛到 `backtest_code`。
 4. `06_optimiser/optimizer_engine.py` 已作为唯一 Python 优化器标准；`99_optimiseur_legacy/` 的 notebook/xlsm 与旧 Python 优化器文件只留历史说明。
-5. 已建立 `08_presentation_layer/` 共享数据 repository，供 `web_app_des_companies`、`Company_Analysis`、`dashboard_analysis` 后续接入。
+5. 已建立 `08_presentation_layer/` 共享数据 repository，并承载 `web_app_des_companies`、`Company_Analysis`、`dashboard_analysis` 的内部实现。
 
 ### P2：形成一键生产链路
 
@@ -276,15 +276,15 @@ python -m 02_pipelines.run_all --input-month YYYYMM --as-of YYYY-MM-DD
 | --- | --- | --- |
 | 高 | `技术分析_V1/backtest_core` | 与 backtest 主线重复，先隔离或冻结 |
 | 高 | `99_archive/frozen_20260629/backtest/BacktestEngine - 副本.py` | 完全重复 | 已冻结 |
-| 高 | `99_backtest_web_app_legacy/streamlit_app`、`99_backtest_web_app_legacy/api`、`99_backtest_web_app_legacy/core`、`Backtest_GUI` GUI 入口和源码副本 | 已隔离，主线改为 `backtest_code` |
+| 已处理 | `99_backtest_web_app_legacy/`、`Backtest_GUI` GUI 入口和源码副本 | 已归档到 `99_archive/project_cleanup_20260707/`，主线改为 `backtest_code` |
 | 高 | `03_ml_enhanced/Input_files/screen_aggregate.parquet`、`returns.parquet` | 已隔离，Monitoring/Pipeline 默认改为 `tp_core.data_sources` canonical 读取 |
 | 高 | `03_technical_analysis/data/screen_aggregate.parquet`、`returns.parquet` | 已隔离，notebook 默认改为 canonical 读取 |
 | 高 | `03_ml_enhanced/test_bench.ipynb` | 已隔离，避免旧实验单元误写主库 |
 | 中 | `ML/`、`ML第一版/` | 已冻结到 `99_archive/frozen_20260629/` |
 | 中 | `回测第一版/`、`factsetProd第一版/` | 已冻结到 `99_archive/frozen_20260629/` |
-| 中 | `08_company_analysis/backend/venv`、`08_company_analysis/frontend/node_modules` | 依赖目录不应长期放在项目资料库中；可隔离后用 requirements/package-lock 重建 |
+| 已处理 | `08_company_analysis/`、`08_dashboard_analysis/`、`08_web_app_des_companies/` 根目录并行展示项目 | 已迁入 `08_presentation_layer/legacy_apps/`，根目录不再保留三套展示/报告入口 |
 | 已处理 | `06_optimiser/sec_list_generation.py` 与旧回测重复文件 | 旧文件已隔离；现役入口为 `06_optimiser/optimizer_engine.py` |
-| 低 | `12_small_cap/` | 根据是否继续研究决定并入候选池规则或保留为研究说明 |
+| 已处理 | `12_small_cap/`、`99_optimiseur_legacy/`、`99_backtest_gui_legacy/` | 已归档到 `99_archive/project_cleanup_20260707/` |
 | 已完成 | `99_archive/frozen_20260629/cyc/` | 早期周期研究已冻结；有价值逻辑后续并入 `03_regime_model` |
 
 ## 8. 我的建议判断

@@ -14,9 +14,9 @@
 
 推荐文档位置：
 
-- [`../99_backtest_web_app_legacy/README.md`](../99_backtest_web_app_legacy/README.md)
-- [`../99_backtest_web_app_legacy/11_docs/README.md`](../99_backtest_web_app_legacy/11_docs/README.md)
-- [`../99_backtest_gui_legacy/README.md`](../99_backtest_gui_legacy/README.md)
+- [`../99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/README.md`](../99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/README.md)
+- `99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/11_docs/` 已随旧 Web 回测入口归档，不作为当前研究方法入口。
+- [`../99_archive/project_cleanup_20260707/99_backtest_gui_legacy/README.md`](../99_archive/project_cleanup_20260707/99_backtest_gui_legacy/README.md)
 
 研究记录应至少包含：
 
@@ -73,9 +73,9 @@
 
 推荐文档位置：
 
-- [`../08_company_analysis/README.md`](../08_company_analysis/README.md)
-- [`../08_web_app_des_companies/README.md`](../08_web_app_des_companies/README.md)
-- [`../08_dashboard_analysis/README.md`](../08_dashboard_analysis/README.md)
+- [`../08_presentation_layer/legacy_apps/company_analysis/README.md`](../08_presentation_layer/legacy_apps/company_analysis/README.md)
+- [`../08_presentation_layer/legacy_apps/web_app_des_companies/README.md`](../08_presentation_layer/legacy_apps/web_app_des_companies/README.md)
+- [`../08_presentation_layer/legacy_apps/dashboard_analysis/README.md`](../08_presentation_layer/legacy_apps/dashboard_analysis/README.md)
 
 研究记录应说明：
 

@@ -13,7 +13,7 @@ import pandas as pd
 from tp_core.data_sources import TP_ROOT
 
 
-BACKEND_ROOT = TP_ROOT / "08_company_analysis" / "backend"
+BACKEND_ROOT = TP_ROOT / "08_presentation_layer" / "legacy_apps" / "company_analysis" / "backend"
 
 
 def _evict_if_outside(module_name: str, root: Path) -> None:
@@ -49,7 +49,7 @@ def create_app() -> Any:
     """创建公司分析 FastAPI app。
 
     路由定义集中在 presentation layer；业务函数暂时复用
-    `08_company_analysis/backend/analysis.py`，其中数据读取已接入
+    `08_presentation_layer/legacy_apps/company_analysis/backend/analysis.py`，其中数据读取已接入
     `PresentationDataRepository`。
     """
 

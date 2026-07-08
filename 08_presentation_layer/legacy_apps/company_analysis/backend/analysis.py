@@ -4,7 +4,7 @@ import os
 import sys
 from pathlib import Path
 
-_TP_ROOT = Path(__file__).resolve().parents[2]
+_TP_ROOT = Path(__file__).resolve().parents[4]
 _TP_CORE_PATH = _TP_ROOT / "01_tp_core"
 for _path in (_TP_ROOT, _TP_CORE_PATH):
     if str(_path) not in sys.path:

@@ -37,7 +37,7 @@
 
 | 来源 | 默认输出 | 粒度 |
 | --- | --- | --- |
-| `03_ml_enhanced/export_signals.py` | `04_signals/ml_signals.parquet` | security |
+| `python -m 03_ml_enhanced.cli export-signals` | `04_signals/ml_signals.parquet` | security |
 | `03_technical_analysis/export_technical_signals.py` | `04_signals/technical_signals.parquet` | security |
 | `03_regime_model/export_risk_budget.py` | `04_signals/regime_risk_budget.parquet` | region |
 | `14_country_model/src/country_model.py` | `04_signals/country_model_signals.parquet` | region |

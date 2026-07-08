@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
-_TP_ROOT = Path(__file__).resolve().parents[2]
+_TP_ROOT = Path(__file__).resolve().parents[4]
 if str(_TP_ROOT) not in sys.path:
     sys.path.insert(0, str(_TP_ROOT))
 

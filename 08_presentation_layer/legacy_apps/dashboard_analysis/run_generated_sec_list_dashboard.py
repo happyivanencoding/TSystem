@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -15,8 +15,9 @@ from dashboard import PortfolioDashboard
 RUN_DIR = ROOT / "07_backtest_code" / "runs" / "ad_hoc" / "min_te_score_ml_202505_140_160_20260701_120512"
 SEC_LIST_PATH = RUN_DIR / "sec_list_min_te_score_ml_202505_140_160.parquet"
 OPT_RESULT_PATH = RUN_DIR / "optimizer_result_min_te_score_ml_202505_140_160.parquet"
-TEMPLATE_PATH = ROOT / "08_dashboard_analysis" / "analyse.xlsx"
-OUTPUT_DIR = ROOT / "08_dashboard_analysis" / "outputs"
+APP_ROOT = Path(__file__).resolve().parent
+TEMPLATE_PATH = APP_ROOT / "analyse.xlsx"
+OUTPUT_DIR = APP_ROOT / "outputs"
 OUTPUT_PATH = OUTPUT_DIR / "analyse_min_te_score_ml_202505_dashboard.xlsx"
 INPUT_DIR = OUTPUT_DIR / "_dashboard_inputs"
 

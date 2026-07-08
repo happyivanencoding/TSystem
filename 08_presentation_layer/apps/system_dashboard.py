@@ -51,6 +51,10 @@ CLIENT_DIST_DIR = TP_ROOT / "08_presentation_layer" / "frontend" / "system_dashb
 CLIENT_ASSETS_DIR = CLIENT_DIST_DIR / "assets"
 REGIME_SIGNAL_PATH = TP_ROOT / "04_signals" / "regime_risk_budget.parquet"
 COUNTRY_SIGNAL_PATH = TP_ROOT / "04_signals" / "country_model_signals.parquet"
+SMALL_CAP_SIGNAL_PATH = TP_ROOT / "04_signals" / "small_cap_model_signals.parquet"
+SMALL_CAP_MODEL_DIR = TP_ROOT / "15_small_cap_model"
+SMALL_CAP_PANEL_PATH = SMALL_CAP_MODEL_DIR / "outputs" / "eu_small_model_scores_latest.parquet"
+SMALL_CAP_SUMMARY_PATH = SMALL_CAP_MODEL_DIR / "outputs" / "eu_small_model_summary.json"
 COUNTRY_DATABASE_PATH = TP_ROOT / "14_country_model" / "data" / "country_model_database.parquet"
 COUNTRY_SINGLE_COUNTRY_SCORE_PATH = (
     TP_ROOT / "14_country_model" / "outputs" / "country_model_single_country_scores.parquet"
@@ -84,8 +88,17 @@ SCORE_ML_BACKTEST_RUN_ROOT = (
     TP_ROOT / "07_backtest_code" / "runs" / "score_ml_vs_if_msci_world_top_worst_20"
 )
 SCORE_ML_SCREEN_PATH = TP_ROOT / "00_screen" / "screen_aggregate.parquet"
-COMPANY_DES_PATH = TP_ROOT / "08_web_app_des_companies" / "data" / "last_DES.parquet"
-COMPANY_NEWS_PATH = TP_ROOT / "08_web_app_des_companies" / "data" / "Last_NEWS_3months.parquet"
+COMPANY_DES_PATH = (
+    TP_ROOT / "08_presentation_layer" / "legacy_apps" / "web_app_des_companies" / "data" / "last_DES.parquet"
+)
+COMPANY_NEWS_PATH = (
+    TP_ROOT
+    / "08_presentation_layer"
+    / "legacy_apps"
+    / "web_app_des_companies"
+    / "data"
+    / "Last_NEWS_3months.parquet"
+)
 TECHNICAL_SIGNAL_PATH = TP_ROOT / "04_signals" / "technical_signals.parquet"
 TECHNICAL_SCREEN_PATH = TP_ROOT / "00_screen" / "last_screen.parquet"
 SCORE_ML_COMPONENT_COLUMNS = [
@@ -181,44 +194,44 @@ TECHNICAL_PATTERN_SCORE_COLUMNS = {
 TECHNICAL_METRIC_LABELS = {item["metric"]: item["label"] for item in TECHNICAL_METRIC_DEFINITIONS}
 TECHNICAL_MARKET_RULES = {
     "SP500": {
-        "technical_triangle_score": ("正向保留", "显著正向", "高分端", "官方 Top/Worst 显示突破形态在 SP500 更有延续性"),
-        "technical_momentum_10": ("正向保留", "显著正向", "高分端", "大型股信息扩散慢，短期趋势延续更稳定"),
-        "technical_macdh_12_26_9": ("正向保留", "显著正向", "高分端", "趋势加速度在 SP500 中可作为动量确认"),
-        "technical_composite": ("正向保留", "显著正向", "高分端", "多子信号合成后能降低单一形态噪音"),
-        "technical_rsi_14_midpoint": ("反向使用", "反向有效", "低分端", "中性 RSI 不一定是优势，更像趋势不足或过热规避"),
-        "technical_wedge_score": ("反向使用", "反向有效", "低分端", "楔形信号在大型股中更偏拥挤交易的反向提示"),
-        "technical_structure_score": ("反向使用", "反向有效", "低分端", "简单 HH/HL 结构容易落后于已兑现趋势"),
-        "technical_double_score": ("风险过滤", "弱证据", "高分端", "形态离散且样本少，只适合作辅助过滤"),
+        "technical_triangle_score": ("正向保留", "显著正向", "高分端", "clean run: Top excess +0.72%, Worst -3.67%, Top-Worst edge 4.40pp"),
+        "technical_macdh_12_26_9": ("正向保留", "显著正向", "高分端", "clean run: Top excess +1.61%, Worst -1.23%, edge 2.84pp"),
+        "technical_momentum_10": ("正向保留", "显著正向", "高分端", "clean run: Top excess +1.57%, Worst -0.21%, edge 1.79pp"),
+        "technical_composite": ("弱辅助", "弱证据", "高分端", "clean run: Top excess +0.26%, Worst -0.82%, edge 1.07pp"),
+        "technical_rsi_14_midpoint": ("反向使用", "反向有效", "低分端", "clean run: Worst excess +2.65%, Top -1.07%，高 midpoint 不是优势"),
+        "technical_wedge_score": ("反向使用", "反向有效", "低分端", "clean run: Worst excess +0.99%, Top -2.68%，高分端偏拥挤/失败形态"),
+        "technical_structure_score": ("弱辅助", "弱证据", "高分端", "clean run: Top/Worst 均为正 excess，edge 仅 0.07pp，不作强排序"),
+        "technical_double_score": ("反向使用", "弱证据", "低分端", "clean run: edge -2.13pp，且形态离散并列较多"),
     },
     "STOXX EUROPE 600": {
-        "technical_triangle_score": ("正向保留", "显著正向", "高分端", "欧洲市场分散，突破形态更可能代表渐进式重定价"),
-        "technical_momentum_10": ("正向保留", "显著正向", "高分端", "短期动量在欧洲横截面中仍有延续性"),
-        "technical_macdh_12_26_9": ("弱辅助", "弱证据", "高分端", "可做趋势确认，但不宜单独主导排序"),
-        "technical_composite": ("弱辅助", "弱证据", "高分端", "综合分在欧洲更适合风险过滤而非强 alpha"),
-        "technical_rsi_14_midpoint": ("反向使用", "反向有效", "低分端", "RSI 中位回归假设在欧洲样本中偏弱"),
-        "technical_wedge_score": ("反向使用", "反向有效", "低分端", "楔形更像失败突破或拥挤信号"),
-        "technical_double_score": ("反向使用", "反向有效", "低分端", "双顶/双底离散度高，官方回测更支持反向端"),
-        "technical_structure_score": ("风险过滤", "弱证据", "高分端", "结构标签证据不足，只保留辅助意义"),
+        "technical_triangle_score": ("风险过滤", "避雷有效", "高分端", "clean run: Top excess -0.57%, Worst -3.94%, edge 3.37pp，主要用于避开弱技术面"),
+        "technical_momentum_10": ("风险过滤", "弱证据", "高分端", "clean run: Top excess -0.46%, Worst -1.37%, edge 0.91pp"),
+        "technical_double_score": ("弱辅助", "弱证据", "高分端", "clean run: Top excess +0.86%, Worst +0.32%, edge 0.54pp，但 tie-heavy"),
+        "technical_composite": ("弱辅助", "弱证据", "高分端", "clean run: Top excess -1.54%, Worst -2.13%, edge 0.59pp"),
+        "technical_rsi_14_midpoint": ("反向使用", "反向有效", "低分端", "clean run: Worst excess +1.01%, Top -2.06%"),
+        "technical_wedge_score": ("反向使用", "反向有效", "低分端", "clean run: Worst excess +1.51%, Top -1.46%"),
+        "technical_macdh_12_26_9": ("弱辅助", "弱证据", "高分端", "clean run: Top/Worst excess 接近，edge -0.06pp"),
+        "technical_structure_score": ("弱辅助", "弱证据", "高分端", "clean run: edge -0.07pp，不作单独排序"),
     },
     "MSCI WORLD": {
-        "technical_triangle_score": ("正向保留", "显著正向", "高分端", "全球指数中突破形态受行业和地区趋势共同放大"),
-        "technical_momentum_10": ("正向保留", "显著正向", "高分端", "跨市场信息扩散和趋势跟随支持短期动量"),
-        "technical_macdh_12_26_9": ("正向保留", "显著正向", "高分端", "MACDh 对全球趋势加速度有辅助解释力"),
-        "technical_composite": ("正向保留", "显著正向", "高分端", "全球样本中合成分更能平均掉单市场噪音"),
-        "technical_rsi_14_midpoint": ("反向使用", "反向有效", "低分端", "RSI midpoint 更像趋势不足而非 alpha"),
-        "technical_wedge_score": ("反向使用", "反向有效", "低分端", "楔形在全球样本中偏失败趋势提示"),
-        "technical_structure_score": ("弱辅助", "弱证据", "高分端", "结构标签方向不稳定"),
-        "technical_double_score": ("弱辅助", "弱证据", "高分端", "双顶/双底样本少且并列多"),
+        "technical_composite": ("正向保留", "显著正向", "高分端", "clean run: Top excess +0.55%, Worst -1.43%, edge 1.98pp"),
+        "technical_momentum_10": ("正向保留", "显著正向", "高分端", "clean run: Top excess +0.95%, Worst -0.92%, edge 1.87pp"),
+        "technical_macdh_12_26_9": ("正向保留", "显著正向", "高分端", "clean run: Top excess +0.76%, Worst -1.03%, edge 1.79pp"),
+        "technical_double_score": ("风险过滤", "弱证据", "高分端", "clean run: Top -0.82%, Worst -2.61%, edge 1.79pp；tie-heavy"),
+        "technical_triangle_score": ("风险过滤", "弱证据", "高分端", "clean run: edge 0.86pp，但 Top/Worst excess 均为负"),
+        "technical_structure_score": ("弱辅助", "弱证据", "高分端", "clean run: edge 0.64pp，方向性不足"),
+        "technical_rsi_14_midpoint": ("反向使用", "反向有效", "低分端", "clean run: Worst excess +1.24%, Top -0.68%"),
+        "technical_wedge_score": ("反向使用", "弱证据", "低分端", "clean run: high wedge 更差，edge -1.20pp"),
     },
     "NASDAQ COMP": {
-        "technical_wedge_score": ("弱正向", "弱证据", "高分端", "成长股高波动下楔形只保留弱正向观察"),
-        "technical_momentum_10": ("反向使用", "反向有效", "低分端", "NASDAQ 短期动量更像过热/拥挤后的反转提示"),
-        "technical_rsi_14_midpoint": ("反向使用", "反向有效", "低分端", "RSI midpoint 在成长股中更接近反转或热度信号"),
-        "technical_triangle_score": ("风险过滤", "弱证据", "高分端", "突破形态不作为主 alpha，可过滤极端弱势"),
-        "technical_double_score": ("风险过滤", "弱证据", "高分端", "离散形态只做风险筛选"),
-        "technical_composite": ("风险过滤", "弱证据", "高分端", "综合趋势分不强行迁移到 NASDAQ"),
-        "technical_macdh_12_26_9": ("弱辅助", "弱证据", "高分端", "趋势加速度需结合波动和拥挤度解释"),
-        "technical_structure_score": ("弱辅助", "弱证据", "高分端", "结构标签不足以单独排序"),
+        "technical_structure_score": ("正向保留", "弱证据", "高分端", "clean run: Top excess +0.62%, Worst -2.23%, edge 2.85pp"),
+        "technical_wedge_score": ("风险过滤", "弱证据", "高分端", "clean run: Top -0.03%, Worst -2.10%, edge 2.06pp"),
+        "technical_triangle_score": ("风险过滤", "弱证据", "高分端", "clean run: Top +0.17%, Worst -1.59%, edge 1.76pp"),
+        "technical_macdh_12_26_9": ("弱辅助", "弱证据", "高分端", "clean run: Top/Worst 均弱，edge 0.22pp"),
+        "technical_rsi_14_midpoint": ("反向使用", "反向有效", "低分端", "clean run: Worst excess +2.52%, Top -2.56%，NASDAQ 更像反转/拥挤结构"),
+        "technical_momentum_10": ("反向使用", "弱证据", "低分端", "clean run: Worst excess +0.61%, Top +0.29%，短动量不宜照搬趋势"),
+        "technical_double_score": ("反向使用", "弱证据", "低分端", "clean run: Worst excess +1.55%, Top +0.86%，tie-heavy"),
+        "technical_composite": ("反向使用", "弱证据", "低分端", "clean run: high composite underperforms，edge -0.86pp"),
     },
 }
 
@@ -269,6 +282,7 @@ QUALITY_KEYS = {
     "regime_risk_budget": ("Date", "signal_family", "signal_name", "region"),
     "country_model_database": ("Date", "country"),
     "country_model_signals": ("Date", "signal_family", "signal_name", "region"),
+    "small_cap_model_signals": ("Date", "signal_family", "signal_name", "Company SEDOL"),
     "country_model_single_country_scores": ("Date", "country"),
     "sector_score_model": ("Date", "sector_code"),
     "latest_candidates": ("candidate_date", "Company SEDOL"),
@@ -284,12 +298,18 @@ CORE_DATABASE_NAMES = ("screen_aggregate", "returns", "last_screen", "screen_agg
 LINEAGE_NODE_PROJECTS: dict[str, tuple[str, ...]] = {
     "生产输入": ("00_screen",),
     "核心数据库": ("00_screen", "01_tp_core"),
-    "ML / Regime / Technical": ("03_ml_enhanced", "03_regime_model", "03_technical_analysis", "14_country_model"),
+    "ML / Regime / Technical": (
+        "03_ml_enhanced",
+        "03_regime_model",
+        "03_technical_analysis",
+        "14_country_model",
+        "15_small_cap_model",
+    ),
     "统一信号": ("04_signals",),
     "候选池": ("05_candidates",),
     "组合权重": ("06_portfolios", "06_optimiser"),
     "回测": ("07_backtest_code",),
-    "报告 / Dashboard": ("09_reports", "08_presentation_layer", "08_dashboard_analysis"),
+    "报告 / Dashboard": ("09_reports", "08_presentation_layer"),
 }
 
 STYLE = """
@@ -2222,6 +2242,9 @@ def _latest_technical_metric_frame(signal_frame: pd.DataFrame) -> tuple[pd.DataF
     base_columns = ["Company SEDOL"]
     if "ISIN" in latest.columns:
         base_columns.append("ISIN")
+    for column in ["technical_pattern_date", "technical_period_end", "technical_available_date", "effective_date", "as_of_date"]:
+        if column in latest.columns:
+            base_columns.append(column)
     base = latest[base_columns].drop_duplicates("Company SEDOL").set_index("Company SEDOL")
     metrics = base.copy()
 
@@ -2289,12 +2312,15 @@ def _technical_signal_payload() -> dict[str, Any]:
         "status": "missing",
         "latest_date": "",
         "screen_date": "",
+        "pattern_date": "",
+        "period_end": "",
+        "available_date": "",
         "updated_at": "",
         "signal_path": _rel(TECHNICAL_SIGNAL_PATH),
         "screen_path": _rel(TECHNICAL_SCREEN_PATH),
         "availability_note": (
-            "展示源为最新 production technical_signals；此前审查发现上游 weekly pattern 日期口径可能是周初标签，"
-            "交易或回测结论应以 availability-adjusted 版本为准。"
+            "展示源为 availability-safe production technical_signals：Date/effective_date 使用 weekly pattern 完整后的下一交易日，"
+            "as_of_date/technical_pattern_date 保留原始周初标签。"
         ),
         "metric_definitions": [
             {
@@ -2323,6 +2349,15 @@ def _technical_signal_payload() -> dict[str, Any]:
     if metric_frame.empty or latest_date is None:
         payload["message"] = "no latest technical metrics could be reconstructed"
         return payload
+
+    def metric_dates(column: str) -> pd.Series:
+        if column not in metric_frame.columns:
+            return pd.Series(dtype="datetime64[ns]")
+        return pd.to_datetime(metric_frame[column], errors="coerce").dropna()
+
+    pattern_date = metric_dates("technical_pattern_date")
+    period_end = metric_dates("technical_period_end")
+    available_date = metric_dates("technical_available_date")
 
     screen_data = screen.copy()
     screen_data["_Date"] = pd.to_datetime(screen_data["Date"], errors="coerce")
@@ -2454,6 +2489,9 @@ def _technical_signal_payload() -> dict[str, Any]:
             "status": "ok",
             "latest_date": _fmt_date(latest_date),
             "screen_date": _fmt_date(screen_date),
+            "pattern_date": _fmt_date(pattern_date.max()) if not pattern_date.empty else "",
+            "period_end": _fmt_date(period_end.max()) if not period_end.empty else "",
+            "available_date": _fmt_date(available_date.max()) if not available_date.empty else "",
             "updated_at": datetime.fromtimestamp(latest_updated).isoformat(timespec="seconds"),
             "markets": market_rows,
             "metric_rows": metric_rows,
@@ -2610,6 +2648,7 @@ def _production_rows() -> list[dict[str, Any]]:
         _signal_summary_row("technical_signals", TP_ROOT / "04_signals" / "technical_signals.parquet"),
         _signal_summary_row("regime_risk_budget", TP_ROOT / "04_signals" / "regime_risk_budget.parquet"),
         _signal_summary_row("country_model_signals", COUNTRY_SIGNAL_PATH),
+        _signal_summary_row("small_cap_model_signals", SMALL_CAP_SIGNAL_PATH),
         _sector_summary_row(),
         _candidate_summary_row(TP_ROOT / "05_candidates" / "latest_candidates.parquet"),
         _portfolio_summary_row(TP_ROOT / "06_portfolios" / "latest_target_weights.parquet"),
@@ -2937,6 +2976,111 @@ def _country_signal_payload() -> dict[str, Any]:
             "single_country_rows": single_country_rows,
             "single_country_history": single_country_history_rows,
             "message": f"{len(latest)} latest country rows / {len(single_country_rows)} single-country rows",
+        }
+    )
+    return payload
+
+
+def _small_cap_signal_payload() -> dict[str, Any]:
+    path = SMALL_CAP_SIGNAL_PATH
+    payload: dict[str, Any] = {
+        "name": "small_cap_model_signals",
+        "title": "Europe small-cap defensive tilt",
+        "status": "missing",
+        "latest_date": "",
+        "updated_at": "",
+        "signal_path": _rel(path),
+        "panel_path": _rel(SMALL_CAP_PANEL_PATH),
+        "summary_path": _rel(SMALL_CAP_SUMMARY_PATH),
+        "rows": [],
+        "worst_rows": [],
+        "factor_rows": [],
+        "summary": {},
+        "refresh_endpoint": "/api/dashboard/jobs/signals/small-cap",
+    }
+    if not path.exists():
+        payload["message"] = "small-cap model signal parquet missing"
+        return payload
+    try:
+        frame = _read_frame(path)
+    except Exception as exc:
+        payload.update({"status": "error", "message": str(exc)})
+        return payload
+    if frame is None or frame.empty or "Date" not in frame.columns:
+        payload["message"] = "small-cap model signal parquet empty or missing Date"
+        return payload
+
+    data = frame.copy()
+    data["_Date"] = pd.to_datetime(data["Date"], errors="coerce")
+    data = data.dropna(subset=["_Date"])
+    if data.empty:
+        payload["message"] = "small-cap model signal parquet has no valid Date"
+        return payload
+
+    latest_date = data["_Date"].max()
+    latest = data[data["_Date"].eq(latest_date)].copy()
+    if latest.empty:
+        payload["message"] = "small-cap model has no latest rows"
+        return payload
+    latest["_score"] = pd.to_numeric(latest["score"], errors="coerce")
+    latest["_rank"] = pd.to_numeric(latest.get("rank"), errors="coerce")
+    top = latest.sort_values(["_rank", "_score"], ascending=[True, False], na_position="last").head(20)
+    worst = latest.sort_values(["_score", "_rank"], ascending=[True, False], na_position="last").head(20)
+
+    factor_columns = [
+        ("lowvol_score", "LowVol"),
+        ("quality_score", "Quality"),
+        ("value_score", "Value"),
+        ("momentum_score", "Momentum"),
+        ("growth_score", "Growth"),
+        ("dividend_score", "Dividend"),
+    ]
+    factor_rows = []
+    for column, label in factor_columns:
+        if column not in latest.columns:
+            continue
+        values = pd.to_numeric(latest[column], errors="coerce")
+        factor_rows.append(
+            {
+                "factor": label,
+                "avg": _fmt_number(values.mean(), 2),
+                "coverage": _fmt_pct(values.notna().mean(), 1),
+                "top_avg": _fmt_number(pd.to_numeric(top[column], errors="coerce").mean(), 2) if column in top.columns else "",
+                "worst_avg": _fmt_number(pd.to_numeric(worst[column], errors="coerce").mean(), 2) if column in worst.columns else "",
+            }
+        )
+
+    def row_payload(row: pd.Series) -> dict[str, str]:
+        return {
+            "Name": str(row.get("Name") or row.get("ISIN") or row.get("Company SEDOL") or "N/A"),
+            "ISIN": str(row.get("ISIN") or ""),
+            "SEDOL": str(row.get("Company SEDOL") or ""),
+            "最新月份": _fmt_date(row.get("_Date")),
+            "score": _fmt_number(row.get("score"), 2),
+            "rank": _fmt_number(row.get("rank"), 0),
+            "bucket": str(row.get("bucket") or row.get("raw_value") or ""),
+            "LowVol": _fmt_number(row.get("lowvol_score"), 2),
+            "Quality": _fmt_number(row.get("quality_score"), 2),
+            "Value": _fmt_number(row.get("value_score"), 2),
+            "Momentum": _fmt_number(row.get("momentum_score"), 2),
+            "Growth": _fmt_number(row.get("growth_score"), 2),
+            "Dividend": _fmt_number(row.get("dividend_score"), 2),
+            "Weight": _fmt_pct(row.get("weight_in_benchmark"), 3),
+            "Country": str(row.get("country") or ""),
+            "Sector": str(row.get("sector") or ""),
+        }
+
+    summary = _read_json(SMALL_CAP_SUMMARY_PATH) or {}
+    payload.update(
+        {
+            "status": "ok",
+            "latest_date": _fmt_date(latest_date),
+            "updated_at": datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds"),
+            "rows": [row_payload(row) for _, row in top.iterrows()],
+            "worst_rows": [row_payload(row) for _, row in worst.iterrows()],
+            "factor_rows": factor_rows,
+            "summary": summary,
+            "message": f"{len(latest)} latest Europe small-cap rows / coverage {_fmt_pct(latest['score'].notna().mean(), 1)}",
         }
     )
     return payload
@@ -5053,6 +5197,7 @@ def _dashboard_state_payload() -> dict[str, Any]:
         "signals": {
             "regime": _regime_signal_payload(),
             "country": _country_signal_payload(),
+            "small_cap": _small_cap_signal_payload(),
             "sector": _sector_signal_payload(),
             "technical": _technical_signal_payload(),
             "score_ml_components": _score_ml_components_payload(),
@@ -5098,6 +5243,7 @@ def _command_options() -> list[dict[str, str]]:
     return [
         {"label": "总 pipeline", "value": "run_all"},
         {"label": "数据刷新", "value": "refresh_data"},
+        {"label": "ML 刷新", "value": "refresh_ml"},
         {"label": "信号导出", "value": "export_signals"},
         {"label": "候选池", "value": "build_candidates"},
         {"label": "组合优化", "value": "optimize_portfolio"},
@@ -5190,6 +5336,11 @@ def _build_pipeline_command(
             command.append("--inspect-only")
         return command
 
+    if step == "refresh_ml":
+        if inspect_refresh:
+            command.append("--inspect-only")
+        return command
+
     if step == "export_signals":
         _add_option(command, "--as-of", as_of)
         if all_history_signals:
@@ -5278,6 +5429,16 @@ def _build_country_signal_command() -> list[str]:
         str(COUNTRY_DATABASE_PATH),
         "--signal-output",
         str(COUNTRY_SIGNAL_PATH),
+    ]
+
+
+def _build_small_cap_signal_command() -> list[str]:
+    return [
+        sys.executable,
+        "-m",
+        "02_pipelines.refresh_small_cap",
+        "--signal-output",
+        str(SMALL_CAP_SIGNAL_PATH),
     ]
 
 
@@ -6040,6 +6201,10 @@ def create_app() -> Dash:
     def api_dashboard_country_signal():
         return jsonify(_country_signal_payload())
 
+    @server.route("/api/dashboard/signals/small-cap", methods=["GET"])
+    def api_dashboard_small_cap_signal():
+        return jsonify(_small_cap_signal_payload())
+
     @server.route("/api/dashboard/signals/sector", methods=["GET"])
     def api_dashboard_sector_signal():
         return jsonify(_sector_signal_payload())
@@ -6111,6 +6276,11 @@ def create_app() -> Dash:
     @server.route("/api/dashboard/jobs/signals/country", methods=["POST"])
     def api_dashboard_refresh_country_signal():
         record = _submit_job(_build_country_signal_command(), "signal:country_model")
+        return jsonify({"job": _job_payload_from_record(record), "record": record}), 202
+
+    @server.route("/api/dashboard/jobs/signals/small-cap", methods=["POST"])
+    def api_dashboard_refresh_small_cap_signal():
+        record = _submit_job(_build_small_cap_signal_command(), "signal:small_cap_model")
         return jsonify({"job": _job_payload_from_record(record), "record": record}), 202
 
     @server.route("/api/dashboard/jobs/project", methods=["POST"])

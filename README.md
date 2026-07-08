@@ -7,8 +7,7 @@
 | 目的 | 文档 |
 | --- | --- |
 | 全目录文档地图 | [`11_docs/README.md`](11_docs/README.md) |
-| 编号主线索引 | [`00_项目主线索引/README.md`](00_项目主线索引/README.md) |
-| 小项目 cartographie | [`11_docs/PROJECTS.md`](11_docs/PROJECTS.md) |
+| 编号主线索引与小项目 cartographie | [`11_docs/PROJECTS.md`](11_docs/PROJECTS.md) |
 | 项目 Python 环境 | [`11_docs/ENVIRONMENT.md`](11_docs/ENVIRONMENT.md) |
 | 核心数据与月更生产流程 | [`11_docs/DATA_AND_PRODUCTION.md`](11_docs/DATA_AND_PRODUCTION.md) |
 | 主流水线入口 | [`02_pipelines/README.md`](02_pipelines/README.md) |
@@ -38,6 +37,7 @@ returns = read_returns()
 
 - 流水线主线：[`02_pipelines/`](02_pipelines/) 提供数据刷新、信号、候选池、组合、回测和报告的单环入口与总入口。
 - 回测主线：[`07_backtest_code/`](07_backtest_code/) 是传统代码版入口，替代原 Web app 和 GUI 入口。
+- 展示/报告主线：[`08_presentation_layer/`](08_presentation_layer/) 统一承载公司展示、公司分析、组合 dashboard 和报告 wrapper。
 - Web/API/GUI 回测前端已进入 `_quarantine_20260629`，只作为可回滚历史参考。
 
 ## 根目录文件规则

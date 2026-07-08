@@ -15,6 +15,7 @@
 | 环节 | 命令 | 主要输入 | 标准输出 |
 | --- | --- | --- | --- |
 | 数据刷新 | `python -m 02_pipelines.refresh_data --input-month YYYYMM` | `00_screen/production_inputs/incoming/YYYYMM/` | `00_screen/screen_aggregate.parquet`、`00_screen/returns.parquet`、QA JSON |
+| ML 刷新 | `python -m 02_pipelines.refresh_ml --inspect-only` | canonical screen、ML_Enhanced CLI | `Score ML` 覆盖检查；显式运行时更新 screen 和 `04_signals/ml_signals.parquet` |
 | 信号导出 | `python -m 02_pipelines.export_signals --as-of YYYY-MM-DD` | canonical screen、技术 patterns、regime output | `04_signals/*.parquet` |
 | 候选池 | `python -m 02_pipelines.build_candidates --as-of YYYY-MM-DD` | `04_signals/*.parquet`、`00_screen/last_screen.parquet` | `05_candidates/latest_candidates.parquet` |
 | 组合优化 | `python -m 02_pipelines.optimize_portfolio --as-of YYYY-MM-DD` | 候选池、旧组合可选 | `06_portfolios/latest_target_weights.parquet` |
@@ -50,6 +51,7 @@ manifest 记录参数、run_type、输入文件概况、输出文件概况、校
 ## 当前实现边界
 
 - `refresh_data` 调用 `00_screen/monthly_update.py::run_monthly_update()`。
+- `refresh_ml` 调用 `03_ml_enhanced.cli`，默认可用 `--inspect-only` 做轻量检查；写主库的 Score ML 刷新必须显式运行。
 - `export_signals` 调用 `03_ml_enhanced`、`03_technical_analysis`、`03_regime_model` 的现有导出函数。
 - `build_candidates` 当前使用证券 alpha、国家/行业配置倾斜和 Regime 风险预算乘数的分层可解释组合分数。
 - `optimize_portfolio` 默认使用 constrained optimizer，优先复用 `06_optimiser/optimizer_engine.py` 的 cvxpy 求解入口；环境不可用时回退到 scipy SLSQP，并保留 `score_weight`、`equal_weight` 作为 smoke/debug 方法。

@@ -91,7 +91,7 @@ C:\GoogleDrive\TP\10_pipeline_runs\notebook_execution\20260630_065823\manifest.j
 后续若更新环境，应重新运行：
 
 ```powershell
-C:\GoogleDrive\TP\.venv_tp\Scripts\python.exe -m pytest 06_optimiser/test_portfolio_generator.py 07_backtest_code/tests/test_general_backtest.py 08_web_app_des_companies/tests/test_region_bucket.py 08_web_app_des_companies/tests/test_filters.py 08_web_app_des_companies/tests/test_markdown_format.py
+C:\GoogleDrive\TP\.venv_tp\Scripts\python.exe -m pytest 06_optimiser/test_portfolio_generator.py 07_backtest_code/tests/test_general_backtest.py 08_presentation_layer/legacy_apps/web_app_des_companies/tests/test_region_bucket.py 08_presentation_layer/legacy_apps/web_app_des_companies/tests/test_filters.py 08_presentation_layer/legacy_apps/web_app_des_companies/tests/test_markdown_format.py
 ```
 
 并至少执行一个 `tp-prod` kernel smoke notebook。

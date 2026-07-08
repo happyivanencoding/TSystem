@@ -10,7 +10,7 @@ import logging
 
 from utils.constants import *
 from core.weight_manager import WeightManager
-from tp_core.general_backtest import GeneralBacktestEngine
+from tp_core.general_backtest import BacktestSchema, GeneralBacktestEngine, backtest_weight_table
 
 logger = logging.getLogger(__name__)
 
@@ -73,107 +73,22 @@ class BacktestEngine(GeneralBacktestEngine):
         Series
             投资组合累计收益率 (基数 100)
         """
-        # 获取再平衡日期和收益率日期
-        liste_rebal_date = list(df_rebal.index.get_level_values(col_date).unique())
-        liste_date_returns = list(df_returns[df_returns.index >= liste_rebal_date[0]].index)
-        
-        # 重置索引以便处理
-        df_rebal.reset_index(inplace=True)
-        
-        # 过滤出收益率数据中存在的证券
-        df_rebal = df_rebal[df_rebal[col_id].isin(df_returns.columns)]
-        df_rebal.set_index(col_date, inplace=True)
-        
-        # 归一化权重
-        df_rebal[col_weight] = df_rebal.groupby(col_date)[col_weight].transform(lambda x: x / x.sum())
-        
-        df_rebal.reset_index(inplace=True)
-        
-        # 调整再平衡日期以匹配可用的收益率日期
-        for i in range(len(liste_rebal_date)):
-            if liste_rebal_date[i] not in liste_date_returns:
-                try:
-                    serie_date_returns = pd.Series(liste_date_returns)
-                    new_date_rebal = serie_date_returns[serie_date_returns > liste_rebal_date[i]].iloc[1]
-                except (ValueError, IndexError):
-                    # 如果找不到未来日期，使用之前的日期
-                    new_date_rebal = max(d for d in liste_date_returns if d < liste_rebal_date[i])
-            else:
-                serie_date_returns = pd.Series(liste_date_returns)
-                new_date_rebal = serie_date_returns[serie_date_returns > liste_rebal_date[i]].iloc[0]
-            
-            df_rebal = df_rebal.replace(liste_rebal_date[i], new_date_rebal)
-            liste_rebal_date[i] = new_date_rebal
-        
-        # 创建每日日期框架
-        liste_date_all = list(set(liste_rebal_date).union(set(liste_date_returns)))
-        nouvelle_liste_dates = sorted(liste_date_all)
-        
-        new_df = pd.DataFrame(data=nouvelle_liste_dates, columns=['Date_returns'])
-        
-        # 将再平衡日期映射到每个收益率日期
-        new_df['Date_screen'] = new_df['Date_returns'].apply(
-            lambda x: df_rebal.loc[df_rebal[col_date] <= x, col_date].max()
+        weights = df_rebal.copy()
+        index_names = list(weights.index.names)
+        if col_date in index_names or col_id in index_names:
+            weights = weights.reset_index()
+
+        schema = BacktestSchema(date_col=col_date, id_col=col_id, weight_col=col_weight)
+        result = backtest_weight_table(
+            weights=weights,
+            returns=df_returns,
+            schema=schema,
+            initial_nav=100.0,
+            normalize=True,
+            strictly_after_rebalance=True,
+            apply_weights_at_close=True,
         )
-        
-        # 将再平衡数据与每日日期合并
-        df_merge = pd.merge(df_rebal, new_df, how='left', left_on=col_date, right_on='Date_screen')
-        df_merge.drop(columns=col_date, inplace=True)
-        df_merge.rename(columns={'Date_returns': col_date}, inplace=True)
-        df_merge.sort_values(by=col_date, inplace=True)
-        
-        # 从第一个再平衡日期开始计算累计收益率
-        df_returns = df_returns[new_df['Date_screen'].min():]
-        returns_cum = (1 + df_returns).cumprod()
-        
-        # 在每个再平衡日期重新基准化漂移
-        returns_drift = returns_cum.apply(
-            lambda x: x / returns_cum.loc[new_df.loc[new_df['Date_screen'] <= x.name, 'Date_screen'].max()],
-            axis=1
-        )
-        
-        # 展平漂移乘数
-        returns_drift_flat = returns_drift.stack().to_frame().reset_index(names=[col_date, col_id])
-        returns_drift_flat.columns = [col_date, col_id, 'drift_multiplicator']
-        
-        # 展平收益率
-        returns_flat = df_returns.stack().to_frame().reset_index()
-        returns_flat.columns = [col_date, col_id, 'Return']
-        
-        # 合并漂移和收益率
-        df_merge = df_merge.merge(returns_drift_flat, how='left', on=[col_date, col_id])
-        df_merge = df_merge.merge(returns_flat, how='left', on=[col_date, col_id])
-        
-        # 计算漂移后的权重
-        df_merge[col_weight + '_drifted'] = df_merge[col_weight] * df_merge['drift_multiplicator']
-        
-        # 准备投资组合数据
-        columns = [col_date, col_id, col_weight, col_weight + '_drifted', col_sector, 'Return']
-        portfolio_tet = df_merge[columns]
-        
-        # 按日期计算权重总和
-        weight_sum_date = portfolio_tet.groupby(col_date, group_keys=False)[[col_weight + '_drifted']].sum()
-        weight_sum_date.columns = ['Weight_sum']
-        weight_sum_date.reset_index(inplace=True)
-        
-        # 合并权重总和
-        portfolio_tet = portfolio_tet.merge(weight_sum_date, how='left', on=col_date)
-        
-        # 计算重新基准化的权重
-        portfolio_tet['W_rebased'] = portfolio_tet[col_weight + '_drifted'] / portfolio_tet['Weight_sum']
-        
-        # 移位权重以计算贡献
-        portfolio_tet['W_rebased_shift1'] = portfolio_tet.groupby(col_id)['W_rebased'].shift(1)
-        
-        # 计算贡献
-        portfolio_tet['Contrib'] = portfolio_tet['W_rebased_shift1'] * portfolio_tet['Return']
-        total_return_by_date = portfolio_tet.groupby(col_date)['Contrib'].sum()
-        
-        # 计算累计收益率 (基数 100)
-        total_return_by_date.sort_index(inplace=True)
-        serie_ttr = (1 + total_return_by_date.fillna(0)).cumprod() * 100
-        
-        return serie_ttr
+        return result.nav
     
     @staticmethod
     def create_ptf_weight(

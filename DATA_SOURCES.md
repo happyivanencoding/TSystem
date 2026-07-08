@@ -73,13 +73,13 @@ from tp_core.data_contract import validate_screen_contract, validate_returns_con
 
 - `03_regime_model/config.py`
 - `03_regime_model/merge_ciq_history.py`
-- `08_company_analysis/backend/analysis.py`
-- `99_backtest_web_app_legacy/utils/config.py`
-- `99_backtest_web_app_legacy/streamlit_app/app.py`
-- `99_backtest_web_app_legacy/streamlit_app/test_app.py`
-- `99_backtest_web_app_legacy/tests/test_refactored_system.py`
-- `08_web_app_des_companies/config/settings.py`
-- `08_dashboard_analysis/dashboard.py`
+- `08_presentation_layer/legacy_apps/company_analysis/backend/analysis.py`
+- `99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/utils/config.py`
+- `99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/streamlit_app/app.py`
+- `99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/streamlit_app/test_app.py`
+- `99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/tests/test_refactored_system.py`
+- `08_presentation_layer/legacy_apps/web_app_des_companies/config/settings.py`
+- `08_presentation_layer/legacy_apps/dashboard_analysis/dashboard.py`
 - `03_ml_enhanced/Config/config_EU.py`
 - `03_ml_enhanced/Config/config_US.py`
 - `03_ml_enhanced/Config/config_OTHER.py`
@@ -90,7 +90,7 @@ from tp_core.data_contract import validate_screen_contract, validate_returns_con
 - `03_technical_analysis/Main.py`
 - `技术分析和深度学习/深度学习/config_EU_test_backtest.py`
 - `ML/Codes/*` 活跃 parquet 迁移
-- `99_backtest_web_app_legacy/*` 活跃 `PtfBuilder` 导入已改为 `tp_core.backtesting`
+- `99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/*` 活跃 `PtfBuilder` 导入已改为 `tp_core.backtesting`
 
 已冻结或只保留历史价值的 legacy/archive 引用：
 

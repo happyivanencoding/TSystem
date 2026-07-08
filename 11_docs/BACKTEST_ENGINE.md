@@ -68,7 +68,7 @@
 | --- | --- | --- | --- |
 | `01_tp_core/general_backtest.py` | 新增通用权重表回测核心 | 无历史包袱 | 作为大多数项目的共享核心 |
 | `07_backtest_code/BacktestEngine.py` | 旧 `PtfBuilder` API 兼容入口 | 仍承担传统组合构建流程 | 保留为现役主入口 |
-| `07_backtest_code/core/backtest_engine.py` | 传统 security-list 回测核心 | 有历史 API，不能立即删除 | 继承 `GeneralBacktestEngine`，新增 `run_weights()` 通用入口 |
+| `07_backtest_code/core/backtest_engine.py` | 传统 security-list 回测核心 | 有历史 API，不能立即删除 | 继承 `GeneralBacktestEngine`，`run_weights()` 与旧 `calculate_portfolio_returns()` 都走通用核心 |
 | `07_backtest_code/core/backtest_engine_optimized.py` | 向量化优化草稿 | `_get_sector_weights()` 未实现，未接入主线 | 原文件归档，原路径改为兼容 wrapper |
 | `03_ml_enhanced/Codes/BacktestEngine.py` | ML 本地复制的单体回测引擎 | 与主线重复，且带旧 country/sector 优化逻辑 | 原文件归档，原路径改为兼容层 |
 | `03_technical_analysis/pattern_backtest_engine.py` | 技术形态专用信号回测 | 有一套重复漂移计算 | 选股和打分逻辑保留，漂移回测改用 `tp_core.general_backtest` |
@@ -146,7 +146,7 @@ result = engine.run_weights(target_weights)
 
 ## 6. 后续优化建议
 
-1. 把 `07_backtest_code/core/backtest_engine.py` 中的旧 `calculate_portfolio_returns()` 逐步改成调用 `tp_core.general_backtest`，但要先用真实历史回测产物做数值对账。
+1. `07_backtest_code/core/backtest_engine.py` 中的旧 `calculate_portfolio_returns()` 已改为调用 `tp_core.general_backtest`，保留原静态方法签名给历史调用方。
 2. 为 `GeneralBacktestResult.manifest` 增加文件级写盘函数，和 `10_pipeline_runs/manifests/run_backtest/` 对齐。
 3. `06_optimiser/optimizer_engine.py` 已提供 `to_standard_weight_table()`；当前 `.venv_tp` 已覆盖安装 `cvxpy 1.7.5` 和 `ecos 2.0.14`，可以导入 `cvxpy` 并使用 `ECOS_BB` 求解 mixed-integer 小问题。
 4. 对长周期、大 universe 回测再做向量化优化；优化版必须先通过通用核心的行为测试，不能再保留半成品第二引擎。

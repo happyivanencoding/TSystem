@@ -9,7 +9,7 @@ from typing import Iterable
 
 import pandas as pd
 
-from tp_core.data_sources import SCREEN_AGGREGATE_PATH, TP_ROOT
+from tp_core.data_sources import RETURNS_PATH, SCREEN_AGGREGATE_PATH, TP_ROOT
 from tp_core.signals import validate_signal_frame
 
 from .common import StepManifest, path_profile, summarize_frame
@@ -36,6 +36,21 @@ def _signal_details(path: Path) -> dict[str, object]:
     result = validate_signal_frame(frame)
     dates = pd.to_datetime(frame["Date"], errors="coerce").dropna()
     details = summarize_frame(frame)
+    availability: dict[str, object] = {}
+    if "technical_available_date" in frame.columns:
+        available = pd.to_datetime(frame["technical_available_date"], errors="coerce")
+        signal_dates = pd.to_datetime(frame["Date"], errors="coerce")
+        availability["technical_available_date_min"] = available.min().date().isoformat() if available.notna().any() else None
+        availability["technical_available_date_max"] = available.max().date().isoformat() if available.notna().any() else None
+        availability["availability_after_signal_date_rows"] = int((available > signal_dates).sum())
+    if "technical_period_end" in frame.columns:
+        period_end = pd.to_datetime(frame["technical_period_end"], errors="coerce")
+        signal_dates = pd.to_datetime(frame["Date"], errors="coerce")
+        availability["technical_period_end_max"] = period_end.max().date().isoformat() if period_end.notna().any() else None
+        availability["period_end_after_signal_date_rows"] = int((period_end > signal_dates).sum())
+    if "technical_pattern_date" in frame.columns:
+        pattern_date = pd.to_datetime(frame["technical_pattern_date"], errors="coerce")
+        availability["technical_pattern_date_max"] = pattern_date.max().date().isoformat() if pattern_date.notna().any() else None
     details.update(
         {
             "signal_family": sorted(map(str, frame["signal_family"].dropna().unique())),
@@ -43,6 +58,7 @@ def _signal_details(path: Path) -> dict[str, object]:
             "signal_name_sample": sorted(map(str, frame["signal_name"].dropna().unique()))[:30],
             "date_min": dates.min().date().isoformat() if not dates.empty else None,
             "date_max": dates.max().date().isoformat() if not dates.empty else None,
+            "availability": availability,
             "validation": {
                 "is_valid": result.is_valid,
                 "errors": result.errors,
@@ -57,6 +73,7 @@ def run_export_signals(args: argparse.Namespace) -> Path:
     manifest = StepManifest("export_signals", vars(args).copy())
     manifest.inputs = {
         "screen_aggregate": path_profile(SCREEN_AGGREGATE_PATH, parquet=True),
+        "returns": path_profile(Path(getattr(args, "returns", RETURNS_PATH)), parquet=True),
         "ml_exporter": path_profile(ML_EXPORTER),
         "technical_exporter": path_profile(TECHNICAL_EXPORTER),
         "regime_exporter": path_profile(REGIME_EXPORTER),
@@ -76,7 +93,10 @@ def run_export_signals(args: argparse.Namespace) -> Path:
             outputs["technical_signals"] = module.export_technical_signals(
                 patterns_path=Path(args.patterns),
                 output=Path(args.technical_output),
+                returns_path=Path(getattr(args, "returns", RETURNS_PATH)),
+                screen_path=SCREEN_AGGREGATE_PATH,
                 latest_only=not args.all_history,
+                as_of=args.as_of,
             )
         if not args.skip_regime:
             module = _load_module(REGIME_EXPORTER, "tp_pipeline_regime_exporter")
@@ -123,6 +143,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--regime-oos", action="store_true", help="使用 regime_oos 文件")
     parser.add_argument("--region", action="append", choices=["US", "EU"], help="Regime 区域，可重复传入")
     parser.add_argument("--patterns", default=str(TP_ROOT / "03_technical_analysis" / "output" / "patterns.parquet"))
+    parser.add_argument("--returns", default=str(RETURNS_PATH))
     parser.add_argument("--ml-output", default=str(SIGNALS_DIR / "ml_signals.parquet"))
     parser.add_argument("--technical-output", default=str(SIGNALS_DIR / "technical_signals.parquet"))
     parser.add_argument("--regime-output", default=str(SIGNALS_DIR / "regime_risk_budget.parquet"))

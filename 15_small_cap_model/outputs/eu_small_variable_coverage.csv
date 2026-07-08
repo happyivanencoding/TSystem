@@ -1,0 +1,35 @@
+﻿family,column,direction,score_column,coverage
+growth,Sales Growth NTM,1.0,eu_small_growth_sales_growth_ntm_score,0.9688710204208595
+growth,Sales Growth FY1,1.0,eu_small_growth_sales_growth_fy1_score,0.9663592391557927
+growth,Gross Income Growth NTM,1.0,eu_small_growth_gross_income_growth_ntm_score,0.9603558486399054
+growth,Gross Income Growth FY1,1.0,eu_small_growth_gross_income_growth_fy1_score,0.9577974088993265
+growth,EPS Growth NTM,1.0,eu_small_growth_eps_growth_ntm_score,0.8977012924397717
+growth,EPS Growth FY1,1.0,eu_small_growth_eps_growth_fy1_score,0.8834160225204909
+value,Earns Yield FY1,1.0,eu_small_value_earns_yield_fy1_score,0.9912515358414856
+value,Earns Yield NTM,1.0,eu_small_value_earns_yield_ntm_score,0.9912515358414856
+value,PE FY1,-1.0,eu_small_value_pe_fy1_score,0.8998009238378152
+value,PE NTM,-1.0,eu_small_value_pe_ntm_score,0.927477176229062
+value,EV To EBITDA FY1,-1.0,eu_small_value_ev_to_ebitda_fy1_score,0.8998709115510832
+value,EV To EBITDA NTM,-1.0,eu_small_value_ev_to_ebitda_ntm_score,0.8997775946000591
+value,EV to Sales FY1,-1.0,eu_small_value_ev_to_sales_fy1_score,0.9051044372210212
+value,EV to Sales NTM,-1.0,eu_small_value_ev_to_sales_ntm_score,0.9058276435914584
+value,PB LTM,-1.0,eu_small_value_pb_ltm_score,0.8837270790239047
+value,PFCF LTM,-1.0,eu_small_value_pfcf_ltm_score,0.7707591333965815
+value,Price to FreeCF FY1,-1.0,eu_small_value_price_to_freecf_fy1_score,0.5471717187427096
+value,Price to Book FY1,-1.0,eu_small_value_price_to_book_fy1_score,0.9349192030732383
+quality,ROE avg FY0,1.0,eu_small_quality_roe_avg_fy0_score,0.9852325925004277
+quality,Oper Margin,1.0,eu_small_quality_oper_margin_score,0.9908704916248037
+quality,FCF Conversion,1.0,eu_small_quality_fcf_conversion_score,0.13910446832667153
+quality,NetDebt to EBITDA exFIN,-1.0,eu_small_quality_netdebt_to_ebitda_exfin_score,0.8552498561363672
+lowvol,Daily Vol 260J,-1.0,eu_small_lowvol_daily_vol_260j_score,0.9991834766785387
+lowvol,Daily Vol 90J,-1.0,eu_small_lowvol_daily_vol_90j_score,0.9991212653778558
+lowvol,Daily Vol 60J,-1.0,eu_small_lowvol_daily_vol_60j_score,0.9990901597275145
+momentum,PMOM 12M1M,1.0,eu_small_momentum_pmom_12m1m_score,0.986274631786864
+momentum,Total Return,1.0,eu_small_momentum_total_return_score,0.9983669533570773
+momentum,EPS Revision Ratio,1.0,eu_small_momentum_eps_revision_ratio_score,0.9790581209076629
+momentum,EPS NTM 3M Growth,1.0,eu_small_momentum_eps_ntm_3m_growth_score,0.9731713765805559
+dividend,DVD Yield NTM,1.0,eu_small_dividend_dvd_yield_ntm_score,0.9990512776645878
+dividend,DVD Yield FY1,1.0,eu_small_dividend_dvd_yield_fy1_score,0.9979548034900539
+dividend,DPS 1Y Growth NTM,1.0,eu_small_dividend_dps_1y_growth_ntm_score,0.8412600898953295
+dividend,DPS 1Y Growth FY1,1.0,eu_small_dividend_dps_1y_growth_fy1_score,0.7892436661119492
+dividend,DVD Payout FY0,-1.0,eu_small_dividend_dvd_payout_fy0_score,1.0

@@ -48,3 +48,19 @@ def test_active_backtest_engine_exposes_general_run_weights():
 
     assert engine.last_result is result
     assert result.execution_weights.index.names == ["Date", "Company SEDOL"]
+
+
+def test_legacy_calculate_portfolio_returns_uses_general_core_without_mutating_input():
+    returns = _sample_returns()
+    weights = _sample_weights().set_index(["Date", "Company SEDOL"])
+    original = weights.copy(deep=True)
+
+    legacy_nav = BacktestEngine.calculate_portfolio_returns(weights, returns)
+    expected_nav = backtest_weight_table(
+        weights=original.reset_index(),
+        returns=returns,
+        schema=BacktestSchema(date_col="Date", id_col="Company SEDOL", weight_col="Portfolio weight"),
+    ).nav
+
+    pd.testing.assert_series_equal(legacy_nav, expected_nav)
+    pd.testing.assert_frame_equal(weights, original)

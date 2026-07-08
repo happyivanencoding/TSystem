@@ -24,7 +24,7 @@
 | TP skill 触发词、边界和定期审视 | [`../_context/skill_review.md`](../_context/skill_review.md) |
 | TP 里每个小项目是做什么的 | [`PROJECTS.md`](PROJECTS.md) |
 | TP 专用 Python 环境怎么用 | [`ENVIRONMENT.md`](ENVIRONMENT.md) |
-| 按 00/01/02 看主线步骤 | [`../00_项目主线索引/README.md`](../00_项目主线索引/README.md) |
+| 按 00/01/02 看主线步骤 | [`PROJECTS.md`](PROJECTS.md) |
 | 月更 00_screen/returns/CIQ 应该怎么跑 | [`DATA_AND_PRODUCTION.md`](DATA_AND_PRODUCTION.md) |
 | 主流水线和单环入口怎么跑 | [`../02_pipelines/README.md`](../02_pipelines/README.md) |
 | 当前 canonical 数据到底是哪几份 | [`../DATA_SOURCES.md`](../DATA_SOURCES.md) |

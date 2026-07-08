@@ -96,7 +96,9 @@ def project_checks() -> list[ProjectCheck]:
             entry("03_ml_enhanced").role,
             [
                 py,
-                str(TP_ROOT / "03_ml_enhanced" / "export_signals.py"),
+                "-m",
+                "03_ml_enhanced.cli",
+                "export-signals",
                 "--output",
                 str(_tmp("ml_signals_smoke.parquet")),
             ],
@@ -293,11 +295,11 @@ def project_checks() -> list[ProjectCheck]:
                 "-c",
                 (
                     "from pathlib import Path; "
-                    "p=Path(r'C:/GoogleDrive/TP/12_small_cap/README.md'); "
+                    "p=Path(r'C:/GoogleDrive/TP/99_archive/project_cleanup_20260707/12_small_cap/README.md'); "
                     "print(p.exists(), p.stat().st_size if p.exists() else 0)"
                 ),
             ],
-            [TP_ROOT / "12_small_cap" / "README.md"],
+            [TP_ROOT / "99_archive" / "project_cleanup_20260707" / "12_small_cap" / "README.md"],
             data_kind="research docs",
             required=False,
         ),

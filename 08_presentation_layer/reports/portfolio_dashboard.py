@@ -11,7 +11,7 @@ from typing import Any
 from tp_core.data_sources import TP_ROOT
 
 
-DASHBOARD_ROOT = TP_ROOT / "08_dashboard_analysis"
+DASHBOARD_ROOT = TP_ROOT / "08_presentation_layer" / "legacy_apps" / "dashboard_analysis"
 
 
 def _evict_if_outside(module_name: str, root: Path) -> None:

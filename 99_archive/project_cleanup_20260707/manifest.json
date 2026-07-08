@@ -1,0 +1,56 @@
+{
+  "cleanup_date": "2026-07-07",
+  "reason": "Clean up root-level project sprawl by merging presentation-layer implementation directories into 08_presentation_layer, folding the numbered index into 11_docs/PROJECTS.md, and archiving low-necessity legacy/research directories.",
+  "moves": [
+    {
+      "source": "08_web_app_des_companies/",
+      "target": "08_presentation_layer/legacy_apps/web_app_des_companies/",
+      "status": "merged_into_presentation_layer"
+    },
+    {
+      "source": "08_company_analysis/",
+      "target": "08_presentation_layer/legacy_apps/company_analysis/",
+      "status": "merged_into_presentation_layer"
+    },
+    {
+      "source": "08_dashboard_analysis/",
+      "target": "08_presentation_layer/legacy_apps/dashboard_analysis/",
+      "status": "merged_into_presentation_layer"
+    },
+    {
+      "source": "00_项目主线索引/",
+      "target": "99_archive/project_cleanup_20260707/00_项目主线索引/",
+      "status": "folded_into_11_docs_PROJECTS"
+    },
+    {
+      "source": "12_small_cap/",
+      "target": "99_archive/project_cleanup_20260707/12_small_cap/",
+      "status": "archived_research_fragment"
+    },
+    {
+      "source": "99_optimiseur_legacy/",
+      "target": "99_archive/project_cleanup_20260707/99_optimiseur_legacy/",
+      "status": "archived_legacy_optimizer"
+    },
+    {
+      "source": "99_backtest_gui_legacy/",
+      "target": "99_archive/project_cleanup_20260707/99_backtest_gui_legacy/",
+      "status": "archived_legacy_backtest_gui"
+    },
+    {
+      "source": "99_backtest_web_app_legacy/",
+      "target": "99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/",
+      "status": "archived_legacy_backtest_web_app"
+    }
+  ],
+  "active_entrypoints": [
+    "08_presentation_layer/README.md",
+    "08_presentation_layer/apps/des_companies.py",
+    "08_presentation_layer/apps/company_analysis_api.py",
+    "08_presentation_layer/reports/portfolio_dashboard.py",
+    "11_docs/PROJECTS.md",
+    "06_optimiser/README.md",
+    "07_backtest_code/README.md",
+    "99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/README.md"
+  ]
+}

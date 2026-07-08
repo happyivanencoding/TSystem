@@ -11,7 +11,7 @@ from typing import Any
 from tp_core.data_sources import TP_ROOT
 
 
-APP_ROOT = TP_ROOT / "08_web_app_des_companies"
+APP_ROOT = TP_ROOT / "08_presentation_layer" / "legacy_apps" / "web_app_des_companies"
 
 
 def _evict_if_outside(module_name: str, root: Path) -> None:
@@ -48,7 +48,7 @@ def create_app() -> Any:
     """创建 Dash 公司展示应用。
 
     入口位于统一 presentation layer；UI、callbacks 和资源文件暂时复用
-    `08_web_app_des_companies/src`，以避免一次性重写前端。
+    `08_presentation_layer/legacy_apps/web_app_des_companies/src`，以避免一次性重写前端。
     """
 
     _prepare_imports()

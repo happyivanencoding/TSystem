@@ -73,7 +73,7 @@ from pandas.errors import SettingWithCopyWarning
 warnings.simplefilter(action='ignore', category=SettingWithCopyWarning)
 warnings.simplefilter(action='ignore', category=UserWarning)
 
-_TP_ROOT = Path(__file__).resolve().parents[1]
+_TP_ROOT = Path(__file__).resolve().parents[3]
 if str(_TP_ROOT) not in sys.path:
     sys.path.insert(0, str(_TP_ROOT))
 

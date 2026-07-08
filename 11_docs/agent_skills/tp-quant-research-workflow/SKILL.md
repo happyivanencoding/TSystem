@@ -1,6 +1,6 @@
 ---
 name: tp-quant-research-workflow
-description: Use this skill for TP quantitative research workflows, including factor research, regime-feature research, available-data audits beyond existing factor columns, qualitative hypothesis narrowing, creative but explainable candidate signal construction, official top/worst backtests, fast-screen versus official evidence separation, and Chinese research reports with Plotly comparison artifacts.
+description: Use this skill for TP quantitative research workflows, including factor research, region/size/universe multifactor rebuilds, regime-feature research, available-data audits beyond existing factor columns, qualitative hypothesis narrowing, creative but explainable candidate signal construction, official top/worst backtests, fast-screen versus official evidence separation, and Chinese research reports with Plotly comparison artifacts.
 ---
 
 # TP Quant Research Workflow
@@ -28,6 +28,28 @@ Primary locations:
 6. Use official exact runs for conclusions. Label screening output clearly.
 7. Keep Top, Worst, Benchmark, and Top/Worst ratio evidence together unless the user narrows the scope.
 8. Generate Plotly Top / Worst / Benchmark and Top/Worst ratio comparisons by default for factor backtests unless the user opts out.
+
+## Region/Size Factor Rebuild Playbook
+
+Use this template when the user asks for a reusable factor model across a region, country, benchmark, size bucket, or universe such as Europe small cap, US large cap, Japan mid cap, or a sector-specific universe.
+
+1. Define the exact universe rule and benchmark first. Prefer benchmark weight columns such as `Weight in <BENCHMARK> > 0`; verify first date, last date, monthly name count, and SEDOL overlap with `00_screen/returns.parquet`.
+2. Rebuild factors from raw variables before comparing with database factor columns. Treat existing style scores as comparison anchors, not as the research starting point.
+3. Organize variables by economic family, such as growth, value, quality, lowvol, momentum, dividend, revision, liquidity, leverage, profitability, or sector-specific fundamentals. Mark each variable as `core` or `supplement`; low-coverage supplements are diagnostic evidence unless the user explicitly accepts sparse signals.
+4. Convert every raw variable into "higher is better" before aggregation. For each month, winsorize the cross-section, then rank within the neutralization bucket. Default to ICB 19 sector-neutral percentile rank scaled to `0-10`; consider country-neutral or country+sector neutral versions when the universe has strong country bias.
+5. Do not fill missing fundamentals with arbitrary values. Build each subfactor from available core variables with a minimum-count rule, and write coverage diagnostics. If a factor only has a short history, label its backtest as weak evidence.
+6. Build a small set of explainable composites: equal-weight full model, defensive quality/lowvol tilt, value+quality core, no-low-coverage-factor variant, and optionally a trailing-IC adaptive blend that uses only past information.
+7. Run official Top/Worst backtests for raw variables, rebuilt subfactors, existing database factors, and final candidates. Use fast screening only to decide what deserves exact runs; do not use it for conclusions.
+8. Select the final model by robustness first: Top/Benchmark ratio drawdown, tracking error, rolling 3-year failure, annual hit rate, Top/Worst ratio, Worst underperformance, turnover, and average holdings. Do not mechanically pick the highest CAGR.
+9. Explain the final weights economically. For small-cap universes, quality and lowvol often deserve higher weight because financing risk, liquidity shocks, and earnings fragility dominate; value should usually be capped unless it is paired with quality or improvement; momentum/revision is often a timing overlay.
+
+Implementation pattern:
+
+- Put one-off research scripts under `07_backtest_code/scripts/` and outputs under `07_backtest_code/runs/ad_hoc/`.
+- Write `metric_definitions.json`, `data_construction_checks.csv`, `metric_diagnostics.csv`, `official_run_results.csv`, `performance_summary.csv`, Plotly HTML files, and a Chinese markdown report.
+- Add `--metrics`, `--max-runs`, and `--resume` to long official-run scripts so multi-hour Top/Worst matrices can be resumed without repeating successful runs.
+- If the GUI `BacktestService` logger relay fails or recurses during batch runs, call the same official engine path directly while preserving `PtfBuilder`, `generic_histo_seclist`, `backtest`, benchmark performance, and artifact outputs.
+- Do not modify production screen, signal, dashboard, model, or portfolio contracts unless the user explicitly asks to promote the research result.
 
 ## Data Audit And Idea Generation
 

@@ -652,6 +652,48 @@ def add_validated_metrics(screen: pd.DataFrame, metrics: list[ModelSpec], gate: 
     return screen, metrics
 
 
+def add_raw_pair_metrics(screen: pd.DataFrame, metrics: list[ModelSpec], pair_file: str) -> tuple[pd.DataFrame, list[ModelSpec]]:
+    pairs = pd.read_csv(pair_file)
+    required = {"left", "right"}
+    missing = required.difference(pairs.columns)
+    if missing:
+        raise ValueError(f"Pair file must include columns {sorted(required)}; missing {sorted(missing)}")
+
+    metric_by_column = {spec.column: spec for spec in metrics}
+    new_columns: dict[str, pd.Series] = {}
+    new_specs: list[ModelSpec] = []
+    for idx, row in pairs.reset_index(drop=True).iterrows():
+        left = str(row["left"]).strip()
+        right = str(row["right"]).strip()
+        if left not in screen.columns or right not in screen.columns:
+            raise ValueError(f"Pair references missing screen columns: {left}, {right}")
+        column = str(row.get("metric", "")).strip() if "metric" in pairs.columns else ""
+        if not column:
+            column = f"nasdaq_pair_{idx + 1:03d}"
+        label = str(row.get("label", "")).strip() if "label" in pairs.columns else ""
+        if not label:
+            left_label = metric_by_column.get(left, ModelSpec(left, left, "", {}, "")).label
+            right_label = metric_by_column.get(right, ModelSpec(right, right, "", {}, "")).label
+            label = f"{left_label} + {right_label}"
+        new_columns[column] = average_scores(screen, [left, right], min_count=2)
+        new_specs.append(
+            ModelSpec(
+                column,
+                label,
+                "raw_pair",
+                {left: 0.5, right: 0.5},
+                "equal-weight two raw scores; both variables required",
+            )
+        )
+    if new_columns:
+        duplicates = [column for column in new_columns if column in screen.columns]
+        if duplicates:
+            screen = screen.drop(columns=duplicates)
+        screen = pd.concat([screen, pd.DataFrame(new_columns, index=screen.index)], axis=1).copy()
+        metrics = [*metrics, *new_specs]
+    return screen, metrics
+
+
 def run_official_backtests(
     *,
     screen: pd.DataFrame,
@@ -1112,6 +1154,8 @@ def write_report(
         scope_text = "raw-only: 每个 raw variable score 先单独跑官方 Top/Worst，并生成 raw_validation_gate.csv。"
     elif args.validated_from:
         scope_text = "validated-from: 只使用 raw gate 通过的变量重建 family，并补跑 validated family、family subset、leave-one-out。"
+    elif args.raw_pair_file:
+        scope_text = "raw-pair: 对有经济先验的 raw variable pair 构建等权组合，并逐一跑官方 Top/Worst 检验协同。"
     else:
         scope_text = "六个重建家族因子的全部 63 个非空等权组合，每个组合同时跑 Top 与 Worst。"
     lines = [
@@ -1234,6 +1278,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--smoke", action="store_true", help="Only run the six-family equal combination Top/Worst.")
     parser.add_argument("--raw-only", action="store_true", help="Run every raw variable score Top/Worst and write raw_validation_gate.csv.")
     parser.add_argument("--validated-from", default="", help="Raw run directory or raw_validation_gate.csv used to build validated families.")
+    parser.add_argument("--raw-pair-file", default="", help="CSV with left/right raw score columns used to build raw-pair metrics.")
     parser.add_argument("--gate-coverage", type=float, default=0.75)
     parser.add_argument("--gate-ratio-cagr", type=float, default=0.0)
     parser.add_argument("--gate-top-worst-ratio-return", type=float, default=0.0)
@@ -1266,6 +1311,10 @@ def main(argv: Iterable[str] | None = None) -> int:
         screen, metric_specs = add_validated_metrics(screen, metric_specs, gate)
         screen.to_parquet(output_dir / "nasdaq_multifactor_screen.parquet", index=False)
         metric_diag = metric_diagnostics(screen, metric_specs, [spec for spec in RAW_METRICS if spec.column in screen.columns])
+    if args.raw_pair_file:
+        screen, metric_specs = add_raw_pair_metrics(screen, metric_specs, args.raw_pair_file)
+        screen.to_parquet(output_dir / "nasdaq_multifactor_screen.parquet", index=False)
+        metric_diag = metric_diagnostics(screen, metric_specs, [spec for spec in RAW_METRICS if spec.column in screen.columns])
     checks.to_csv(output_dir / "data_construction_checks.csv", index=False)
     metric_diag.to_csv(output_dir / "metric_diagnostics.csv", index=False)
 
@@ -1281,6 +1330,8 @@ def main(argv: Iterable[str] | None = None) -> int:
             for spec in metric_specs
             if spec.family in {"validated_family", "validated_family_combo", "validated_leave_one_out"} and spec.column in screen.columns
         ]
+    elif args.raw_pair_file:
+        metric_columns = [spec.column for spec in metric_specs if spec.family == "raw_pair" and spec.column in screen.columns]
     else:
         metric_columns = select_metric_columns(args, metric_specs, screen)
     unknown = sorted(set(metric_columns).difference(all_metrics))
@@ -1344,6 +1395,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         "smoke": bool(args.smoke),
         "raw_only": bool(args.raw_only),
         "validated_from": str(args.validated_from),
+        "raw_pair_file": str(args.raw_pair_file),
         "raw_gate_pass_count": int(gate["passed"].sum()) if not gate.empty and "passed" in gate.columns else 0,
         "build_only": bool(args.build_only),
         "resume": bool(args.resume),

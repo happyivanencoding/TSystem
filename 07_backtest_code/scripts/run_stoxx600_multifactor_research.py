@@ -623,6 +623,38 @@ def apply_validated_families(
     return screen, updated_specs, default_metrics, valid_families
 
 
+def add_raw_pair_metrics(
+    *,
+    screen: pd.DataFrame,
+    metric_specs: list[ModelSpec],
+    gate: pd.DataFrame,
+) -> tuple[pd.DataFrame, list[ModelSpec], list[str]]:
+    if gate.empty or "pass_gate" not in gate.columns:
+        raise ValueError("Raw validation gate is empty; run --raw-only official backtests first.")
+    passed = gate[gate["pass_gate"].astype(bool)].copy()
+    passed = passed[passed["metric"].isin(screen.columns)].sort_values(["family", "robust_score"], ascending=[True, False])
+    pair_specs: list[ModelSpec] = []
+    for left, right in combinations(passed.to_dict("records"), 2):
+        left_metric = str(left["metric"])
+        right_metric = str(right["metric"])
+        digest = hashlib.md5(f"{left_metric}|{right_metric}".encode("utf-8")).hexdigest()[:8]
+        column = (
+            f"stoxx600_rawpair_{slugify(str(left['raw_column']))[:24]}__"
+            f"{slugify(str(right['raw_column']))[:24]}_{digest}"
+        )
+        screen[column] = weighted_scores(screen, {left_metric: 0.5, right_metric: 0.5}, 2)
+        pair_specs.append(
+            ModelSpec(
+                column,
+                f"{left['raw_column']} + {right['raw_column']}",
+                "validated_raw_pairs",
+                {left_metric: 0.5, right_metric: 0.5},
+                f"raw-variable pair synergy candidate; {left['family']} + {right['family']}",
+            )
+        )
+    return screen, metric_specs + pair_specs, [spec.column for spec in pair_specs]
+
+
 def run_official_backtests(
     *,
     screen: pd.DataFrame,
@@ -1199,6 +1231,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resume", action="store_true", help="Reuse successful official runs already listed in output-dir.")
     parser.add_argument("--raw-only", action="store_true", help="Run only raw-variable official Top/Worst tests.")
     parser.add_argument("--validated-from", default="", help="Directory containing raw-variable performance_summary.csv for gate-based family construction.")
+    parser.add_argument("--raw-pairs", action="store_true", help="Add all pairwise combinations of raw variables that passed the gate.")
+    parser.add_argument("--raw-pairs-only", action="store_true", help="Run only pairwise combinations of raw variables that passed the gate.")
     parser.add_argument("--gate-coverage", type=float, default=0.75)
     parser.add_argument("--gate-ratio-cagr", type=float, default=0.0)
     parser.add_argument("--gate-top-worst-ratio", type=float, default=0.0)
@@ -1225,6 +1259,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     raw_gate = pd.DataFrame()
     validated_default_metrics: list[str] = []
     validated_families: list[str] = []
+    raw_pair_metrics: list[str] = []
     if args.validated_from:
         raw_summary_path = Path(args.validated_from) / "performance_summary.csv"
         if not raw_summary_path.exists():
@@ -1245,6 +1280,12 @@ def main(argv: Iterable[str] | None = None) -> int:
             metric_specs=metric_specs,
             gate=raw_gate,
         )
+        if args.raw_pairs or args.raw_pairs_only:
+            screen, metric_specs, raw_pair_metrics = add_raw_pair_metrics(
+                screen=screen,
+                metric_specs=metric_specs,
+                gate=raw_gate,
+            )
         research_screen_path = output_dir / "stoxx600_multifactor_screen.parquet"
         screen.to_parquet(research_screen_path, index=False)
         (output_dir / "metric_definitions.json").write_text(
@@ -1257,7 +1298,17 @@ def main(argv: Iterable[str] | None = None) -> int:
     all_metrics = [spec.column for spec in metric_specs if spec.column in screen.columns]
     raw_metrics = [spec.column for spec in metric_specs if spec.family.startswith("raw_") and spec.column in screen.columns]
     combo_metrics = [spec.column for spec in metric_specs if spec.family == "all_family_combinations"]
-    default_metrics = validated_default_metrics if args.validated_from else raw_metrics if args.raw_only else combo_metrics or all_metrics
+    default_metrics = (
+        raw_pair_metrics
+        if args.raw_pairs_only
+        else validated_default_metrics + raw_pair_metrics
+        if args.validated_from and args.raw_pairs
+        else validated_default_metrics
+        if args.validated_from
+        else raw_metrics
+        if args.raw_only
+        else combo_metrics or all_metrics
+    )
     metric_columns = ["stoxx600_mf_6_equal"] if args.smoke else parse_csv_arg(args.metrics, default_metrics)
     unknown = sorted(set(metric_columns).difference(all_metrics))
     if unknown:
@@ -1310,6 +1361,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         "raw_only": bool(args.raw_only),
         "validated_from": str(args.validated_from),
         "validated_families": validated_families,
+        "raw_pair_metric_count": int(len(raw_pair_metrics)),
         "raw_gate_pass_count": int(raw_gate["pass_gate"].sum()) if not raw_gate.empty and "pass_gate" in raw_gate.columns else 0,
         "raw_gate_total_count": int(len(raw_gate)) if not raw_gate.empty else 0,
         "smoke": bool(args.smoke),

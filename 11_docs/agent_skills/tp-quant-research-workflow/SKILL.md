@@ -23,7 +23,7 @@ Primary locations:
 1. Clarify the question: target universe, benchmark, factor or model target, date range, direction hypothesis, weighting, neutralization, and evaluation metric.
 2. Audit available data before selecting variables. Include screen columns, linked databases, returns, fundamentals, estimates, risk fields, country/sector fields, ML scores, macro workbooks, and existing model outputs.
 3. Use qualitative finance reasoning and paper-inspired priors to narrow candidates. Do not brute-force large grids without an ex ante rationale.
-4. Construct only explainable candidate signals: ranks, z-scores, historical percentiles, rolling changes, lagged values, residualized variables, spreads, and simple combinations with a clear story.
+4. Construct only explainable candidate signals: ranks, z-scores, historical percentiles, rolling changes, lagged values, residualized variables, spreads, and simple combinations with a clear story. For absolute level variables, explicitly consider same-security relative variants before family construction.
 5. Separate fast or approximate screening from official exact evidence.
 6. Use official exact runs for conclusions. Label screening output clearly.
 7. For rebuilt factor families, validate raw variables with official Top/Worst evidence before allowing them into a family composite.
@@ -42,9 +42,10 @@ Use this template when the user asks for a reusable factor model across a region
 6. Build validated family composites only from raw variables that pass the gate. Use explicit thresholds for coverage, Top/Benchmark ratio CAGR, robust score, and Top/Worst ratio. Write `raw_validation_gate.csv` or an equivalent audit table. If no raw variable in a family passes, exclude that family from candidate composites instead of creating a misleading empty family.
 7. Do not fill missing fundamentals with arbitrary values. Build each validated subfactor from passing variables with a minimum-count rule, and write coverage diagnostics. If a factor only has short history or low coverage, label its backtest as weak evidence.
 8. Build explainable composites from validated families: equal-weight full validated model, value+quality, quality+momentum, growth+value+quality, growth+quality+momentum, and other subsets justified by passed family coverage. Optionally add a trailing-IC adaptive blend that uses only past information.
-9. Run official Top/Worst backtests for validated subfactors, existing database factors, and final candidates. Use fast screening only to decide what deserves exact runs; do not use it for conclusions.
-10. Select the final model by robustness first: Top/Benchmark ratio drawdown, tracking error, rolling 3-year failure, annual hit rate, Top/Worst ratio, Worst underperformance, turnover, and average holdings. Do not mechanically pick the highest CAGR.
-11. Explain final weights from the evidence gate upward: raw variable pass/fail, family composition, family combination, then final model economics.
+9. Before claiming interaction effects, test pair, subset, or leave-one-out evidence among passed raw variables. Good economic stories such as revision plus margin improvement are hypotheses, not synergy evidence.
+10. Run official Top/Worst backtests for validated subfactors, existing database factors, pair/subset/leave-one-out candidates, and final candidates. Use fast screening only to decide what deserves exact runs; do not use it for conclusions.
+11. Select the final model by robustness first: Top/Benchmark ratio drawdown, tracking error, rolling 3-year failure, annual hit rate, Top/Worst ratio, Worst underperformance, turnover, and average holdings. Do not mechanically pick the highest CAGR.
+12. Explain final weights from the evidence gate upward: raw variable pass/fail, relative-variable pass/fail where relevant, family composition, synergy evidence, family combination, then final model economics.
 
 ## Raw Validation Gate
 
@@ -57,12 +58,49 @@ Use this mandatory gate for family rebuild work unless the user explicitly reque
 - Exclude any family with zero passing raw variables from downstream combination tests. Do not generate candidate names that imply exposure to a family whose validated score is empty.
 - Keep rejected raw variables in diagnostics and reports so the user can see what failed and why.
 
+## Relative Raw Variable Expansion
+
+Use this step when a raw candidate is an absolute level variable such as a valuation multiple, profitability margin, leverage ratio, dividend yield, payout ratio, volatility, beta, or drawdown field.
+
+- Treat every relative variant as a new raw variable, not as an automatically approved supplement.
+- Default relative variants:
+  - `directional_delta`: direction-normalized raw level minus same-security lagged raw level, then winsorize and neutral-bucket rank.
+  - `score_delta`: current neutralized raw score minus same-security lagged score, then neutral-bucket rank.
+- Default lags are `1`, `3`, and `12` screen observations unless the data frequency or availability lag requires a different choice.
+- Do not mechanically apply relative transforms to variables that are already growth rates, estimate revisions, price momentum, total returns, CAGR fields, or other change-like fields unless the explicit hypothesis is second-order change.
+- Require the same official Top/Worst gate as other raw variables before a relative variant enters any family.
+- Write `relative_variable_definitions.csv`, `relative_validation_gate.csv`, and `relative_vs_level_comparison.csv`.
+- Compare each relative variant against its original level variable; do not claim relative variables are generally superior unless official evidence supports that claim in the selected market.
+- Prefer `directional_delta` only when the economic meaning is clear, for example margin improvement, leverage decline, valuation becoming cheaper, payout pressure falling, or volatility declining.
+- If a relative variable passes but its original level variable fails, describe the economic mechanism as a marginal improvement effect, not as evidence that the whole family is validated.
+
+## Synergy Evidence Protocol
+
+Use this protocol after raw and relative raw variables pass their individual gates.
+
+- Do not claim synergy from economic intuition, family labels, or a composite backtest alone.
+- Minimum evidence for a synergy claim:
+  - each individual leg has official raw Top/Worst evidence;
+  - the pair, subset, or leave-one-out candidate has official Top/Worst evidence;
+  - the pair/subset improves robustness versus the best individual leg or versus the relevant simple benchmark composite;
+  - leave-one-out shows the added variable contributes positively or reduces drawdown, tracking error, turnover instability, or rolling failure;
+  - coverage, turnover, and holding overlap remain acceptable.
+- Classify relationships explicitly:
+  - `additive`: pair works but does not materially beat the best leg;
+  - `synergistic`: pair beats the best leg on robust score and risk evidence;
+  - `redundant`: pair adds little and leave-one-out contribution is weak;
+  - `harmful`: pair lowers robustness or materially worsens drawdown, turnover, or coverage.
+- Write `pair_synergy_results.csv`, `family_subset_results.csv`, `leave_one_out_results.csv`, and `synergy_claims.csv` when those tests are in scope.
+- Good hypotheses to test include cheap plus improving earnings, revision plus margin improvement, momentum plus quality improvement, and deleveraging plus risk decline; they still need official evidence.
+
 Implementation pattern:
 
 - Put one-off research scripts under `07_backtest_code/scripts/` and outputs under `07_backtest_code/runs/ad_hoc/`.
 - Write `metric_definitions.json`, `data_construction_checks.csv`, `metric_diagnostics.csv`, `official_run_results.csv`, `performance_summary.csv`, Plotly HTML files, and a Chinese markdown report.
 - Add `--metrics`, `--max-runs`, and `--resume` to long official-run scripts so multi-hour Top/Worst matrices can be resumed without repeating successful runs.
 - For reusable universe runners, add or use a two-stage interface like `--raw-only` followed by `--validated-from <raw_run_dir_or_summary>` so raw evidence gates family construction.
+- For large official run matrices, use resumable process-level sharding rather than Python threads. Each worker must write its own shard result file and official run root; the parent process merges and deduplicates results. Use unique wave directories on restart so shard CSVs are not overwritten.
+- Keep Windows run paths short for official artifacts; long metric names plus nested shard directories can exceed path limits before `config_snapshot.yaml` is written.
 - If the GUI `BacktestService` logger relay fails or recurses during batch runs, call the same official engine path directly while preserving `PtfBuilder`, `generic_histo_seclist`, `backtest`, benchmark performance, and artifact outputs.
 - Do not modify production screen, signal, dashboard, model, or portfolio contracts unless the user explicitly asks to promote the research result.
 

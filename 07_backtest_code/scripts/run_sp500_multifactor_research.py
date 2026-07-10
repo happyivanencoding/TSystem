@@ -291,8 +291,11 @@ def run_official_backtests_incremental(
     max_runs: int | None,
     results_path: Path,
     existing_results: pd.DataFrame | None = None,
+    sides: list[str] | None = None,
 ) -> pd.DataFrame:
     service = base.BacktestService()
+    selected_sides = {str(side).strip().title() for side in sides} if sides else {"Top", "Worst"}
+    side_pairs = [(side, top) for side, top in (("Top", True), ("Worst", False)) if side in selected_sides]
     completed_pairs: set[tuple[str, str]] = set()
     records = []
     if existing_results is not None and not existing_results.empty:
@@ -310,7 +313,7 @@ def run_official_backtests_incremental(
         if metric not in screen.columns:
             continue
         start = base.first_eligible_start(screen, metric)
-        for side, top in (("Top", True), ("Worst", False)):
+        for side, top in side_pairs:
             if (metric, side) in completed_pairs:
                 continue
             if max_runs is not None and launched >= max_runs:

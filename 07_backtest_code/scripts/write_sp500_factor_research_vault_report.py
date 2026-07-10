@@ -391,6 +391,7 @@ def build_sp500_research_note(
         f"- raw gate：`{RAW_DIR}`；relative gate：`{REL_DIR}`。",
         "- 关键证据：`official_run_results.csv`、`performance_summary.csv`、`pair_synergy_results.csv`、`family_subset_results.csv`、`leave_one_out_results.csv`、`synergy_claims.csv`。",
         "- Plotly：`plots/best_robust_nav.html`、`plots/robust_score_top30.html`、`plots/drawdown_te_top30.html`。",
+        "- 交互浏览器：`C:\\GoogleDrive\\TP\\09_reports\\sp500-factor-explorer.html`。",
         "",
     ]
     return lines

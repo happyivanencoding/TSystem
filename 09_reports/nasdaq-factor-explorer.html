@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Nasdaq 因子研究浏览器</title>
+  <style>
+    :root {
+      --canvas: #f6f7f4;
+      --panel: #ffffff;
+      --panel-soft: #eef2ed;
+      --ink: #16231d;
+      --muted: #63716a;
+      --line: #d9e0da;
+      --forest: #0e6a4d;
+      --forest-soft: #d9eee4;
+      --blue: #2267a8;
+      --blue-soft: #e1effd;
+      --amber: #a66612;
+      --amber-soft: #fff0d8;
+      --rose: #a83945;
+      --rose-soft: #fce5e7;
+      --radius: 8px;
+      --shadow: 0 10px 24px rgba(20, 40, 28, .055);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --canvas: #111712;
+        --panel: #182019;
+        --panel-soft: #202a21;
+        --ink: #ecf4ed;
+        --muted: #aebbb2;
+        --line: #314234;
+        --forest: #76d7ad;
+        --forest-soft: #153c2d;
+        --blue: #86bcf3;
+        --blue-soft: #173c60;
+        --amber: #ffc16b;
+        --amber-soft: #503b17;
+        --rose: #ff9ca5;
+        --rose-soft: #54242a;
+        --shadow: none;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--canvas); }
+    button, select { font: inherit; }
+    button { color: inherit; }
+    .shell { max-width: 1460px; margin: 0 auto; padding: 24px; }
+    .topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+    .eyebrow, .pill { font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+    .eyebrow { color: var(--forest); }
+    .stamp { color: var(--muted); font-size: 12px; text-align: right; }
+    .intro { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(310px, .65fr); gap: 18px; margin-bottom: 18px; }
+    .intro h1 { margin: 6px 0 10px; max-width: 900px; font-size: clamp(28px, 4vw, 48px); line-height: 1.05; letter-spacing: 0; }
+    .intro p { max-width: 900px; margin: 0; color: var(--muted); font-size: 15px; line-height: 1.65; }
+    .verdict { align-self: stretch; padding: 18px; border-left: 3px solid var(--forest); background: var(--panel); box-shadow: var(--shadow); }
+    .verdict strong { display: block; margin: 5px 0 8px; font-size: 17px; line-height: 1.35; }
+    .verdict p { font-size: 13px; line-height: 1.55; }
+    .grid { display: grid; gap: 14px; }
+    .stats { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 18px; }
+    .card { min-width: 0; padding: 16px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); }
+    .stat .number { margin-top: 4px; font-size: 29px; font-weight: 750; line-height: 1; font-variant-numeric: tabular-nums; }
+    .stat .label { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .stat.pass .number { color: var(--forest); }
+    .section-title { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+    .section-title h2 { margin: 0; font-size: 19px; letter-spacing: 0; }
+    .section-title p { margin: 0; color: var(--muted); font-size: 12px; text-align: right; }
+    .controls { display: grid; grid-template-columns: 1.4fr 1fr auto; gap: 10px; margin-bottom: 14px; }
+    .control { display: grid; gap: 5px; min-width: 0; }
+    .control label { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    select { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: var(--panel); }
+    .segmented { display: inline-flex; align-items: end; gap: 5px; }
+    .segmented button { padding: 9px 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); cursor: pointer; font-size: 13px; }
+    .segmented button.active { border-color: var(--forest); color: var(--forest); background: var(--forest-soft); }
+    .focus-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(360px, .85fr); gap: 14px; }
+    .focus-name { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+    .focus-name h3 { margin: 0; font-size: 20px; line-height: 1.25; }
+    .badge { display: inline-flex; align-items: center; flex: 0 0 auto; min-height: 22px; padding: 3px 7px; border-radius: 4px; font-size: 11px; font-weight: 750; white-space: nowrap; }
+    .badge.pass { color: var(--forest); background: var(--forest-soft); }
+    .badge.info { color: var(--blue); background: var(--blue-soft); }
+    .badge.warn { color: var(--amber); background: var(--amber-soft); }
+    .badge.fail { color: var(--rose); background: var(--rose-soft); }
+    .thesis { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.65; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .metric { min-width: 0; padding: 10px; background: var(--panel-soft); }
+    .metric span { display: block; color: var(--muted); font-size: 11px; line-height: 1.25; }
+    .metric strong { display: block; margin-top: 5px; font-size: 17px; font-variant-numeric: tabular-nums; }
+    .evidence-list { display: grid; gap: 9px; }
+    .evidence-row { display: grid; grid-template-columns: 23px 1fr; gap: 9px; padding-bottom: 9px; border-bottom: 1px solid var(--line); }
+    .evidence-row:last-child { padding-bottom: 0; border-bottom: 0; }
+    .evidence-row .index { display: grid; width: 23px; height: 23px; place-items: center; color: var(--forest); background: var(--forest-soft); font-size: 11px; font-weight: 800; }
+    .evidence-row strong { display: block; font-size: 13px; }
+    .evidence-row p { margin: 2px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .two-up { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-top: 18px; }
+    .bar-chart { display: grid; gap: 9px; margin-top: 6px; }
+    .bar-row { display: grid; grid-template-columns: minmax(155px, 1.2fr) minmax(110px, 2.8fr) 54px; align-items: center; gap: 10px; }
+    .bar-label { font-size: 12px; line-height: 1.25; }
+    .track { height: 11px; overflow: hidden; background: var(--panel-soft); }
+    .fill { height: 100%; min-width: 2px; background: var(--forest); }
+    .fill.blue { background: var(--blue); }
+    .fill.amber { background: var(--amber); }
+    .bar-value { color: var(--muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; color: var(--muted); font-size: 11px; }
+    .legend span { display: inline-flex; gap: 5px; align-items: center; }
+    .dot { width: 8px; height: 8px; background: var(--forest); }
+    .dot.blue { background: var(--blue); }
+    .dot.amber { background: var(--amber); }
+    .table-wrap { min-width: 0; max-width: 100%; overflow-x: auto; }
+    table { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 12px; }
+    th { padding: 0 8px 8px; color: var(--muted); border-bottom: 1px solid var(--line); font-size: 10px; letter-spacing: .04em; text-align: left; text-transform: uppercase; white-space: nowrap; }
+    td { padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.35; }
+    tr:last-child td { border-bottom: 0; }
+    td.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+    .muted { color: var(--muted); }
+    .evidence-tabs { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; }
+    .evidence-tabs button { padding: 7px 9px; border: 0; border-bottom: 2px solid transparent; color: var(--muted); background: transparent; cursor: pointer; font-size: 12px; white-space: nowrap; }
+    .evidence-tabs button.active { border-bottom-color: var(--forest); color: var(--ink); font-weight: 750; }
+    .panel-hidden { display: none; }
+    .gate-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 12px; }
+    .callout { padding: 12px; border-left: 3px solid var(--amber); background: var(--amber-soft); color: var(--ink); font-size: 13px; line-height: 1.55; }
+    .callout strong { color: var(--amber); }
+    .active-layout { display: grid; grid-template-columns: minmax(220px, .42fr) minmax(0, 1fr); gap: 14px; }
+    .period-list { display: grid; align-content: start; gap: 7px; }
+    .period-btn { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; min-height: 50px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: var(--panel); cursor: pointer; text-align: left; }
+    .period-btn:hover { border-color: var(--forest); }
+    .period-btn.active { border-color: var(--forest); background: var(--forest-soft); }
+    .period-btn span { min-width: 0; font-size: 12px; font-weight: 700; line-height: 1.25; }
+    .period-btn small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; font-weight: 500; }
+    .period-btn b { color: var(--forest); font-size: 13px; font-variant-numeric: tabular-nums; }
+    .period-btn b.negative, .period-leader-row b.negative { color: var(--rose); }
+    .chart-pane { min-width: 0; padding: 14px; background: var(--panel-soft); }
+    .active-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-bottom: 10px; }
+    .active-metric { min-width: 0; padding: 8px; background: var(--panel); }
+    .active-metric span { display: block; color: var(--muted); font-size: 10px; line-height: 1.25; }
+    .active-metric strong { display: block; margin-top: 4px; font-size: 15px; font-variant-numeric: tabular-nums; }
+    .active-chart { min-height: 300px; }
+    .active-chart svg { display: block; width: 100%; height: auto; }
+    .chart-empty { display: grid; min-height: 300px; place-items: center; color: var(--muted); font-size: 13px; text-align: center; }
+    .period-details { display: grid; grid-template-columns: minmax(0, .72fr) minmax(0, 1.28fr); gap: 14px; margin-top: 14px; }
+    .period-leaders h3 { margin: 0 0 9px; font-size: 15px; }
+    .period-leader-row { display: grid; grid-template-columns: minmax(0, 1fr) 56px; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); }
+    .period-leader-row:last-child { border-bottom: 0; }
+    .period-leader-row span { font-size: 12px; line-height: 1.3; }
+    .period-leader-row b { color: var(--forest); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+    .period-note { padding: 14px; background: var(--panel-soft); }
+    .period-note h3 { margin: 0 0 8px; font-size: 15px; }
+    .period-note p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.58; }
+    .family-table td:first-child { font-weight: 700; }
+    .family-table .status { width: 84px; }
+    .provenance { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px; }
+    .path { overflow-wrap: anywhere; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; line-height: 1.5; }
+    .footer { margin-top: 18px; padding: 14px 0 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.5; }
+    @media (max-width: 980px) {
+      .intro, .focus-layout, .gate-grid, .active-layout, .period-details, .provenance { grid-template-columns: 1fr; }
+      .period-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .two-up { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .segmented { grid-column: span 2; justify-content: flex-start; }
+    }
+    @media (max-width: 640px) {
+      .shell { padding: 14px; }
+      .topline { align-items: flex-start; flex-direction: column; }
+      .stamp { text-align: left; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .controls { grid-template-columns: 1fr; }
+      .segmented { grid-column: auto; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .active-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .period-list { grid-template-columns: 1fr; }
+      .bar-row { grid-template-columns: 120px 1fr 48px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topline">
+      <div class="eyebrow">TP Quant Research / Official evidence explorer</div>
+      <div class="stamp">NASDAQ COMP · 研究窗口至 2026-06-30 · official NAV 至 2026-07-02 · 20% Top / Worst · 市值加权</div>
+    </div>
+
+    <section class="intro" aria-labelledby="page-title">
+      <div>
+        <h1 id="page-title">Nasdaq 因子研究浏览器</h1>
+        <p>全样本的结论很集中：这个市场更稳定地奖励的是<strong>可兑现的改善</strong>，不是静态的“高成长”标签。页面按研究流水线呈现：先看 raw gate，再看同一证券的 relative 变化，最后才看 pair、subset 和 leave-one-out 是否支持协同。</p>
+      </div>
+      <aside class="verdict">
+        <div class="eyebrow">全样本核心结论</div>
+        <strong>盈利上修 + 经营质量改善 + 估值纪律</strong>
+        <p>quality improvement 是组合的核心贡献。revision 是有效单腿，但不能机械塞入所有 quality / value composite；PMOM、broad growth、lowvol、dividend 和 deleveraging 只适合作为 regime-aware overlay。</p>
+      </aside>
+    </section>
+
+    <section class="grid stats" aria-label="研究覆盖概览">
+      <article class="card stat"><div class="number">55</div><div class="label">raw variables 已跑 official Top / Worst</div></article>
+      <article class="card stat pass"><div class="number">2</div><div class="label">raw variables 通过严格 gate</div></article>
+      <article class="card stat"><div class="number">198</div><div class="label">可记录 relative variants 同样进入 gate</div></article>
+      <article class="card stat pass"><div class="number">7</div><div class="label">relative variables 通过严格 gate</div></article>
+      <article class="card stat pass"><div class="number">8</div><div class="label">pair 有 strict synergy evidence</div></article>
+    </section>
+
+    <section class="card" aria-labelledby="focus-title">
+      <div class="section-title">
+        <div><h2 id="focus-title">选择一条已验证的证据路径</h2></div>
+        <p>切换不会生成新回测，只重述已完成 official run 的结论。</p>
+      </div>
+      <div class="controls">
+        <div class="control">
+          <label for="focus-select">焦点候选</label>
+          <select id="focus-select"></select>
+        </div>
+        <div class="control">
+              <label for="period-select">图表窗口</label>
+          <select id="period-select"></select>
+        </div>
+        <div class="segmented" aria-label="显示模式">
+          <button class="active" type="button" data-mode="evidence">证据</button>
+          <button type="button" data-mode="economics">经济含义</button>
+        </div>
+      </div>
+      <div class="focus-layout">
+        <div>
+          <div class="focus-name"><span class="badge pass" id="focus-badge">STRICT CORE</span><h3 id="focus-name"></h3></div>
+          <p class="thesis" id="focus-thesis"></p>
+          <div class="metrics" id="focus-metrics"></div>
+        </div>
+        <div class="evidence-list" id="focus-evidence"></div>
+      </div>
+    </section>
+
+    <section class="grid two-up" aria-label="核心因子与时期结构">
+      <article class="card">
+        <div class="section-title"><div><h2>通过 gate 的单变量</h2></div><p>raw 与 relative 分开，不能混淆。</p></div>
+        <div class="bar-chart" id="single-chart"></div>
+        <div class="legend"><span><i class="dot"></i>relative quality improvement</span><span><i class="dot blue"></i>raw revision / earnings growth</span><span><i class="dot amber"></i>earnings-yield improvement</span></div>
+      </article>
+      <article class="card">
+        <div class="section-title"><div><h2>通过 strict evidence 的协同</h2></div><p>均有 individual + pair official evidence。</p></div>
+        <div class="bar-chart" id="synergy-chart"></div>
+        <div class="callout" style="margin-top:14px"><strong>最强 pair：</strong>3 期经营利润率改善 + 3 期 ROE 横截面排名改善。它同时确认经营端拐点和资本效率改善，而不是把两个同名 quality 分数简单相加。</div>
+      </article>
+    </section>
+
+    <section class="card" style="margin-top:18px" aria-labelledby="evidence-title">
+      <div class="section-title"><div><h2 id="evidence-title">Gate 与组合证据</h2></div><p>每一级都保留未通过或弱证据，避免幸存者叙事。</p></div>
+      <div class="evidence-tabs" role="tablist">
+        <button class="active" data-tab="raw" role="tab" type="button">Raw gate</button>
+        <button data-tab="relative" role="tab" type="button">Relative gate</button>
+        <button data-tab="synergy" role="tab" type="button">Subset / LOO</button>
+        <button data-tab="limits" role="tab" type="button">限制与反例</button>
+      </div>
+
+      <div data-panel="raw">
+        <div class="gate-grid">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>通过的 raw variable</th><th>家庭</th><th class="num">coverage</th><th class="num">Top/BM CAGR</th><th class="num">Top/Worst</th><th class="num">robust</th></tr></thead>
+              <tbody>
+                <tr><td>EPS NTM 3M Growth</td><td>momentum / revision</td><td class="num">95.8%</td><td class="num">2.7%</td><td class="num">167.8%</td><td class="num">0.319</td></tr>
+                <tr><td>EPS Revision Ratio</td><td>momentum / revision</td><td class="num">96.5%</td><td class="num">1.3%</td><td class="num">184.9%</td><td class="num">0.158</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout"><strong>原始水平变量并不宽泛有效。</strong><br>55 个 raw variables 中，只有近端盈利变化 / revision 通过 strict gate。静态 quality、value、growth、lowvol、dividend 和 CIQ 都不能仅凭经济直觉进入核心 family。</div>
+        </div>
+      </div>
+
+      <div data-panel="relative" class="panel-hidden">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>通过的 relative variable</th><th>变换</th><th class="num">lag</th><th class="num">coverage</th><th class="num">Top/BM CAGR</th><th class="num">Top/Worst</th><th class="num">robust</th></tr></thead>
+            <tbody id="relative-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div data-panel="synergy" class="panel-hidden">
+        <div class="gate-grid">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>subset</th><th class="num">coverage</th><th class="num">Top/BM CAGR</th><th class="num">Top/Worst</th><th class="num">robust</th></tr></thead>
+              <tbody>
+                <tr><td>quality improvement + earnings-yield improvement</td><td class="num">88.6%</td><td class="num">3.7%</td><td class="num">290.3%</td><td class="num">0.900</td></tr>
+                <tr><td>revision + quality improvement + earnings-yield improvement</td><td class="num">86.2%</td><td class="num">2.9%</td><td class="num">283.8%</td><td class="num">0.867</td></tr>
+                <tr><td>revision + quality improvement</td><td class="num">92.2%</td><td class="num">2.2%</td><td class="num">328.3%</td><td class="num">0.857</td></tr>
+                <tr><td>revision + earnings-yield improvement</td><td class="num">86.4%</td><td class="num">1.6%</td><td class="num">141.1%</td><td class="num">-0.088</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="evidence-list">
+            <div class="evidence-row"><div class="index">1</div><div><strong>quality improvement 是组合核心</strong><p>full theme composite 去掉它后，robust 从 0.867 降到 -0.088，贡献为 +0.955。</p></div></div>
+            <div class="evidence-row"><div class="index">2</div><div><strong>earnings-yield improvement 是估值纪律</strong><p>剔除后 robust 为 0.857，贡献只有 +0.010；它更像避免高估值陷阱的约束。</p></div></div>
+            <div class="evidence-row"><div class="index">3</div><div><strong>revision 有效，但在 full theme 中略冗余</strong><p>剔除 revision 后 robust 反而升至 0.900；保留为独立 sleeve 或确认信号。</p></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div data-panel="limits" class="panel-hidden">
+        <div class="gate-grid">
+          <div class="table-wrap">
+            <table class="family-table">
+              <thead><tr><th>方向</th><th class="status">全样本状态</th><th>为何不进入 core</th></tr></thead>
+              <tbody>
+                <tr><td>CIQ variables</td><td><span class="badge fail">NOT PASS</span></td><td>与 FactSet、database 和本地字段走相同 gate；问题是 coverage、历史尺度和信息时效，不是来源偏见。</td></tr>
+                <tr><td>PMOM / broad growth</td><td><span class="badge warn">REGIME</span></td><td>2020-2021 与 2025-2026H1 强，但 2022 rate shock 与 mega-cap 集中期不稳。</td></tr>
+                <tr><td>static value / lowvol / dividend</td><td><span class="badge warn">REGIME</span></td><td>可描述 2022 风险冲击，却没有全样本 strict core 证据。</td></tr>
+                <tr><td>deleveraging</td><td><span class="badge fail">NOT PASS</span></td><td>Nasdaq 的净现金、负盈利和融资周期异质性，削弱了全市场静态杠杆信号。</td></tr>
+                <tr><td>revision + quality pair</td><td><span class="badge fail">MIXED</span></td><td>许多 pair harmful 或 redundant；单腿有效不等于简单相加就有协同。</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout"><strong>阅读 2023-2024 的提醒：</strong><br>多数 raw Top / Benchmark 为负，但 Top / Worst 仍为正。市值加权 Nasdaq benchmark 被少数 mega-cap winner 拉动，因而 Top/BM 不能单独用于判断横截面排序能力；后续应补充 equal-weight、mega-cap-neutral 与行业中性诊断。</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:18px" aria-labelledby="rotation-title">
+      <div class="section-title"><div><h2 id="rotation-title">时期主动表现：曲线、变量轮动与机制解释</h2></div><p>图表随“焦点候选”和“图表窗口”切换；全部使用 official NAV 的按月压缩序列。</p></div>
+      <div class="active-layout">
+        <nav class="period-list" id="period-list" aria-label="主动表现时期选择"></nav>
+        <div class="chart-pane">
+          <div class="active-metrics" id="active-metrics"></div>
+          <div class="active-chart" id="active-chart" aria-live="polite"></div>
+          <div class="legend"><span><i class="dot"></i>Top</span><span><i class="dot blue"></i>Benchmark</span><span><i class="dot amber"></i>Worst</span></div>
+        </div>
+      </div>
+      <div class="period-details">
+        <aside class="period-note"><h3 id="period-title"></h3><p id="period-copy"></p></aside>
+        <div class="period-leaders"><h3 id="period-leaders-title"></h3><div id="period-leaders"></div></div>
+      </div>
+    </section>
+
+    <section class="provenance" aria-label="研究来源与使用边界">
+      <article class="card">
+        <div class="section-title"><div><h2>研究路径</h2></div></div>
+        <div class="evidence-list">
+          <div class="evidence-row"><div class="index">1</div><div><strong>Benchmark 与数据审计</strong><p>NASDAQ COMP 权重列、日期、样本数与 returns coverage 先被审计。</p></div></div>
+          <div class="evidence-row"><div class="index">2</div><div><strong>Raw / relative gate</strong><p>higher-is-better score；所有来源同一 coverage、Top/BM、Top/Worst、robust gate。</p></div></div>
+          <div class="evidence-row"><div class="index">3</div><div><strong>组合前必须有证据</strong><p>只对通过单变量 gate 的方向做 pair、subset 与 leave-one-out。</p></div></div>
+        </div>
+      </article>
+      <article class="card">
+        <div class="section-title"><div><h2>可审计产物</h2></div></div>
+        <p class="path">07_backtest_code/runs/ad_hoc/nasdaq_raw_gate_20260708/raw_validation_gate.csv</p>
+        <p class="path">07_backtest_code/runs/ad_hoc/nasdaq_relative_variables_20260709/relative_validation_gate.csv</p>
+        <p class="path">07_backtest_code/runs/ad_hoc/nasdaq_extended_factor_research_20260709/synergy_claims.csv</p>
+        <p class="path">C:/GoogleDrive/笔记/卡片盒子/10_Investment/03_Factor_Research/Nasdaq raw variables 与协同因子研究 - 官方 Top-Worst 证据与经济解释.md</p>
+      </article>
+    </section>
+
+    <footer class="footer">研究状态：所有展示数值来自已完成的 official Top / Worst run；这是研究浏览器而不是生产模型、实时信号或交易建议。研究中原始/relative 证据与 pair/subset/LOO 证据被刻意分层，避免把经济直觉写成已经证实的协同。</footer>
+  </main>
+
+  <script id="active-series-data" type="application/json">{"core":{"metric":"nasdaq_ext_subset_quality_improvement_earnings_yield_improvement","series":[["2014-04-02",100.0,100.0,100.0],["2014-04-30",98.67184,92.96525,97.28451],["2014-05-31",106.7439,97.67866,103.57343],["2014-06-30",109.90629,102.27292,106.35098],["2014-07-31",115.40293,105.79142,110.15221],["2014-08-31",124.32441,111.90174,117.57319],["2014-09-30",128.09346,118.28961,121.7693],["2014-10-31",131.04882,120.03549,126.00214],["2014-11-30",139.88469,129.1844,132.2897],["2014-12-31",142.56084,130.82181,133.25877],["2015-01-31",148.28839,133.8398,140.27546],["2015-02-28",164.16459,141.67548,151.6493],["2015-03-31",165.51691,147.81196,154.01234],["2015-04-30",157.42519,150.01664,150.27937],["2015-05-31",172.05433,152.55727,157.50818],["2015-06-30",162.62421,143.3709,151.32591],["2015-07-31",166.74484,149.61613,159.49246],["2015-08-31",155.36967,134.38596,147.26688],["2015-09-30",157.35441,128.35835,145.07427],["2015-10-31",176.07212,138.00329,162.6409],["2015-11-30",186.44796,145.7303,170.76441],["2015-12-31",182.76596,140.72245,163.50111],["2016-01-31",170.71971,124.6934,153.18232],["2016-02-29",170.27811,124.18596,150.2777],["2016-03-31",173.89839,127.19992,153.16029],["2016-04-30",173.92307,115.61655,147.24376],["2016-05-31",195.92183,124.23835,158.56602],["2016-06-30",195.39003,121.7326,155.33865],["2016-07-31",208.01134,127.53118,165.7508],["2016-08-31",214.09668,131.20989,168.08754],["2016-09-30",221.30431,131.32893,170.23277],["2016-10-31",224.4858,135.95904,171.93777],["2016-11-30",259.23913,138.42124,178.71839],["2016-12-31",271.47485,138.72973,182.04966],["2017-01-31",284.47488,141.9342,186.60555],["2017-02-28",297.42863,151.85499,198.2851],["2017-03-31",312.94015,150.48218,201.25819],["2017-04-30",315.41716,149.175,203.07141],["2017-05-31",326.17255,150.32341,204.19252],["2017-06-30",313.73439,145.31066,196.32708],["2017-07-31",325.80316,139.81366,197.51214],["2017-08-31",327.45938,136.77081,200.78984],["2017-09-30",348.95596,139.00764,201.92719],["2017-10-31",370.09798,141.982,214.88673],["2017-11-30",355.45756,148.63626,214.15538],["2017-12-31",354.73816,151.60552,213.6737],["2018-01-31",377.50729,155.05284,223.61032],["2018-02-28",384.45886,152.34355,226.24261],["2018-03-31",368.26514,145.61207,215.69832],["2018-04-30",357.09761,143.18745,220.59211],["2018-05-31",398.48545,152.62945,241.92917],["2018-06-30",389.93219,152.47838,243.97942],["2018-07-31",396.32253,160.30778,250.46653],["2018-08-31",398.83059,162.92292,268.49068],["2018-09-30",381.9793,162.66566,268.53777],["2018-10-31",333.89647,152.81522,252.39707],["2018-11-30",333.18823,155.53289,251.01252],["2018-12-31",292.36414,141.13915,226.47111],["2019-01-31",326.82156,150.78313,245.63931],["2019-02-28",340.97173,158.43256,255.6351],["2019-03-31",356.24953,164.53373,270.11442],["2019-04-30",375.82106,186.37277,285.79629],["2019-05-31",321.53853,166.44559,263.63671],["2019-06-30",350.50626,178.70556,278.51356],["2019-07-31",373.32865,185.26277,292.70166],["2019-08-31",368.72332,191.85881,290.34469],["2019-09-30",372.8581,196.36301,296.66787],["2019-10-31",381.42373,198.92359,303.0584],["2019-11-30",400.42676,205.88287,319.88028],["2019-12-31",418.31566,208.16164,327.88991],["2020-01-31",417.38668,207.67952,341.83848],["2020-02-29",417.54377,197.34676,323.36988],["2020-03-31",368.97128,183.52731,300.32026],["2020-04-30",414.49348,207.31271,347.43195],["2020-05-31",455.57039,221.11568,362.82551],["2020-06-30",482.56285,233.92418,382.7617],["2020-07-31",480.73487,233.88677,391.05059],["2020-08-31",515.54476,246.70533,431.02212],["2020-09-30",523.82358,242.18581,411.6851],["2020-10-31",516.14323,236.67911,400.51721],["2020-11-30",576.93713,264.27192,429.96878],["2020-12-31",597.68516,266.7876,444.02381],["2021-01-31",611.24568,282.11028,449.62246],["2021-02-28",671.919,279.55772,448.91726],["2021-03-31",690.86278,297.56717,474.29364],["2021-04-30",686.88849,302.91799,492.77378],["2021-05-31",695.13123,302.21295,478.49411],["2021-06-30",765.32993,320.49351,524.22266],["2021-07-31",736.48425,323.30689,540.37902],["2021-08-31",773.79798,325.85808,567.79816],["2021-09-30",746.41661,311.02798,542.95298],["2021-10-31",801.87394,332.36524,585.70307],["2021-11-30",920.97121,372.58272,619.16522],["2021-12-31",894.99582,382.05058,630.06335],["2022-01-31",812.8975,367.16607,594.4496],["2022-02-28",790.58756,347.35429,565.7027],["2022-03-31",820.19855,349.11467,597.48293],["2022-04-30",711.71438,338.79435,547.43846],["2022-05-31",721.53683,340.92176,528.91369],["2022-06-30",635.41178,315.69019,494.03829],["2022-07-31",730.15821,356.92946,571.77955],["2022-08-31",675.77582,335.79737,549.57248],["2022-09-30",608.51961,305.26581,503.33291],["2022-10-31",626.89462,315.01452,520.37776],["2022-11-30",719.40794,337.33765,523.36813],["2022-12-31",630.05662,306.02476,457.77409],["2023-01-31",673.9044,327.32212,494.93783],["2023-02-28",675.03276,327.87017,503.7217],["2023-03-31",694.1757,337.16809,532.15573],["2023-04-30",666.95629,323.10743,526.96715],["2023-05-31",688.33743,338.41457,579.13206],["2023-06-30",704.83731,341.70933,602.18171],["2023-07-31",738.72935,350.62583,618.42115],["2023-08-31",732.70314,344.31366,618.80854],["2023-09-30",721.20538,339.83147,601.32842],["2023-10-31",693.95564,330.29196,591.3424],["2023-11-30",720.70018,343.75395,632.91308],["2023-12-31",747.97568,362.96583,655.27313],["2024-01-31",734.50382,352.18109,676.67353],["2024-02-29",770.94807,380.51472,720.74713],["2024-03-31",798.64149,387.13979,736.08992],["2024-04-30",748.61453,363.93044,711.31511],["2024-05-31",902.61601,378.92963,751.77185],["2024-06-30",949.33693,375.76558,810.12589],["2024-07-31",943.21389,380.89991,793.55917],["2024-08-31",915.5021,350.58244,783.65768],["2024-09-30",960.491,353.449,797.8525],["2024-10-31",992.09292,354.92807,815.38902],["2024-11-30",1144.28797,387.91951,888.48559],["2024-12-31",1141.80912,388.21248,910.76914],["2025-01-31",1195.13312,395.01655,917.14636],["2025-02-28",1133.60215,372.48961,881.85083],["2025-03-31",994.58308,326.61348,778.99105],["2025-04-30",943.22179,310.97001,746.75817],["2025-05-31",1012.73365,328.34763,820.75551],["2025-06-30",1047.57177,341.74736,847.3077],["2025-07-31",1093.79809,365.8629,902.39282],["2025-08-31",1111.13924,369.35041,895.74184],["2025-09-30",1196.00018,383.58438,942.73775],["2025-10-31",1253.1547,396.80026,1005.61221],["2025-11-30",1187.0828,384.30524,987.29617],["2025-12-31",1179.83292,379.19278,971.21177],["2026-01-31",1238.89702,383.18642,964.6766],["2026-02-28",1243.18802,365.77658,937.48016],["2026-03-31",1227.93093,355.74159,915.73332],["2026-04-30",1480.87867,409.56373,1047.7179],["2026-05-31",1663.40308,456.37628,1131.21102],["2026-06-30",1847.02768,451.76738,1120.10201],["2026-07-31",1735.74392,444.74899,1108.21517],["2026-07-02",1735.74392,444.74899,1108.21517]],"periodStats":{"all":{"topCagr":0.26237844,"activeCagr":0.03730908,"spreadCagr":0.11757976,"observations":149,"start":"2014-04-02","end":"2026-07-02"},"2014-2016":{"topCagr":0.43861936,"activeCagr":0.15663359,"spreadCagr":0.2769497,"observations":34,"start":"2014-04-02","end":"2016-12-30"},"2017-2019":{"topCagr":0.1554475,"activeCagr":-0.05080535,"spreadCagr":0.00892176,"observations":36,"start":"2017-01-02","end":"2019-12-31"},"2020-2021":{"topCagr":0.44439988,"activeCagr":0.05079841,"spreadCagr":0.07501205,"observations":24,"start":"2020-01-02","end":"2021-12-31"},"2022":{"topCagr":-0.31402877,"activeCagr":-0.03207047,"spreadCagr":-0.13181687,"observations":12,"start":"2022-01-03","end":"2022-12-30"},"2023-2024":{"topCagr":0.34701701,"activeCagr":-0.04569606,"spreadCagr":0.19566606,"observations":24,"start":"2023-01-02","end":"2024-12-31"},"2025-2026H1":{"topCagr":0.38463478,"activeCagr":0.20008933,"spreadCagr":0.2520368,"observations":18,"start":"2025-01-01","end":"2026-06-30"}}},"best-pair":{"metric":"nasdaq_ext_pair_459c506bb7f6","series":[["2014-04-02",100.0,100.0,100.0],["2014-04-30",95.92019,95.82389,97.28451],["2014-05-31",105.51873,100.5033,103.57343],["2014-06-30",110.78406,103.61743,106.35098],["2014-07-31",112.50867,106.07509,110.15221],["2014-08-31",121.18906,110.53364,117.57319],["2014-09-30",124.36137,115.02622,121.7693],["2014-10-31",128.18402,119.81807,126.00214],["2014-11-30",134.00218,126.71492,132.2897],["2014-12-31",138.10672,128.50769,133.25877],["2015-01-31",141.69441,127.17373,140.27546],["2015-02-28",155.06916,139.1132,151.6493],["2015-03-31",157.11618,139.55821,154.01234],["2015-04-30",151.63243,135.1192,150.27937],["2015-05-31",160.57848,137.81879,157.50818],["2015-06-30",150.9939,132.85741,151.32591],["2015-07-31",157.65117,138.86907,159.49246],["2015-08-31",145.42205,125.04203,147.26688],["2015-09-30",144.67676,119.6292,145.07427],["2015-10-31",159.73146,136.74322,162.6409],["2015-11-30",168.80263,141.99015,170.76441],["2015-12-31",164.91814,139.54553,163.50111],["2016-01-31",161.21339,123.61606,153.18232],["2016-02-29",159.96473,122.50294,150.2777],["2016-03-31",163.0505,123.16072,153.16029],["2016-04-30",164.407,113.26676,147.24376],["2016-05-31",183.06937,124.89752,158.56602],["2016-06-30",179.43927,122.06193,155.33865],["2016-07-31",195.49275,127.5869,165.7508],["2016-08-31",201.05685,131.16072,168.08754],["2016-09-30",205.99294,133.01935,170.23277],["2016-10-31",208.25445,136.35369,171.93777],["2016-11-30",227.93913,141.97861,178.71839],["2016-12-31",230.2839,143.5902,182.04966],["2017-01-31",241.08332,144.79746,186.60555],["2017-02-28",254.36976,152.61914,198.2851],["2017-03-31",268.02471,149.67789,201.25819],["2017-04-30",268.19544,146.74634,203.07141],["2017-05-31",282.15102,150.02428,204.19252],["2017-06-30",270.6828,144.56259,196.32708],["2017-07-31",272.18733,143.27892,197.51214],["2017-08-31",276.43323,139.78299,200.78984],["2017-09-30",286.06198,140.41768,201.92719],["2017-10-31",302.8359,145.82694,214.88673],["2017-11-30",294.94614,152.29176,214.15538],["2017-12-31",292.16243,151.11257,213.6737],["2018-01-31",303.91514,151.8399,223.61032],["2018-02-28",306.14118,150.12064,226.24261],["2018-03-31",304.47429,142.02814,215.69832],["2018-04-30",303.58275,143.04594,220.59211],["2018-05-31",341.37845,149.94065,241.92917],["2018-06-30",338.24231,151.49756,243.97942],["2018-07-31",345.55081,157.101,250.46653],["2018-08-31",355.73029,162.28267,268.49068],["2018-09-30",354.85388,165.37293,268.53777],["2018-10-31",328.51979,152.41555,252.39707],["2018-11-30",341.8302,159.65342,251.01252],["2018-12-31",312.92146,147.32447,226.47111],["2019-01-31",345.8314,155.85527,245.63931],["2019-02-28",367.27514,161.56555,255.6351],["2019-03-31",385.16418,168.46382,270.11442],["2019-04-30",412.94166,189.80755,285.79629],["2019-05-31",373.19921,167.50259,263.63671],["2019-06-30",396.03812,180.53932,278.51356],["2019-07-31",413.34355,183.65986,292.70166],["2019-08-31",411.38332,187.12051,290.34469],["2019-09-30",418.19733,189.12034,296.66787],["2019-10-31",432.16415,189.66748,303.0584],["2019-11-30",452.17958,200.34068,319.88028],["2019-12-31",465.75203,202.10156,327.88991],["2020-01-31",480.93464,206.29183,341.83848],["2020-02-29",467.29404,199.13111,323.36988],["2020-03-31",420.80666,190.11601,300.32026],["2020-04-30",477.92289,219.33633,347.43195],["2020-05-31",493.56983,228.36879,362.82551],["2020-06-30",528.607,238.59661,382.7617],["2020-07-31",517.09275,244.40714,391.05059],["2020-08-31",535.75946,257.35301,431.02212],["2020-09-30",530.23787,252.01479,411.6851],["2020-10-31",518.93742,247.81981,400.51721],["2020-11-30",574.52165,264.31963,429.96878],["2020-12-31",595.69487,272.03182,444.02381],["2021-01-31",609.30844,279.21066,449.62246],["2021-02-28",646.87539,269.64472,448.91726],["2021-03-31",677.05325,281.00083,474.29364],["2021-04-30",679.16834,285.02567,492.77378],["2021-05-31",675.00179,284.20466,478.49411],["2021-06-30",718.41678,303.21443,524.22266],["2021-07-31",724.08857,298.56077,540.37902],["2021-08-31",747.08152,304.22951,567.79816],["2021-09-30",730.27815,291.55382,542.95298],["2021-10-31",791.08676,301.39369,585.70307],["2021-11-30",845.25949,333.74699,619.16522],["2021-12-31",887.29747,334.87848,630.06335],["2022-01-31",805.26942,320.23156,594.4496],["2022-02-28",787.51485,316.66383,565.7027],["2022-03-31",808.38136,312.82573,597.48293],["2022-04-30",750.40028,299.65908,547.43846],["2022-05-31",758.34327,300.97879,528.91369],["2022-06-30",691.61721,280.0925,494.03829],["2022-07-31",782.99205,318.09012,571.77955],["2022-08-31",746.41888,301.39398,549.57248],["2022-09-30",695.83153,276.9838,503.33291],["2022-10-31",728.82163,280.13232,520.37776],["2022-11-30",777.7932,295.71251,523.36813],["2022-12-31",707.77648,266.40698,457.77409],["2023-01-31",757.35231,285.06735,494.93783],["2023-02-28",758.21779,285.39311,503.7217],["2023-03-31",779.33964,293.34338,532.15573],["2023-04-30",747.60892,284.29931,526.96715],["2023-05-31",783.04329,302.86297,579.13206],["2023-06-30",798.84511,307.41784,602.18171],["2023-07-31",833.33912,316.89402,618.42115],["2023-08-31",829.64265,310.28799,618.80854],["2023-09-30",812.61602,305.86677,601.32842],["2023-10-31",799.97362,295.06478,591.3424],["2023-11-30",842.03161,305.95772,632.91308],["2023-12-31",864.20982,319.79689,655.27313],["2024-01-31",870.9679,309.53636,676.67353],["2024-02-29",969.3595,320.02778,720.74713],["2024-03-31",988.44418,319.0978,736.08992],["2024-04-30",939.08683,297.1458,711.31511],["2024-05-31",1159.02026,295.99999,751.77185],["2024-06-30",1232.75,296.68951,810.12589],["2024-07-31",1221.04947,299.32015,793.55917],["2024-08-31",1217.39563,274.51079,783.65768],["2024-09-30",1247.86486,270.68606,797.8525],["2024-10-31",1320.11676,270.53551,815.38902],["2024-11-30",1546.68221,302.3484,888.48559],["2024-12-31",1500.65437,289.29207,910.76914],["2025-01-31",1585.88786,292.39604,917.14636],["2025-02-28",1512.5939,274.94362,881.85083],["2025-03-31",1316.15697,244.54853,778.99105],["2025-04-30",1277.99195,231.33867,746.75817],["2025-05-31",1391.44697,253.33103,820.75551],["2025-06-30",1460.78742,264.38641,847.3077],["2025-07-31",1528.34785,272.51309,902.39282],["2025-08-31",1564.05006,275.26837,895.74184],["2025-09-30",1685.79448,282.72752,942.73775],["2025-10-31",1773.27773,290.25511,1005.61221],["2025-11-30",1659.9551,276.95099,987.29617],["2025-12-31",1638.61961,275.39559,971.21177],["2026-01-31",1634.69364,273.70759,964.6766],["2026-02-28",1600.44727,265.49461,937.48016],["2026-03-31",1573.29308,254.34166,915.73332],["2026-04-30",1850.20548,288.97887,1047.7179],["2026-05-31",2155.64281,314.37567,1131.21102],["2026-06-30",2266.03323,312.92554,1120.10201],["2026-07-31",2175.44285,307.80337,1108.21517],["2026-07-02",2175.44285,307.80337,1108.21517]],"periodStats":{"all":{"topCagr":0.28586446,"activeCagr":0.05660777,"spreadCagr":0.17309547,"observations":149,"start":"2014-04-02","end":"2026-07-02"},"2014-2016":{"topCagr":0.35494295,"activeCagr":0.08935872,"spreadCagr":0.18768928,"observations":34,"start":"2014-04-02","end":"2016-12-30"},"2017-2019":{"topCagr":0.26538147,"activeCagr":0.03950489,"spreadCagr":0.12879252,"observations":36,"start":"2017-01-02","end":"2019-12-31"},"2020-2021":{"topCagr":0.36858415,"activeCagr":-0.00435741,"spreadCagr":0.07248333,"observations":24,"start":"2020-01-02","end":"2021-12-31"},"2022":{"topCagr":-0.21115797,"activeCagr":0.11308386,"spreadCagr":0.00912445,"observations":12,"start":"2022-01-03","end":"2022-12-30"},"2023-2024":{"topCagr":0.45723139,"activeCagr":0.03238612,"spreadCagr":0.39828531,"observations":24,"start":"2023-01-02","end":"2024-12-31"},"2025-2026H1":{"topCagr":0.31971247,"activeCagr":0.14381993,"spreadCagr":0.25189496,"observations":18,"start":"2025-01-01","end":"2026-06-30"}}},"quality-value":{"metric":"nasdaq_ext_pair_2c3db0360664","series":[["2014-04-02",100.0,100.0,100.0],["2014-04-30",97.26555,94.09645,97.28451],["2014-05-31",105.5941,99.12728,103.57343],["2014-06-30",108.59581,104.70272,106.35098],["2014-07-31",113.69747,107.84731,110.15221],["2014-08-31",121.76139,114.02477,117.57319],["2014-09-30",125.5983,120.10304,121.7693],["2014-10-31",129.72057,123.57276,126.00214],["2014-11-30",137.63871,131.71734,132.2897],["2014-12-31",140.29491,132.14766,133.25877],["2015-01-31",147.09152,134.78393,140.27546],["2015-02-28",162.02511,143.90802,151.6493],["2015-03-31",164.25685,145.15631,154.01234],["2015-04-30",156.58129,138.15936,150.27937],["2015-05-31",174.37208,142.86089,157.50818],["2015-06-30",164.81671,133.8487,151.32591],["2015-07-31",168.48332,138.02084,159.49246],["2015-08-31",153.62565,124.18473,147.26688],["2015-09-30",153.52944,116.47436,145.07427],["2015-10-31",175.97121,127.59752,162.6409],["2015-11-30",184.70111,139.79748,170.76441],["2015-12-31",177.41428,131.65236,163.50111],["2016-01-31",165.17019,115.82638,153.18232],["2016-02-29",162.35862,114.26571,150.2777],["2016-03-31",166.05693,115.92004,153.16029],["2016-04-30",165.60629,107.9713,147.24376],["2016-05-31",181.03551,116.96699,158.56602],["2016-06-30",181.13174,115.06811,155.33865],["2016-07-31",196.26682,120.8967,165.7508],["2016-08-31",200.18303,124.58742,168.08754],["2016-09-30",205.42005,125.79081,170.23277],["2016-10-31",208.50704,129.66875,171.93777],["2016-11-30",235.88972,132.70511,178.71839],["2016-12-31",239.74875,132.762,182.04966],["2017-01-31",249.9239,138.91668,186.60555],["2017-02-28",258.64692,148.6793,198.2851],["2017-03-31",276.13031,146.32171,201.25819],["2017-04-30",278.24895,144.43677,203.07141],["2017-05-31",280.61467,145.2935,204.19252],["2017-06-30",270.48687,140.52392,196.32708],["2017-07-31",277.33987,134.94796,197.51214],["2017-08-31",279.64832,131.33863,200.78984],["2017-09-30",293.9919,133.96465,201.92719],["2017-10-31",316.56843,136.68281,214.88673],["2017-11-30",306.43221,143.65796,214.15538],["2017-12-31",303.22523,147.09118,213.6737],["2018-01-31",324.67563,150.69261,223.61032],["2018-02-28",333.58328,148.76298,226.24261],["2018-03-31",327.85286,142.31149,215.69832],["2018-04-30",322.91452,140.19186,220.59211],["2018-05-31",367.11303,149.35672,241.92917],["2018-06-30",364.01299,149.11194,243.97942],["2018-07-31",361.69777,156.41998,250.46653],["2018-08-31",373.72931,158.25008,268.49068],["2018-09-30",370.15227,158.53058,268.53777],["2018-10-31",326.93726,149.50878,252.39707],["2018-11-30",327.9558,151.52191,251.01252],["2018-12-31",297.45137,137.58438,226.47111],["2019-01-31",334.57967,146.69958,245.63931],["2019-02-28",354.6705,153.42615,255.6351],["2019-03-31",374.52732,159.56161,270.11442],["2019-04-30",391.50149,180.55606,285.79629],["2019-05-31",347.96933,160.5254,263.63671],["2019-06-30",377.01831,172.75291,278.51356],["2019-07-31",395.69914,179.29534,292.70166],["2019-08-31",393.0822,185.32729,290.34469],["2019-09-30",390.16588,189.48308,296.66787],["2019-10-31",396.54877,191.49476,303.0584],["2019-11-30",416.52317,198.69261,319.88028],["2019-12-31",428.40167,200.81751,327.88991],["2020-01-31",433.11496,200.09944,341.83848],["2020-02-29",428.96669,189.91462,323.36988],["2020-03-31",383.02213,179.14571,300.32026],["2020-04-30",434.8536,201.83182,347.43195],["2020-05-31",463.44891,215.16606,362.82551],["2020-06-30",483.93933,226.9389,382.7617],["2020-07-31",480.97808,227.55664,391.05059],["2020-08-31",518.33597,239.64139,431.02212],["2020-09-30",524.37614,234.94547,411.6851],["2020-10-31",509.72556,229.86584,400.51721],["2020-11-30",566.68115,255.71814,429.96878],["2020-12-31",583.9361,258.89383,444.02381],["2021-01-31",587.35549,274.49049,449.62246],["2021-02-28",633.65652,272.14204,448.91726],["2021-03-31",661.53126,289.52661,474.29364],["2021-04-30",662.12192,294.549,492.77378],["2021-05-31",673.30351,293.03621,478.49411],["2021-06-30",736.94045,310.34604,524.22266],["2021-07-31",734.00979,313.56908,540.37902],["2021-08-31",770.98859,316.9304,567.79816],["2021-09-30",756.15691,302.46202,542.95298],["2021-10-31",830.1361,323.9215,585.70307],["2021-11-30",926.49473,364.21113,619.16522],["2021-12-31",925.58477,373.30182,630.06335],["2022-01-31",813.83987,359.48726,594.4496],["2022-02-28",787.78705,338.76531,565.7027],["2022-03-31",827.54127,340.02543,597.48293],["2022-04-30",708.13094,328.99522,547.43846],["2022-05-31",714.95612,330.63738,528.91369],["2022-06-30",626.94265,305.58696,494.03829],["2022-07-31",735.89181,345.48249,571.77955],["2022-08-31",683.00819,324.39889,549.57248],["2022-09-30",629.72307,294.11135,503.33291],["2022-10-31",677.58453,302.38204,520.37776],["2022-11-30",742.40649,324.36956,523.36813],["2022-12-31",662.98869,294.37408,457.77409],["2023-01-31",709.1283,314.86063,494.93783],["2023-02-28",709.18968,314.88789,503.7217],["2023-03-31",730.47082,324.33695,532.15573],["2023-04-30",703.55225,312.46265,526.96715],["2023-05-31",723.31878,327.76324,579.13206],["2023-06-30",733.0318,331.53216,602.18171],["2023-07-31",768.60779,339.84307,618.42115],["2023-08-31",760.32489,332.671,618.80854],["2023-09-30",749.53802,328.01466,601.32842],["2023-10-31",730.72503,314.42133,591.3424],["2023-11-30",765.79055,325.97688,632.91308],["2023-12-31",787.52127,346.89941,655.27313],["2024-01-31",775.1103,335.09392,676.67353],["2024-02-29",835.52525,356.44538,720.74713],["2024-03-31",844.79596,358.3405,736.08992],["2024-04-30",801.45579,335.36404,711.31511],["2024-05-31",965.72508,342.14877,751.77185],["2024-06-30",1024.29191,337.82642,810.12589],["2024-07-31",1013.19814,337.1404,793.55917],["2024-08-31",1004.92725,309.58911,783.65768],["2024-09-30",1044.75783,305.238,797.8525],["2024-10-31",1103.60881,302.0562,815.38902],["2024-11-30",1291.4002,329.99039,888.48559],["2024-12-31",1283.39993,330.05638,910.76914],["2025-01-31",1314.11046,334.05866,917.14636],["2025-02-28",1255.4659,322.42625,881.85083],["2025-03-31",1095.99125,286.2372,778.99105],["2025-04-30",1047.43751,268.64896,746.75817],["2025-05-31",1135.85582,287.80801,820.75551],["2025-06-30",1182.11592,298.68321,847.3077],["2025-07-31",1226.46985,316.73663,902.39282],["2025-08-31",1260.3438,319.14965,895.74184],["2025-09-30",1339.98205,328.1868,942.73775],["2025-10-31",1402.20457,336.90515,1005.61221],["2025-11-30",1345.14823,325.39966,987.29617],["2025-12-31",1328.75861,321.88744,971.21177],["2026-01-31",1398.61493,323.05777,964.6766],["2026-02-28",1390.80912,317.75326,937.48016],["2026-03-31",1367.66059,310.10588,915.73332],["2026-04-30",1618.15993,351.64216,1047.7179],["2026-05-31",1866.04443,382.09368,1131.21102],["2026-06-30",2023.88642,383.04766,1120.10201],["2026-07-31",1904.36654,373.36129,1108.21517],["2026-07-02",1904.36654,373.36129,1108.21517]],"periodStats":{"all":{"topCagr":0.27196959,"activeCagr":0.04519022,"spreadCagr":0.1422707,"observations":149,"start":"2014-04-02","end":"2026-07-02"},"2014-2016":{"topCagr":0.37496338,"activeCagr":0.10545491,"spreadCagr":0.24014621,"observations":34,"start":"2014-04-02","end":"2016-12-30"},"2017-2019":{"topCagr":0.21407147,"activeCagr":-0.00264603,"spreadCagr":0.05726297,"observations":36,"start":"2017-01-02","end":"2019-12-31"},"2020-2021":{"topCagr":0.45638357,"activeCagr":0.05951652,"spreadCagr":0.07737831,"observations":24,"start":"2020-01-02","end":"2021-12-31"},"2022":{"topCagr":-0.29603795,"activeCagr":-0.00668478,"spreadCagr":-0.09441272,"observations":12,"start":"2022-01-03","end":"2022-12-30"},"2023-2024":{"topCagr":0.39227022,"activeCagr":-0.0136361,"spreadCagr":0.31470319,"observations":24,"start":"2023-01-02","end":"2024-12-31"},"2025-2026H1":{"topCagr":0.36183327,"activeCagr":0.18032682,"spreadCagr":0.2343912,"observations":18,"start":"2025-01-01","end":"2026-06-30"}}},"eps-growth":{"metric":"nasdaq_momentum_eps_ntm_3m_growth_score","series":[["2014-01-02",100.0,100.0,100.0],["2014-01-31",104.79865,99.91962,100.62103],["2014-02-28",107.57449,102.53218,103.10837],["2014-03-31",100.97063,97.677,100.94142],["2014-04-30",100.11333,94.33515,100.21917],["2014-05-31",106.9873,101.92469,106.69781],["2014-06-30",109.91666,107.62066,109.55914],["2014-07-31",113.62056,111.89396,113.47504],["2014-08-31",121.1992,118.13247,121.11989],["2014-09-30",125.98216,123.60417,125.44257],["2014-10-31",130.26804,127.83042,129.80309],["2014-11-30",136.5062,136.65199,136.28033],["2014-12-31",136.41198,139.01271,137.27863],["2015-01-31",145.08155,143.2266,144.50698],["2015-02-28",160.78291,154.40077,156.22393],["2015-03-31",165.51717,154.37881,158.65825],["2015-04-30",156.54853,153.06666,154.81267],["2015-05-31",169.72845,160.04544,162.25955],["2015-06-30",164.72971,148.37734,155.89077],["2015-07-31",171.50393,155.12045,164.30368],["2015-08-31",157.49438,141.69388,151.70931],["2015-09-30",153.85503,135.08961,149.45055],["2015-10-31",177.33468,148.25294,167.54709],["2015-11-30",186.87209,165.87694,175.91566],["2015-12-31",178.94009,161.62303,168.43326],["2016-01-31",167.17785,142.29455,157.80319],["2016-02-29",166.56103,141.5528,154.81095],["2016-03-31",170.58897,143.603,157.7805],["2016-04-30",168.35868,133.54863,151.68549],["2016-05-31",185.0795,146.12973,163.3493],["2016-06-30",180.62364,142.28152,160.02457],["2016-07-31",192.15076,152.39432,170.75081],["2016-08-31",197.22997,166.86259,173.15804],["2016-09-30",206.10184,168.87034,175.36798],["2016-10-31",206.75508,174.10146,177.12441],["2016-11-30",222.6643,184.48664,184.10958],["2016-12-31",231.71899,184.75239,187.54133],["2017-01-31",247.03885,189.6334,192.23466],["2017-02-28",253.83855,199.50692,204.26653],["2017-03-31",261.41789,200.84325,207.32931],["2017-04-30",259.65003,202.11902,209.19722],["2017-05-31",269.72827,198.17929,210.35215],["2017-06-30",257.6222,192.86887,202.24944],["2017-07-31",262.19182,192.89046,203.47025],["2017-08-31",264.30744,192.58435,206.84682],["2017-09-30",284.00337,192.15312,208.01849],["2017-10-31",302.36478,196.49856,221.36896],["2017-11-30",286.31415,202.78053,220.61555],["2017-12-31",283.84716,204.40081,220.11934],["2018-01-31",302.46817,210.82015,230.35571],["2018-02-28",312.14338,210.52934,233.0674],["2018-03-31",308.45488,197.5701,222.20503],["2018-04-30",292.51883,201.59602,227.24645],["2018-05-31",326.30761,216.91567,249.22716],["2018-06-30",310.4728,221.57641,251.33926],["2018-07-31",320.94119,220.91065,258.02206],["2018-08-31",322.36446,233.41609,276.58992],["2018-09-30",306.06519,232.62041,276.63843],["2018-10-31",268.23719,222.66226,260.01084],["2018-11-30",267.50992,223.99726,258.58452],["2018-12-31",229.98061,202.77589,233.3028],["2019-01-31",267.4302,221.95203,253.04922],["2019-02-28",285.71474,234.43733,263.34654],["2019-03-31",305.09724,243.6246,278.26264],["2019-04-30",320.31496,271.86283,294.41756],["2019-05-31",279.09719,249.39241,271.58953],["2019-06-30",307.47753,263.25109,286.91515],["2019-07-31",332.52311,272.74148,301.53124],["2019-08-31",334.30051,264.20459,299.10317],["2019-09-30",340.33613,264.05371,305.61709],["2019-10-31",356.39513,263.89203,312.2004],["2019-11-30",369.50494,276.61917,329.52973],["2019-12-31",388.39058,279.56592,337.78097],["2020-01-31",394.03842,283.74758,352.15031],["2020-02-29",390.42897,270.01738,333.12459],["2020-03-31",338.24052,248.39364,309.37967],["2020-04-30",379.76329,285.13874,357.91252],["2020-05-31",423.07857,310.57143,373.77044],["2020-06-30",451.99519,321.65519,394.30802],["2020-07-31",463.09174,324.30956,402.84695],["2020-08-31",479.09577,342.31489,444.02426],["2020-09-30",480.72306,330.79756,424.10392],["2020-10-31",479.25557,328.1491,412.59913],["2020-11-30",563.69754,357.6995,442.93913],["2020-12-31",581.25583,361.01176,457.41815],["2021-01-31",600.88065,357.52846,463.18568],["2021-02-28",658.10397,353.41295,462.45922],["2021-03-31",682.56806,382.21643,488.60109],["2021-04-30",692.74832,388.79027,507.6387],["2021-05-31",694.87651,381.63491,492.92827],["2021-06-30",767.00116,407.79457,540.03626],["2021-07-31",751.83335,418.42246,556.68],["2021-08-31",785.96175,432.97864,584.92626],["2021-09-30",748.6452,408.36898,559.3316],["2021-10-31",797.06156,420.94486,603.37128],["2021-11-30",912.37367,446.9562,637.84284],["2021-12-31",916.19192,460.43288,649.06972],["2022-01-31",805.81928,439.08835,612.38166],["2022-02-28",784.04964,400.02556,582.76758],["2022-03-31",814.59534,402.43421,615.50649],["2022-04-30",696.00297,385.09542,563.95238],["2022-05-31",708.00283,370.92144,544.86881],["2022-06-30",605.18764,354.20715,508.94136],["2022-07-31",717.05312,386.50007,589.02775],["2022-08-31",653.63738,380.86529,566.15078],["2022-09-30",584.60998,348.56533,518.51636],["2022-10-31",625.75795,358.12109,536.07537],["2022-11-30",705.23001,377.21659,539.15596],["2022-12-31",617.11723,343.89639,471.58321],["2023-01-31",649.91687,370.78998,509.86803],["2023-02-28",656.96629,379.40967,518.91688],["2023-03-31",668.03568,379.78303,548.20864],["2023-04-30",647.11642,367.68179,542.86354],["2023-05-31",688.81741,378.31663,596.60204],["2023-06-30",697.86094,386.01954,620.34701],["2023-07-31",724.57639,398.38109,637.07633],["2023-08-31",719.90282,389.37444,637.4754],["2023-09-30",711.5392,382.14668,619.46798],["2023-10-31",695.93933,366.48348,609.18073],["2023-11-30",735.76653,380.33197,652.00541],["2023-12-31",763.57756,401.10977,675.03998],["2024-01-31",753.3555,386.56429,697.08593],["2024-02-29",818.07046,400.88102,742.48905],["2024-03-31",836.43335,409.7023,758.29467],["2024-04-30",777.04649,380.72987,732.77251],["2024-05-31",802.86788,391.34474,774.44966],["2024-06-30",834.83778,392.62115,834.56399],["2024-07-31",821.17255,409.71702,817.49753],["2024-08-31",796.19006,384.2098,807.29735],["2024-09-30",822.79767,378.40385,821.92037],["2024-10-31",861.65838,391.44935,839.98589],["2024-11-30",1024.89172,437.51745,915.28748],["2024-12-31",1036.98676,426.24821,938.24323],["2025-01-31",1074.14254,435.19021,944.81282],["2025-02-28",1018.09424,421.58187,908.45258],["2025-03-31",868.05356,375.98512,802.48995],["2025-04-30",850.91931,355.08838,769.28474],["2025-05-31",945.08211,392.95535,845.51426],["2025-06-30",981.51331,413.50354,872.86743],["2025-07-31",1023.24351,430.51852,929.61423],["2025-08-31",1047.53742,447.9177,922.76263],["2025-09-30",1124.73325,493.97593,971.1762],["2025-10-31",1197.28984,512.34638,1035.94732],["2025-11-30",1153.01256,476.69325,1017.07876],["2025-12-31",1158.18745,476.51208,1000.50916],["2026-01-31",1201.00789,475.43073,993.77686],["2026-02-28",1205.85052,460.16674,965.76001],["2026-03-31",1169.86266,462.99723,943.35716],["2026-04-30",1452.30337,528.48846,1079.32316],["2026-05-31",1625.95906,606.45709,1165.33492],["2026-06-30",1733.1712,604.61912,1153.8908],["2026-07-31",1597.7468,596.64949,1141.64538],["2026-07-02",1597.7468,596.64949,1141.64538]],"periodStats":{"all":{"topCagr":0.24828835,"activeCagr":0.02726454,"spreadCagr":0.08201998,"observations":152,"start":"2014-01-02","end":"2026-07-02"},"2014-2016":{"topCagr":0.32421944,"activeCagr":0.07324429,"spreadCagr":0.07863131,"observations":37,"start":"2014-01-02","end":"2016-12-30"},"2017-2019":{"topCagr":0.1883883,"activeCagr":-0.02374464,"spreadCagr":0.03476461,"observations":36,"start":"2017-01-02","end":"2019-12-31"},"2020-2021":{"topCagr":0.51644609,"activeCagr":0.1032119,"spreadCagr":0.19202308,"observations":24,"start":"2020-01-02","end":"2021-12-31"},"2022":{"topCagr":-0.34338625,"activeCagr":-0.0734949,"spreadCagr":-0.11108675,"observations":12,"start":"2022-01-03","end":"2022-12-30"},"2023-2024":{"topCagr":0.2969855,"activeCagr":-0.08114124,"spreadCagr":0.1647194,"observations":24,"start":"2023-01-02","end":"2024-12-31"},"2025-2026H1":{"topCagr":0.41673118,"activeCagr":0.22790789,"spreadCagr":0.12205831,"observations":18,"start":"2025-01-01","end":"2026-06-30"}}},"revision":{"metric":"nasdaq_momentum_eps_revision_ratio_score","series":[["2014-01-02",100.0,100.0,100.0],["2014-01-31",105.85656,99.29566,100.62103],["2014-02-28",110.95482,102.03849,103.10837],["2014-03-31",104.9108,98.25344,100.94142],["2014-04-30",104.01428,96.80665,100.21917],["2014-05-31",112.79445,102.7418,106.69781],["2014-06-30",115.24943,106.53062,109.55914],["2014-07-31",119.8787,110.14074,113.47504],["2014-08-31",128.13641,116.03964,121.11989],["2014-09-30",133.36763,120.76769,125.44257],["2014-10-31",137.68783,124.99522,129.80309],["2014-11-30",146.385,132.05515,136.28033],["2014-12-31",146.51985,134.37774,137.27863],["2015-01-31",154.05139,136.41949,144.50698],["2015-02-28",170.61195,149.18682,156.22393],["2015-03-31",175.89771,147.68738,158.65825],["2015-04-30",165.03345,150.36697,154.81267],["2015-05-31",178.81935,152.98294,162.25955],["2015-06-30",170.53655,139.2376,155.89077],["2015-07-31",175.70557,142.80112,164.30368],["2015-08-31",163.72435,130.30332,151.70931],["2015-09-30",160.86387,122.40563,149.45055],["2015-10-31",178.52191,135.05149,167.54709],["2015-11-30",187.09291,149.87131,175.91566],["2015-12-31",178.42481,143.12254,168.43326],["2016-01-31",172.87712,128.16482,157.80319],["2016-02-29",170.45199,127.67059,154.81095],["2016-03-31",175.90245,130.95127,157.7805],["2016-04-30",175.5192,123.13887,151.68549],["2016-05-31",192.30963,133.15599,163.3493],["2016-06-30",192.10508,131.08716,160.02457],["2016-07-31",205.23217,139.44249,170.75081],["2016-08-31",207.94223,145.32195,173.15804],["2016-09-30",216.11116,142.71153,175.36798],["2016-10-31",213.91712,148.72772,177.12441],["2016-11-30",239.67226,154.88323,184.10958],["2016-12-31",250.64102,153.36618,187.54133],["2017-01-31",263.99191,158.29615,192.23466],["2017-02-28",271.17796,168.7071,204.26653],["2017-03-31",281.37759,169.84335,207.32931],["2017-04-30",277.90504,171.90053,209.19722],["2017-05-31",290.22289,173.57408,210.35215],["2017-06-30",273.53481,167.57395,202.24944],["2017-07-31",272.07751,167.25391,203.47025],["2017-08-31",274.52237,166.75951,206.84682],["2017-09-30",289.50523,169.55509,208.01849],["2017-10-31",307.52048,171.65508,221.36896],["2017-11-30",297.17296,177.96564,220.61555],["2017-12-31",293.73112,178.4952,220.11934],["2018-01-31",300.88932,181.06543,230.35571],["2018-02-28",307.62997,179.75545,233.0674],["2018-03-31",306.21171,167.66939,222.20503],["2018-04-30",293.67024,173.81185,227.24645],["2018-05-31",324.55824,186.35186,249.22716],["2018-06-30",309.24888,187.51889,251.33926],["2018-07-31",315.92566,191.09155,258.02206],["2018-08-31",308.26335,200.79923,276.58992],["2018-09-30",298.01753,202.31925,276.63843],["2018-10-31",272.32047,193.64499,260.01084],["2018-11-30",290.2021,194.61159,258.58452],["2018-12-31",260.42305,176.59799,233.3028],["2019-01-31",298.32878,191.02712,253.04922],["2019-02-28",317.25282,200.65664,263.34654],["2019-03-31",333.57716,210.39568,278.26264],["2019-04-30",354.40238,230.3407,294.41756],["2019-05-31",315.94512,210.80355,271.58953],["2019-06-30",342.99197,221.12734,286.91515],["2019-07-31",368.21193,229.78232,301.53124],["2019-08-31",359.8344,224.15665,299.10317],["2019-09-30",364.91063,224.95101,305.61709],["2019-10-31",372.3102,226.91883,312.2004],["2019-11-30",387.61317,234.83359,329.52973],["2019-12-31",404.48619,236.7738,337.78097],["2020-01-31",412.23302,236.00751,352.15031],["2020-02-29",393.22725,222.52802,333.12459],["2020-03-31",324.48402,201.81497,309.37967],["2020-04-30",372.13582,232.86663,357.91252],["2020-05-31",408.57239,252.16121,373.77044],["2020-06-30",436.25178,256.57261,394.30802],["2020-07-31",439.98713,263.31694,402.84695],["2020-08-31",436.0558,274.17062,444.02426],["2020-09-30",438.50964,266.67542,424.10392],["2020-10-31",444.54562,261.57691,412.59913],["2020-11-30",536.14711,281.01024,442.93913],["2020-12-31",565.31532,286.3023,457.41815],["2021-01-31",585.36763,284.75921,463.18568],["2021-02-28",637.10342,283.95695,462.45922],["2021-03-31",658.51102,309.73346,488.60109],["2021-04-30",655.3877,318.70222,507.6387],["2021-05-31",648.55196,312.66048,492.92827],["2021-06-30",687.22602,333.97584,540.03626],["2021-07-31",674.5626,341.90642,556.68],["2021-08-31",693.70155,352.53009,584.92626],["2021-09-30",663.39389,336.29082,559.3316],["2021-10-31",662.8013,342.19114,603.37128],["2021-11-30",706.62717,368.18782,637.84284],["2021-12-31",768.30065,384.82956,649.06972],["2022-01-31",682.43174,364.97272,612.38166],["2022-02-28",667.73056,338.63281,582.76758],["2022-03-31",679.14211,346.72327,615.50649],["2022-04-30",628.17188,327.29389,563.95238],["2022-05-31",640.0357,318.69834,544.86881],["2022-06-30",545.62838,305.9598,508.94136],["2022-07-31",630.40787,331.9338,589.02775],["2022-08-31",600.23187,326.83634,566.15078],["2022-09-30",554.98544,305.78188,518.51636],["2022-10-31",588.79162,321.50916,536.07537],["2022-11-30",645.49383,333.36777,539.15596],["2022-12-31",580.7705,305.97682,471.58321],["2023-01-31",601.01555,332.60405,509.86803],["2023-02-28",609.70505,337.69199,518.91688],["2023-03-31",621.87623,345.96797,548.20864],["2023-04-30",602.49007,340.46145,542.86354],["2023-05-31",632.60008,361.32746,596.60204],["2023-06-30",650.04618,368.63773,620.34701],["2023-07-31",672.32937,377.79852,637.07633],["2023-08-31",669.84344,367.9983,637.4754],["2023-09-30",660.35974,363.19532,619.46798],["2023-10-31",636.98367,348.8128,609.18073],["2023-11-30",669.47868,358.53164,652.00541],["2023-12-31",691.76439,379.48968,675.03998],["2024-01-31",701.20622,364.6802,697.08593],["2024-02-29",768.97306,371.68463,742.48905],["2024-03-31",782.21487,372.15842,758.29467],["2024-04-30",730.75202,352.19252,732.77251],["2024-05-31",760.10483,358.74015,774.44966],["2024-06-30",800.68735,357.34065,834.56399],["2024-07-31",786.59654,368.50057,817.49753],["2024-08-31",772.72684,348.10485,807.29735],["2024-09-30",801.01752,350.12648,821.92037],["2024-10-31",824.44571,353.97166,839.98589],["2024-11-30",947.01673,396.67833,915.28748],["2024-12-31",949.16236,382.57496,938.24323],["2025-01-31",981.85379,393.0588,944.81282],["2025-02-28",920.03759,384.42407,908.45258],["2025-03-31",805.55123,346.40718,802.48995],["2025-04-30",793.85011,321.79769,769.28474],["2025-05-31",867.77834,348.95333,845.51426],["2025-06-30",884.57342,361.65423,872.86743],["2025-07-31",889.44083,377.68489,929.61423],["2025-08-31",887.30232,387.86588,922.76263],["2025-09-30",936.30684,408.56572,971.1762],["2025-10-31",977.56415,422.43735,1035.94732],["2025-11-30",964.40036,399.64243,1017.07876],["2025-12-31",968.48336,404.35619,1000.50916],["2026-01-31",1010.02735,410.36911,993.77686],["2026-02-28",1032.06749,398.8676,965.76001],["2026-03-31",1003.49241,399.01956,943.35716],["2026-04-30",1189.42705,436.63373,1079.32316],["2026-05-31",1314.44125,484.91296,1165.33492],["2026-06-30",1430.21143,472.19349,1153.8908],["2026-07-31",1339.67034,470.20783,1141.64538],["2026-07-02",1339.67034,470.20783,1141.64538]],"periodStats":{"all":{"topCagr":0.23081261,"activeCagr":0.01288308,"spreadCagr":0.08740068,"observations":152,"start":"2014-01-02","end":"2026-07-02"},"2014-2016":{"topCagr":0.359415,"activeCagr":0.10176935,"spreadCagr":0.17838288,"observations":37,"start":"2014-01-02","end":"2016-12-30"},"2017-2019":{"topCagr":0.17343597,"activeCagr":-0.0360279,"spreadCagr":0.01492045,"observations":36,"start":"2017-01-02","end":"2019-12-31"},"2020-2021":{"topCagr":0.3621113,"activeCagr":-0.00906639,"spreadCagr":0.07644234,"observations":24,"start":"2020-01-02","end":"2021-12-31"},"2022":{"topCagr":-0.25591375,"activeCagr":0.04993188,"spreadCagr":-0.05521055,"observations":12,"start":"2022-01-03","end":"2022-12-30"},"2023-2024":{"topCagr":0.27905119,"activeCagr":-0.09384694,"spreadCagr":0.14359872,"observations":24,"start":"2023-01-02","end":"2024-12-31"},"2025-2026H1":{"topCagr":0.32128248,"activeCagr":0.14518068,"spreadCagr":0.15256198,"observations":18,"start":"2025-01-01","end":"2026-06-30"}}}}</script>
+  <script>
+    const fmtPct = v => `${(v * 100).toFixed(1)}%`;
+    const fmtNum = v => Number(v).toFixed(3);
+    const esc = value => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+
+    const focusItems = [
+      {
+        id: 'core', badge: 'MODEL IMPLICATION', badgeClass: 'pass',
+        name: 'Evidence-first 核心：quality improvement + earnings-yield improvement',
+        thesis: '这是最干净的全样本 subset：先用经营质量的边际改善过滤公司，再用盈利收益率改善加入估值纪律。它不等于传统低估值，也不等于静态质量。',
+        economics: '经营利润率与 ROE 的改善说明盈利能力正在兑现，而 earnings yield 的改善让组合不必为同样的盈利支付越来越高的价格。这里的 alpha 逻辑是“改善中的质量以更合理的盈利价格交易”，不是单纯追逐高 ROE 或低 PE。',
+        metrics: [['coverage','88.6%'], ['Top/BM CAGR','3.7%'], ['Top/Worst','290.3%'], ['robust','0.900']],
+        evidence: [['单变量 gate', '质量改善的 relative variables 有 6 个通过；earnings yield improvement 有 1 个通过。'], ['subset official run', 'quality improvement + earnings-yield improvement 的 Top/BM CAGR 为 3.7%。'], ['经济解释', '利润率改善让盈利质量变得可见；估值/盈利改善限制了“高质量但价格过热”的风险。']]
+      },
+      {
+        id: 'best-pair', badge: 'STRICT SYNERGY', badgeClass: 'pass',
+        name: '3期 Oper Margin 改善 + 3期 ROE 排名改善',
+        thesis: '最强 pair 同时看经营端的利润率拐点与资本效率相对同行的改善。两条腿各自通过 gate，而且 pair 的 robust 与 Top/Worst 都明显超过强单腿。',
+        economics: '利润率改善说明定价、成本或产品组合正在向好；ROE 排名改善说明这种变化已经开始提高股东资本的回报效率。两个维度共同出现时，市场面对的是可持续性更高的经营兑现，而不是一次性的利润率波动。',
+        metrics: [['coverage','85.5%'], ['Top/BM CAGR','5.7%'], ['Top/Worst','606.8%'], ['robust uplift','+2.080']],
+        evidence: [['individual evidence', 'Oper Margin directional delta lag3 robust 1.156；ROE score delta lag3 robust 1.107。'], ['pair evidence', 'pair robust 3.236，Top/Worst 606.8%，均强于最优单腿。'], ['经济解释', 'margin 是经营端改善，ROE 是资本效率改善；共同出现意味着经营拐点正在转化为股东回报。']]
+      },
+      {
+        id: 'quality-value', badge: 'STRICT SYNERGY', badgeClass: 'pass',
+        name: '3期 Earns Yield 改善 + 3期 Oper Margin 改善',
+        thesis: 'Nasdaq 版 quality-at-a-better-price：不是买低 PE，而是买利润率变好、forward earnings yield 也在改善的公司。',
+        economics: '利润率改善先排除基本面恶化的“便宜”，而 forward earnings yield 改善限制为质量改善支付过高估值。这个组合的经济含义是让估值随着盈利质量一同被约束，而不是把 value 和 quality 机械拼接。',
+        metrics: [['coverage','85.5%'], ['Top/BM CAGR','4.5%'], ['Top/Worst','410.1%'], ['robust uplift','+0.790']],
+        evidence: [['individual evidence', '两条 relative legs 均已通过 strict gate。'], ['pair evidence', 'pair robust 1.946，相比强单腿 1.156 有明确提升。'], ['经济解释', '它同时避开基本面恶化的便宜股，以及估值过热而没有兑现的高质量股。']]
+      },
+      {
+        id: 'eps-growth', badge: 'RAW PASS', badgeClass: 'info',
+        name: 'EPS NTM 3M Growth',
+        thesis: '近端盈利增长变化是全样本 raw gate 通过的核心信息。它捕捉的不是五年历史成长，而是市场正在重新定价的未来十二个月盈利。',
+        economics: '近端 EPS 增长变化带来的是估值锚的更新：如果未来十二个月盈利的速度上调，折现的分子与叙事的可信度都在变化。它比长期历史 CAGR 更贴近分析师与投资者当下需要处理的新信息。',
+        metrics: [['coverage','95.8%'], ['Top/BM CAGR','2.7%'], ['Top/Worst','167.8%'], ['robust','0.319']],
+        evidence: [['raw evidence', 'official Top / Worst 均成功，四项 strict gate 全通过。'], ['经济解释', '当盈利预期在近端加速时，分析师与投资者需要更新估值锚；这比静态成长标签更贴近信息扩散。'], ['边界', '与 quality improvement 的 pair 不是自动协同，必须让后续 pair / LOO evidence 决定。']]
+      },
+      {
+        id: 'revision', badge: 'RAW PASS', badgeClass: 'info',
+        name: 'EPS Revision Ratio',
+        thesis: '盈利上修是有效单腿，但 full-theme LOO 显示它并非 quality/earnings-yield composite 的核心协同来源。应作为独立 sleeve 或确认信号。',
+        economics: 'revision 反映分析师信息的扩散和未来盈利预期的再定价。它有效并不意味着需要和每一个质量变量叠加：在 Nasdaq，revision 与经营改善常常覆盖同一批“市场正在重估”的公司，简单相加可能只增加噪声。',
+        metrics: [['coverage','96.5%'], ['Top/BM CAGR','1.3%'], ['Top/Worst','184.9%'], ['robust','0.158']],
+        evidence: [['raw evidence', 'official Top / Worst 均成功，四项 strict gate 全通过。'], ['LOO evidence', '从 full theme 移除 revision，robust 由 0.867 升至 0.900，显示轻微冗余。'], ['经济解释', 'revision 反映信息扩散速度，但与经营改善信号可能覆盖同一批“市场正在重估”的公司。']]
+      }
+    ];
+
+    const singles = [
+      { name: 'Oper Margin Δ 3期', robust: 1.156, color: 'forest' },
+      { name: 'ROE score Δ 3期', robust: 1.107, color: 'forest' },
+      { name: 'ROE Δ 1期', robust: 1.121, color: 'forest' },
+      { name: 'Oper Margin Δ 1期', robust: 1.171, color: 'forest' },
+      { name: 'Oper Margin score Δ 3期', robust: .759, color: 'forest' },
+      { name: 'EPS NTM 3M Growth', robust: .319, color: 'blue' },
+      { name: 'EPS Revision Ratio', robust: .158, color: 'blue' },
+      { name: 'Earns Yield FY1 Δ 3期', robust: .007, color: 'amber' }
+    ];
+    const synergies = [
+      { name: 'Margin Δ3 + ROE score Δ3', robust: 3.236 },
+      { name: 'EY Δ3 + Margin Δ3', robust: 1.946 },
+      { name: 'Margin Δ1 + ROE score Δ3', robust: 1.806 },
+      { name: 'Margin Δ3 + Margin score Δ3', robust: 1.649 },
+      { name: 'Margin Δ3 + ROE score Δ1', robust: 1.549 },
+      { name: 'Margin Δ3 + ROE Δ1', robust: 1.494 }
+    ];
+
+    const relativeRows = [
+      ['Oper Margin', 'directional delta', '1', '91.8%', '2.1%', '355.1%', '1.171'],
+      ['Oper Margin', 'directional delta', '3', '85.5%', '2.8%', '310.6%', '1.156'],
+      ['ROE avg FY0', 'directional delta', '1', '91.6%', '2.8%', '293.5%', '1.121'],
+      ['ROE avg FY0', 'score delta', '3', '85.1%', '3.1%', '326.2%', '1.107'],
+      ['Oper Margin', 'score delta', '3', '85.5%', '2.8%', '211.5%', '0.759'],
+      ['ROE avg FY0', 'score delta', '1', '91.6%', '1.9%', '174.3%', '0.114'],
+      ['Earns Yield FY1', 'directional delta', '3', '88.9%', '2.7%', '131.4%', '0.007']
+    ];
+
+    const periods = [
+      { id: 'all', start: '2014-01-01', end: '2026-07-02', title: '全样本：strict evidence 优先', copy: '全样本不是把六个传统风格标签等权相加。通过 gate 的证据集中在盈利预期变化、经营质量改善，以及伴随利润率改善的 earnings-yield 纪律；所有来源包括 CIQ 均按同一门槛处理。曲线采用 official NAV 的完整终点，和 summary 的 CAGR 口径一致。', rows: [
+        ['Margin Δ3 + ROE score Δ3', .057, 'forest'], ['EY Δ3 + Margin Δ3', .045, 'forest'], ['quality improvement + EY improvement', .037, 'forest'], ['EPS NTM 3M Growth', .027, 'blue'], ['EPS Revision Ratio', .013, 'blue'] ] },
+      { id: '2014-2016', start: '2014-01-01', end: '2016-12-31', title: '2014-2016：低利率成长扩张', copy: 'revision、近端 EPS growth 与若干 CIQ growth 字段同时占优。阶段性成立说明长期成长叙事与近端盈利修正同向，但 CIQ growth 没有通过全样本 gate。', rows: [
+        ['EPS Revision Ratio', .102, 'blue'], ['EPS NTM 3M Growth', .073, 'blue'], ['EPS Growth FY1 CIQ', .059, 'blue'], ['EPS Growth FY1', .048, 'blue'], ['Ebitda 5Y CAGR', .047, 'blue'] ] },
+      { id: '2017-2019', start: '2017-01-01', end: '2019-12-31', title: '2017-2019：晚周期质量与资产负债表纪律', copy: '成长股估值偏高后，市场开始过滤资本效率和财务稳健性。ROE 与低杠杆具备阶段性解释力，但低杠杆未取得全样本核心资格。', rows: [
+        ['Net Debt to Tot Equity', .025, 'forest'], ['ROE avg FY0', .002, 'forest'], ['Const Earning 5Y CAGR', .001, 'blue'], ['Daily Vol 60J', -.002, 'amber'], ['DPS 1Y Growth FY1', -.007, 'amber'] ] },
+      { id: '2020-2021', start: '2020-01-01', end: '2021-12-31', title: '2020-2021：流动性驱动的成长再定价', copy: 'EPS growth、PMOM 和 ROE 同时偏强；quality + growth / quality + momentum 的 pair 领先。这是“增长被确认，同时有质量背书”的 risk-on 环境。', rows: [
+        ['EPS NTM 3M Growth', .103, 'blue'], ['Net Debt to Tot Equity', .092, 'forest'], ['PMOM 12M1M', .091, 'blue'], ['ROE avg FY0', .085, 'forest'], ['Ebitda 5Y CAGR', .034, 'blue'] ] },
+      { id: '2022', start: '2022-01-01', end: '2022-12-31', title: '2022：rate shock 下的现金流确定性', copy: '利润率、FCF conversion、低波与 EV/EBIT 短期占优。这里的 value/defensive 不是永久胜利，而是 duration de-rating 下市场对现金流确定性的定价。', rows: [
+        ['Oper Margin', .143, 'forest'], ['Cont Op Earning Margin', .120, 'forest'], ['FCF Conversion', .119, 'forest'], ['Daily Vol 90J', .118, 'amber'], ['EV to Ebit FY1 CIQ', .112, 'amber'] ] },
+      { id: '2023-2024', start: '2023-01-01', end: '2024-12-31', title: '2023-2024：AI / mega-cap 集中', copy: '多数 raw Top/BM 为负，但 Top/Worst 仍为正。横截面区分能力仍在，市值加权 benchmark 却被少数 mega-cap winner 拉动；这是浓度诊断问题，而非立即宣布信号失效。', rows: [
+        ['Sales Growth FY1 CIQ', -.046, 'blue'], ['Revenue 5Y CAGR', -.060, 'blue'], ['Gross Profit 5Y CAGR', -.060, 'blue'], ['Cont Op Earning Margin', -.065, 'forest'], ['EBITDA Growth FY1 CIQ', -.068, 'blue'] ] },
+      { id: '2025-2026H1', start: '2025-01-01', end: '2026-06-30', title: '2025-2026H1：领导力扩散', copy: 'PMOM、gross income growth、sales growth 与 earnings yield 组合重新强势，类似 AI 扩散与成长修复。但窗口短，只能作为 regime overlay 的候选证据。', rows: [
+        ['PMOM 12M1M', .301, 'blue'], ['Gross Income Growth FY1', .282, 'blue'], ['Total Return', .264, 'blue'], ['Sales Growth FY1', .256, 'blue'], ['EPS Growth NTM', .248, 'blue'] ] }
+    ];
+    const activeSeriesByFocus = JSON.parse(document.querySelector('#active-series-data').textContent);
+
+    const focusSelect = document.querySelector('#focus-select');
+    const periodSelect = document.querySelector('#period-select');
+    const focusBadge = document.querySelector('#focus-badge');
+    const focusName = document.querySelector('#focus-name');
+    const focusThesis = document.querySelector('#focus-thesis');
+    const focusMetrics = document.querySelector('#focus-metrics');
+    const focusEvidence = document.querySelector('#focus-evidence');
+
+    function renderBars(target, data, max, suffix, classBy) {
+      target.innerHTML = data.map(item => {
+        const width = Math.max(1.5, Math.abs(item.robust ?? item.value ?? item[1]) / max * 100);
+        const label = item.name ?? item[0];
+        const value = item.robust ?? item.value ?? item[1];
+        const color = classBy ? classBy(item) : (item.color || 'forest');
+        return `<div class="bar-row"><div class="bar-label">${esc(label)}</div><div class="track"><div class="fill ${esc(color)}" style="width:${width.toFixed(1)}%"></div></div><div class="bar-value">${esc(suffix(value))}</div></div>`;
+      }).join('');
+    }
+
+    let activeMode = 'evidence';
+
+    function activeDataForFocus() {
+      return activeSeriesByFocus[focusSelect.value] || null;
+    }
+
+    function sliceActiveSeries(series, period) {
+      return series.filter(row => row[0] >= period.start && row[0] <= period.end);
+    }
+
+    function renderActiveChart(period) {
+      const payload = activeDataForFocus();
+      const chart = document.querySelector('#active-chart');
+      const metricRoot = document.querySelector('#active-metrics');
+      const stats = payload?.periodStats?.[period.id];
+      const series = payload?.series ? sliceActiveSeries(payload.series, period) : [];
+      if (!stats || series.length < 2) {
+        metricRoot.innerHTML = '';
+        chart.innerHTML = '<div class="chart-empty">该候选在这个时期没有足够的 official NAV 观测。</div>';
+        return;
+      }
+
+      metricRoot.innerHTML = [
+        ['Top CAGR', fmtPct(stats.topCagr)],
+        ['主动 CAGR', fmtPct(stats.activeCagr)],
+        ['Top/Worst CAGR', fmtPct(stats.spreadCagr)],
+        ['月度观测', String(stats.observations)]
+      ].map(([label, value]) => `<div class="active-metric"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('');
+
+      const width = 940, height = 360, left = 52, right = 18, top = 18, bottom = 33;
+      const normalized = series.map(([date, topValue, worstValue, benchValue]) => [date, topValue / series[0][1] * 100, worstValue / series[0][2] * 100, benchValue / series[0][3] * 100]);
+      const values = normalized.flatMap(row => row.slice(1)).filter(Number.isFinite).map(Math.log);
+      const low = Math.min(...values), high = Math.max(...values), span = Math.max(high - low, .08);
+      const x = index => left + index / (normalized.length - 1) * (width - left - right);
+      const y = value => top + (high - Math.log(value)) / span * (height - top - bottom);
+      const grid = Array.from({ length: 5 }, (_, tick) => {
+        const logValue = low + span * tick / 4, value = Math.exp(logValue), yy = y(value);
+        return `<line x1="${left}" y1="${yy}" x2="${width - right}" y2="${yy}" stroke="var(--line)" stroke-width="1"/><text x="${left - 7}" y="${yy + 4}" text-anchor="end" fill="var(--muted)" font-size="11">${value.toFixed(0)}</text>`;
+      }).join('');
+      const dates = [0, .25, .5, .75, 1].map(fraction => {
+        const index = Math.round((normalized.length - 1) * fraction), point = normalized[index];
+        const anchor = fraction === 0 ? 'start' : fraction === 1 ? 'end' : 'middle';
+        return `<text x="${x(index)}" y="${height - 10}" text-anchor="${anchor}" fill="var(--muted)" font-size="11">${esc(point[0].slice(0, 7))}</text>`;
+      }).join('');
+      const line = (key, color) => normalized.map((row, index) => `${index ? 'L' : 'M'}${x(index).toFixed(2)},${y(row[key]).toFixed(2)}`).join(' ');
+      chart.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(focusSelect.options[focusSelect.selectedIndex].text)} 在 ${esc(period.title)} 的 Top、Worst 和 Benchmark 净值"><g>${grid}</g><path d="${line(1)}" fill="none" stroke="#16765b" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/><path d="${line(2)}" fill="none" stroke="#a65045" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round"/><path d="${line(3)}" fill="none" stroke="#3c5e89" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round"/>${dates}</svg>`;
+    }
+
+    function renderFocus(id) {
+      const item = focusItems.find(d => d.id === id) || focusItems[0];
+      focusBadge.textContent = item.badge;
+      focusBadge.className = `badge ${item.badgeClass}`;
+      focusName.textContent = item.name;
+      focusThesis.textContent = activeMode === 'economics' ? item.economics : item.thesis;
+      focusMetrics.innerHTML = item.metrics.map(([label, value]) => `<div class="metric"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('');
+      focusEvidence.innerHTML = item.evidence.map(([label, text], index) => `<div class="evidence-row"><div class="index">${index + 1}</div><div><strong>${esc(label)}</strong><p>${esc(text)}</p></div></div>`).join('');
+      renderPeriod(periodSelect.value || periods[0].id);
+    }
+
+    function renderPeriod(id) {
+      const period = periods.find(d => d.id === id) || periods[0];
+      periodSelect.value = period.id;
+      const payload = activeDataForFocus();
+      document.querySelector('#period-list').innerHTML = periods.map(item => {
+        const stats = payload?.periodStats?.[item.id];
+        const activeClass = stats && stats.activeCagr < 0 ? 'negative' : '';
+        return `<button class="period-btn ${item.id === period.id ? 'active' : ''}" type="button" data-active-period="${esc(item.id)}"><span>${esc(item.title)}<small>${stats ? `Top/Worst ${fmtPct(stats.spreadCagr)}` : '无 NAV 观测'}</small></span><b class="${activeClass}">${stats ? fmtPct(stats.activeCagr) : 'n/a'}</b></button>`;
+      }).join('');
+      document.querySelectorAll('[data-active-period]').forEach(button => button.addEventListener('click', () => renderPeriod(button.dataset.activePeriod)));
+      renderActiveChart(period);
+      document.querySelector('#period-title').textContent = period.title;
+      document.querySelector('#period-copy').textContent = period.copy;
+      document.querySelector('#period-leaders-title').textContent = period.id === 'all' ? '全样本：严格通过候选的主动 CAGR' : '该时期：raw / pair 的主动 CAGR 领先者';
+      document.querySelector('#period-leaders').innerHTML = period.rows.map(([name, value]) => `<div class="period-leader-row"><span>${esc(name)}</span><b class="${value < 0 ? 'negative' : ''}">${fmtPct(value)}</b></div>`).join('');
+    }
+
+    focusSelect.innerHTML = focusItems.map(item => `<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('');
+    periodSelect.innerHTML = periods.map(item => `<option value="${esc(item.id)}">${esc(item.title)}</option>`).join('');
+    document.querySelector('#relative-table').innerHTML = relativeRows.map(row => `<tr>${row.map((value, index) => `<td class="${index > 2 ? 'num' : ''}">${esc(value)}</td>`).join('')}</tr>`).join('');
+    renderBars(document.querySelector('#single-chart'), singles, 1.2, fmtNum, d => d.color);
+    renderBars(document.querySelector('#synergy-chart'), synergies, 3.3, fmtNum, () => 'forest');
+    periodSelect.value = periods[0].id;
+    renderFocus(focusItems[0].id);
+    focusSelect.addEventListener('change', event => renderFocus(event.target.value));
+    periodSelect.addEventListener('change', event => renderPeriod(event.target.value));
+
+    document.querySelectorAll('.evidence-tabs button').forEach(button => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('.evidence-tabs button').forEach(tab => tab.classList.toggle('active', tab === button));
+        document.querySelectorAll('[data-panel]').forEach(panel => panel.classList.toggle('panel-hidden', panel.dataset.panel !== button.dataset.tab));
+      });
+    });
+    document.querySelectorAll('.segmented button').forEach(button => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('.segmented button').forEach(btn => btn.classList.toggle('active', btn === button));
+        activeMode = button.dataset.mode;
+        renderFocus(focusSelect.value);
+      });
+    });
+  </script>
+</body>
+</html>

@@ -12,9 +12,15 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 
 REPORT_DIR = Path(__file__).resolve().parent
 OUTPUT = REPORT_DIR / "factor-explorer.html"
+NASDAQ_EXTENSION_RUN = REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "nasdaq_tech_factor_extension_20260710"
+EU_SMALL_EXTENSION_RUN = REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "eu_small_factor_extension_20260711"
+STOXX600_EXTENSION_RUN = REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "stoxx600_factor_extension_20260711"
+SP500_EXTENSION_RUN = REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "sp500_factor_extension_20260711"
 SOURCES = {
     "eu-small": REPORT_DIR / "eu-small-factor-explorer.html",
     "sp500": REPORT_DIR / "sp500-factor-explorer.html",
@@ -225,6 +231,11 @@ def ratio(value: Any) -> str:
     return "-" if number is None else f"{number:.2f}x"
 
 
+def ratio_terminal(value: Any) -> str:
+    number = finite(value)
+    return "-" if number is None else f"{number + 1:.2f}x"
+
+
 def parse_display_number(value: str) -> float | None:
     text = value.strip().replace(",", "")
     scale = 0.01 if text.endswith("%") else 1.0
@@ -251,6 +262,378 @@ def round_series(series: list[Any]) -> list[list[Any]]:
             ]
         )
     return result
+
+
+def resolve_workspace_path(value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else REPORT_DIR.parent / path
+
+
+def csv_rows(path: Path) -> list[dict[str, str]]:
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def standard_subset_data(run_value: str) -> tuple[list[dict[str, Any]], dict[str, list[str]]]:
+    run = resolve_workspace_path(run_value)
+    catalog = [
+        {
+            "id": row["metric"],
+            "label": row["label"],
+            "kind": row.get("candidate_type") or "family_subset",
+            "keys": [key for key in row["buckets"].split("|") if key],
+        }
+        for row in csv_rows(run / "family_subset_results.csv")
+    ]
+    bucket_variables: dict[str, list[str]] = {}
+    for row in csv_rows(run / "selected_legs.csv"):
+        bucket_variables.setdefault(row["bucket"], []).append(row["label"])
+    return catalog, bucket_variables
+
+
+def merged_subset_data(base_run: str, extension_run: Path) -> tuple[list[dict[str, Any]], dict[str, list[str]]]:
+    base_catalog, base_variables = standard_subset_data(base_run)
+    extension_catalog, extension_variables = standard_subset_data(str(extension_run))
+    catalog = {row["id"]: row for row in base_catalog}
+    catalog.update({row["id"]: row for row in extension_catalog})
+    for bucket, labels in extension_variables.items():
+        base_variables[bucket] = list(dict.fromkeys([*base_variables.get(bucket, []), *labels]))
+    return list(catalog.values()), base_variables
+
+
+def nasdaq_subset_data(run: Path) -> tuple[list[dict[str, Any]], dict[str, list[str]]]:
+    catalog = [
+        {
+            "id": row["metric"],
+            "label": row["label"],
+            "kind": "family_subset",
+            "keys": [key for key in row["themes"].split(",") if key],
+        }
+        for row in csv_rows(run / "family_subset_results.csv")
+    ]
+    labels: dict[str, str] = {}
+    for row in csv_rows(run / "single_variable_official_summary.csv"):
+        if row.get("raw_column") and row.get("transform"):
+            lag = row["lag_observations"].removesuffix(".0")
+            label = f'{row["raw_column"]} {row["transform"]} lag{lag}'
+        else:
+            label = row["label"]
+        labels.setdefault(row["metric"], label)
+    definitions = {
+        row["column"]: row
+        for row in json.loads((run / "synergy_metric_definitions.json").read_text(encoding="utf-8"))
+    }
+    maps = json.loads((run / "synergy_metric_maps.json").read_text(encoding="utf-8"))
+    bucket_variables = {
+        theme: [labels.get(metric, metric) for metric in definitions[theme_metric]["components"]]
+        for theme, theme_metric in maps["theme_scores"].items()
+    }
+    return catalog, bucket_variables
+
+
+def nav_series(path_value: str) -> pd.Series:
+    path = Path(path_value)
+    frame = pd.read_parquet(path) if path.suffix.lower() == ".parquet" else pd.read_csv(path)
+    date_column = "Date" if "Date" in frame.columns else "index" if "index" in frame.columns else frame.columns[0]
+    value_columns = [column for column in frame.columns if column != date_column]
+    if not value_columns:
+        return pd.Series(dtype=float)
+    dates = pd.to_datetime(frame[date_column], errors="coerce")
+    values = pd.to_numeric(frame[value_columns[0]], errors="coerce")
+    return pd.Series(values.to_numpy(), index=dates).dropna().sort_index()
+
+
+def monthly_nav(frame: pd.DataFrame) -> pd.DataFrame:
+    """Keep the true first/last dates so browser CAGR matches official summaries."""
+    monthly = frame.groupby(frame.index.to_period("M"), sort=True).tail(1)
+    return pd.concat([frame.iloc[[0]], monthly]).sort_index().loc[lambda value: ~value.index.duplicated(keep="first")]
+
+
+def nasdaq_tech_candidates(run: Path) -> list[dict[str, Any]]:
+    gate = csv_rows(run / "tech_validation_gate.csv")
+    passed = {row["metric"]: row for row in gate if str(row.get("passed", "")).lower() == "true"}
+    if not passed:
+        return []
+    definitions = {row["metric"]: row for row in csv_rows(run / "tech_candidate_definitions.csv")}
+    official = csv_rows(run / "official_run_results.csv")
+    by_run = {(row["metric"], row["side"]): row for row in official if row.get("status") == "success"}
+    explanations = {
+        "nasdaq_tech_growth_confirmation": ("增长必须由盈利预期上修确认。", "收入与毛利增长单独使用会混入昂贵但未兑现的成长；加入 EPS Revision Ratio 后，信号更接近正在被分析师验证的增长。"),
+        "nasdaq_tech_capital_efficient_growth_revision": ("寻找既增长、又提高资产生产率、且盈利预期上修的公司。", "Asset TO exFIN 把增长与资本占用联系起来，避免只奖励依赖持续融资或重资产扩张的收入增长。"),
+        "nasdaq_tech_asset_light_growth_revision": ("资产轻型增长需要利润率与盈利上修共同确认。", "低物理资本开支、经营利润率和研发信息共同描述无形资产驱动的增长；EPS 上修用于过滤尚未兑现的故事。"),
+        "nasdaq_tech_downside_aware_growth_revision": ("在增长与盈利上修中加入公司特有下行风险约束。", "残差下行波动剔除 Nasdaq 市场 beta 后，惩罚基本面虽强但个股下行风险过高的公司。"),
+    }
+    candidates = []
+    for metric, gate_row in passed.items():
+        top = by_run.get((metric, "Top"))
+        worst = by_run.get((metric, "Worst"))
+        definition = definitions.get(metric)
+        if not top or not worst or not definition:
+            continue
+        aligned = pd.concat(
+            [nav_series(top["perf_ptf"]).rename("top"), nav_series(top["perf_bench"]).rename("bench"), nav_series(worst["perf_ptf"]).rename("worst")],
+            axis=1,
+        ).dropna()
+        aligned = monthly_nav(aligned)
+        series = [
+            [date.strftime("%Y-%m-%d"), round(row.top, 5), round(row.worst, 5), round(row.bench, 5)]
+            for date, row in aligned.iterrows()
+        ]
+        inputs = [item for item in definition["inputs"].split("|") if item]
+        thesis, economics = explanations.get(metric, (definition["note"], definition["note"]))
+        candidates.append(
+            {
+                "id": metric,
+                "label": definition["label"],
+                "group": definition["theme"],
+                "kind": "tech_engineered",
+                "thesis": thesis,
+                "economics": economics,
+                "metrics": {
+                    "robust": finite(gate_row.get("robust_score")),
+                    "coverage": finite(gate_row.get("coverage")),
+                    "turnover": None,
+                },
+                "series": series,
+                "weights": [
+                    {"label": label, "group": definition["theme"], "value": 1 / len(inputs)}
+                    for label in inputs
+                ],
+                "evidenceRows": [
+                    ["Top / Benchmark CAGR", pct(gate_row.get("top_ratio_cagr"))],
+                    ["Top / Worst 累计比率", num(gate_row.get("top_worst_ratio_return"), 2)],
+                    ["Coverage", pct(gate_row.get("coverage"))],
+                ],
+            }
+        )
+    return candidates
+
+
+def official_extension_candidates(run: Path) -> list[dict[str, Any]]:
+    gate = csv_rows(run / "extension_validation_gate.csv")
+    passed = {row["metric"]: row for row in gate if str(row.get("pass_gate", "")).lower() == "true"}
+    official = csv_rows(run / "gate_runs" / "official_run_results.csv")
+    by_run = {(row["metric"], row["side"]): row for row in official if row.get("status") == "success"}
+    explanations = {
+        "capital_efficiency": ("增长需要资本生产率和现金转化共同确认。", "欧洲行业结构差异很大；资本效率用于区分可自我融资的增长与依赖持续资本投入的扩张。"),
+        "deleveraging": ("在国家与行业同组内寻找负债改善。", "国家中性化降低欧洲融资制度差异的干扰，净负债改善则直接约束再融资脆弱性。"),
+        "dividend_sustainability": ("股息增长必须由盈利上修和派息纪律确认。", "单看高股息容易落入价值陷阱；盈利修正与合理派息率用于确认股息的可持续性。"),
+        "earnings_yield": ("估值改善必须与基本面边际改善同步。", "国家与行业同组比较减少市场结构差异，避免把长期低估值行业误判为公司层面的价值改善。"),
+        "pmom": ("价格动量在国家与行业同组内作相对确认。", "欧洲市场分散在多个国家，同组相对趋势更接近公司特有信息，而不是国家指数方向。"),
+        "quality": ("奖励利润率、资本效率和资产负债表的边际改善。", "改善型质量比静态高质量更能捕捉经营拐点，并减少昂贵质量标签的估值偏差。"),
+        "quality_level": ("静态质量必须在本地国家同业中仍然突出。", "欧洲小盘的 ROE 会受到国家融资结构影响；国家优先、行业回退的排序减少把国家差异误当公司质量。"),
+        "residual_momentum": ("剔除 STOXX 市场共同波动后再观察趋势。", "残差动量更接近公司特有信息扩散，Revision 确认可过滤纯 beta 驱动的价格上涨。"),
+        "residual_risk": ("在基本面改善中约束公司特有下行风险。", "残差下行风险用于避免把高 beta 或尾部脆弱性误当作更强的预期回报。"),
+        "revision": ("在国家与行业同组内比较盈利预期修正。", "欧洲国家会计、行业权重与宏观暴露不同，同组排序更聚焦公司层面的盈利信息。"),
+        "accrual_quality": ("要求利润改善获得现金流与低应计确认。", "低 operating accruals 用于区分可持续现金盈利与依赖应计项目的账面利润。"),
+        "growth": ("增长信号需要控制 mega-cap 与行业规模暴露。", "sector × size 排序用于判断盈利增长是否来自公司信息，而不是指数集中度和巨头领导。"),
+        "value_improvement": ("估值改善在行业和规模同组内比较。", "规模中性化减少 mega-cap 长久期估值对横截面排序的干扰。"),
+        "value_level": ("P/FCF 在本地国家同业中比较。", "现金流估值适合融资约束更强的小盘公司；国家调整用于减少税制、利率和市场结构差异。"),
+        "liquidity_quality": ("流动性代理只能用于过滤，不能代替真实交易成本。", "零收益频率衡量价格停滞而不是成交价差；只有获得 official 主动收益时才允许进入主题。"),
+        "shareholder_return": ("现金回报必须由 payout 与现金转化支持。", "回购或股息字段只有在覆盖率和现金质量同时通过时才可进入正式主题。"),
+    }
+    input_labels = {
+        "asset_turnover_score": "Asset TO exFIN",
+        "country_asset_turnover_score": "Asset TO exFIN (country-first / industry fallback)",
+        "fcf_sales_raw": "FCF / Sales",
+        "country_deleveraging_delta3_raw": "NetDebt / EBITDA 3M improvement (country-first / industry fallback)",
+        "low_payout_score": "DVD Payout FY0 (lower is better)",
+        "country_earnings_yield_delta1_raw": "Earns Yield FY1 1M improvement (country-first / industry fallback)",
+        "country_eps_revision_raw": "EPS Revision Ratio (country-first / industry fallback)",
+        "country_pmom_raw": "PMOM 12M1M (country-first / industry fallback)",
+        "country_roe_raw": "ROE avg FY0 (country-first / industry fallback)",
+        "country_pfcf_raw": "PFCF LTM (country-first / industry fallback)",
+        "country_oper_margin_delta3_raw": "Oper Margin 3M improvement (country-first / industry fallback)",
+        "country_growth_confirmation_score": "Sales / Gross Income Growth + EPS Revision (country-first / industry fallback)",
+        "stoxx_residual_momentum_raw": "STOXX-residual Momentum 12-1",
+        "stoxx_residual_momentum_risk_adjusted_raw": "STOXX-residual Momentum / Residual Volatility",
+        "stoxx_residual_downside_volatility_raw": "STOXX-residual Downside Volatility (lower is better)",
+        "size_eps_revision_raw": "EPS Revision Ratio (sector × size rank)",
+        "size_pmom_raw": "PMOM 12M1M (sector × size rank)",
+        "size_oper_margin_delta3_raw": "Oper Margin 3M improvement (sector × size rank)",
+        "size_deleveraging_delta3_raw": "NetDebt / EBITDA 3M improvement (sector × size rank)",
+        "size_earnings_yield_delta1_raw": "Earns Yield FY1 1M improvement (sector × size rank)",
+        "size_growth_confirmation_score": "Sales / Gross Income Growth + EPS Revision (sector × size rank)",
+        "size_asset_turnover_score": "Asset TO exFIN (sector × size rank)",
+        "capex_intensity_raw": "Capex / Total Assets (lower is better)",
+        "operating_accruals_raw": "(Net Income - CFO) / Total Assets (lower is better)",
+        "working_capital_absorption_raw": "Change Net Working Capital / Total Assets (lower is better)",
+        "buyback_intensity_raw": "Repurchase Stock / Sales",
+        "sp500_residual_momentum_raw": "SP500-residual Momentum 12-1",
+        "sp500_residual_momentum_risk_adjusted_raw": "SP500-residual Momentum / Residual Volatility",
+        "sp500_residual_volatility_raw": "SP500-residual Volatility (lower is better)",
+        "sp500_residual_downside_volatility_raw": "SP500-residual Downside Volatility (lower is better)",
+        "eu_small_residual_momentum_raw": "MSCI EUR SMALL-residual Momentum 12-1",
+        "eu_small_residual_momentum_risk_adjusted_raw": "MSCI EUR SMALL-residual Momentum / Residual Volatility",
+        "eu_small_residual_volatility_raw": "MSCI EUR SMALL-residual Volatility (lower is better)",
+        "eu_small_residual_downside_volatility_raw": "MSCI EUR SMALL-residual Downside Volatility (lower is better)",
+        "zero_return_frequency_raw": "Zero-return Frequency (lower is better)",
+        "zero_return_liquidity_improvement_raw": "Zero-return Frequency Improvement",
+    }
+    candidates = []
+    for metric, row in passed.items():
+        top = by_run.get((metric, "Top"))
+        worst = by_run.get((metric, "Worst"))
+        if not top or not worst:
+            continue
+        aligned = pd.concat(
+            [nav_series(top["perf_ptf"]).rename("top"), nav_series(top["perf_bench"]).rename("bench"), nav_series(worst["perf_ptf"]).rename("worst")],
+            axis=1,
+        ).dropna()
+        aligned = monthly_nav(aligned)
+        inputs = [input_labels.get(item, item) for item in row["inputs"].split("|") if item]
+        thesis, economics = explanations.get(row["theme"], (row["note"], row["note"] + "。"))
+        candidates.append(
+            {
+                "id": metric,
+                "label": row["label"],
+                "group": row["theme"],
+                "kind": "extension_candidate",
+                "thesis": thesis,
+                "economics": economics,
+                "metrics": {
+                    "robust": finite(row.get("robust_score")),
+                    "coverage": finite(row.get("coverage")),
+                    "turnover": None,
+                    "officialActive": finite(row.get("ratio_cagr")),
+                    "officialRatio": 1 + finite(row.get("top_worst_ratio_return")) if finite(row.get("top_worst_ratio_return")) is not None else None,
+                },
+                "series": [[date.strftime("%Y-%m-%d"), round(point.top, 5), round(point.worst, 5), round(point.bench, 5)] for date, point in aligned.iterrows()],
+                "weights": [{"label": label, "group": row["theme"], "value": 1 / len(inputs)} for label in inputs],
+                "subsetKeys": [],
+                "evidenceRows": [
+                    ["Top / Benchmark CAGR", pct(row.get("ratio_cagr"))],
+                    ["Top / Worst 终值", ratio_terminal(row.get("top_worst_ratio_return"))],
+                    ["Coverage", pct(row.get("coverage"))],
+                ],
+            }
+        )
+    return sorted(candidates, key=lambda item: item["metrics"]["robust"] or -math.inf, reverse=True)
+
+
+def extension_theme_candidates(run: Path, include_loo: bool = False) -> list[dict[str, Any]]:
+    subsets = pd.read_csv(run / "family_subset_results.csv")
+    family = subsets[subsets["candidate_type"].eq("family_subset")].sort_values("robust_score", ascending=False)
+    if include_loo:
+        candidate_map = pd.read_csv(run / "theme_candidate_map.csv").set_index("metric").to_dict(orient="index")
+        summary = pd.read_csv(run / "theme_performance_summary.csv")
+        loo_rows = []
+        for _, performance in summary[summary["side"].eq("Top") & summary["status"].eq("success")].iterrows():
+            meta = candidate_map.get(str(performance["metric"]), {})
+            if meta.get("candidate_type") != "leave_one_out":
+                continue
+            loo_rows.append({**performance.to_dict(), **meta, "classification": "leave_one_out"})
+        loo = pd.DataFrame(loo_rows).sort_values("robust_score", ascending=False)
+        selected = pd.concat([loo.head(2), family.head(3)], ignore_index=True).drop_duplicates("metric").head(5)
+    else:
+        selected = pd.concat([family.head(3), family[family["classification"].eq("synergistic")].head(2)]).drop_duplicates("metric").head(5)
+    official = csv_rows(run / "theme_runs" / "official_run_results.csv")
+    by_run = {(row["metric"], row["side"]): row for row in official if row.get("status") == "success"}
+    theme_labels = {
+        "revision": "EPS Revision Ratio + size-aware PMOM",
+        "growth": "Sales / Gross Income Growth + EPS Revision",
+        "quality_improvement": "Oper Margin improvement + quality repair",
+        "deleveraging": "NetDebt / EBITDA improvement",
+        "value_improvement": "Earns Yield FY1 improvement",
+        "accrual_quality": "(Net Income - CFO) / Assets + cash-backed margin",
+        "capital_efficiency": "Asset TO + capital-efficient growth",
+        "residual_momentum": "SP500-residual Momentum + Revision",
+        "residual_risk": "Residual downside risk + downside-aware revision",
+        "quality_level": "Country-aware ROE",
+        "value_level": "Country-aware P/FCF",
+        "pmom": "PMOM + country-aware PMOM",
+    }
+    eu_small = run.name.startswith("eu_small")
+    if eu_small:
+        theme_labels.update(
+            {
+                "revision": "EPS Revision + country-aware EPS Revision",
+                "quality_improvement": "Oper Margin improvement + country-aware quality repair",
+                "deleveraging": "NetDebt / EBITDA improvement + country-aware deleveraging",
+                "value_improvement": "Value improvement + country-aware earnings-yield improvement",
+                "residual_momentum": "MSCI EUR SMALL-residual Momentum + Revision",
+            }
+        )
+    candidates = []
+    for _, row in selected.iterrows():
+        metric = str(row["metric"])
+        top, worst = by_run.get((metric, "Top")), by_run.get((metric, "Worst"))
+        if not top or not worst:
+            continue
+        aligned = pd.concat(
+            [nav_series(top["perf_ptf"]).rename("top"), nav_series(top["perf_bench"]).rename("bench"), nav_series(worst["perf_ptf"]).rename("worst")],
+            axis=1,
+        ).dropna()
+        aligned = monthly_nav(aligned)
+        themes = [item for item in str(row["buckets"]).split("|") if item]
+        candidates.append(
+            {
+                "id": f"{run.name}:{metric}",
+                "label": f'{"扩展推荐" if row["candidate_type"] == "leave_one_out" else "扩展模型"}：{row["label"]}',
+                "group": "recommended_extension",
+                "kind": str(row["candidate_type"]),
+                "thesis": "只保留通过主题 Gate、并在组合矩阵中保持较高 Robust 的精简 sleeve。",
+                "economics": "该组合用于升级欧洲小盘核心：质量改善、静态 ROE、现金流估值和去杠杆共同约束融资脆弱性；LOO 用于删除与 PMOM、残差确认重复的独立主题。" if eu_small else "该组合用于升级 SP500 核心信号，而不是把所有新增主题等权混合；质量改善和去杠杆负责经营与融资确认，应计质量只在有独立增益时加入。",
+                "metrics": {
+                    "robust": finite(row["robust_score"]),
+                    "coverage": finite(row["coverage"]),
+                    "turnover": finite(row.get("avg_turnover")),
+                    "officialActive": finite(row["ratio_cagr"]),
+                    "officialRatio": 1 + finite(row["top_worst_ratio_return"]),
+                },
+                "series": [[date.strftime("%Y-%m-%d"), round(point.top, 5), round(point.worst, 5), round(point.bench, 5)] for date, point in aligned.iterrows()],
+                "weights": [{"label": theme_labels.get(theme, theme), "group": theme, "value": 1 / len(themes)} for theme in themes],
+                "subsetKeys": themes,
+                "evidenceRows": [
+                    ["Top / Benchmark CAGR", pct(row["ratio_cagr"])],
+                    ["Top / Worst 终值", ratio_terminal(row["top_worst_ratio_return"])],
+                    ["Robust score", num(row["robust_score"])],
+                    ["分类", row["classification"]],
+                ],
+            }
+        )
+    return candidates
+
+
+def stoxx600_recommended_model(run: Path) -> dict[str, Any]:
+    metric = "stoxx600_syn_loo_without_revision"
+    official = csv_rows(run / "theme_runs" / "official_run_results.csv")
+    by_side = {row["side"]: row for row in official if row.get("metric") == metric and row.get("status") == "success"}
+    summary = pd.read_csv(run / "theme_performance_summary.csv")
+    performance = summary[(summary["metric"].eq(metric)) & (summary["side"].eq("Top")) & (summary["status"].eq("success"))].iloc[-1]
+    aligned = pd.concat(
+        [nav_series(by_side["Top"]["perf_ptf"]).rename("top"), nav_series(by_side["Top"]["perf_bench"]).rename("bench"), nav_series(by_side["Worst"]["perf_ptf"]).rename("worst")],
+        axis=1,
+    ).dropna()
+    aligned = monthly_nav(aligned)
+    themes = [
+        ("PMOM 12M1M + country-aware PMOM", "pmom"),
+        ("Oper Margin / ROE improvement + country-aware quality repair", "quality_improvement"),
+        ("Earns Yield improvement + country-aware value confirmation", "earnings_yield_improvement"),
+        ("NetDebt / EBITDA improvement + country-aware deleveraging", "deleveraging"),
+        ("Asset TO exFIN + FCF / Sales + capital-efficient growth", "capital_efficiency"),
+        ("DPS 1Y Growth FY1 + EPS Revision Ratio + DVD Payout FY0", "dividend_sustainability"),
+        ("STOXX-residual Momentum 12-1 + risk-adjusted residual momentum", "residual_momentum"),
+        ("STOXX-residual Downside Volatility + downside-aware revision", "residual_risk"),
+    ]
+    return {
+        "id": metric,
+        "label": "扩展推荐模型：full model without revision",
+        "group": "recommended_extension",
+        "kind": "leave_one_out",
+        "thesis": "保留八个互补主题，并移除在当前结构中与多种确认信号重复的独立 revision 主题。",
+        "economics": "EPS revision 单变量仍有效；这里移除的是重复的主题暴露。残差动量、质量修复和 PMOM 已共同表达盈利信息扩散，因此组合层面减少重复后横截面分离更强。",
+        "metrics": {"robust": finite(performance["robust_score"]), "coverage": finite(performance["coverage"]), "turnover": finite(performance.get("avg_turnover"))},
+        "series": [[date.strftime("%Y-%m-%d"), round(point.top, 5), round(point.worst, 5), round(point.bench, 5)] for date, point in aligned.iterrows()],
+        "weights": [{"label": label, "group": theme, "value": 1 / len(themes)} for label, theme in themes],
+        "subsetKeys": [],
+        "evidenceRows": [
+            ["Top / Benchmark CAGR", pct(performance["ratio_cagr"])],
+            ["Top / Worst 终值", ratio_terminal(performance["top_worst_ratio_return"])],
+            ["Robust score", num(performance["robust_score"])],
+            ["Coverage", pct(performance["coverage"])],
+        ],
+    }
 
 
 def evidence_section(
@@ -355,21 +738,38 @@ def normalize_standard_candidate(
 def build_eu_small(source: dict[str, Any]) -> dict[str, Any]:
     analysis = source["analysis"]
     core = analysis["core"]
+    extension_ready = (EU_SMALL_EXTENSION_RUN / "family_subset_results.csv").exists() and (EU_SMALL_EXTENSION_RUN / "selected_legs.csv").exists()
+    if extension_ready:
+        subset_catalog, bucket_variables = merged_subset_data(source["provenance"]["latestSynergy"], EU_SMALL_EXTENSION_RUN)
+    else:
+        subset_catalog, bucket_variables = standard_subset_data(source["provenance"]["latestSynergy"])
     bucket_economics = analysis.get("bucketEconomics") or {}
     candidates = []
     for item in source["candidates"]:
         labels = [row.get("label") for row in item.get("rootWeights") or []]
         economics = " ".join(bucket_economics.get(label, "") for label in labels).strip()
         candidates.append(normalize_standard_candidate(item, None, economics or core["verdict"]))
+    extension_gate_rows = csv_rows(EU_SMALL_EXTENSION_RUN / "extension_validation_gate.csv") if extension_ready else []
+    extension_loo_rows = csv_rows(EU_SMALL_EXTENSION_RUN / "leave_one_out_results.csv") if extension_ready else []
+    if extension_ready:
+        candidates.extend(official_extension_candidates(EU_SMALL_EXTENSION_RUN))
+        candidates.extend(extension_theme_candidates(EU_SMALL_EXTENSION_RUN, include_loo=True))
     summary = analysis["summary"]
     stats = [
         {"value": summary["rawTested"], "label": "Raw 已测试"},
         {"value": summary["rawPassed"], "label": "Raw 通过 gate"},
         {"value": summary["relativeTested"], "label": "Relative 已测试"},
         {"value": summary["relativePassed"], "label": "Relative 通过 gate"},
-        {"value": summary["synergyClaims"], "label": "严格 pair synergy"},
+        {"value": summary["synergyClaims"], "label": "旧版严格 pair synergy" if extension_ready else "严格 pair synergy"},
         {"value": len(candidates), "label": "可交互候选"},
     ]
+    if extension_ready:
+        stats.extend(
+            [
+                {"value": sum(str(row.get("pass_gate", "")).lower() == "true" for row in extension_gate_rows), "label": "扩展候选通过 Gate"},
+                {"value": len(csv_rows(EU_SMALL_EXTENSION_RUN / "family_subset_results.csv")) - 1, "label": "新增主题组合"},
+            ]
+        )
     raw_rows = [
         [
             row["label"],
@@ -435,6 +835,33 @@ def build_eu_small(source: dict[str, Any]) -> dict[str, Any]:
         ]
         for period_id, row in analysis["periodAnalysis"].items()
     ]
+    extension_gate_table = [
+        [
+            row["label"],
+            row["theme"],
+            "通过" if str(row.get("pass_gate", "")).lower() == "true" else "失败",
+            pct(row["coverage"]),
+            pct(row["ratio_cagr"]),
+            ratio_terminal(row["top_worst_ratio_return"]),
+            num(row["robust_score"]),
+            row.get("fail_reasons") or "-",
+        ]
+        for row in extension_gate_rows
+    ]
+    extension_loo_table = [
+        [
+            row["left_out_bucket"],
+            pct(row["without_ratio_cagr"]),
+            num(row["without_robust_score"]),
+            num(row["loo_contribution"]),
+            row["classification"],
+        ]
+        for row in extension_loo_rows
+    ]
+    extension_candidates = [item for item in candidates if item["group"] == "recommended_extension"]
+    default_candidate = extension_candidates[0]["id"] if extension_candidates else source["defaultMetric"]
+    headline = "欧洲小盘的升级核心是质量改善、ROE、现金流估值与去杠杆的多重确认。" if extension_ready else core["headline"]
+    verdict = "国家调整提高了质量与价值信号的可比性；完整模型中独立 revision、残差动量和残差风险出现重复，最佳 LOO 是 full model without revision。" if extension_ready else core["verdict"]
     return {
         "id": "eu-small",
         "shortName": "EU Small",
@@ -443,12 +870,14 @@ def build_eu_small(source: dict[str, Any]) -> dict[str, Any]:
         "benchmark": source["benchmark"],
         "asOf": source["asOf"],
         "method": source["evidence"],
-        "headline": core["headline"],
-        "verdict": core["verdict"],
+        "headline": headline,
+        "verdict": verdict,
         "stats": stats,
         "periods": normalize_periods(source["periods"], analysis["periodAnalysis"]),
-        "defaultCandidate": source["defaultMetric"],
+        "defaultCandidate": default_candidate,
         "candidates": candidates,
+        "subsetCatalog": subset_catalog,
+        "bucketVariables": bucket_variables,
         "evidenceTabs": [
             evidence_tab("raw", "Raw gate", [evidence_section("Raw variables", ["变量", "Family / 来源", "结果", "Coverage", "主动 CAGR", "Top/Worst", "Robust"], raw_rows)]),
             evidence_tab("relative", "Relative gate", [evidence_section("Same-security relative variables", ["变量", "Family / 来源", "结果", "Coverage", "主动 CAGR", "Top/Worst", "Robust"], relative_rows)]),
@@ -458,20 +887,45 @@ def build_eu_small(source: dict[str, Any]) -> dict[str, Any]:
                 evidence_section("Leave-one-out", ["Bucket", "Robust 贡献", "主动贡献", "分类"], loo_rows),
             ]),
             evidence_tab("regime", "Regime", [evidence_section("时期机制解释", ["时期", "主题", "领先方向", "经济解释"], regime_rows)]),
+            *([evidence_tab("eu-small-extension", "欧洲小盘扩展", [
+                evidence_section("国家偏差、资本效率、流动性、残差与低覆盖反证 Gate", ["候选", "主题", "结果", "Coverage", "主动 CAGR", "Top/Worst 终值", "Robust", "失败原因"], extension_gate_table, "Gate 未放宽：Coverage ≥ 75%，Top/Benchmark ratio CAGR、Top/Worst ratio return 与 Robust score 均须为正。"),
+                evidence_section("扩展主题 Leave-one-out", ["移除主题", "移除后主动 CAGR", "移除后 Robust", "原主题贡献", "分类"], extension_loo_table),
+            ])] if extension_ready else []),
             evidence_tab("limits", "限制与反例", [evidence_section("解释边界", ["限制"], [[row] for row in analysis["limits"]])]),
         ],
-        "provenance": list(source["provenance"].values()),
+        "provenance": [*source["provenance"].values(), *([str(EU_SMALL_EXTENSION_RUN / "extension_validation_gate.csv"), str(EU_SMALL_EXTENSION_RUN / "family_subset_results.csv")] if extension_ready else [])],
     }
 
 
 def build_sp500(source: dict[str, Any]) -> dict[str, Any]:
     analysis = source["analysis"]
     verdict = analysis["verdict"]
+    extension_ready = (SP500_EXTENSION_RUN / "family_subset_results.csv").exists() and (SP500_EXTENSION_RUN / "selected_legs.csv").exists()
+    if extension_ready:
+        subset_catalog, bucket_variables = merged_subset_data(source["provenance"]["latestSynergy"], SP500_EXTENSION_RUN)
+    else:
+        subset_catalog, bucket_variables = standard_subset_data(source["provenance"]["latestSynergy"])
     focus_map = {row["metric"]: row for row in analysis["focus"]}
     candidates = [
         normalize_standard_candidate(item, focus_map.get(item["metric"]), verdict["copy"])
         for item in source["candidates"]
     ]
+    if extension_ready:
+        candidates.extend(official_extension_candidates(SP500_EXTENSION_RUN))
+        candidates.extend(extension_theme_candidates(SP500_EXTENSION_RUN))
+    stats = list(analysis["stats"])
+    extension_gate_rows = csv_rows(SP500_EXTENSION_RUN / "extension_validation_gate.csv") if extension_ready else []
+    extension_loo_rows = csv_rows(SP500_EXTENSION_RUN / "leave_one_out_results.csv") if extension_ready else []
+    if extension_ready:
+        for stat in stats:
+            if stat.get("label") == "严格 family subset synergy":
+                stat["label"] = "旧版严格 family subset synergy"
+        stats.extend(
+            [
+                {"value": sum(str(row.get("pass_gate", "")).lower() == "true" for row in extension_gate_rows), "label": "扩展候选通过 Gate"},
+                {"value": len(csv_rows(SP500_EXTENSION_RUN / "family_subset_results.csv")) - 1, "label": "新增主题组合"},
+            ]
+        )
     rotation = {row["id"]: row for row in analysis["rotation"]}
     periods = normalize_periods(source["periods"], rotation)
     for period in periods:
@@ -512,6 +966,14 @@ def build_sp500(source: dict[str, Any]) -> dict[str, Any]:
     for row in analysis["rotation"]:
         for leader in row["leaders"]:
             regime_rows.append([row["label"], leader["label"], pct(leader["activeCagr"]), ratio(leader["topWorst"]), row["narrative"]])
+    extension_rows = [
+        [row["label"], row["theme"], "通过" if str(row.get("pass_gate", "")).lower() == "true" else "失败", pct(row["coverage"]), pct(row["ratio_cagr"]), ratio_terminal(row["top_worst_ratio_return"]), num(row["robust_score"]), row.get("fail_reasons") or "-"]
+        for row in extension_gate_rows
+    ]
+    extension_loo_evidence = [
+        [row["left_out_bucket"], pct(row["without_ratio_cagr"]), num(row["without_robust_score"]), num(row["loo_contribution"]), row["classification"]]
+        for row in sorted(extension_loo_rows, key=lambda item: float(item["without_robust_score"]), reverse=True)
+    ]
     return {
         "id": "sp500",
         "shortName": "SP500",
@@ -522,10 +984,12 @@ def build_sp500(source: dict[str, Any]) -> dict[str, Any]:
         "method": source["evidence"],
         "headline": verdict["headline"],
         "verdict": verdict["copy"],
-        "stats": analysis["stats"],
+        "stats": stats,
         "periods": periods,
         "defaultCandidate": source["defaultMetric"],
         "candidates": candidates,
+        "subsetCatalog": subset_catalog,
+        "bucketVariables": bucket_variables,
         "evidenceTabs": [
             evidence_tab("raw", "Raw gate", [evidence_section("通过 gate 的 Raw variables", ["变量", "Family", "结果", "Coverage", "主动 CAGR", "Top/Worst", "Robust"], raw_rows)]),
             evidence_tab("relative", "Relative gate", [evidence_section("通过 gate 的 Relative variables", ["变量", "Family / 角色", "结果", "Coverage", "主动 CAGR", "Top/Worst", "Robust"], relative_rows)]),
@@ -535,9 +999,13 @@ def build_sp500(source: dict[str, Any]) -> dict[str, Any]:
                 evidence_section("Leave-one-out", ["Bucket", "Robust 贡献", "主动贡献", "移除后 Robust", "分类"], loo_rows),
             ]),
             evidence_tab("regime", "Regime", [evidence_section("时期轮动", ["时期", "领先变量", "主动 CAGR", "Top/Worst", "经济解释"], regime_rows)]),
+            evidence_tab("extension", "SP500 扩展", [
+                evidence_section("规模中性、应计质量、资本效率、残差动量与股东回报 Gate", ["候选", "主题", "结果", "Coverage", "主动 CAGR", "Top/Worst 终值", "Robust", "失败原因"], extension_rows, "Gate 未放宽：Coverage ≥ 75%，Top/Benchmark ratio CAGR、Top/Worst ratio return 与 Robust score 均须为正。"),
+                evidence_section("扩展主题 Leave-one-out", ["移除主题", "移除后主动 CAGR", "移除后 Robust", "原主题贡献", "分类"], extension_loo_evidence),
+            ]),
             evidence_tab("limits", "限制与反例", [evidence_section("解释边界", ["限制"], [[row] for row in analysis["limitations"]])]),
         ],
-        "provenance": list(source["provenance"].values()),
+        "provenance": [*source["provenance"].values(), *([str(SP500_EXTENSION_RUN / "extension_validation_gate.csv"), str(SP500_EXTENSION_RUN / "family_subset_results.csv")] if extension_ready else [])],
     }
 
 
@@ -560,6 +1028,9 @@ def build_stoxx600(source: dict[str, Any], document: str) -> dict[str, Any]:
     }
     leg_labels = {row["metric"]: row["label"] for row in selected_legs}
     leg_buckets = {row["metric"]: row["bucket"] for row in selected_legs}
+    extension_ready = (STOXX600_EXTENSION_RUN / "family_subset_results.csv").exists() and (STOXX600_EXTENSION_RUN / "selected_legs.csv").exists()
+    subset_run = STOXX600_EXTENSION_RUN if extension_ready else Path(source["paths"]["run"])
+    subset_catalog, bucket_variables = standard_subset_data(str(subset_run))
     candidates = []
     for item in source["candidates"]:
         metrics = item["metrics"]
@@ -593,6 +1064,9 @@ def build_stoxx600(source: dict[str, Any], document: str) -> dict[str, Any]:
                 "evidenceRows": [],
             }
         )
+    if extension_ready:
+        candidates.extend(official_extension_candidates(STOXX600_EXTENSION_RUN))
+        candidates.append(stoxx600_recommended_model(STOXX600_EXTENSION_RUN))
     summary = source["summary"]
     stats = [
         {"value": summary["rawTested"], "label": "Raw 已测试"},
@@ -602,6 +1076,17 @@ def build_stoxx600(source: dict[str, Any], document: str) -> dict[str, Any]:
         {"value": summary["synergyClaims"], "label": "严格 pair synergy"},
         {"value": summary["officialSuccess"], "label": "Official runs 成功"},
     ]
+    extension_gate_rows = []
+    extension_loo_rows = []
+    if extension_ready:
+        extension_gate_rows = csv_rows(STOXX600_EXTENSION_RUN / "extension_validation_gate.csv")
+        extension_loo_rows = csv_rows(STOXX600_EXTENSION_RUN / "leave_one_out_results.csv")
+        stats.extend(
+            [
+                {"value": sum(str(row.get("pass_gate", "")).lower() == "true" for row in extension_gate_rows), "label": "扩展候选通过 Gate"},
+                {"value": len(subset_catalog) - 1, "label": "扩展主题组合"},
+            ]
+        )
     raw_rows = [
         [row["label"], f'{row["family"]} · {row["source"]}', row["outcome"], pct(row["coverage"]), pct(row["ratio_cagr"]), ratio(row["top_worst_ratio_return"]), num(row["robust_score"])]
         for row in source["raw"]
@@ -625,6 +1110,14 @@ def build_stoxx600(source: dict[str, Any], document: str) -> dict[str, Any]:
     regime_rows = [
         [row["label"], pct(row["pre_active_cagr"]), pct(row["post_active_cagr"]), pct(row["all_active_cagr"]), pct(row["post_active_cagr"] - row["pre_active_cagr"])]
         for row in source["regime"]
+    ]
+    extension_rows = [
+        [row["label"], row["theme"], "通过" if str(row.get("pass_gate", "")).lower() == "true" else "失败", pct(row["coverage"]), pct(row["ratio_cagr"]), ratio_terminal(row["top_worst_ratio_return"]), num(row["robust_score"]), row.get("fail_reasons") or "-"]
+        for row in extension_gate_rows
+    ]
+    extension_loo_evidence = [
+        [row["left_out_bucket"], pct(row["without_ratio_cagr"]), num(row["without_robust_score"]), num(row["loo_contribution"]), row["classification"]]
+        for row in sorted(extension_loo_rows, key=lambda item: float(item["without_robust_score"]), reverse=True)
     ]
     period_analysis = {
         "all": {
@@ -667,6 +1160,8 @@ def build_stoxx600(source: dict[str, Any], document: str) -> dict[str, Any]:
         "periods": normalize_periods(source["periods"], period_analysis),
         "defaultCandidate": candidates[0]["id"],
         "candidates": candidates,
+        "subsetCatalog": subset_catalog,
+        "bucketVariables": bucket_variables,
         "evidenceTabs": [
             evidence_tab("raw", "Raw gate", [evidence_section("Raw variables", ["变量", "Family / 来源", "结果", "Coverage", "主动 CAGR", "Top/Worst", "Robust"], raw_rows)]),
             evidence_tab("relative", "Relative gate", [evidence_section("Same-security relative variables", ["变量", "Family", "结果", "Coverage", "主动 CAGR", "Top/Worst", "Robust"], relative_rows)]),
@@ -676,6 +1171,10 @@ def build_stoxx600(source: dict[str, Any], document: str) -> dict[str, Any]:
                 evidence_section("Leave-one-out", ["Bucket", "Robust 贡献", "主动贡献", "分类"], loo_rows),
             ]),
             evidence_tab("regime", "Regime", [evidence_section("2020 regime break", ["变量 / 组合", "2010-2019", "2020-2026", "全样本", "变化"], regime_rows)]),
+            evidence_tab("extension", "STOXX 扩展", [
+                evidence_section("国家中性、资本效率、股息、残差动量与风险 Gate", ["候选", "主题", "结果", "Coverage", "主动 CAGR", "Top/Worst", "Robust", "失败原因"], extension_rows, "Gate 未放宽：Coverage ≥ 75%，Top/Benchmark CAGR、Top/Worst 累计收益与 Robust score 均须为正。"),
+                evidence_section("扩展主题 Leave-one-out", ["移除主题", "移除后主动 CAGR", "移除后 Robust", "原主题贡献", "分类"], extension_loo_evidence, "移除 revision 后 Robust 6.60、Top/Worst 10.61x；这表示在当前扩展模型中信息重叠，不代表 EPS revision 单变量失效。"),
+            ]),
             evidence_tab("limits", "限制与反例", [evidence_section("解释边界", ["限制"], [["Pair、subset 与 leave-one-out 必须分开阅读；经济直觉或高回报不自动等于 synergy。"]])]),
         ],
         "provenance": list(source["paths"].values()),
@@ -711,6 +1210,8 @@ def build_nasdaq(document: str) -> dict[str, Any]:
                 "evidenceRows": item["evidence"],
             }
         )
+    if (NASDAQ_EXTENSION_RUN / "tech_validation_gate.csv").exists():
+        candidates.extend(nasdaq_tech_candidates(NASDAQ_EXTENSION_RUN))
     periods = []
     for row in periods_source:
         periods.append(
@@ -732,6 +1233,14 @@ def build_nasdaq(document: str) -> dict[str, Any]:
             re.DOTALL,
         )
     ]
+    if (NASDAQ_EXTENSION_RUN / "tech_validation_gate.csv").exists():
+        tech_gate = csv_rows(NASDAQ_EXTENSION_RUN / "tech_validation_gate.csv")
+        stats.extend(
+            [
+                {"value": len(tech_gate), "label": "科技专用候选（严格 Gate）"},
+                {"value": sum(str(row.get("passed", "")).lower() == "true" for row in tech_gate), "label": "科技专用候选通过"},
+            ]
+        )
     raw_table = tables[0]
     subset_table = tables[2]
     limits_table = tables[3]
@@ -743,7 +1252,17 @@ def build_nasdaq(document: str) -> dict[str, Any]:
     for period in periods_source:
         for leader in period["rows"]:
             regime_rows.append([period["title"], leader[0], pct(leader[1]), period["copy"]])
-    provenance = re.findall(r'<p class="path">(.*?)</p>', document, re.DOTALL)
+    provenance = [clean_markup(row) for row in re.findall(r'<p class="path">(.*?)</p>', document, re.DOTALL)]
+    synergy_path = next(resolve_workspace_path(row) for row in provenance if row.endswith("synergy_claims.csv"))
+    subset_run = NASDAQ_EXTENSION_RUN if (NASDAQ_EXTENSION_RUN / "family_subset_results.csv").exists() else synergy_path.parent
+    subset_catalog, bucket_variables = nasdaq_subset_data(subset_run)
+    if subset_run == NASDAQ_EXTENSION_RUN:
+        provenance.extend(
+            [
+                str(NASDAQ_EXTENSION_RUN / "tech_validation_gate.csv"),
+                str(NASDAQ_EXTENSION_RUN / "family_subset_results.csv"),
+            ]
+        )
     headline = first_match(
         document,
         r'<aside class="verdict">.*?<strong>(.*?)</strong>',
@@ -768,6 +1287,8 @@ def build_nasdaq(document: str) -> dict[str, Any]:
         "periods": periods,
         "defaultCandidate": active["core"]["metric"],
         "candidates": candidates,
+        "subsetCatalog": subset_catalog,
+        "bucketVariables": bucket_variables,
         "evidenceTabs": [
             evidence_tab("raw", "Raw gate", [evidence_section("通过 gate 的 Raw variables", raw_table["header"], raw_table["rows"])]),
             evidence_tab("relative", "Relative gate", [evidence_section("通过 gate 的 Relative variables", ["变量", "变换", "Lag", "Coverage", "主动 CAGR", "Top/Worst", "Robust"], relative_rows)]),
@@ -779,7 +1300,7 @@ def build_nasdaq(document: str) -> dict[str, Any]:
             evidence_tab("regime", "Regime", [evidence_section("时期轮动", ["时期", "领先方向", "主动 CAGR", "经济解释"], regime_rows)]),
             evidence_tab("limits", "限制与反例", [evidence_section("限制与反例", limits_table["header"], limits_table["rows"])]),
         ],
-        "provenance": [clean_markup(row) for row in provenance],
+        "provenance": provenance,
     }
 
 
@@ -939,6 +1460,7 @@ HTML_DOCUMENT = r'''<!doctype html>
           <div class="eyebrow">Family subset</div>
           <h2 id="subset-title">组合定义</h2>
           <p class="section-note" id="subset-copy"></p>
+          <label for="subset-guide-select">官方组合<select id="subset-guide-select"></select></label>
           <div id="subset-definitions"></div>
         </section>
       </aside>
@@ -1007,9 +1529,14 @@ HTML_DOCUMENT = r'''<!doctype html>
         risk_decline:["风险下降","实现波动率或风险指标下降，主要承担下行风险过滤作用。"],
         quality_level:["静态质量水平","直接使用 ROE、利润率、FCF Conversion 等当前水平，不要求其正在改善。"],
         value_level:["静态价值水平","直接使用 PB、P/FCF、EV/EBITDA、Earnings Yield 等当前估值水平。"],
-        dividend_growth:["股息增长","使用 DPS 增长或派息覆盖变化，观察现金回报能力是否增强。"]
+        dividend_growth:["股息增长","使用 DPS 增长或派息覆盖变化，观察现金回报能力是否增强。"],
+        capital_efficiency:["资本效率","用资产周转、现金流/销售及增长与盈利上修的组合，检验增长是否依赖更少资本并能转化为现金。"],
+        dividend_sustainability:["股息持续性","要求股息增长同时获得盈利上修、合理派息率或现金质量确认，避免把高股息价值陷阱当成稳健收益。"],
+        residual_momentum:["残差动量","先剔除 STOXX 600 市场共同收益，再观察公司特有趋势及其盈利预期确认。"],
+        residual_risk:["残差风险","用剔除市场共同波动后的残差波动与下行波动，过滤公司特有尾部脆弱性。"],
+        accrual_quality:["应计质量","用 Net Income 与 CFO 的差额、营运资本吸收和现金支持的利润率改善，区分现金盈利与应计驱动盈利。"]
       };
-      var state={market:"sp500",candidate:null,period:"all",mode:"evidence",evidenceTab:null,detailBack:false};
+      var state={market:"sp500",candidate:null,subset:null,period:"all",mode:"evidence",evidenceTab:null,detailBack:false};
       var byId=function(id){return document.getElementById(id)};
       var esc=function(value){return String(value==null?"":value).replace(/[&<>"']/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]})};
       var report=function(){return DATA.reports.find(function(row){return row.id===state.market})};
@@ -1028,7 +1555,11 @@ HTML_DOCUMENT = r'''<!doctype html>
         var rows=sliceSeries(item,scope),first=rows[0],last=rows[rows.length-1];
         var years=Math.max((parseDate(last[0])-parseDate(first[0]))/31557600000,1/12);
         var top=cagr(first[1],last[1],years),worst=cagr(first[2],last[2],years),bench=cagr(first[3],last[3],years);
-        return {top:top,worst:worst,bench:bench,active:top-bench,spread:top-worst,ratio:(last[1]/last[2])/(first[1]/first[2]),rows:rows};
+        var active=cagr(first[1]/first[3],last[1]/last[3],years),spread=cagr(first[1]/first[2],last[1]/last[2],years);
+        var ratio=(last[1]/last[2])/(first[1]/first[2]);
+        if(scope.id==="all"&&Number.isFinite(item.metrics.officialActive)) active=item.metrics.officialActive;
+        if(scope.id==="all"&&Number.isFinite(item.metrics.officialRatio)) ratio=item.metrics.officialRatio;
+        return {top:top,worst:worst,bench:bench,active:active,spread:spread,ratio:ratio,rows:rows};
       }
       function preferredFactors(scope){
         var supplied=Array.isArray(scope.leaders)?scope.leaders:(scope.leaders?String(scope.leaders).split(/[；;]/):[]);
@@ -1045,7 +1576,7 @@ HTML_DOCUMENT = r'''<!doctype html>
           return '<button type="button" class="tab-button" role="tab" data-market="'+esc(row.id)+'" aria-selected="'+(row.id===state.market)+'">'+esc(row.shortName)+'</button>';
         }).join("");
         byId("market-tabs").querySelectorAll("[data-market]").forEach(function(button){
-          button.addEventListener("click",function(){state.market=button.dataset.market;state.candidate=null;state.period="all";state.evidenceTab=null;render()});
+          button.addEventListener("click",function(){state.market=button.dataset.market;state.candidate=null;state.subset=null;state.period="all";state.evidenceTab=null;render()});
         });
       }
       function renderHeader(){
@@ -1089,19 +1620,26 @@ HTML_DOCUMENT = r'''<!doctype html>
         ].join("");
       }
       function renderSubsetGuide(){
-        var item=candidate(),keys=item.subsetKeys||[];
-        if(!keys.length){
-          byId("subset-title").textContent="当前候选不是 Family subset";
-          byId("subset-copy").textContent="在候选下拉框的 Family subset 分组中选择组合后，这里会解释每个 subset 及其底层变量。";
+        var item=candidate(),catalog=report().subsetCatalog||[],picker=byId("subset-guide-select");
+        if(!catalog.length){
+          byId("subset-title").textContent="没有 Family subset 结果";
+          byId("subset-copy").textContent="当前市场的官方 artifact 没有 subset 定义。";
+          picker.innerHTML="";
           byId("subset-definitions").innerHTML="";
           return;
         }
-        byId("subset-title").textContent=item.label;
-        byId("subset-copy").textContent="Family subset 是若干因子桶的等权组合；桶内再由下列实际变量等权构成。";
+        if(catalog.some(function(row){return row.id===item.id})) state.subset=item.id;
+        if(!state.subset||!catalog.some(function(row){return row.id===state.subset})) state.subset=catalog[0].id;
+        picker.innerHTML=catalog.map(function(row){return '<option value="'+esc(row.id)+'">'+esc(row.label)+'</option>'}).join("");
+        picker.value=state.subset;
+        var subset=catalog.find(function(row){return row.id===state.subset}),keys=subset.keys||[],bucketVariables=report().bucketVariables||{};
+        byId("subset-title").textContent=subset.label;
+        byId("subset-copy").textContent=catalog.length+" 个官方 Family subset / full model 定义；因子桶等权，桶内变量再等权。";
         byId("subset-definitions").innerHTML=keys.map(function(key){
           var definition=SUBSET_DEFINITIONS[key]||[key,"当前源报告未提供单独定义。"];
-          var variables=item.weights.filter(function(row){return row.group===key}).map(function(row){return row.label+" · "+fmtPct(row.value)});
-          return '<section class="subset-definition"><code>'+esc(key)+'</code><p><strong>'+esc(definition[0])+'：</strong>'+esc(definition[1])+'</p><div class="subset-variables">底层变量 · '+(variables.length?variables.map(esc).join("；"):"见右侧底层变量明细")+'</div></section>';
+          var variables=bucketVariables[key]||[],weight=variables.length?1/keys.length/variables.length:NaN;
+          variables=variables.map(function(label){return label+" · "+fmtPct(weight)});
+          return '<section class="subset-definition"><code>'+esc(key)+'</code><p><strong>'+esc(definition[0])+'：</strong>'+esc(definition[1])+'</p><div class="subset-variables">底层变量 · '+(variables.length?variables.map(esc).join("；"):"当前 artifact 未提供变量明细")+'</div></section>';
         }).join("");
       }
       function path(points,x,y,key){
@@ -1213,6 +1751,7 @@ HTML_DOCUMENT = r'''<!doctype html>
         renderMarketTabs();renderHeader();renderControls();renderMetrics();renderSubsetGuide();renderChart();renderDetails();renderPeriodGuide();renderFlipState();renderEvidence();renderProvenance();
       }
       byId("candidate-select").addEventListener("change",function(event){state.candidate=event.target.value;renderMetrics();renderSubsetGuide();renderChart();renderDetails()});
+      byId("subset-guide-select").addEventListener("change",function(event){state.subset=event.target.value;renderSubsetGuide()});
       byId("period-select").addEventListener("change",function(event){state.period=event.target.value;renderMetrics();renderChart();renderDetails();renderPeriodGuide()});
       document.querySelectorAll("[data-mode]").forEach(function(button){button.addEventListener("click",function(){state.mode=button.dataset.mode;document.querySelectorAll("[data-mode]").forEach(function(row){row.setAttribute("aria-pressed",String(row===button))});renderDetails()})});
       byId("detail-flip-button").addEventListener("click",function(){state.detailBack=!state.detailBack;renderFlipState()});
@@ -1226,12 +1765,15 @@ HTML_DOCUMENT = r'''<!doctype html>
 def validate_payload(payload: dict[str, Any]) -> None:
     reports = payload["reports"]
     assert [row["id"] for row in reports] == ["eu-small", "sp500", "stoxx600", "nasdaq"]
+    expected_subsets = {"eu-small": 205, "sp500": 250, "stoxx600": 121, "nasdaq": 120}
     for report in reports:
         candidate_ids = {row["id"] for row in report["candidates"]}
         assert report["defaultCandidate"] in candidate_ids
         assert report["periods"] and report["evidenceTabs"]
         assert all(row["definition"] and "sources" in row for row in report["periods"])
         assert all(row["sources"] for row in report["periods"] if row["id"] != "all")
+        assert len(report["subsetCatalog"]) == expected_subsets[report["id"]]
+        assert all(set(row["keys"]) <= set(report["bucketVariables"]) for row in report["subsetCatalog"])
         for candidate in report["candidates"]:
             assert len(candidate["series"]) >= 2, (report["id"], candidate["id"])
             assert not candidate["weights"] or abs(sum(row["value"] for row in candidate["weights"]) - 1) < 1e-5

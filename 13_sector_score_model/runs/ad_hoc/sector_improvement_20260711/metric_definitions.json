@@ -1,0 +1,8 @@
+{
+  "active_return": "model_return - benchmark_return",
+  "active_sharpe": "monthly active mean / monthly active sample volatility * sqrt(12)",
+  "relative_annualized_return": "annualized model NAV / benchmark NAV growth",
+  "mean_one_way_turnover": "monthly half sum absolute sector-weight changes",
+  "net_active_ann_at_10bps": "active annualized return minus 10 bps times annualized one-way turnover",
+  "holdout": "2022-01-01 through latest available month"
+}

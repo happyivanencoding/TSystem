@@ -1,0 +1,6 @@
+﻿check,status,detail
+signal_timing,pass,all transforms use current or shifted past scores/returns
+future_return_target,pass,sector_forward_return is used only as next-month target
+market_specific_rule,pass,EU smooth_6m; US unchanged
+holdout,pass,2022-01 through latest reported separately
+cost_sensitivity,pass,10 bps per one-way turnover deducted

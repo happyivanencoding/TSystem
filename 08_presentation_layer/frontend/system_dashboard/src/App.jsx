@@ -28,7 +28,7 @@ const MODULE_ORDER_STORAGE_KEY = 'tp-dashboard-module-order-v1'
 const DEFAULT_MODULE_ORDER = {
   market: ['brief'],
   production: ['overview', 'alerts', 'run-control', 'live-job', 'queue', 'core-database', 'project-assets', 'pipeline-status', 'data-assets'],
-  results: ['regime', 'country', 'small-cap', 'sector', 'score-ml'],
+  results: ['regime', 'country', 'small-cap', 'sector', 'score-ml', 'factor-explorer'],
   technical: ['latest'],
 }
 const NAV_SECTIONS = [
@@ -50,6 +50,7 @@ const NAV_SECTIONS = [
       ['small-cap', 'Small Cap', '欧洲小盘多因子'],
       ['sector', 'Sector', '行业推荐'],
       ['score-ml', 'Score ML', '组合成分对比'],
+      ['factor-explorer', '多因子表现', '四市场新旧模型回测与解释'],
     ],
   },
   {
@@ -2481,6 +2482,14 @@ function App() {
               columns={['项目', '数据/产物', '来源', '状态', '行', '大小', '更新时间']}
               limit={12}
               rows={dashboardState.assets}
+            />
+          </div>
+
+          <div className={panelClass('results', 'factor-explorer', 'tp-factor-explorer-panel')}>
+            <iframe
+              className="tp-factor-explorer-frame"
+              src="/reports/factor-explorer.html"
+              title="多因子表现"
             />
           </div>
         </section>

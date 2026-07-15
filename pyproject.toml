@@ -36,6 +36,9 @@ ml = [
   "xgboost>=2",
   "shap>=0.44",
 ]
+news = [
+  "google-cloud-bigquery>=3.25",
+]
 
 [project.scripts]
 tp-organize-inputs = "01_tp_core.production_inputs:main"

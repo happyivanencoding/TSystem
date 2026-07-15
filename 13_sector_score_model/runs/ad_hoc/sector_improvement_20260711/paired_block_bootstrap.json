@@ -1,0 +1,20 @@
+{
+  "EU": {
+    "months": 53,
+    "annualized_arithmetic_delta": 0.002338766892224883,
+    "ci_2_5": -0.006934497436493325,
+    "ci_97_5": 0.009978175722734302,
+    "probability_delta_positive": 0.6082,
+    "block_months": 6,
+    "samples": 5000
+  },
+  "US": {
+    "months": 53,
+    "annualized_arithmetic_delta": 0.0016508646550497737,
+    "ci_2_5": -0.009983656910585498,
+    "ci_97_5": 0.012957072305946308,
+    "probability_delta_positive": 0.6022,
+    "block_months": 6,
+    "samples": 5000
+  }
+}

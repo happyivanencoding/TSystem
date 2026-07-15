@@ -79,6 +79,6 @@ Regime 模型接入组合层的标准出口是风险预算乘数：
 python C:\GoogleDrive\TP\03_regime_model\export_risk_budget.py
 ```
 
-默认输出 `C:\GoogleDrive\TP\04_signals\regime_risk_budget.parquet`，其中 `signal_family=Regime`、`signal_name=risk_budget_multiplier`、`scope=region`。当前映射规则：扩张/Risk-On 为 1.10，震荡为 0.90，压力或 Risk-Off 为 0.70，其余为 1.00。
+默认输出 `C:\GoogleDrive\TP\04_signals\regime_risk_budget.parquet`，其中 `signal_family=Regime`、`signal_name=risk_budget_multiplier`、`scope=region`。默认 `hybrid` 模型按区域处理：US 保留 walk-forward K4 HMM 标签映射；EU 使用当前已实现波动相对历史已知目标波动的连续缩放，并限制在 `0.70-1.30`。该 EU 路径只使用当时已经实现的数据；`--risk-model hmm` 可回退到旧版统一 HMM。
 
 可用 `--oos` 导出 walk-forward 状态版本；`--calibrated` 会用历史同状态前瞻收益校准风险预算乘数，目前作为研究开关保留，未作为默认生产映射。

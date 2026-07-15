@@ -1,0 +1,98 @@
+market,version,candidate_id,component,bucket,weight
+stoxx600,old,stoxx600_syn_subset_e5c1a446e9,momentum: EPS Revision Ratio,revision,0.16666666666666666
+stoxx600,old,stoxx600_syn_subset_e5c1a446e9,momentum: EPS NTM 3M Growth,revision,0.16666666666666666
+stoxx600,old,stoxx600_syn_subset_e5c1a446e9,Oper Margin directional_delta lag3,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_e5c1a446e9,ROE avg FY0 directional_delta lag3,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_e5c1a446e9,Cont Op Earning Margin directional_delta lag1,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_e5c1a446e9,ROE avg FY0 directional_delta lag1,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_e5c1a446e9,PB LTM directional_delta lag3,value_improvement,0.1111111111111111
+stoxx600,old,stoxx600_syn_subset_e5c1a446e9,EV To EBITDA NTM directional_delta lag3,value_improvement,0.1111111111111111
+stoxx600,old,stoxx600_syn_subset_e5c1a446e9,EV To EBITDA NTM directional_delta lag1,value_improvement,0.1111111111111111
+stoxx600,old,stoxx600_syn_subset_eba89b8a51,momentum: PMOM 12M1M,pmom,0.3333333333333333
+stoxx600,old,stoxx600_syn_subset_eba89b8a51,Oper Margin directional_delta lag3,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_eba89b8a51,ROE avg FY0 directional_delta lag3,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_eba89b8a51,Cont Op Earning Margin directional_delta lag1,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_eba89b8a51,ROE avg FY0 directional_delta lag1,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_eba89b8a51,NetDebt to EBITDA exFIN directional_delta lag3,deleveraging,0.1111111111111111
+stoxx600,old,stoxx600_syn_subset_eba89b8a51,NetDebt to EBITDA exFIN score_delta lag3,deleveraging,0.1111111111111111
+stoxx600,old,stoxx600_syn_subset_eba89b8a51,NetDebt to EBITDA exFIN directional_delta lag1,deleveraging,0.1111111111111111
+stoxx600,old,stoxx600_syn_subset_b3c0d0fc7d,momentum: EPS Revision Ratio,revision,0.16666666666666666
+stoxx600,old,stoxx600_syn_subset_b3c0d0fc7d,momentum: EPS NTM 3M Growth,revision,0.16666666666666666
+stoxx600,old,stoxx600_syn_subset_b3c0d0fc7d,Oper Margin directional_delta lag3,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_b3c0d0fc7d,ROE avg FY0 directional_delta lag3,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_b3c0d0fc7d,Cont Op Earning Margin directional_delta lag1,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_b3c0d0fc7d,ROE avg FY0 directional_delta lag1,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_b3c0d0fc7d,NetDebt to EBITDA exFIN directional_delta lag3,deleveraging,0.1111111111111111
+stoxx600,old,stoxx600_syn_subset_b3c0d0fc7d,NetDebt to EBITDA exFIN score_delta lag3,deleveraging,0.1111111111111111
+stoxx600,old,stoxx600_syn_subset_b3c0d0fc7d,NetDebt to EBITDA exFIN directional_delta lag1,deleveraging,0.1111111111111111
+stoxx600,old,stoxx600_syn_subset_2543debc1d,momentum: PMOM 12M1M,pmom,0.3333333333333333
+stoxx600,old,stoxx600_syn_subset_2543debc1d,Oper Margin directional_delta lag3,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_2543debc1d,ROE avg FY0 directional_delta lag3,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_2543debc1d,Cont Op Earning Margin directional_delta lag1,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_2543debc1d,ROE avg FY0 directional_delta lag1,quality_improvement,0.08333333333333333
+stoxx600,old,stoxx600_syn_subset_2543debc1d,Earns Yield FY1 directional_delta lag1,earnings_yield_improvement,0.1111111111111111
+stoxx600,old,stoxx600_syn_subset_2543debc1d,Earns Yield NTM directional_delta lag1,earnings_yield_improvement,0.1111111111111111
+stoxx600,old,stoxx600_syn_subset_2543debc1d,Earns Yield FY1 directional_delta lag3,earnings_yield_improvement,0.1111111111111111
+stoxx600,old,stoxx600_syn_pair_8dbe63d33df5,NetDebt to EBITDA exFIN directional_delta lag3,deleveraging,0.5
+stoxx600,old,stoxx600_syn_pair_8dbe63d33df5,Oper Margin directional_delta lag3,quality_improvement,0.5
+stoxx600,old,stoxx600_syn_pair_56f732432d80,Oper Margin directional_delta lag3,quality_improvement,0.5
+stoxx600,old,stoxx600_syn_pair_56f732432d80,momentum: EPS NTM 3M Growth,revision,0.5
+stoxx600,old,stoxx600_syn_pair_86df394a53f2,momentum: PMOM 12M1M,pmom,0.5
+stoxx600,old,stoxx600_syn_pair_86df394a53f2,Oper Margin directional_delta lag3,quality_improvement,0.5
+stoxx600,old,stoxx600_syn_pair_5937db8297d4,momentum: PMOM 12M1M,pmom,0.5
+stoxx600,old,stoxx600_syn_pair_5937db8297d4,ROE avg FY0 directional_delta lag3,quality_improvement,0.5
+stoxx600,old,stoxx600_syn_pair_97a8dca0503b,Earns Yield FY1 directional_delta lag1,earnings_yield_improvement,0.5
+stoxx600,old,stoxx600_syn_pair_97a8dca0503b,Oper Margin directional_delta lag3,quality_improvement,0.5
+stoxx600,old,stoxx600_syn_full_bucket_equal,momentum: EPS Revision Ratio,revision,0.0625
+stoxx600,old,stoxx600_syn_full_bucket_equal,momentum: EPS NTM 3M Growth,revision,0.0625
+stoxx600,old,stoxx600_syn_full_bucket_equal,momentum: PMOM 12M1M,pmom,0.125
+stoxx600,old,stoxx600_syn_full_bucket_equal,growth: EPS Growth FY1,growth,0.041666666666666664
+stoxx600,old,stoxx600_syn_full_bucket_equal,growth: Gross Income Growth FY1,growth,0.041666666666666664
+stoxx600,old,stoxx600_syn_full_bucket_equal,growth: Sales Growth FY1,growth,0.041666666666666664
+stoxx600,old,stoxx600_syn_full_bucket_equal,Oper Margin directional_delta lag3,quality_improvement,0.03125
+stoxx600,old,stoxx600_syn_full_bucket_equal,ROE avg FY0 directional_delta lag3,quality_improvement,0.03125
+stoxx600,old,stoxx600_syn_full_bucket_equal,Cont Op Earning Margin directional_delta lag1,quality_improvement,0.03125
+stoxx600,old,stoxx600_syn_full_bucket_equal,ROE avg FY0 directional_delta lag1,quality_improvement,0.03125
+stoxx600,old,stoxx600_syn_full_bucket_equal,Earns Yield FY1 directional_delta lag1,earnings_yield_improvement,0.041666666666666664
+stoxx600,old,stoxx600_syn_full_bucket_equal,Earns Yield NTM directional_delta lag1,earnings_yield_improvement,0.041666666666666664
+stoxx600,old,stoxx600_syn_full_bucket_equal,Earns Yield FY1 directional_delta lag3,earnings_yield_improvement,0.041666666666666664
+stoxx600,old,stoxx600_syn_full_bucket_equal,NetDebt to EBITDA exFIN directional_delta lag3,deleveraging,0.041666666666666664
+stoxx600,old,stoxx600_syn_full_bucket_equal,NetDebt to EBITDA exFIN score_delta lag3,deleveraging,0.041666666666666664
+stoxx600,old,stoxx600_syn_full_bucket_equal,NetDebt to EBITDA exFIN directional_delta lag1,deleveraging,0.041666666666666664
+stoxx600,old,stoxx600_syn_full_bucket_equal,PB LTM directional_delta lag3,value_improvement,0.041666666666666664
+stoxx600,old,stoxx600_syn_full_bucket_equal,EV To EBITDA NTM directional_delta lag3,value_improvement,0.041666666666666664
+stoxx600,old,stoxx600_syn_full_bucket_equal,EV To EBITDA NTM directional_delta lag1,value_improvement,0.041666666666666664
+stoxx600,old,stoxx600_syn_full_bucket_equal,Daily Vol 260J directional_delta lag1,risk_decline,0.0625
+stoxx600,old,stoxx600_syn_full_bucket_equal,Daily Vol 60J score_delta lag12,risk_decline,0.0625
+stoxx600,new,stoxx_ext_country_quality_repair,Oper Margin 3M improvement (country-first / industry fallback),quality_improvement,0.5
+stoxx600,new,stoxx_ext_country_quality_repair,NetDebt / EBITDA 3M improvement (country-first / industry fallback),quality_improvement,0.5
+stoxx600,new,stoxx_ext_country_margin_improvement,Oper Margin 3M improvement (country-first / industry fallback),quality_improvement,1.0
+stoxx600,new,stoxx_ext_country_deleveraging,NetDebt / EBITDA 3M improvement (country-first / industry fallback),deleveraging,1.0
+stoxx600,new,stoxx_ext_residual_momentum_revision,STOXX-residual Momentum 12-1,residual_momentum,0.5
+stoxx600,new,stoxx_ext_residual_momentum_revision,EPS Revision Ratio,residual_momentum,0.5
+stoxx600,new,stoxx_ext_country_earnings_yield_improvement,Earns Yield FY1 1M improvement (country-first / industry fallback),earnings_yield_improvement,1.0
+stoxx600,new,stoxx_ext_country_value_confirmation,Earns Yield FY1 1M improvement (country-first / industry fallback),earnings_yield_improvement,0.5
+stoxx600,new,stoxx_ext_country_value_confirmation,EPS Revision Ratio (country-first / industry fallback),earnings_yield_improvement,0.5
+stoxx600,new,stoxx_ext_country_revision,EPS Revision Ratio (country-first / industry fallback),revision,1.0
+stoxx600,new,stoxx_ext_country_pmom,PMOM 12M1M (country-first / industry fallback),pmom,1.0
+stoxx600,new,stoxx_ext_downside_aware_revision,EPS Revision Ratio,residual_risk,0.5
+stoxx600,new,stoxx_ext_downside_aware_revision,STOXX-residual Downside Volatility (lower is better),residual_risk,0.5
+stoxx600,new,stoxx_ext_capital_efficient_growth_revision,Sales Growth FY1,capital_efficiency,0.25
+stoxx600,new,stoxx_ext_capital_efficient_growth_revision,Gross Income Growth FY1,capital_efficiency,0.25
+stoxx600,new,stoxx_ext_capital_efficient_growth_revision,Asset TO exFIN (country-first / industry fallback),capital_efficiency,0.25
+stoxx600,new,stoxx_ext_capital_efficient_growth_revision,EPS Revision Ratio,capital_efficiency,0.25
+stoxx600,new,stoxx_ext_dividend_revision_quality,DPS 1Y Growth FY1,dividend_sustainability,0.3333333333333333
+stoxx600,new,stoxx_ext_dividend_revision_quality,EPS Revision Ratio,dividend_sustainability,0.3333333333333333
+stoxx600,new,stoxx_ext_dividend_revision_quality,DVD Payout FY0 (lower is better),dividend_sustainability,0.3333333333333333
+stoxx600,new,stoxx_ext_cash_productivity,FCF / Sales,capital_efficiency,1.0
+stoxx600,new,stoxx_ext_residual_momentum_risk_adjusted,STOXX-residual Momentum / Residual Volatility,residual_momentum,1.0
+stoxx600,new,stoxx_ext_low_residual_downside_risk,STOXX-residual Downside Volatility (lower is better),residual_risk,1.0
+stoxx600,new,stoxx_ext_residual_momentum,STOXX-residual Momentum 12-1,residual_momentum,1.0
+stoxx600,new,stoxx600_syn_loo_without_revision,PMOM 12M1M + country-aware PMOM,pmom,0.125
+stoxx600,new,stoxx600_syn_loo_without_revision,Oper Margin / ROE improvement + country-aware quality repair,quality_improvement,0.125
+stoxx600,new,stoxx600_syn_loo_without_revision,Earns Yield improvement + country-aware value confirmation,earnings_yield_improvement,0.125
+stoxx600,new,stoxx600_syn_loo_without_revision,NetDebt / EBITDA improvement + country-aware deleveraging,deleveraging,0.125
+stoxx600,new,stoxx600_syn_loo_without_revision,Asset TO exFIN + FCF / Sales + capital-efficient growth,capital_efficiency,0.125
+stoxx600,new,stoxx600_syn_loo_without_revision,DPS 1Y Growth FY1 + EPS Revision Ratio + DVD Payout FY0,dividend_sustainability,0.125
+stoxx600,new,stoxx600_syn_loo_without_revision,STOXX-residual Momentum 12-1 + risk-adjusted residual momentum,residual_momentum,0.125
+stoxx600,new,stoxx600_syn_loo_without_revision,STOXX-residual Downside Volatility + downside-aware revision,residual_risk,0.125

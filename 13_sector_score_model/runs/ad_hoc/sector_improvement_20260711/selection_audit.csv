@@ -1,0 +1,3 @@
+﻿market,baseline,selected,decision
+EU,baseline_raw,smooth_6m,promote
+US,baseline_raw,baseline_raw,keep_baseline

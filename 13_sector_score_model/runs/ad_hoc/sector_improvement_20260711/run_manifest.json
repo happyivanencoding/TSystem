@@ -1,0 +1,47 @@
+{
+  "run_date": "2026-07-11",
+  "output_dir": "C:\\GoogleDrive\\TP\\13_sector_score_model\\runs\\ad_hoc\\sector_improvement_20260711",
+  "markets": [
+    "EU",
+    "US"
+  ],
+  "candidates": [
+    "baseline_raw",
+    "smooth_2m",
+    "smooth_3m",
+    "smooth_6m",
+    "ema_3m",
+    "ema_6m",
+    "trend_12_1",
+    "trend_multi",
+    "baseline_75_trend_25",
+    "quality_improvement",
+    "improvement_core",
+    "revision_sleeve",
+    "baseline_75_core_25",
+    "baseline_50_core_50",
+    "rotation_12m_two_sleeve",
+    "rotation_24m_two_sleeve",
+    "rotation_12m_three_sleeve"
+  ],
+  "bootstrap": {
+    "EU": {
+      "months": 53,
+      "annualized_arithmetic_delta": 0.002338766892224883,
+      "ci_2_5": -0.006934497436493325,
+      "ci_97_5": 0.009978175722734302,
+      "probability_delta_positive": 0.6082,
+      "block_months": 6,
+      "samples": 5000
+    },
+    "US": {
+      "months": 53,
+      "annualized_arithmetic_delta": 0.0016508646550497737,
+      "ci_2_5": -0.009983656910585498,
+      "ci_97_5": 0.012957072305946308,
+      "probability_delta_positive": 0.6022,
+      "block_months": 6,
+      "samples": 5000
+    }
+  }
+}

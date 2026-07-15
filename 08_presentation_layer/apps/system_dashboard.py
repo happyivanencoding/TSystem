@@ -49,6 +49,7 @@ DASHBOARD_CONFIG_PATH = TP_ROOT / ".tmp_dashboard_work" / "dashboard_config.json
 CLIENT_JOB_API_ENABLED = os.environ.get("TP_DASHBOARD_CLIENT_JOB_API", "1") != "0"
 CLIENT_DIST_DIR = TP_ROOT / "08_presentation_layer" / "frontend" / "system_dashboard" / "dist"
 CLIENT_ASSETS_DIR = CLIENT_DIST_DIR / "assets"
+FACTOR_EXPLORER_PATH = TP_ROOT / "09_reports" / "factor-explorer.html"
 REGIME_SIGNAL_PATH = TP_ROOT / "04_signals" / "regime_risk_budget.parquet"
 COUNTRY_SIGNAL_PATH = TP_ROOT / "04_signals" / "country_model_signals.parquet"
 SMALL_CAP_SIGNAL_PATH = TP_ROOT / "04_signals" / "small_cap_model_signals.parquet"
@@ -3112,7 +3113,8 @@ def _clean_brief_markdown(value: str) -> str:
 def _latest_market_brief_candidates() -> list[Path]:
     if not NEWS_ROOM_DIR.exists():
         return []
-    candidates = list(NEWS_ROOM_DIR.glob("*_Clippings/*欧美金融市场日内复盘.md"))
+    candidates = list(NEWS_ROOM_DIR.glob("Market Briefings/*欧美金融市场*.md"))
+    candidates.extend(NEWS_ROOM_DIR.glob("*_Clippings/*欧美金融市场日内复盘.md"))
     return sorted(candidates, key=lambda path: path.stat().st_mtime, reverse=True)
 
 
@@ -6182,6 +6184,10 @@ def create_app() -> Dash:
     @server.route("/client/assets/<path:filename>", methods=["GET"])
     def api_dashboard_client_assets(filename: str):
         return send_from_directory(CLIENT_ASSETS_DIR, filename)
+
+    @server.route("/reports/factor-explorer.html", methods=["GET"])
+    def factor_explorer_report():
+        return send_from_directory(FACTOR_EXPLORER_PATH.parent, FACTOR_EXPLORER_PATH.name)
 
     @server.route("/api/dashboard/state", methods=["GET"])
     def api_dashboard_state():

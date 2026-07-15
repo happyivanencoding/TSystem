@@ -303,6 +303,19 @@ select {
   display: block;
 }
 
+.tp-factor-explorer-panel {
+  overflow: hidden;
+  padding: 0;
+}
+
+.tp-factor-explorer-frame {
+  border: 0;
+  display: block;
+  height: calc(100vh - 200px);
+  min-height: 480px;
+  width: 100%;
+}
+
 .tp-panel[draggable="true"] {
   cursor: grab;
 }
@@ -1839,6 +1852,11 @@ select {
 
   .tp-main {
     padding: 10px 0 24px;
+  }
+
+  .tp-factor-explorer-frame {
+    height: calc(100vh - 240px);
+    min-height: 480px;
   }
 
   .tp-sector-drawer-backdrop {

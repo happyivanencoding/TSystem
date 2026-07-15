@@ -1,0 +1,40 @@
+{
+  "step": "refresh_regime",
+  "status": "failed",
+  "started_at": "2026-07-11T10:07:52",
+  "finished_at": "2026-07-11T10:09:23",
+  "duration_seconds": 91.04,
+  "run_type": "production",
+  "parameters": {
+    "regime_output": "C:\\GoogleDrive\\TP\\04_signals\\regime_risk_budget.parquet",
+    "run_type": "production"
+  },
+  "inputs": {
+    "build_features": {
+      "path": "C:\\GoogleDrive\\TP\\03_regime_model\\build_features.py",
+      "exists": true,
+      "type": "file",
+      "bytes": 3262,
+      "modified_at": "2026-07-03T16:44:13"
+    },
+    "walkforward": {
+      "path": "C:\\GoogleDrive\\TP\\03_regime_model\\walkforward.py",
+      "exists": true,
+      "type": "file",
+      "bytes": 3586,
+      "modified_at": "2026-07-03T14:10:21"
+    }
+  },
+  "outputs": {},
+  "validations": [],
+  "details": {},
+  "idempotency": {
+    "policy": "标准产物使用固定 latest 路径覆盖写入；每次运行另写时间戳 manifest 保留审计证据。",
+    "no_duplicate_rows_expected": true
+  },
+  "error": {
+    "type": "RuntimeError",
+    "message": "export_signals failed with returncode 1: Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\export_signals.py\", line 168, in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\export_signals.py\", line 162, in main\n    manifest_path = run_export_signals(args)\n                    ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\export_signals.py\", line 102, in run_export_signals\n    module = _load_module(REGIME_EXPORTER, \"tp_pipeline_regime_exporter\")\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\export_signals.py\", line 30, in _load_module\n    spec.loader.exec_module(module)\n  File \"<frozen importlib._bootstrap_external>\", line 940, in exec_module\n  File \"<frozen importlib._bootstrap>\", line 241, in _call_with_frames_removed\n  File \"C:\\GoogleDrive\\TP\\03_regime_model\\export_risk_budget.py\", line 20, in <module>\n    import risk_budget_model  # noqa: E402\n    ^^^^^^^^^^^^^^^^^^^^^^^^\nModuleNotFoundError: No module named 'risk_budget_model'\n",
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\refresh_regime.py\", line 117, in run_refresh_regime\n    _ensure_success(export_result, \"export_signals\")\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\refresh_regime.py\", line 29, in _ensure_success\n    raise RuntimeError(f\"{label} failed with returncode {result.get('returncode')}: {detail[-1200:]}\")\nRuntimeError: export_signals failed with returncode 1: Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\export_signals.py\", line 168, in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\export_signals.py\", line 162, in main\n    manifest_path = run_export_signals(args)\n                    ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\export_signals.py\", line 102, in run_export_signals\n    module = _load_module(REGIME_EXPORTER, \"tp_pipeline_regime_exporter\")\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\export_signals.py\", line 30, in _load_module\n    spec.loader.exec_module(module)\n  File \"<frozen importlib._bootstrap_external>\", line 940, in exec_module\n  File \"<frozen importlib._bootstrap>\", line 241, in _call_with_frames_removed\n  File \"C:\\GoogleDrive\\TP\\03_regime_model\\export_risk_budget.py\", line 20, in <module>\n    import risk_budget_model  # noqa: E402\n    ^^^^^^^^^^^^^^^^^^^^^^^^\nModuleNotFoundError: No module named 'risk_budget_model'\n\n"
+  }
+}

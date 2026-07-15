@@ -1,0 +1,40 @@
+{
+  "step": "refresh_regime",
+  "status": "failed",
+  "started_at": "2026-07-11T10:07:15",
+  "finished_at": "2026-07-11T10:07:42",
+  "duration_seconds": 27.42,
+  "run_type": "production",
+  "parameters": {
+    "regime_output": "C:\\GoogleDrive\\TP\\04_signals\\regime_risk_budget.parquet",
+    "run_type": "production"
+  },
+  "inputs": {
+    "build_features": {
+      "path": "C:\\GoogleDrive\\TP\\03_regime_model\\build_features.py",
+      "exists": true,
+      "type": "file",
+      "bytes": 3262,
+      "modified_at": "2026-07-03T16:44:13"
+    },
+    "walkforward": {
+      "path": "C:\\GoogleDrive\\TP\\03_regime_model\\walkforward.py",
+      "exists": true,
+      "type": "file",
+      "bytes": 3586,
+      "modified_at": "2026-07-03T14:10:21"
+    }
+  },
+  "outputs": {},
+  "validations": [],
+  "details": {},
+  "idempotency": {
+    "policy": "标准产物使用固定 latest 路径覆盖写入；每次运行另写时间戳 manifest 保留审计证据。",
+    "no_duplicate_rows_expected": true
+  },
+  "error": {
+    "type": "TypeError",
+    "message": "'NoneType' object is not subscriptable",
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\refresh_regime.py\", line 99, in run_refresh_regime\n    build_result = run_python_script(build_features_script)\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\common.py\", line 217, in run_python_script\n    \"stdout\": completed.stdout[-8000:],\n              ~~~~~~~~~~~~~~~~^^^^^^^^\nTypeError: 'NoneType' object is not subscriptable\n"
+  }
+}

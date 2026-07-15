@@ -124,6 +124,9 @@ EFFECTIVENESS_COLUMNS = PILLAR_COLUMNS + [
     "score_final_screen_only",
     "score_final_fs_sector",
     "score_final_fs_sector_reco_blend",
+    "score_final_raw",
+    "score_final_raw_rank",
+    "score_final_smoothed_6m",
     "score_final",
 ]
 
@@ -144,6 +147,19 @@ def _rank_score_by_date(frame: pd.DataFrame, column: str, high_good: bool = True
     if high_good:
         return ranks
     return 10 - ranks
+
+
+def _trailing_sector_mean(
+    frame: pd.DataFrame,
+    column: str,
+    months: int = 6,
+) -> pd.Series:
+    """Trailing-only sector score ensemble; never reads a future observation."""
+    ordered = frame.sort_values(["sector_code", "Date"])
+    smoothed = ordered.groupby("sector_code", observed=True)[column].transform(
+        lambda values: values.rolling(months, min_periods=1).mean()
+    )
+    return smoothed.reindex(frame.index)
 
 
 def _available_parquet_columns(path: Path) -> set[str]:
@@ -275,7 +291,6 @@ def add_stock_scores(screen: pd.DataFrame) -> pd.DataFrame:
         ],
         axis=1,
     ).mean(axis=1, skipna=True)
-
     for column in PILLAR_COLUMNS:
         scored[column] = pd.to_numeric(scored[column], errors="coerce").clip(0, 10)
     return scored
@@ -338,13 +353,26 @@ def aggregate_sector_scores(
         + 0.30 * sector_scores["fs_sector_reco_score"]
     )
     if market.upper() == "EU":
-        sector_scores["score_final"] = sector_scores["eu_momentum_revision_score"].combine_first(
+        sector_scores["score_final_raw"] = sector_scores["eu_momentum_revision_score"].combine_first(
             sector_scores["fs_sector_pillar_score"]
         ).combine_first(sector_scores["score_final_screen_only"])
     else:
-        sector_scores["score_final"] = sector_scores["score_final_fs_sector"].combine_first(
+        sector_scores["score_final_raw"] = sector_scores["score_final_fs_sector"].combine_first(
             sector_scores["score_final_screen_only"]
         )
+    sector_scores["score_final_raw_rank"] = (
+        sector_scores.groupby("Date", observed=True)["score_final_raw"].rank(pct=True) * 10
+    )
+    sector_scores["score_final_smoothed_6m"] = _trailing_sector_mean(
+        sector_scores,
+        "score_final_raw_rank",
+        months=6,
+    )
+    sector_scores["score_final"] = (
+        sector_scores["score_final_smoothed_6m"]
+        if market.upper() == "EU"
+        else sector_scores["score_final_raw"]
+    )
     return sector_scores
 
 
@@ -497,8 +525,13 @@ def evaluate_factor_effectiveness(
             monthly_ic.append(
                 group[column].rank().corr(group["sector_forward_return"].rank(), method="pearson")
             )
-            top_return = group.nlargest(top_n, column)["sector_forward_return"].mean()
-            bottom_return = group.nsmallest(bottom_n, column)["sector_forward_return"].mean()
+            group = group.assign(_selection_score=group[column].round(12))
+            top_return = group.sort_values(
+                ["_selection_score", "sector_code"], ascending=[False, True], kind="mergesort"
+            ).head(top_n)["sector_forward_return"].mean()
+            bottom_return = group.sort_values(
+                ["_selection_score", "sector_code"], ascending=[True, True], kind="mergesort"
+            ).head(bottom_n)["sector_forward_return"].mean()
             top_minus_bottom.append(top_return - bottom_return)
             top_beats_bottom.append(top_return > bottom_return)
         ic_series = pd.Series(monthly_ic).dropna()
@@ -539,9 +572,18 @@ def run_sector_tilt_backtest(
     for date, group in panel.dropna(subset=required).groupby("Date"):
         if len(group) < max(top_n + bottom_n, 8):
             continue
-        group = group.copy()
-        top_codes = set(group.nlargest(top_n, score_column)["sector_code"])
-        bottom_codes = set(group.nsmallest(bottom_n, score_column)["sector_code"])
+        group = group.sort_values("sector_code", kind="mergesort").copy()
+        group["_selection_score"] = group[score_column].round(12)
+        top_codes = set(
+            group.sort_values(
+                ["_selection_score", "sector_code"], ascending=[False, True], kind="mergesort"
+            ).head(top_n)["sector_code"]
+        )
+        bottom_codes = set(
+            group.sort_values(
+                ["_selection_score", "sector_code"], ascending=[True, True], kind="mergesort"
+            ).head(bottom_n)["sector_code"]
+        )
         group["benchmark_weight"] = group["sector_weight"] / group["sector_weight"].sum()
 
         def tilted_weight(row: pd.Series) -> float:

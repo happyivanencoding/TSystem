@@ -12,12 +12,16 @@ import pandas as pd
 TP_ROOT = Path(__file__).resolve().parents[1]
 if str(TP_ROOT) not in sys.path:
     sys.path.insert(0, str(TP_ROOT))
+PROJECT_DIR = Path(__file__).resolve().parent
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
 
 import sitecustomize  # noqa: F401
 
 from tp_core.signals import standardize_signal_frame, write_signal_frame  # noqa: E402
 
-PROJECT_DIR = Path(__file__).resolve().parent
+import risk_budget_model  # noqa: E402
+
 DEFAULT_OUTPUT = TP_ROOT / "04_signals" / "regime_risk_budget.parquet"
 MIN_CALIBRATION_STATE_MONTHS = 6
 
@@ -95,6 +99,7 @@ def export_risk_budget(
     oos: bool = False,
     regions: list[str] | None = None,
     calibrated: bool = False,
+    risk_model: str = "hybrid",
 ) -> Path:
     regions = regions or ["US", "EU"]
     frames = [_read_regime(region, oos=oos) for region in regions]
@@ -107,11 +112,48 @@ def export_risk_budget(
         regime["state_hist_months"] = pd.NA
         regime["state_fwd_ret_mean"] = pd.NA
         regime["state_fwd_ret_vol"] = pd.NA
-    model_version = "regime_model_current"
-    if oos:
-        model_version += "_oos"
-    if calibrated:
-        model_version += "_calibrated"
+    regime["current_rvol"] = pd.NA
+    regime["target_vol"] = pd.NA
+    regime["raw_multiplier"] = pd.NA
+    regime["risk_model"] = "hmm_k4"
+
+    if risk_model == "hybrid" and "EU" in regions:
+        eu = risk_budget_model.eu_persistence_risk_budget().reset_index()
+        eu_by_date = eu.set_index("Date")
+        eu_rows = regime["region"].eq("EU") & regime["Date"].isin(eu_by_date.index)
+        for idx in regime.index[eu_rows]:
+            date = regime.at[idx, "Date"]
+            row = eu_by_date.loc[date]
+            for column in [
+                "state",
+                "label",
+                "risk_budget_multiplier",
+                "current_rvol",
+                "target_vol",
+                "raw_multiplier",
+                "state_hist_months",
+            ]:
+                regime.at[idx, column] = row[column]
+            regime.at[idx, "calibration_method"] = "eu_realized_vol_persistence"
+            regime.at[idx, "risk_model"] = "eu_volatility_persistence"
+
+    model_suffix = "_oos" if oos else ""
+    calibration_suffix = "_calibrated" if calibrated else ""
+    if risk_model == "hybrid":
+        regime["model_version"] = regime["risk_model"].map(
+            {
+                "hmm_k4": f"regime_hybrid_v2_us_hmm{model_suffix}{calibration_suffix}",
+                "eu_volatility_persistence": "regime_hybrid_v2_eu_vol_persistence",
+            }
+        )
+    else:
+        regime["model_version"] = f"regime_model_current{model_suffix}{calibration_suffix}"
+    regime["signal_description"] = regime["risk_model"].map(
+        {
+            "hmm_k4": "根据 HMM Regime 标签映射的组合风险预算乘数",
+            "eu_volatility_persistence": "EU 当前已实现波动相对历史目标波动的因果风险预算乘数",
+        }
+    )
     signals = pd.DataFrame(
         {
             "Date": regime["Date"],
@@ -121,17 +163,21 @@ def export_risk_budget(
             "score": regime["risk_budget_multiplier"],
             "direction": "higher_risk_budget",
             "coverage_flag": regime["risk_budget_multiplier"].notna(),
-            "model_version": model_version,
+            "model_version": regime["model_version"],
             "source_project": "regime_model",
             "region": regime["region"],
             "raw_value": regime["label"],
-            "signal_description": "根据历史同状态前瞻收益校准的组合风险预算乘数" if calibrated else "根据 Regime 标签映射的组合风险预算乘数",
+            "signal_description": regime["signal_description"],
             "regime_state": regime["state"],
             "fwd_ret": regime.get("fwd_ret"),
             "calibration_method": regime["calibration_method"],
             "state_hist_months": regime["state_hist_months"],
             "state_fwd_ret_mean": regime["state_fwd_ret_mean"],
             "state_fwd_ret_vol": regime["state_fwd_ret_vol"],
+            "current_rvol": regime["current_rvol"],
+            "target_vol": regime["target_vol"],
+            "raw_multiplier": regime["raw_multiplier"],
+            "risk_model": regime["risk_model"],
             "source_file": regime["source_file"],
         }
     )
@@ -144,9 +190,16 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="输出 parquet 路径")
     parser.add_argument("--oos", action="store_true", help="使用样本外 regime_oos 文件")
     parser.add_argument("--calibrated", action="store_true", help="使用历史同状态前瞻收益校准风险预算")
+    parser.add_argument("--risk-model", choices=["hybrid", "hmm"], default="hybrid", help="hybrid=US HMM + EU 波动持续性；hmm=旧版统一 HMM")
     parser.add_argument("--region", action="append", choices=["US", "EU"], help="区域；可重复传入，默认 US+EU")
     args = parser.parse_args(list(argv) if argv is not None else None)
-    output = export_risk_budget(output=Path(args.output), oos=args.oos, regions=args.region, calibrated=args.calibrated)
+    output = export_risk_budget(
+        output=Path(args.output),
+        oos=args.oos,
+        regions=args.region,
+        calibrated=args.calibrated,
+        risk_model=args.risk_model,
+    )
     print(f"Regime risk budget signals written: {output}")
     return 0
 

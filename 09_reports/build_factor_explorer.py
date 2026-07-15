@@ -17,15 +17,46 @@ import pandas as pd
 
 REPORT_DIR = Path(__file__).resolve().parent
 OUTPUT = REPORT_DIR / "factor-explorer.html"
+MODEL_ARCHIVE_DIR = REPORT_DIR / "factor_model_archive"
+FACTOR_EXPLORER_SOURCE_DIR = REPORT_DIR / "factor_explorer_sources"
 NASDAQ_EXTENSION_RUN = REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "nasdaq_tech_factor_extension_20260710"
 EU_SMALL_EXTENSION_RUN = REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "eu_small_factor_extension_20260711"
 STOXX600_EXTENSION_RUN = REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "stoxx600_factor_extension_20260711"
 SP500_EXTENSION_RUN = REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "sp500_factor_extension_20260711"
+MODEL_RUNS = {
+    "eu-small": {
+        "old": REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "eu_small_relative_synergy_20260709",
+        "new": EU_SMALL_EXTENSION_RUN,
+    },
+    "sp500": {
+        "old": REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "sp500_relative_synergy_20260710",
+        "new": SP500_EXTENSION_RUN,
+    },
+    "stoxx600": {
+        "old": REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "stoxx600_relative_synergy_20260709",
+        "new": STOXX600_EXTENSION_RUN,
+    },
+    "nasdaq": {
+        "old": REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "nasdaq_extended_factor_research_20260709",
+        "new": NASDAQ_EXTENSION_RUN,
+    },
+}
+ARCHIVE_RESULT_FILES = (
+    "extension_validation_gate.csv",
+    "tech_validation_gate.csv",
+    "family_subset_results.csv",
+    "leave_one_out_results.csv",
+    "pair_synergy_results.csv",
+    "synergy_claims.csv",
+    "performance_summary.csv",
+    "theme_performance_summary.csv",
+    "synergy_performance_summary.csv",
+)
 SOURCES = {
-    "eu-small": REPORT_DIR / "eu-small-factor-explorer.html",
-    "sp500": REPORT_DIR / "sp500-factor-explorer.html",
-    "stoxx600": REPORT_DIR / "stoxx600-factor-explorer.html",
-    "nasdaq": REPORT_DIR / "nasdaq-factor-explorer.html",
+    "eu-small": FACTOR_EXPLORER_SOURCE_DIR / "eu-small-factor-explorer.html",
+    "sp500": FACTOR_EXPLORER_SOURCE_DIR / "sp500-factor-explorer.html",
+    "stoxx600": FACTOR_EXPLORER_SOURCE_DIR / "stoxx600-factor-explorer.html",
+    "nasdaq": FACTOR_EXPLORER_SOURCE_DIR / "nasdaq-factor-explorer.html",
 }
 
 PERIOD_SOURCES = {
@@ -387,6 +418,8 @@ def nasdaq_tech_candidates(run: Path) -> list[dict[str, Any]]:
                 "label": definition["label"],
                 "group": definition["theme"],
                 "kind": "tech_engineered",
+                "version": "new",
+                "sourceRun": str(run),
                 "thesis": thesis,
                 "economics": economics,
                 "metrics": {
@@ -403,6 +436,63 @@ def nasdaq_tech_candidates(run: Path) -> list[dict[str, Any]]:
                     ["Top / Benchmark CAGR", pct(gate_row.get("top_ratio_cagr"))],
                     ["Top / Worst 累计比率", num(gate_row.get("top_worst_ratio_return"), 2)],
                     ["Coverage", pct(gate_row.get("coverage"))],
+                ],
+            }
+        )
+    return candidates
+
+
+def nasdaq_theme_candidates(run: Path, limit: int = 5) -> list[dict[str, Any]]:
+    """Expose the strongest new theme subsets with their official NAV series."""
+    summary = pd.read_csv(run / "family_subset_results.csv")
+    selected = summary[
+        summary["side"].eq("Top") & summary["status"].eq("success")
+    ].sort_values("robust_score", ascending=False).head(limit)
+    official = csv_rows(run / "synergy_theme_runs" / "official_run_results.csv")
+    by_run = {(row["metric"], row["side"]): row for row in official if row.get("status") == "success"}
+    _, bucket_variables = nasdaq_subset_data(run)
+    candidates = []
+    for _, row in selected.iterrows():
+        metric = str(row["metric"])
+        top, worst = by_run.get((metric, "Top")), by_run.get((metric, "Worst"))
+        if not top or not worst:
+            continue
+        aligned = pd.concat(
+            [nav_series(top["perf_ptf"]).rename("top"), nav_series(top["perf_bench"]).rename("bench"), nav_series(worst["perf_ptf"]).rename("worst")],
+            axis=1,
+        ).dropna()
+        aligned = monthly_nav(aligned)
+        themes = [theme for theme in str(row["themes"]).split(",") if theme]
+        weights = [
+            {"label": label, "group": theme, "value": 1 / len(themes) / len(bucket_variables[theme])}
+            for theme in themes
+            for label in bucket_variables.get(theme, [])
+        ]
+        candidates.append(
+            {
+                "id": metric,
+                "label": f'新主题组合：{row["label"]}',
+                "group": "theme_subset",
+                "kind": "family_subset",
+                "version": "new",
+                "sourceRun": str(run),
+                "thesis": "将通过 Gate 的主题等权组合，并用完整 power set 比较配置差异。",
+                "economics": "该配置用于比较 Nasdaq 中经营改善、无形资产、估值纪律、成长确认与风险控制的组合表现；高 Robust 不自动等于严格 synergy。",
+                "metrics": {
+                    "robust": finite(row["robust_score"]),
+                    "coverage": finite(row["coverage"]),
+                    "turnover": finite(row.get("avg_turnover")),
+                    "officialActive": finite(row["ratio_cagr"]),
+                    "officialRatio": 1 + finite(row["top_worst_ratio_return"]),
+                },
+                "series": [[date.strftime("%Y-%m-%d"), round(point.top, 5), round(point.worst, 5), round(point.bench, 5)] for date, point in aligned.iterrows()],
+                "weights": weights,
+                "subsetKeys": themes,
+                "evidenceRows": [
+                    ["Top / Benchmark CAGR", pct(row["ratio_cagr"])],
+                    ["Top / Worst 终值", ratio_terminal(row["top_worst_ratio_return"])],
+                    ["Robust score", num(row["robust_score"])],
+                    ["Coverage", pct(row["coverage"])],
                 ],
             }
         )
@@ -489,6 +579,8 @@ def official_extension_candidates(run: Path) -> list[dict[str, Any]]:
                 "label": row["label"],
                 "group": row["theme"],
                 "kind": "extension_candidate",
+                "version": "new",
+                "sourceRun": str(run),
                 "thesis": thesis,
                 "economics": economics,
                 "metrics": {
@@ -569,9 +661,11 @@ def extension_theme_candidates(run: Path, include_loo: bool = False) -> list[dic
         candidates.append(
             {
                 "id": f"{run.name}:{metric}",
-                "label": f'{"扩展推荐" if row["candidate_type"] == "leave_one_out" else "扩展模型"}：{row["label"]}',
+                "label": f'新扩展：{row["label"]}',
                 "group": "recommended_extension",
                 "kind": str(row["candidate_type"]),
+                "version": "new",
+                "sourceRun": str(run),
                 "thesis": "只保留通过主题 Gate、并在组合矩阵中保持较高 Robust 的精简 sleeve。",
                 "economics": "该组合用于升级欧洲小盘核心：质量改善、静态 ROE、现金流估值和去杠杆共同约束融资脆弱性；LOO 用于删除与 PMOM、残差确认重复的独立主题。" if eu_small else "该组合用于升级 SP500 核心信号，而不是把所有新增主题等权混合；质量改善和去杠杆负责经营与融资确认，应计质量只在有独立增益时加入。",
                 "metrics": {
@@ -618,9 +712,11 @@ def stoxx600_recommended_model(run: Path) -> dict[str, Any]:
     ]
     return {
         "id": metric,
-        "label": "扩展推荐模型：full model without revision",
+        "label": "新扩展：full model without revision",
         "group": "recommended_extension",
         "kind": "leave_one_out",
+        "version": "new",
+        "sourceRun": str(run),
         "thesis": "保留八个互补主题，并移除在当前结构中与多种确认信号重复的独立 revision 主题。",
         "economics": "EPS revision 单变量仍有效；这里移除的是重复的主题暴露。残差动量、质量修复和 PMOM 已共同表达盈利信息扩散，因此组合层面减少重复后横截面分离更强。",
         "metrics": {"robust": finite(performance["robust_score"]), "coverage": finite(performance["coverage"]), "turnover": finite(performance.get("avg_turnover"))},
@@ -1173,11 +1269,18 @@ def build_stoxx600(source: dict[str, Any], document: str) -> dict[str, Any]:
             evidence_tab("regime", "Regime", [evidence_section("2020 regime break", ["变量 / 组合", "2010-2019", "2020-2026", "全样本", "变化"], regime_rows)]),
             evidence_tab("extension", "STOXX 扩展", [
                 evidence_section("国家中性、资本效率、股息、残差动量与风险 Gate", ["候选", "主题", "结果", "Coverage", "主动 CAGR", "Top/Worst", "Robust", "失败原因"], extension_rows, "Gate 未放宽：Coverage ≥ 75%，Top/Benchmark CAGR、Top/Worst 累计收益与 Robust score 均须为正。"),
-                evidence_section("扩展主题 Leave-one-out", ["移除主题", "移除后主动 CAGR", "移除后 Robust", "原主题贡献", "分类"], extension_loo_evidence, "移除 revision 后 Robust 6.60、Top/Worst 10.61x；这表示在当前扩展模型中信息重叠，不代表 EPS revision 单变量失效。"),
+                evidence_section("扩展主题 Leave-one-out", ["移除主题", "移除后主动 CAGR", "移除后 Robust", "原主题贡献", "分类"], extension_loo_evidence, "移除 revision 后 Robust 6.60、Top/Worst 终值 11.61x；这表示在当前扩展模型中信息重叠，不代表 EPS revision 单变量失效。"),
             ]),
             evidence_tab("limits", "限制与反例", [evidence_section("解释边界", ["限制"], [["Pair、subset 与 leave-one-out 必须分开阅读；经济直觉或高回报不自动等于 synergy。"]])]),
         ],
-        "provenance": list(source["paths"].values()),
+        "provenance": [
+            *list(source["paths"].values()),
+            *(
+                [str(STOXX600_EXTENSION_RUN / "extension_validation_gate.csv"), str(STOXX600_EXTENSION_RUN / "family_subset_results.csv")]
+                if extension_ready
+                else []
+            ),
+        ],
     }
 
 
@@ -1212,6 +1315,7 @@ def build_nasdaq(document: str) -> dict[str, Any]:
         )
     if (NASDAQ_EXTENSION_RUN / "tech_validation_gate.csv").exists():
         candidates.extend(nasdaq_tech_candidates(NASDAQ_EXTENSION_RUN))
+        candidates.extend(nasdaq_theme_candidates(NASDAQ_EXTENSION_RUN))
     periods = []
     for row in periods_source:
         periods.append(
@@ -1448,7 +1552,7 @@ HTML_DOCUMENT = r'''<!doctype html>
         <nav class="market-tabs" id="market-tabs" role="tablist" aria-label="市场选择"></nav>
         <section class="stats" id="summary-stats" aria-label="研究覆盖概览"></section>
         <section class="card controls" aria-label="报告控制">
-          <label for="candidate-select">候选 / 组合<select id="candidate-select"></select></label>
+          <label for="candidate-select">模型配置（旧基线 / 新扩展）<select id="candidate-select"></select></label>
           <label for="period-select">观察时期<select id="period-select"></select></label>
           <div class="mode-tabs" aria-label="解释模式">
             <button type="button" class="tab-button" data-mode="evidence" aria-pressed="true">证据</button>
@@ -1745,7 +1849,7 @@ HTML_DOCUMENT = r'''<!doctype html>
         });
       }
       function renderProvenance(){
-        byId("provenance").innerHTML="<strong>数据来源与边界：</strong> "+report().provenance.map(esc).join(" · ")+"<br>本页只重组当前已完成的官方研究证据，不生成新回测，不构成投资建议。";
+        byId("provenance").innerHTML="<strong>数据来源与边界：</strong> "+report().provenance.map(esc).join(" · ")+"<br>默认配置只用于打开页面，不代表唯一最优模型；本页保留旧基线与新扩展，用于比较不同配置在不同市场和时期的表现及其经济机制。本页不生成新回测，不构成投资建议。";
       }
       function render(){
         renderMarketTabs();renderHeader();renderControls();renderMetrics();renderSubsetGuide();renderChart();renderDetails();renderPeriodGuide();renderFlipState();renderEvidence();renderProvenance();
@@ -1762,12 +1866,206 @@ HTML_DOCUMENT = r'''<!doctype html>
 </html>'''
 
 
+def candidate_summary_metrics(candidate: dict[str, Any]) -> dict[str, float | None]:
+    series = candidate["series"]
+    start, end = series[0], series[-1]
+    years = max((pd.Timestamp(end[0]) - pd.Timestamp(start[0])).days / 365.25, 1 / 12)
+    top_growth = end[1] / start[1]
+    worst_growth = end[2] / start[2]
+    bench_growth = end[3] / start[3]
+    return {
+        "top_cagr": top_growth ** (1 / years) - 1,
+        "active_cagr": top_growth ** (1 / years) / bench_growth ** (1 / years) - 1,
+        "top_worst_cagr": top_growth ** (1 / years) / worst_growth ** (1 / years) - 1,
+        "top_worst_terminal": top_growth / worst_growth,
+    }
+
+
+def prepare_model_versions(report: dict[str, Any]) -> dict[str, Any]:
+    counts = {"old": 0, "new": 0}
+    for candidate in report["candidates"]:
+        version = candidate.setdefault("version", "old")
+        candidate["versionLabel"] = "新扩展" if version == "new" else "旧基线"
+        candidate["sourceRun"] = candidate.get("sourceRun") or str(MODEL_RUNS[report["id"]][version])
+        candidate["sourceDocument"] = str(SOURCES[report["id"]])
+        base_group = "组合模型" if candidate["group"] == "recommended_extension" else candidate["group"]
+        candidate["group"] = f'{candidate["versionLabel"]} · {base_group}'
+        counts[version] += 1
+    report["stats"].extend(
+        [
+            {"value": counts["old"], "label": "旧基线可绘图配置"},
+            {"value": counts["new"], "label": "新扩展可绘图配置"},
+        ]
+    )
+    rows = []
+    for candidate in sorted(report["candidates"], key=lambda row: (row["version"] != "old", -(row["metrics"].get("robust") or -math.inf))):
+        derived = candidate_summary_metrics(candidate)
+        rows.append(
+            [
+                candidate["versionLabel"],
+                candidate["label"],
+                candidate["kind"],
+                pct(candidate["metrics"].get("officialActive") if candidate["metrics"].get("officialActive") is not None else derived["active_cagr"]),
+                f'{(candidate["metrics"].get("officialRatio") if candidate["metrics"].get("officialRatio") is not None else derived["top_worst_terminal"]):.2f}x',
+                num(candidate["metrics"].get("robust")),
+                pct(candidate["metrics"].get("coverage")),
+                candidate["economics"],
+            ]
+        )
+    report["evidenceTabs"].insert(
+        0,
+        evidence_tab(
+            "models",
+            "模型档案",
+            [
+                evidence_section(
+                    "旧基线与新扩展配置",
+                    ["版本", "配置", "类型", "主动 CAGR", "Top/Worst 终值", "Robust", "Coverage", "为何"],
+                    rows,
+                    "默认项只用于打开页面；模型档案保留不同配置及其适用逻辑，不把单一指标冠军等同于唯一最优模型。",
+                )
+            ],
+        ),
+    )
+    return report
+
+
+def write_model_archive(payload: dict[str, Any]) -> None:
+    MODEL_ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+    registry_rows: list[dict[str, Any]] = []
+    nav_rows: list[dict[str, Any]] = []
+    component_rows: list[dict[str, Any]] = []
+    source_rows: list[dict[str, Any]] = []
+    result_frames: list[pd.DataFrame] = []
+    for report in payload["reports"]:
+        market_registry = []
+        market_nav = []
+        market_components = []
+        market_results = []
+        for candidate in report["candidates"]:
+            derived = candidate_summary_metrics(candidate)
+            metrics = candidate["metrics"]
+            registry = {
+                "market": report["id"],
+                "benchmark": report["benchmark"],
+                "version": candidate["version"],
+                "version_label": candidate["versionLabel"],
+                "candidate_id": candidate["id"],
+                "label": candidate["label"],
+                "group": candidate["group"],
+                "kind": candidate["kind"],
+                "top_cagr": derived["top_cagr"],
+                "active_cagr": metrics.get("officialActive") if metrics.get("officialActive") is not None else derived["active_cagr"],
+                "top_worst_cagr": derived["top_worst_cagr"],
+                "top_worst_terminal": metrics.get("officialRatio") if metrics.get("officialRatio") is not None else derived["top_worst_terminal"],
+                "robust_score": metrics.get("robust"),
+                "coverage": metrics.get("coverage"),
+                "turnover": metrics.get("turnover"),
+                "start_date": candidate["series"][0][0],
+                "end_date": candidate["series"][-1][0],
+                "series_points": len(candidate["series"]),
+                "component_count": len(candidate["weights"]),
+                "subset_keys": "|".join(candidate.get("subsetKeys") or []),
+                "thesis": candidate["thesis"],
+                "economics": candidate["economics"],
+                "source_run": candidate["sourceRun"],
+                "source_document": candidate["sourceDocument"],
+            }
+            registry_rows.append(registry)
+            market_registry.append(registry)
+            for date, top, worst, benchmark in candidate["series"]:
+                row = {"market": report["id"], "version": candidate["version"], "candidate_id": candidate["id"], "date": date, "top": top, "worst": worst, "benchmark": benchmark}
+                nav_rows.append(row)
+                market_nav.append(row)
+            for weight in candidate["weights"]:
+                row = {"market": report["id"], "version": candidate["version"], "candidate_id": candidate["id"], "component": weight["label"], "bucket": weight.get("group"), "weight": weight.get("value")}
+                component_rows.append(row)
+                market_components.append(row)
+        market_dir = MODEL_ARCHIVE_DIR / report["id"]
+        market_dir.mkdir(exist_ok=True)
+        pd.DataFrame(market_registry).to_csv(market_dir / "model_registry.csv", index=False)
+        pd.DataFrame(market_nav).to_csv(market_dir / "nav_series.csv", index=False)
+        pd.DataFrame(market_components).to_csv(market_dir / "components.csv", index=False)
+        for version, run in MODEL_RUNS[report["id"]].items():
+            for path in sorted(run.iterdir()):
+                if not path.is_file() or path.suffix.lower() not in {".csv", ".json", ".md"}:
+                    continue
+                source_rows.append(
+                    {
+                        "market": report["id"],
+                        "version": version,
+                        "file": path.name,
+                        "path": str(path),
+                        "archive_input": path.name in ARCHIVE_RESULT_FILES,
+                    }
+                )
+                if path.name not in ARCHIVE_RESULT_FILES:
+                    continue
+                try:
+                    frame = pd.read_csv(path)
+                except pd.errors.EmptyDataError:
+                    continue
+                if frame.empty:
+                    continue
+                frame.insert(0, "source_file", str(path))
+                frame.insert(0, "result_type", path.stem)
+                frame.insert(0, "version", version)
+                frame.insert(0, "market", report["id"])
+                result_frames.append(frame)
+                market_results.append(frame)
+        pd.concat(market_results, ignore_index=True, sort=False).to_csv(market_dir / "all_result_rows.csv", index=False)
+    pd.DataFrame(registry_rows).to_csv(MODEL_ARCHIVE_DIR / "model_registry.csv", index=False)
+    pd.DataFrame(nav_rows).to_csv(MODEL_ARCHIVE_DIR / "nav_series.csv", index=False)
+    pd.DataFrame(component_rows).to_csv(MODEL_ARCHIVE_DIR / "components.csv", index=False)
+    pd.DataFrame(source_rows).to_csv(MODEL_ARCHIVE_DIR / "source_files.csv", index=False)
+    pd.concat(result_frames, ignore_index=True, sort=False).to_csv(MODEL_ARCHIVE_DIR / "all_result_rows.csv", index=False)
+    (MODEL_ARCHIVE_DIR / "model_archive.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    manifest = {
+        "generated_at": pd.Timestamp.now(tz="Europe/Paris").isoformat(),
+        "markets": {
+            report["id"]: {
+                "benchmark": report["benchmark"],
+                "old_run": str(MODEL_RUNS[report["id"]]["old"]),
+                "new_run": str(MODEL_RUNS[report["id"]]["new"]),
+                "old_models": sum(row["version"] == "old" for row in report["candidates"]),
+                "new_models": sum(row["version"] == "new" for row in report["candidates"]),
+            }
+            for report in payload["reports"]
+        },
+        "files": ["model_registry.csv", "nav_series.csv", "components.csv", "all_result_rows.csv", "source_files.csv", "model_archive.json"],
+    }
+    (MODEL_ARCHIVE_DIR / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    lines = [
+        "# 四市场新旧因子模型结果档案",
+        "",
+        "本目录由 `09_reports/build_factor_explorer.py` 生成；先整理旧基线与新扩展结果，再用同一 payload 生成 `factor-explorer.html`。",
+        "",
+        "## 查询文件",
+        "",
+        "- `model_registry.csv`：每个可绘图配置一行，含版本、指标、解释和来源。",
+        "- `nav_series.csv`：所有配置的 Top / Worst / Benchmark 时间序列。",
+        "- `components.csv`：每个配置的底层变量、bucket 与权重。",
+        "- `all_result_rows.csv`：旧/新 run 的 Gate、subset、LOO、synergy 与 performance 原始结果合并表。",
+        "- `source_files.csv`：原始结果文件索引，不复制或覆盖历史 run。",
+        "- `model_archive.json`：HTML 使用的完整四市场 payload。",
+        "- `<market>/`：每个市场独立的同名 CSV，便于单市场查询。",
+        "",
+        "## 市场与版本",
+        "",
+    ]
+    for market, row in manifest["markets"].items():
+        lines.append(f'- `{market}`：旧基线 {row["old_models"]} 个可绘图配置；新扩展 {row["new_models"]} 个；old=`{row["old_run"]}`；new=`{row["new_run"]}`。')
+    lines.extend(["", "默认候选只是页面打开入口，不代表唯一最优模型。比较配置时应同时阅读主动 CAGR、Top/Worst、Robust、Coverage、回撤、换手与经济机制。", ""])
+    (MODEL_ARCHIVE_DIR / "README.md").write_text("\n".join(lines), encoding="utf-8")
+
+
 def validate_payload(payload: dict[str, Any]) -> None:
     reports = payload["reports"]
     assert [row["id"] for row in reports] == ["eu-small", "sp500", "stoxx600", "nasdaq"]
     expected_subsets = {"eu-small": 205, "sp500": 250, "stoxx600": 121, "nasdaq": 120}
     for report in reports:
         candidate_ids = {row["id"] for row in report["candidates"]}
+        assert len(candidate_ids) == len(report["candidates"]), report["id"]
         assert report["defaultCandidate"] in candidate_ids
         assert report["periods"] and report["evidenceTabs"]
         assert all(row["definition"] and "sources" in row for row in report["periods"])
@@ -1775,6 +2073,8 @@ def validate_payload(payload: dict[str, Any]) -> None:
         assert len(report["subsetCatalog"]) == expected_subsets[report["id"]]
         assert all(set(row["keys"]) <= set(report["bucketVariables"]) for row in report["subsetCatalog"])
         for candidate in report["candidates"]:
+            assert candidate["version"] in {"old", "new"}
+            assert candidate["sourceRun"] and candidate["sourceDocument"]
             assert len(candidate["series"]) >= 2, (report["id"], candidate["id"])
             assert not candidate["weights"] or abs(sum(row["value"] for row in candidate["weights"]) - 1) < 1e-5
             assert all(weight["label"] not in {"revision", "pmom", "growth", "quality_improvement", "earnings_yield_improvement", "deleveraging", "value_improvement", "risk_decline"} for weight in candidate["weights"])
@@ -1793,7 +2093,7 @@ def main() -> None:
         if key != "nasdaq"
     }
     payload = {
-        "reports": [attach_period_contexts(report) for report in [
+        "reports": [prepare_model_versions(attach_period_contexts(report)) for report in [
             build_eu_small(payloads["eu-small"]),
             build_sp500(payloads["sp500"]),
             build_stoxx600(payloads["stoxx600"], documents["stoxx600"]),
@@ -1801,6 +2101,7 @@ def main() -> None:
         ]]
     }
     validate_payload(payload)
+    write_model_archive(payload)
     compact = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     document = HTML_DOCUMENT.replace("__PAYLOAD__", compact)
     assert "<iframe" not in document

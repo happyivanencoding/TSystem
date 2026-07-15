@@ -97,6 +97,7 @@ def test_system_dashboard_factory_imports_without_loading_data() -> None:
     assert "/client/" in routes
     assert "/client/index.html" in routes
     assert "/client/assets/<path:filename>" in routes
+    assert "/reports/factor-explorer.html" in routes
 
 
 def test_system_dashboard_serves_react_client_dist(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -129,6 +130,37 @@ def test_system_dashboard_serves_react_client_dist(tmp_path: Path, monkeypatch: 
     dash_layout_response = client.get("/dash/_dash-layout")
     assert dash_layout_response.status_code == 200
     assert "React 交互版" in dash_layout_response.data.decode("utf-8")
+
+
+def test_system_dashboard_serves_factor_explorer_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from presentation_layer.apps import system_dashboard as dashboard
+
+    report_path = tmp_path / "factor-explorer.html"
+    report_path.write_text("<title>多因子表现</title>", encoding="utf-8")
+    monkeypatch.setattr(dashboard, "FACTOR_EXPLORER_PATH", report_path)
+
+    response = dashboard.create_app().server.test_client().get("/reports/factor-explorer.html")
+    assert response.status_code == 200
+    assert "多因子表现" in response.data.decode("utf-8")
+
+
+def test_latest_market_brief_candidates_include_current_briefings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from presentation_layer.apps import system_dashboard as dashboard
+
+    brief_dir = tmp_path / "Market Briefings"
+    legacy_dir = tmp_path / "2026_Q3_Clippings"
+    brief_dir.mkdir()
+    legacy_dir.mkdir()
+    legacy = legacy_dir / "2026-07-06 欧美金融市场日内复盘.md"
+    current = brief_dir / "2026-07-10 欧美金融市场晚报.md"
+    legacy.write_text("# legacy", encoding="utf-8")
+    current.write_text("# current", encoding="utf-8")
+    current.touch()
+    monkeypatch.setattr(dashboard, "NEWS_ROOM_DIR", tmp_path)
+
+    assert dashboard._latest_market_brief_candidates() == [current, legacy]
 
 
 def test_system_dashboard_job_api_exposes_launch_status_and_events(

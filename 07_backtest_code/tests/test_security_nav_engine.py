@@ -3,14 +3,14 @@ import pandas as pd
 import pytest
 
 from backtest_code.runner.artifacts import read_manifest, save_manifest
-from tp_core.backtesting import build_backtest_engine
-from tp_core.general_backtest import (
-    ENGINE_ID,
-    ENGINE_VERSION,
-    BacktestSchema,
-    GeneralBacktestEngine,
-    backtest_return_series,
-    backtest_weight_table,
+from tp_core.backtesting import build_security_nav_engine
+from tp_core.security_nav_engine import (
+    NAV_ENGINE_ID,
+    NAV_ENGINE_VERSION,
+    TargetWeightSchema,
+    SecurityNavEngine,
+    calculate_return_series_nav,
+    calculate_security_nav,
     load_returns,
     map_rebalance_to_execution_dates,
     normalize_rebalance_weights,
@@ -37,8 +37,8 @@ def _sample_weights():
     )
 
 
-def test_general_backtest_filters_normalizes_and_drifts_weights():
-    result = backtest_weight_table(weights=_sample_weights(), returns=_sample_returns())
+def test_security_nav_engine_filters_normalizes_and_drifts_weights():
+    result = calculate_security_nav(weights=_sample_weights(), returns=_sample_returns())
 
     assert result.manifest["dropped_not_in_returns_rows"] == 1
     assert result.manifest["rebalance_date_count"] == 1
@@ -50,12 +50,12 @@ def test_general_backtest_filters_normalizes_and_drifts_weights():
 
 
 def test_active_backtest_engine_exposes_general_run_weights():
-    engine = build_backtest_engine(_sample_returns())
+    engine = build_security_nav_engine(_sample_returns())
 
-    assert isinstance(engine, GeneralBacktestEngine)
+    assert isinstance(engine, SecurityNavEngine)
     result = engine.run_weights(
         _sample_weights(),
-        schema=BacktestSchema(date_col="Date", id_col="Company SEDOL", weight_col="Portfolio weight"),
+        schema=TargetWeightSchema(date_col="Date", id_col="Company SEDOL", weight_col="Portfolio weight"),
     )
 
     assert engine.last_result is result
@@ -68,7 +68,7 @@ def _legacy_iterrows_daily_returns(
     *,
     apply_weights_at_close,
 ):
-    schema = BacktestSchema()
+    schema = TargetWeightSchema()
     normalized, _ = normalize_rebalance_weights(
         weights,
         returns_columns=returns.columns,
@@ -139,7 +139,7 @@ def test_vectorized_loop_is_exactly_equal_to_frozen_iterrows_reference(
         returns,
         apply_weights_at_close=apply_weights_at_close,
     )
-    result = backtest_weight_table(
+    result = calculate_security_nav(
         weights,
         returns,
         apply_weights_at_close=apply_weights_at_close,
@@ -152,10 +152,10 @@ def test_vectorized_loop_is_exactly_equal_to_frozen_iterrows_reference(
 
 
 def test_results_record_engine_identity_and_execution_policy():
-    result = backtest_weight_table(_sample_weights(), _sample_returns())
+    result = calculate_security_nav(_sample_weights(), _sample_returns())
 
-    assert result.manifest["engine_id"] == ENGINE_ID
-    assert result.manifest["engine_version"] == ENGINE_VERSION
+    assert result.manifest["engine_id"] == NAV_ENGINE_ID
+    assert result.manifest["engine_version"] == NAV_ENGINE_VERSION
     assert result.manifest["execution_policy"] == {
         "strictly_after_rebalance": True,
         "apply_weights_at_close": True,
@@ -172,7 +172,7 @@ def test_aggregated_return_series_helper_preserves_exact_cumprod_semantics():
         ),
         name="sector_strategy",
     )
-    result = backtest_return_series(
+    result = calculate_return_series_nav(
         returns,
         initial_nav=1.0,
         periods_per_year=12,
@@ -184,7 +184,7 @@ def test_aggregated_return_series_helper_preserves_exact_cumprod_semantics():
 
     pd.testing.assert_series_equal(result.returns, expected_returns, check_exact=True)
     pd.testing.assert_series_equal(result.nav, expected_nav, check_exact=True)
-    assert result.manifest["engine_id"] == ENGINE_ID
+    assert result.manifest["engine_id"] == NAV_ENGINE_ID
     assert result.manifest["periods_per_year"] == 12
 
 
@@ -192,8 +192,8 @@ def test_official_artifact_manifest_always_records_engine_provenance(tmp_path):
     save_manifest(tmp_path, {"status": "success", "research": "unit-test"})
     manifest = read_manifest(tmp_path)
 
-    assert manifest["engine_id"] == ENGINE_ID
-    assert manifest["engine_version"] == ENGINE_VERSION
+    assert manifest["engine_id"] == NAV_ENGINE_ID
+    assert manifest["engine_version"] == NAV_ENGINE_VERSION
     assert manifest["execution_policy"]["rebalance_mapping"] == (
         "first_returns_date_strictly_after_rebalance"
     )

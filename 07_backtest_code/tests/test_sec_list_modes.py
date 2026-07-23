@@ -10,8 +10,7 @@ for path in [project_root, opt_root]:
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from tp_core.backtesting import PtfBuilder
-import optimizer_engine
+from tp_core.backtesting import OfficialPortfolioBacktest
 
 
 def _screen():
@@ -40,16 +39,8 @@ def _returns():
     return pd.DataFrame(data, index=dates)
 
 
-def test_normal_and_optimized_sec_list_modes_are_separate(monkeypatch):
-    def fake_optimize(result_df, *args, **kwargs):
-        weights = pd.to_numeric(result_df["Score ML"], errors="coerce").fillna(0).clip(lower=0)
-        result_df = result_df.copy()
-        result_df["Wopt"] = weights / weights.sum()
-        return result_df, "optimal"
-
-    monkeypatch.setattr(optimizer_engine, "optimize", fake_optimize)
-
-    builder = PtfBuilder(
+def test_normal_and_optimized_sec_list_modes_are_separate():
+    builder = OfficialPortfolioBacktest(
         screen=_screen(),
         returns=_returns(),
         bench="TEST",
@@ -58,30 +49,17 @@ def test_normal_and_optimized_sec_list_modes_are_separate(monkeypatch):
         ponderation="Equalweight",
         ptf_name="TEST PTF",
         optimizer_config={
-            "current_params": {
-                "margin_title": 0.0,
-                "margin_country": 1.0,
-                "margin_sector": 1.0,
-                "nb_max_titres": 6,
-                "nb_min_titres": 1,
-                "max_turnover": 1.0,
-                "min_score_target": 0.0,
-                "te_max": 1.0,
-            },
-            "lb_title": {"North America": 0.0, "West Europe": 0.0, "Others": 0.0},
-            "config_ub": {
-                "North America": {"bins": [0, 1], "values": [1.0]},
-                "West Europe": {"bins": [0, 1], "values": [1.0]},
-                "Others": {"bins": [0, 1], "values": [1.0]},
-            },
-            "top_mandatory": 1,
+            "objective": "max_score",
+            "model_covariance": "identity",
+            "sector_margin": None,
+            "country_margin": None,
         },
     )
 
-    normal_sec_list, _ = builder.sec_list_spot()
+    normal_sec_list, _ = builder.build_monthly_security_list()
     normal_weights = normal_sec_list.set_index("ISIN")["Weight"].copy()
 
-    optimized_sec_list = builder.sec_list_spot_optim(init=True, drift=False)
+    optimized_sec_list = builder.build_optimized_monthly_security_list(drift=False)
 
     assert builder.sec_list_monthly is not None
     assert builder.sec_list_optimized_monthly is not None

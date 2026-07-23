@@ -9,41 +9,24 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
-from optimiser import turnover as turnover_metric
+from optimizer import (
+    OPTIMIZER_ID,
+    OPTIMIZER_VERSION,
+    GroupConstraint,
+    OptimizerConfig,
+    OptimizerObjective,
+    optimize_portfolio as run_optimizer,
+)
+from tp_core.portfolio_weights import (
+    cap_and_redistribute_weights,
+    normalize_long_only_weights,
+)
 
 from .common import CANDIDATES_DIR, PORTFOLIOS_DIR, StepManifest, path_profile, summarize_frame
 
 
 DEFAULT_CANDIDATES = CANDIDATES_DIR / "latest_candidates.parquet"
 DEFAULT_OUTPUT = PORTFOLIOS_DIR / "latest_target_weights.parquet"
-
-
-def _normalize_weights(raw: pd.Series) -> pd.Series:
-    values = pd.to_numeric(raw, errors="coerce").fillna(0.0).clip(lower=0.0)
-    if values.sum() <= 0:
-        return pd.Series(1.0 / len(values), index=values.index)
-    return values / values.sum()
-
-
-def _apply_max_weight(weights: pd.Series, max_weight: float | None) -> pd.Series:
-    if max_weight is None:
-        return weights / weights.sum()
-    if len(weights) * max_weight < 1.0:
-        raise ValueError(f"max_weight={max_weight} 对 {len(weights)} 只证券不可行")
-
-    result = weights.copy()
-    for _ in range(100):
-        over = result > max_weight
-        if not over.any():
-            break
-        capped_sum = float(over.sum() * max_weight)
-        remaining = 1.0 - capped_sum
-        result.loc[over] = max_weight
-        under = ~over
-        if under.any():
-            result.loc[under] = _normalize_weights(weights.loc[under]) * remaining
-    return result / result.sum()
-
 
 def _read_old_weights(path: Path) -> pd.DataFrame:
     if path.suffix.lower() == ".parquet":
@@ -67,7 +50,7 @@ def _benchmark_weights(frame: pd.DataFrame) -> pd.Series:
     if weight_col is None:
         return pd.Series(1.0 / len(frame), index=frame.index)
     weights = pd.to_numeric(frame[weight_col], errors="coerce").fillna(0.0).clip(lower=0.0)
-    return _normalize_weights(weights)
+    return normalize_long_only_weights(weights, allow_equal_fallback=True)
 
 
 def _tilted_group_targets(
@@ -99,22 +82,6 @@ def _tilted_group_targets(
     if total <= 0:
         return {}
     return (grouped["target"] / total).to_dict()
-
-
-def _group_audit(frame: pd.DataFrame, weights: np.ndarray, group_col: str, targets: dict[str, float], margin: float) -> dict[str, object]:
-    if not targets or group_col not in frame.columns:
-        return {"enabled": False}
-    actual = pd.Series(weights, index=frame.index).groupby(frame[group_col]).sum().to_dict()
-    rows = []
-    for group, target in targets.items():
-        value = float(actual.get(group, 0.0))
-        rows.append({"group": str(group), "target": float(target), "actual": value, "diff": value - float(target)})
-    max_abs_diff = max((abs(row["diff"]) for row in rows), default=0.0)
-    return {"enabled": True, "margin": margin, "max_abs_diff": max_abs_diff, "ok": max_abs_diff <= margin + 1e-6, "rows": rows}
-
-
-def _group_index(frame: pd.DataFrame, column: str, group: object) -> np.ndarray:
-    return np.flatnonzero(frame[column].astype("string").eq(str(group)).fillna(False).to_numpy(dtype=bool))
 
 
 def _constrained_weights(
@@ -154,12 +121,18 @@ def _constrained_weights(
     base_turnover = effective_turnover
 
     old = benchmark.copy()
+    external_old_weight = 0.0
     if old_portfolio is not None:
         old_frame = _read_old_weights(old_portfolio)
+        old_frame["old_weight"] = pd.to_numeric(
+            old_frame["old_weight"],
+            errors="coerce",
+        ).fillna(0.0).clip(lower=0.0)
+        if float(old_frame["old_weight"].sum()) > 0:
+            old_frame["old_weight"] /= float(old_frame["old_weight"].sum())
         old = selected[["Company SEDOL"]].merge(old_frame, on="Company SEDOL", how="left")["old_weight"]
         old = pd.to_numeric(old, errors="coerce").fillna(0.0)
-        if float(old.sum()) > 0:
-            old = old / float(old.sum())
+        external_old_weight = max(0.0, 1.0 - float(old.sum()))
 
     country_targets = _tilted_group_targets(
         selected,
@@ -176,124 +149,94 @@ def _constrained_weights(
         tilt_strength=sector_tilt_strength,
     )
 
+    attempts: list[dict[str, object]] = []
+    last_error: Exception | None = None
     active_penalty = 5.0 / risk_budget
-    score_values = score.to_numpy()
-    benchmark_values = benchmark.to_numpy()
-    old_values = old.to_numpy()
-    solver_backend = "optimizer_engine_cvxpy"
-    solver_status = None
-    objective_value = None
-    fallback_reason = None
-    constraint_relaxation = 1.0
-    cvxpy_attempts: list[dict[str, object]] = []
-    try:
-        import optimizer_engine
+    lower = np.full(n, float(min_weight))
+    upper = np.full(n, float(max_weight) if max_weight is not None else 1.0)
 
-        cp = optimizer_engine._require_cvxpy()
-        last_error: Exception | None = None
-        for relaxation in (1.0, 1.5, 2.25, 3.375, 5.0, 10.0):
-            active_limit = min(1.0, base_active_limit * relaxation)
-            effective_country_margin = min(1.0, base_country_margin * relaxation)
-            effective_sector_margin = min(1.0, base_sector_margin * relaxation)
-            effective_turnover = min(2.0, base_turnover * relaxation) if base_turnover is not None else None
-            w = cp.Variable(n)
-            constraints = [cp.sum(w) == 1, w >= min_weight]
-            if max_weight is not None:
-                constraints.append(w <= max_weight)
-            constraints.extend([w - benchmark_values <= active_limit, benchmark_values - w <= active_limit])
-            for group, target in country_targets.items():
-                idx = _group_index(selected, "country_model_region", group)
-                if len(idx):
-                    constraints.extend([cp.sum(w[idx]) >= max(0.0, target - effective_country_margin), cp.sum(w[idx]) <= min(1.0, target + effective_country_margin)])
-            for group, target in sector_targets.items():
-                idx = _group_index(selected, "sector_key", group)
-                if len(idx):
-                    constraints.extend([cp.sum(w[idx]) >= max(0.0, target - effective_sector_margin), cp.sum(w[idx]) <= min(1.0, target + effective_sector_margin)])
-            turnover_expr = cp.sum(cp.abs(w - old_values))
-            if effective_turnover is not None:
-                constraints.append(turnover_expr <= effective_turnover)
+    for relaxation in (1.0, 1.5, 2.25, 3.375, 5.0, 10.0):
+        active_limit = min(1.0, base_active_limit * relaxation)
+        effective_country_margin = min(1.0, base_country_margin * relaxation)
+        effective_sector_margin = min(1.0, base_sector_margin * relaxation)
+        effective_turnover = (
+            min(2.0, base_turnover * relaxation)
+            if base_turnover is not None
+            else None
+        )
+        constraints = []
+        if country_targets:
+            constraints.append(
+                GroupConstraint.around_targets(
+                    name="country",
+                    group_col="country_model_region",
+                    targets=country_targets,
+                    margin=effective_country_margin,
+                )
+            )
+        if sector_targets:
+            constraints.append(
+                GroupConstraint.around_targets(
+                    name="sector",
+                    group_col="sector_key",
+                    targets=sector_targets,
+                    margin=effective_sector_margin,
+                )
+            )
+        try:
+            result = run_optimizer(
+                selected,
+                id_col="Company SEDOL",
+                benchmark_weights=benchmark,
+                scores=score,
+                covariance=np.eye(n),
+                current_weights=old,
+                external_current_weight=external_old_weight,
+                lower_bounds=lower,
+                upper_bounds=upper,
+                group_constraints=constraints,
+                config=OptimizerConfig(
+                    objective=OptimizerObjective.BLENDED,
+                    score_weight=1.0,
+                    tracking_error_weight=0.0,
+                    turnover_weight=float(transaction_cost),
+                    active_weight_penalty=active_penalty,
+                    max_active_weight=active_limit,
+                    max_turnover=effective_turnover,
+                ),
+            )
+        except (RuntimeError, ValueError) as exc:
+            last_error = exc
+            attempts.append(
+                {
+                    "relaxation": relaxation,
+                    "status": "failed",
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+            continue
 
-            objective = cp.Maximize(score_values @ w - active_penalty * cp.sum_squares(w - benchmark_values) - transaction_cost * turnover_expr)
-            problem = cp.Problem(objective, constraints)
-            try:
-                optimizer_engine._solve_problem_with_available_mip_solver(problem, scip_options={}, verbose=False)
-            except Exception as exc:
-                last_error = exc
-                cvxpy_attempts.append({"relaxation": relaxation, "status": "solver_error", "error": f"{type(exc).__name__}: {exc}"})
-                continue
-            cvxpy_attempts.append({"relaxation": relaxation, "status": problem.status})
-            if problem.status in {"optimal", "optimal_inaccurate"}:
-                raw_weights = np.asarray(w.value).reshape(-1)
-                solver_status = problem.status
-                objective_value = float(problem.value) if problem.value is not None else None
-                constraint_relaxation = relaxation
-                break
-            last_error = RuntimeError(f"optimizer_engine constrained solve failed: {problem.status}")
-        else:
-            raise last_error or RuntimeError("optimizer_engine constrained solve failed")
-    except Exception as exc:
-        from scipy.optimize import minimize
+        attempts.append(
+            {
+                "relaxation": relaxation,
+                "status": result.status,
+                "solver": result.solver,
+            }
+        )
+        audit = {
+            **result.audit,
+            **result.metadata,
+            "constraint_relaxation": relaxation,
+            "attempts": attempts,
+            "risk_budget_multiplier": risk_budget,
+            "benchmark_active_limit": active_limit,
+            "max_turnover": effective_turnover,
+            "transaction_cost": transaction_cost,
+            "external_current_weight": external_old_weight,
+        }
+        return result.weights, audit
 
-        fallback_reason = f"{type(exc).__name__}: {exc}"
-        solver_backend = "scipy_slsqp_fallback"
-
-        def objective_fn(values: np.ndarray) -> float:
-            turnover_value = np.abs(values - old_values).sum()
-            return float(-(score_values @ values) + active_penalty * np.square(values - benchmark_values).sum() + transaction_cost * turnover_value)
-
-        constraints = [{"type": "eq", "fun": lambda values: float(values.sum() - 1.0)}]
-        for group, target in country_targets.items():
-            idx = _group_index(selected, "country_model_region", group)
-            if len(idx):
-                lower = max(0.0, target - effective_country_margin)
-                upper = min(1.0, target + effective_country_margin)
-                constraints.append({"type": "ineq", "fun": lambda values, idx=idx, lower=lower: float(values[idx].sum() - lower)})
-                constraints.append({"type": "ineq", "fun": lambda values, idx=idx, upper=upper: float(upper - values[idx].sum())})
-        for group, target in sector_targets.items():
-            idx = _group_index(selected, "sector_key", group)
-            if len(idx):
-                lower = max(0.0, target - effective_sector_margin)
-                upper = min(1.0, target + effective_sector_margin)
-                constraints.append({"type": "ineq", "fun": lambda values, idx=idx, lower=lower: float(values[idx].sum() - lower)})
-                constraints.append({"type": "ineq", "fun": lambda values, idx=idx, upper=upper: float(upper - values[idx].sum())})
-        if effective_turnover is not None:
-            constraints.append({"type": "ineq", "fun": lambda values: float(effective_turnover - np.abs(values - old_values).sum())})
-
-        upper_cap = max_weight if max_weight is not None else 1.0
-        lower = np.maximum(min_weight, benchmark_values - active_limit)
-        upper = np.minimum(upper_cap, benchmark_values + active_limit)
-        while lower.sum() > 1.0 or upper.sum() < 1.0 or bool((lower > upper).any()):
-            active_limit *= 1.5
-            lower = np.maximum(min_weight, benchmark_values - active_limit)
-            upper = np.minimum(upper_cap, benchmark_values + active_limit)
-        bounds = list(zip(lower, upper))
-        start = benchmark_values.copy()
-        result = minimize(objective_fn, start, method="SLSQP", bounds=bounds, constraints=constraints, options={"maxiter": 500, "ftol": 1e-9})
-        if not result.success:
-            raise RuntimeError(f"scipy constrained solve failed after optimizer_engine error ({fallback_reason}): {result.message}")
-        raw_weights = np.asarray(result.x).reshape(-1)
-        solver_status = "success"
-        objective_value = float(result.fun)
-
-    weights = pd.Series(raw_weights, index=selected.index).clip(lower=0.0)
-    weights = _normalize_weights(weights)
-    audit = {
-        "solver_backend": solver_backend,
-        "solver_status": solver_status,
-        "fallback_reason": fallback_reason,
-        "objective_value": objective_value,
-        "constraint_relaxation": constraint_relaxation,
-        "cvxpy_attempts": cvxpy_attempts,
-        "risk_budget_multiplier": risk_budget,
-        "benchmark_active_limit": active_limit,
-        "max_active_weight": float((weights - benchmark).abs().max()),
-        "country": _group_audit(selected, weights.to_numpy(), "country_model_region", country_targets, effective_country_margin),
-        "sector": _group_audit(selected, weights.to_numpy(), "sector_key", sector_targets, effective_sector_margin),
-        "turnover": float(turnover_metric(weights.to_numpy(), old.to_numpy())),
-        "max_turnover": effective_turnover,
-        "transaction_cost": transaction_cost,
-    }
-    return weights, audit
+    raise RuntimeError("constrained portfolio optimization failed") from last_error
 
 
 def optimize_portfolio(
@@ -328,12 +271,28 @@ def optimize_portfolio(
 
     if method == "equal_weight":
         raw = pd.Series(1.0, index=selected.index)
-        selected["target_weight"] = _apply_max_weight(_normalize_weights(raw), max_weight)
-        constraint_audit = {"method": method}
+        selected["target_weight"] = cap_and_redistribute_weights(raw, max_weight)
+        constraint_audit = {
+            "method": method,
+            "optimizer_id": OPTIMIZER_ID,
+            "optimizer_version": OPTIMIZER_VERSION,
+            "objective": method,
+            "solver": "closed_form",
+        }
     elif method == "score_weight":
         raw = selected["composite_score"]
-        selected["target_weight"] = _apply_max_weight(_normalize_weights(raw), max_weight)
-        constraint_audit = {"method": method}
+        selected["target_weight"] = cap_and_redistribute_weights(
+            raw,
+            max_weight,
+            allow_equal_fallback=True,
+        )
+        constraint_audit = {
+            "method": method,
+            "optimizer_id": OPTIMIZER_ID,
+            "optimizer_version": OPTIMIZER_VERSION,
+            "objective": method,
+            "solver": "closed_form",
+        }
     elif method == "constrained":
         selected["target_weight"], constraint_audit = _constrained_weights(
             selected,
@@ -352,6 +311,16 @@ def optimize_portfolio(
         raise ValueError(f"未知优化方法: {method}")
 
     selected["optimizer_method"] = method
+    selected["optimizer_id"] = constraint_audit.get("optimizer_id", OPTIMIZER_ID)
+    selected["optimizer_version"] = constraint_audit.get(
+        "optimizer_version",
+        OPTIMIZER_VERSION,
+    )
+    selected["optimizer_objective"] = constraint_audit.get("objective", method)
+    selected["optimizer_solver"] = constraint_audit.get(
+        "solver",
+        constraint_audit.get("solver_backend", "unknown"),
+    )
     selected["max_weight"] = max_weight
     selected["min_weight"] = min_weight
     selected["source_candidates"] = str(candidates_path)
@@ -396,6 +365,10 @@ def optimize_portfolio(
         "benchmark_weight",
         "active_weight",
         "optimizer_method",
+        "optimizer_id",
+        "optimizer_version",
+        "optimizer_objective",
+        "optimizer_solver",
         "max_weight",
         "min_weight",
         "source_candidates",

@@ -33,18 +33,10 @@ def _load_base_module() -> Any:
 
 base = _load_base_module()
 
-
-def _gate_reason(row: pd.Series) -> str:
-    reasons = []
-    if not bool(row["coverage_pass"]):
-        reasons.append("coverage")
-    if not bool(row["ratio_cagr_pass"]):
-        reasons.append("top_benchmark_ratio_cagr")
-    if not bool(row["top_worst_pass"]):
-        reasons.append("top_worst_ratio")
-    if not bool(row["robust_pass"]):
-        reasons.append("robust_score")
-    return ";".join(reasons)
+from backtest_code.research.executor import (  # noqa: E402
+    GateThresholds,
+    evaluate_official_top_worst_gate,
+)
 
 
 def build_raw_gate(
@@ -57,29 +49,48 @@ def build_raw_gate(
 ) -> pd.DataFrame:
     summary = pd.read_csv(raw_run_dir / "performance_summary.csv")
     diag = pd.read_csv(raw_run_dir / "metric_diagnostics.csv")
-    top = summary[
-        summary["status"].eq("success")
-        & summary["side"].eq("Top")
-        & summary["family"].astype("string").str.startswith("raw_", na=False)
-    ].copy()
-    gate = top.merge(
-        diag[["metric", "label", "note"]],
+    raw_metadata = summary[
+        summary["family"].astype("string").str.startswith("raw_", na=False)
+    ][["metric", "family", "role"]].drop_duplicates("metric", keep="last")
+    raw_metadata = raw_metadata.merge(
+        diag[
+            [
+                column
+                for column in ["metric", "label", "note"]
+                if column in diag.columns
+            ]
+        ],
         on="metric",
         how="left",
-        suffixes=("", "_diag"),
     )
-    gate["raw_family"] = gate["family"].astype("string").str.replace("raw_", "", regex=False)
-    gate["source_tag"] = np.where(
-        gate[["label", "note", "metric"]].astype("string").agg(" ".join, axis=1).str.contains("CIQ", case=False, na=False),
+    raw_metadata["raw_family"] = raw_metadata["family"].astype(
+        "string"
+    ).str.replace("raw_", "", regex=False)
+    raw_metadata["source_tag"] = np.where(
+        raw_metadata[["label", "note", "metric"]]
+        .astype("string")
+        .agg(" ".join, axis=1)
+        .str.contains("CIQ", case=False, na=False),
         "CIQ",
         "screen/database",
+    )
+    gate = evaluate_official_top_worst_gate(
+        summary,
+        diag,
+        thresholds=GateThresholds(
+            min_coverage=min_coverage,
+            min_ratio_cagr=min_ratio_cagr,
+            min_top_worst_ratio=min_top_worst_return,
+            min_robust_score=min_robust_score,
+        ),
+        metadata=raw_metadata,
+        metrics=raw_metadata["metric"].astype(str),
     )
     gate["coverage_pass"] = pd.to_numeric(gate["coverage"], errors="coerce").ge(min_coverage)
     gate["ratio_cagr_pass"] = pd.to_numeric(gate["ratio_cagr"], errors="coerce").gt(min_ratio_cagr)
     gate["top_worst_pass"] = pd.to_numeric(gate["top_worst_ratio_return"], errors="coerce").gt(min_top_worst_return)
     gate["robust_pass"] = pd.to_numeric(gate["robust_score"], errors="coerce").gt(min_robust_score)
-    gate["pass_gate"] = gate[["coverage_pass", "ratio_cagr_pass", "top_worst_pass", "robust_pass"]].all(axis=1)
-    gate["failure_reasons"] = gate.apply(_gate_reason, axis=1)
+    gate["failure_reasons"] = gate["fail_reasons"]
     columns = [
         "metric",
         "label",
@@ -94,6 +105,8 @@ def build_raw_gate(
         "ratio_cagr_pass",
         "top_worst_pass",
         "robust_pass",
+        "official_top_complete",
+        "official_worst_complete",
         "pass_gate",
         "failure_reasons",
         "note",

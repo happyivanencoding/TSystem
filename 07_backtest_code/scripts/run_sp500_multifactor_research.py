@@ -22,7 +22,11 @@ for path in (SCRIPT_DIR, TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src"):
         sys.path.insert(0, str(path))
 
 import run_eu_small_multifactor_research as base  # noqa: E402
-from tp_core.general_backtest import engine_metadata  # noqa: E402
+from backtest_code.research.executor import (  # noqa: E402
+    GateThresholds,
+    evaluate_official_top_worst_gate,
+)
+from tp_core.backtesting import nav_engine_metadata  # noqa: E402
 
 
 BENCHMARK = "SP500"
@@ -204,46 +208,43 @@ def apply_validated_family_components(
     output_dir: Path,
 ) -> list[base.ModelSpec]:
     validation = pd.read_csv(validation_summary_path)
-    top = validation[(validation["status"].eq("success")) & (validation["side"].eq("Top"))].copy()
-    diag = metric_diag.set_index("metric").to_dict(orient="index") if not metric_diag.empty else {}
     passing: dict[str, list[base.ModelSpec]] = {family: [] for family in FAMILIES}
-    rows = []
 
     raw_specs = raw_metric_specs(metric_specs)
     raw_by_column = {spec.column: spec for spec in raw_specs}
-    for _, row in top.iterrows():
-        metric = str(row.get("metric", ""))
-        spec = raw_by_column.get(metric)
-        if spec is None:
-            continue
-        family = spec.family.removeprefix("raw_")
-        coverage = float(diag.get(metric, {}).get("coverage", float("nan")))
-        robust_score = float(row.get("robust_score", float("nan")))
-        ratio_cagr = float(row.get("ratio_cagr", float("nan")))
-        top_worst_ratio = float(row.get("top_worst_ratio_return", float("nan")))
-        passed = (
-            coverage >= min_coverage
-            and robust_score > min_robust_score
-            and ratio_cagr > min_ratio_cagr
-            and top_worst_ratio > min_top_worst_ratio
-        )
-        rows.append(
+    metadata = pd.DataFrame(
+        [
             {
-                "metric": metric,
-                "family": family,
-                "coverage": coverage,
-                "ratio_cagr": ratio_cagr,
-                "top_worst_ratio_return": top_worst_ratio,
-                "robust_score": robust_score,
-                "passed": passed,
+                "metric": spec.column,
+                "family": spec.family.removeprefix("raw_"),
                 "label": spec.label,
                 "note": spec.note,
             }
-        )
-        if passed:
-            passing.setdefault(family, []).append(spec)
+            for spec in raw_specs
+        ]
+    )
+    gate = evaluate_official_top_worst_gate(
+        validation,
+        metric_diag,
+        thresholds=GateThresholds(
+            min_coverage=min_coverage,
+            min_ratio_cagr=min_ratio_cagr,
+            min_top_worst_ratio=min_top_worst_ratio,
+            min_robust_score=min_robust_score,
+        ),
+        metadata=metadata,
+        metrics=raw_by_column,
+    )
+    gate["passed"] = gate["pass_gate"] if not gate.empty else False
+    for _, row in gate[gate["passed"].astype(bool)].iterrows():
+        spec = raw_by_column.get(str(row["metric"]))
+        if spec is not None:
+            passing.setdefault(str(row["family"]), []).append(spec)
 
-    pd.DataFrame(rows).sort_values(["family", "passed", "robust_score"], ascending=[True, False, False]).to_csv(
+    gate.sort_values(
+        ["family", "passed", "robust_score"],
+        ascending=[True, False, False],
+    ).to_csv(
         output_dir / "raw_validation_gate.csv",
         index=False,
     )
@@ -477,7 +478,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         args=args,
     )
     manifest = {
-        **engine_metadata(
+        **nav_engine_metadata(
             strictly_after_rebalance=True,
             apply_weights_at_close=True,
         ),

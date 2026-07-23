@@ -58,7 +58,7 @@ synergy 研究按范围写：
 
 ## Synergy Rules
 
-- Do not write a synergy claim unless there is individual raw evidence plus pair, subset, or leave-one-out official evidence.
+- Do not write a synergy claim unless there is individual raw evidence plus pair, subset, bucket leave-one-out, or individual-variable leave-one-out official evidence.
 - Compare a pair/subset against the stronger leg, not only against benchmark.
 - Classify results as `synergistic`, `additive`, `redundant`, or `harmful`.
 - Keep rejected pairs and leave-one-out failures in the report.
@@ -69,6 +69,13 @@ synergy 研究按范围写：
 - Keep Top, Worst, Benchmark, and Top/Worst ratio together.
 - Long runners must support `--metrics`, `--max-runs`, and `--resume`.
 - Batch runners must flush incrementally to CSV after each run.
+- Use `backtest_code.research.executor` for gate evaluation, same-security
+  relative construction, pair/subset/LOO candidate construction, completed-run
+  dedupe, gap detection, shard allocation, and unique-wave paths. Market
+  scripts may supply universe metadata and scoring callbacks, but must not
+  reimplement these semantics.
+- A requested metric with no result rows remains in the gate and fails both
+  official sides; missing work must never disappear from the gate table.
 - For large matrices, prefer process-level sharding, not Python threads.
 - Each worker must write an independent shard CSV and official run root.
 - Parent process must merge and dedupe shard results, then regenerate summary, gate, plots, report, and manifest.
@@ -86,12 +93,26 @@ synergy 研究按范围写：
 
 - Use `backtest_code.runner.input_loader.load_pruned_backtest_inputs` instead of market-local Parquet pruning code. Restrict returns to historical positive-weight benchmark members while retaining both securities in configured dual-listing pairs.
 - `BacktestService` must plan a single run from its metric, benchmark, and start date. For a batch, it must load the metric/benchmark union once from the earliest requested start date.
-- Treat shared DataFrames as immutable. `PtfBuilder`, `PortfolioBuilder`, and `GeneralBacktestEngine` must not mutate caller-owned inputs.
+- Treat shared DataFrames as immutable. `OfficialPortfolioBacktest`,
+  `SecurityListConstructor`, and `SecurityNavEngine` must not mutate
+  caller-owned inputs.
 - Build one monthly date-position index per filtered screen. Do not rescan the full screen with a date mask inside every monthly iteration.
 - Direct official runners for every market must reuse the service's prepared screen, prepared returns, monthly-base cache, and benchmark cache.
 - Do not enable compact float dtypes, reordered compounding, approximate ranks, or incomplete cache keys by default. Each requires exact Top/Worst artifact evidence before promotion.
-- Use only `GeneralBacktestEngine` / `backtest_weight_table()` for security-level NAV. `PtfBuilder` constructs standard weights and artifacts; `OptimizerBacktestAdapter` converts optimizer output. Neither may implement compounding.
-- Use `backtest_return_series()` for already-aggregated sector, regime, or news returns.
+- Import the public workflow only from `tp_core.backtesting`. Use
+  `SecurityNavEngine` / `calculate_security_nav()` for security-level NAV.
+  `SecurityListConstructor` constructs security lists,
+  `OfficialPortfolioBacktest` orchestrates official artifacts, and
+  `OptimizerBacktestAdapter` only converts optimizer output. None may implement
+  separate compounding semantics.
+- Use `calculate_return_series_nav()` for already-aggregated sector, regime, or
+  news returns.
+- Use `tp_core.portfolio_weights` as the sole implementation of long-only
+  normalization, hard-cap redistribution, weighting transforms, and
+  sector-target matching. A cap followed by naive renormalization is forbidden.
+- Use only `optimizer.optimize_portfolio()` for portfolio optimization. Every
+  optimizer artifact must include `optimizer_id`, `optimizer_version`,
+  `optimizer_objective`, solver, objective policy, and constraint policy.
 - Every official manifest must record `engine_id`, `engine_version`, and the date execution policy.
 - Legacy engine modules and class names must not exist in active code or public exports. Any old import found by repository scan is a release blocker.
 

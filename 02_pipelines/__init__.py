@@ -17,6 +17,6 @@ for _path in [
     if _path.exists() and _path_text not in sys.path:
         sys.path.insert(0, _path_text)
 
-for _package in ["tp_core", "optimiser", "presentation_layer"]:
+for _package in ["tp_core", "optimizer", "presentation_layer"]:
     if _package not in sys.modules:
         importlib.import_module(_package)

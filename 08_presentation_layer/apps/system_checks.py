@@ -163,7 +163,7 @@ def project_checks() -> list[ProjectCheck]:
             entry("06_optimiser").project_id,
             entry("06_optimiser").project_id,
             entry("06_optimiser").role,
-            [py, "-m", "pytest", "06_optimiser/test_optimizer_engine.py", "-q"],
+            [py, "-m", "pytest", "06_optimiser/test_optimizer.py", "-q"],
             timeout_seconds=180,
             data_kind="optimizer code",
         ),

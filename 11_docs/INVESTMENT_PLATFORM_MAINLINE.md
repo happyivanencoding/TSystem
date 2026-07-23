@@ -79,10 +79,10 @@
 
 | 目录 | 问题 | 建议 |
 | --- | --- | --- |
-| `06_optimiser/` | Python 版组合优化主线 | 已切到 download_09 标准 `optimizer_engine.py`，旧优化器已隔离 |
+| `06_optimiser/` | Python 版组合优化主线 | 唯一入口为 `optimizer.py::optimize_portfolio()`，旧入口已删除 |
 | `99_archive/project_cleanup_20260707/99_optimiseur_legacy/` | notebook + xlsm 版本 | 已归档，不作为生产 |
 | `factsetProd第一版/func_optim_MAI.py` 与 `回测第一版/func_optim_MAI.py` | 内容完全重复 | 归档，不再维护两份 |
-| `06_optimiser/sec_list_generation.py` 与 `回测第一版/sec_list_generation.py` | 内容完全重复 | 旧 `sec_list_generation.py` 已隔离；生产优化器入口为 `06_optimiser/optimizer_engine.py` |
+| `06_optimiser/sec_list_generation.py` 与 `回测第一版/sec_list_generation.py` | 内容完全重复 | 旧文件已归档；生产优化器入口为 `06_optimiser/optimizer.py` |
 
 ### 3.5 展示和报告重复
 
@@ -187,7 +187,10 @@ flowchart LR
 
 ### 5.5 组合优化层
 
-主责已经收敛到 `06_optimiser/optimizer_engine.py`；旧 Excel/notebook 优化器已冻结到 `99_archive/frozen_20260629/99_optimiseur_legacy/`，旧 Python 优化器文件已隔离到 `06_optimiser/_quarantine_20260701/legacy_optimizer/`。
+主责已经收敛到 `06_optimiser/optimizer.py::optimize_portfolio()`；旧
+Excel/notebook 优化器保留在 archive 作为历史证据，活动 Python 入口、
+package shim 和重复求解语义已删除。详细契约见
+[`PORTFOLIO_OPTIMIZER.md`](PORTFOLIO_OPTIMIZER.md)。
 
 目标能力：
 
@@ -197,7 +200,7 @@ flowchart LR
 
 ### 5.6 回测与归因层
 
-主责目录：`07_backtest_code/` + `tp_core.backtesting` + `tp_core.general_backtest`。统一回测引擎细节见 [`BACKTEST_ENGINE.md`](BACKTEST_ENGINE.md)。
+主责目录：`07_backtest_code/` + `tp_core.backtesting`。统一回测引擎细节见 [`BACKTEST_ENGINE.md`](BACKTEST_ENGINE.md)。
 
 目标能力：
 
@@ -243,7 +246,8 @@ flowchart LR
 1. `03_ml_enhanced` 已固定 `python -m 03_ml_enhanced.cli export-signals`，输出 `04_signals/ml_signals.parquet`；缺失月份 Score ML 可通过 `python -m 02_pipelines.refresh_ml` 显式生产，notebook 训练/监控研究流程后续再拆。
 2. `regime_model` 已固定 `export_risk_budget.py`，输出 `04_signals/regime_risk_budget.parquet`。
 3. `03_technical_analysis` 已固定 `export_technical_signals.py`，输出 `04_signals/technical_signals.parquet`；主回测逻辑收敛到 `backtest_code`。
-4. `06_optimiser/optimizer_engine.py` 已作为唯一 Python 优化器标准；`99_optimiseur_legacy/` 的 notebook/xlsm 与旧 Python 优化器文件只留历史说明。
+4. `06_optimiser/optimizer.py::optimize_portfolio()` 是唯一 Python
+   优化器标准；archive 中 notebook/xlsm 只留历史说明。
 5. 已建立 `08_presentation_layer/` 共享数据 repository，并承载 `web_app_des_companies`、`Company_Analysis`、`dashboard_analysis` 的内部实现。
 
 ### P2：形成一键生产链路
@@ -283,7 +287,7 @@ python -m 02_pipelines.run_all --input-month YYYYMM --as-of YYYY-MM-DD
 | 中 | `ML/`、`ML第一版/` | 已冻结到 `99_archive/frozen_20260629/` |
 | 中 | `回测第一版/`、`factsetProd第一版/` | 已冻结到 `99_archive/frozen_20260629/` |
 | 已处理 | `08_company_analysis/`、`08_dashboard_analysis/`、`08_web_app_des_companies/` 根目录并行展示项目 | 已迁入 `08_presentation_layer/legacy_apps/`，根目录不再保留三套展示/报告入口 |
-| 已处理 | `06_optimiser/sec_list_generation.py` 与旧回测重复文件 | 旧文件已隔离；现役入口为 `06_optimiser/optimizer_engine.py` |
+| 已处理 | `06_optimiser/sec_list_generation.py` 与旧回测重复文件 | 旧文件已归档；现役入口为 `06_optimiser/optimizer.py` |
 | 已处理 | `12_small_cap/`、`99_optimiseur_legacy/`、`99_backtest_gui_legacy/` | 已归档到 `99_archive/project_cleanup_20260707/` |
 | 已完成 | `99_archive/frozen_20260629/cyc/` | 早期周期研究已冻结；有价值逻辑后续并入 `03_regime_model` |
 

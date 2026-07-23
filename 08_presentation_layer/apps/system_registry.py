@@ -154,7 +154,7 @@ PROJECT_REGISTRY: tuple[ProjectRegistryEntry, ...] = (
         root_path=TP_ROOT / "06_optimiser",
         inputs=("latest_candidates",),
         outputs=("optimizer result in memory",),
-        commands=("python -m pytest 06_optimiser/test_optimizer_engine.py -q",),
+        commands=("python -m pytest 06_optimiser/test_optimizer.py -q",),
         smoke_test="optimizer unit tests",
         data_assets=(),
     ),

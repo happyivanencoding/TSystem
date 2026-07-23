@@ -12,7 +12,7 @@ import pandas as pd
 import yaml
 
 from backtest_code.config.settings import AppSettings
-from tp_core.general_backtest import engine_metadata
+from tp_core.security_nav_engine import nav_engine_metadata
 
 
 def get_project_root() -> Path:
@@ -80,7 +80,7 @@ def save_manifest(run_dir: Path, payload: dict[str, Any]) -> Path:
 
     target = run_dir / "manifest.yaml"
     manifest_payload = {
-        **engine_metadata(
+        **nav_engine_metadata(
             strictly_after_rebalance=True,
             apply_weights_at_close=True,
         ),
@@ -196,4 +196,3 @@ def read_manifest(run_dir: Path) -> dict[str, Any]:
         return {}
     with manifest_path.open("r", encoding="utf-8") as handle:
         return yaml.safe_load(handle) or {}
-

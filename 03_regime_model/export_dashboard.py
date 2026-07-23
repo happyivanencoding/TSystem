@@ -12,7 +12,7 @@ from sklearn.preprocessing import StandardScaler
 import config
 import model
 import vol_compare
-from tp_core.general_backtest import backtest_return_series
+from tp_core.backtesting import calculate_return_series_nav
 
 # 状态颜色(压力升序：绿->红)
 STATE_COLORS = ["#43a047", "#c0ca33", "#fb8c00", "#e53935"]
@@ -75,7 +75,7 @@ def build_region(region: str) -> dict:
     equity_w = float(np.clip(w_vol * smult, 0.0, 1.0))
 
     # 时间序列(对齐到特征索引)
-    cum = backtest_return_series(
+    cum = calculate_return_series_nav(
         fwd_ret.reindex(feats.index).shift(1).fillna(0),
         initial_nav=1.0,
         periods_per_year=12,

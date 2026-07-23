@@ -7,7 +7,7 @@ The functions here keep the research workflow small and explicit:
 * build composite factor scores from level, percentage-change and difference
   components;
 * optionally run quick top-vs-bottom factor backtests with the active
-  PtfBuilder wrapper.
+  OfficialPortfolioBacktest wrapper.
 """
 
 from __future__ import annotations
@@ -213,7 +213,7 @@ def run_growth_factor_pipeline(
     return out
 
 
-def _build_factor_ptf_builders(
+def _build_factor_portfolio_backtests(
     screen: pd.DataFrame,
     returns: pd.DataFrame,
     bench: str,
@@ -221,11 +221,11 @@ def _build_factor_ptf_builders(
     list_noire_path: str | None,
     percentile: float,
 ):
-    from tp_core.backtesting import PtfBuilder
+    from tp_core.backtesting import OfficialPortfolioBacktest
 
     monthly_base_cache: dict = {}
     benchmark_cache: dict = {}
-    builder_top = PtfBuilder(
+    builder_top = OfficialPortfolioBacktest(
         screen,
         returns,
         bench=bench,
@@ -239,7 +239,7 @@ def _build_factor_ptf_builders(
         monthly_base_cache=monthly_base_cache,
         benchmark_cache=benchmark_cache,
     )
-    builder_bottom = PtfBuilder(
+    builder_bottom = OfficialPortfolioBacktest(
         screen,
         returns,
         bench=bench,
@@ -275,16 +275,16 @@ def backtest_factors(
         output_base.mkdir(parents=True, exist_ok=True)
 
     for variable in test_variables:
-        builder_top, builder_bottom = _build_factor_ptf_builders(
+        builder_top, builder_bottom = _build_factor_portfolio_backtests(
             screen, returns, bench, variable, list_noire_path, percentile
         )
         for builder in [builder_top, builder_bottom]:
-            builder.generic_histo_seclist(pd.Timestamp(start_date), freq_rebal=1, fill_method="copy")
-            builder.backtest()
+            builder.build_historical_security_lists(pd.Timestamp(start_date), freq_rebal=1, fill_method="copy")
+            builder.run_portfolio_nav()
         save_path = None
         if output_base:
             save_path = str(output_base / f"{variable}_comparison.html")
-        fig = builder_top.backtest_plot_top_vs_bottom(
+        fig = builder_top.plot_top_vs_bottom(
             builder_bottom=builder_bottom,
             title=f"Factor Analysis: {variable}",
             save_path=save_path,
@@ -376,4 +376,3 @@ __all__ = [
     "test_unitary_factors",
     "transform_absolute_values",
 ]
-

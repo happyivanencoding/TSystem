@@ -45,7 +45,7 @@ from backtest_code.runner.artifacts import (  # noqa: E402
 )
 from backtest_code.runner.service import BacktestService  # noqa: E402
 from backtest_code.runner.validators import load_tabular_file, validate_settings  # noqa: E402
-from tp_core.general_backtest import engine_metadata  # noqa: E402
+from tp_core.backtesting import nav_engine_metadata  # noqa: E402
 
 
 DEFAULT_SCREEN = TP_ROOT / "00_screen" / "screen_aggregate.parquet"
@@ -593,7 +593,7 @@ def run_single_official_engine(
     log_buffer = io.StringIO()
     try:
         with redirect_stdout(log_buffer), redirect_stderr(log_buffer):
-            builder = engine_module.PtfBuilder(
+            builder = engine_module.OfficialPortfolioBacktest(
                 screen=prepared_screen,
                 returns=prepared_returns,
                 bench=settings.run.bench,
@@ -620,15 +620,15 @@ def run_single_official_engine(
                 monthly_base_cache=service._monthly_base_cache,  # noqa: SLF001
                 benchmark_cache=service._benchmark_cache,  # noqa: SLF001
             )
-            builder.generic_histo_seclist(
+            builder.build_historical_security_lists(
                 start_date=pd.to_datetime(settings.run.start_date),
                 freq_rebal=settings.run.freq_rebal,
                 screen_start_date=settings.run.screen_start_date,
                 fill_method=settings.run.fill_method,
             )
-            builder.backtest(max_weight=settings.run.max_weight, sector_neutral=settings.run.sector_neutral)
-            builder.backtest_get_bench_perf(prepared_screen, builder.start_date, settings.run.bench)
-            builder.backtest_plot_ptf_bench(title=run_label, save_path=str(artifacts["plot"]), show_plot=False)
+            builder.run_portfolio_nav(max_weight=settings.run.max_weight, sector_neutral=settings.run.sector_neutral)
+            builder.run_benchmark_nav(prepared_screen, builder.start_date, settings.run.bench)
+            builder.plot_portfolio_vs_benchmark(title=run_label, save_path=str(artifacts["plot"]), show_plot=False)
 
         save_dataframe(builder.sec_list_historical, artifacts["sec_list"])
         save_dataframe(builder.list_exclusion_histo, artifacts["exclusions"])
@@ -1071,7 +1071,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         args=args,
     )
     manifest = {
-        **engine_metadata(
+        **nav_engine_metadata(
             strictly_after_rebalance=True,
             apply_weights_at_close=True,
         ),

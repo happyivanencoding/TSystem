@@ -20,7 +20,7 @@
 | 测试输出不污染根目录 | 已补齐 | `test_output/` 和 `06_optimiser/test_output/` 已归档到 `99_archive/test_outputs_20260630/`；pytest 优化器测试改用临时目录。 |
 | returns 极端收益治理 | 部分达成 | `tp-returns-audit` 已固定输出 `00_screen/qa/returns_anomaly_governance/` 下的摘要、完整异常明细和人工复核模板；尚未自动清洗或建立人工确认后的修正/白名单文件。 |
 | notebook 合并和执行验收 | 部分达成 | `monthly_prod`、技术分析 3 个 notebook、公司分析模板、`Monitoring.ipynb` 已逐 cell 执行通过；`Pipeline.ipynb` 用 `tp-prod` kernel 跑满 2 小时后超时，已记录失败 manifest，需拆成区域/阶段 CLI 后再作为生产验收。 |
-| `tp_core` 共享包抽取 | 部分达成 | 已新增展示层纯函数、Markdown formatter、回测兼容入口；优化器已切到 download_09 标准 `06_optimiser/optimizer_engine.py`。ML 训练/预测入口和展示应用仍需继续收敛。 |
+| `tp_core` 共享包抽取 | 部分达成 | 回测公开面已收敛到 `tp_core.backtesting`，优化器已收敛到 `06_optimiser/optimizer.py::optimize_portfolio()`。ML 训练/预测入口和展示应用仍需继续收敛。 |
 | 展示/报告层合并 | 已达成 | `08_presentation_layer` 已成为统一 app/report 入口；Dash 公司展示、公司分析 FastAPI、组合 dashboard/PDF 的实现已迁入 `08_presentation_layer/legacy_apps/`，根目录不再保留三套并行展示项目。 |
 
 ## 编号主线视图
@@ -78,7 +78,7 @@
 
 | 项目 | 角色 | 文档入口 | 数据依赖 | 状态 |
 | --- | --- | --- | --- | --- |
-| `07_backtest_code/` | 传统代码版回测主线：PtfBuilder、YAML 配置、批量运行、产物保存；通用权重表核心见 `tp_core.general_backtest` | [`../07_backtest_code/README.md`](../07_backtest_code/README.md)、[`BACKTEST_ENGINE.md`](BACKTEST_ENGINE.md) | canonical screen/returns | 活跃主线 |
+| `07_backtest_code/` | official 回测主线：`SecurityListConstructor`、`OfficialPortfolioBacktest`、YAML 配置、批量运行和产物保存；公开 API 见 `tp_core.backtesting` | [`../07_backtest_code/README.md`](../07_backtest_code/README.md)、[`BACKTEST_ENGINE.md`](BACKTEST_ENGINE.md) | canonical screen/returns | 活跃主线 |
 | `99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/` | 原 Streamlit/FastAPI 回测平台 | [`../99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/README.md`](../99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/README.md) | 已归档；当前主线为 `07_backtest_code/` |
 | `03_regime_model/` | US/EU bottom-up regime 识别和风险仪表盘 | [`../03_regime_model/README.md`](../03_regime_model/README.md) | canonical screen/returns | 活跃研究 |
 | `08_presentation_layer/legacy_apps/web_app_des_companies/` | Dash 公司与指数成分展示应用实现目录 | [`../08_presentation_layer/legacy_apps/web_app_des_companies/README.md`](../08_presentation_layer/legacy_apps/web_app_des_companies/README.md) | 通过 `presentation_layer` 读取 canonical screen | 已并入展示/报告层 |

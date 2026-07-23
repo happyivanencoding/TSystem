@@ -48,45 +48,46 @@ python C:\GoogleDrive\TP\07_backtest_code\run_backtest.py run `
 - ESG pivot threshold：`score_pivot_esg` 可以直接给数值阈值，也可以给 pivot 文件中的 `sec_id` 文本键，并通过 `score_pivot_esg_path` 解析最新 pivot 文件。
 - top/bottom/benchmark 对比图：提供 Top、Bottom、Benchmark 三条净值线，以及 `Top/Benchmark`、`Bottom/Benchmark`、`Top/Bottom` ratio。
 
-统一回测核心说明见 [`../11_docs/BACKTEST_ENGINE.md`](../11_docs/BACKTEST_ENGINE.md)。新项目如果已经有目标权重表，只调用 `tp_core.general_backtest.backtest_weight_table()` 或 `GeneralBacktestEngine.run_weights()`。`PtfBuilder` 只负责组合构造和 official artifacts。
+统一回测核心说明见
+[`../11_docs/BACKTEST_ENGINE.md`](../11_docs/BACKTEST_ENGINE.md)。新项目如果
+已经有目标权重表，只调用
+`tp_core.backtesting.calculate_security_nav()` 或
+`SecurityNavEngine.run_weights()`。
 
 ## 两种 sec list 入口
 
 当前保留两条兼容路径：
 
-1. 普通 sec list：调用 `PtfBuilder.sec_list_spot()`。这条路径不调用优化器，`Weight` 由 `ponderation` 决定，例如 `Equalweight`、`Capweight` 或已有规则。
-2. 优化器 sec list：调用 `PtfBuilder.sec_list_spot_optim()`。这条路径会先生成候选池和约束输入，再调用 `06_optimiser/optimizer_engine.py`，用优化器输出的 `Wopt` 生成单独的优化版 `Weight`。
+1. 普通证券列表：调用
+   `OfficialPortfolioBacktest.build_monthly_security_list()`；权重基数由
+   `ponderation` 决定。
+2. 优化证券列表：调用
+   `OfficialPortfolioBacktest.build_optimized_monthly_security_list()`；候选
+   输入只调用 `optimizer.optimize_portfolio()`，产出 `target_weight`。
 
 两条路径的结果分开保存：普通结果在 `sec_list_monthly`，优化版结果在 `sec_list_optimized_monthly`，优化器原始结果在 `optimizer_result_monthly`。普通 sec list 不会被优化器权重覆盖。
 
 最小示例：
 
 ```python
-from tp_core.backtesting import PtfBuilder
+from tp_core.backtesting import OfficialPortfolioBacktest
 
-builder = PtfBuilder(
+workflow = OfficialPortfolioBacktest(
     screen=screen,
     returns=returns,
     bench="STOXX EUROPE 600",
     metrics="EPS Growth FY1 CIQ",
     ponderation="Equalweight",
     optimizer_config={
-        "current_params": {
-            "margin_title": 0.005,
-            "margin_country": 0.03,
-            "margin_sector": 0.02,
-            "nb_max_titres": 120,
-            "nb_min_titres": 20,
-            "max_turnover": 0.30,
-            "min_score_target": 0.0,
-            "te_max": 0.03,
-        }
+        "objective": "min_tracking_error",
+        "max_tracking_error": 0.03,
+        "max_turnover": 0.30,
     },
 )
 
-normal_sec_list, exclusions = builder.sec_list_spot()
-optimized_sec_list = builder.sec_list_spot_optim(init=True, drift=False)
-optimized_perf = builder.backtest_optimized_sec_list()
+normal_sec_list, exclusions = workflow.build_monthly_security_list()
+optimized_sec_list = workflow.build_optimized_monthly_security_list(drift=False)
+optimized_perf = workflow.run_optimizer_nav()
 ```
 
 注意：优化器真实求解依赖 `cvxpy` 和 MIP solver；如果只是生成普通 sec list，不需要这些依赖。
@@ -100,11 +101,11 @@ optimized_perf = builder.backtest_optimized_sec_list()
 
 | 路径 | 说明 |
 | --- | --- |
-| `core/ptf_builder.py` | 组合构造 facade；通过 `tp_core.backtesting.PtfBuilder` 导入 |
-| `core/portfolio_builder.py` | 传统选股、过滤、组合构建逻辑，仍由 `PtfBuilder` 使用 |
+| `core/official_portfolio_backtest.py` | official 权重、benchmark、NAV 和 artifacts 编排 |
+| `core/security_list_constructor.py` | 因子选股、过滤和证券列表 |
 | `core/weight_table_adapter.py` | 将 security list 和 benchmark 转为标准权重表 |
 | `core/optimizer_backtest_adapter.py` | 将优化器结果转为标准权重；不计算第二套 NAV |
-| `core/esg_pivot.py` | ESG pivot 文件定位和阈值解析；PortfolioBuilder 只接收解析后的阈值 |
+| `core/esg_pivot.py` | ESG pivot 文件定位和阈值解析 |
 | `utils/` | 绘图、常量、数据工具；旧 `utils/config.py` 已隔离 |
 | `configs/` | YAML profile；`default.yaml` 是默认代码运行配置 |
 | `src/backtest_code/` | CLI、配置加载、校验、runner 和产物保存 |
@@ -119,8 +120,11 @@ optimized_perf = builder.backtest_optimized_sec_list()
 
 ## 功能拆分规则
 
-- `download_09_optimizer_reference.py` 的优化器逻辑不得直接并入 `PortfolioBuilder`。它应迁入 `06_optimiser/` 或后续 `tp_core.optimization`，并以候选名单、约束配置和目标权重表作为输入输出。
+- 市场脚本和 `SecurityListConstructor` 不得调用优化器内部函数；唯一入口
+  是 `optimizer.optimize_portfolio()`。
 - `download_10_factor_pipeline_reference.py` 的 factor pipeline 不应放进回测引擎。它应迁入信号/模型层，输出统一 signal schema 或标准目标权重表。
 - `download_08_legacy_ptfbuilder.py` 只作为旧 monolithic 参考；若某段行为仍有价值，必须先拆成小函数、补测试，再接入主线。
-- `download_11_latest_ptfbuilder_reference.py` 只作历史参考；现役入口是 `tp_core.backtesting.PtfBuilder` + `src/backtest_code/runner`，不得新增第二套 PtfBuilder 或 NAV 内核。
+- 历史 builder 下载只作参考；现役入口是
+  `tp_core.backtesting.OfficialPortfolioBacktest` +
+  `src/backtest_code/runner`，不得新增第二套 workflow 或 NAV 内核。
 

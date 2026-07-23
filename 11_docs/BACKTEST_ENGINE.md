@@ -5,14 +5,20 @@
 
 ## 1. 唯一入口
 
-所有新回测必须从 `tp_core.backtesting` 或 `tp_core.general_backtest` 导入：
+所有新回测必须从 `tp_core.backtesting` 导入：
 
 | 职责 | 唯一对象 |
 | --- | --- |
-| 标准权重表证券级回测 | `GeneralBacktestEngine` / `backtest_weight_table()` |
-| 选股、标准权重与 official artifacts | `PtfBuilder` |
+| 精确漂移与证券级 NAV | `SecurityNavEngine` / `calculate_security_nav()` |
+| 因子选股与证券列表 | `SecurityListConstructor` |
+| 标准权重、benchmark 与 official artifacts | `OfficialPortfolioBacktest` |
 | 优化器输出转标准权重 | `OptimizerBacktestAdapter` |
-| sector/regime/news 聚合收益 | `backtest_return_series()` |
+| sector/regime/news 聚合收益 | `calculate_return_series_nav()` |
+| 权重归一、硬封顶、行业目标 | `tp_core.portfolio_weights` |
+
+`tp_core.backtesting` 对 `07_backtest_code` 的应用级对象使用惰性加载。
+仅导入 NAV 类型或聚合收益 helper 时不会提前加载选股、绘图或 optimizer
+依赖，避免不同项目中的同名 `utils` 模块污染公共 API。
 
 活动目录不再提供：
 
@@ -43,12 +49,12 @@ returns 输入为：
 - values：日简单收益率。
 
 ```python
-from tp_core.backtesting import BacktestSchema, GeneralBacktestEngine
+from tp_core.backtesting import SecurityNavEngine, TargetWeightSchema
 
-engine = GeneralBacktestEngine(returns)
+engine = SecurityNavEngine(returns)
 result = engine.run_weights(
     weights,
-    schema=BacktestSchema(
+    schema=TargetWeightSchema(
         date_col="Date",
         id_col="Company SEDOL",
         weight_col="Portfolio weight",
@@ -56,7 +62,7 @@ result = engine.run_weights(
 )
 ```
 
-`GeneralBacktestResult` 包含 `nav`、`daily_returns`、
+`SecurityNavResult` 包含 `nav`、`daily_returns`、
 `rebalance_weights`、`execution_weights`、`turnover`、`metrics` 和
 `manifest`。
 
@@ -76,9 +82,9 @@ official Top/Worst 默认口径：
 聚合后的 sector/regime/news 收益不得伪装成证券权重表：
 
 ```python
-from tp_core.backtesting import backtest_return_series
+from tp_core.backtesting import calculate_return_series_nav
 
-result = backtest_return_series(
+result = calculate_return_series_nav(
     monthly_returns,
     initial_nav=1.0,
     periods_per_year=12,
@@ -107,8 +113,8 @@ result = backtest_return_series(
 
 证券级内核版本：
 
-- `engine_id = tp.general_backtest`
-- `engine_version = 2.0.0`
+- `engine_id = tp.security_nav`
+- `engine_version = 3.0.0`
 
 每个 official run 的 `manifest.yaml` 必须写入：
 
@@ -145,10 +151,16 @@ benchmark NAV；只比较 CAGR、Sharpe 或曲线外观不构成发布证据。
 
 ## 7. 模块边界
 
-- `PtfBuilder` 可以选股、过滤、生成标准权重、调用唯一内核并保存产物，
-  但不能实现另一套收益复利。
-- `OptimizerBacktestAdapter` 只把 `Wopt` 转成标准权重并调用唯一内核。
-- 技术分析和 low-vol 脚本必须输出标准权重表。
-- sector/regime/news 只在已有聚合收益时调用 `backtest_return_series()`。
+- `SecurityListConstructor` 只负责因子选股、过滤和证券列表。
+- `OfficialPortfolioBacktest` 负责把证券列表转换成标准权重、运行
+  benchmark/portfolio NAV 并保存 official artifacts，但不实现复利。
+- `OptimizerBacktestAdapter` 只把 `target_weight` 转成标准权重并委托
+  `SecurityNavEngine`。
+- 权重归一、硬封顶与行业中性必须调用 `tp_core.portfolio_weights`。
+  行业中性后的单股封顶必须保持行业目标总权重。
+- 技术分析和 low-vol 脚本必须输出标准权重表。两者均须用公共权重层
+  完成归一、行业目标匹配与硬封顶，禁止 `clip(max_weight)` 后再整体归一。
+- sector/regime/news 只在已有聚合收益时调用
+  `calculate_return_series_nav()`。
 - 市场脚本不得重新实现本地 `nav_from_weights`、动态加载旧
   `BacktestEngine.py`，或恢复任何已归档入口。

@@ -1,62 +1,46 @@
-# optimiser
+# optimizer
 
 ## 定位
 
-`06_optimiser/` 是当前唯一 Python 组合优化器主线。现役标准已经切换为从 `download_09_optimizer_reference.py` 迁入的 `optimizer_engine.py`，用于把候选证券名单、Score ML、benchmark 权重、旧组合漂移权重、上下限、行业/地区目标和协方差矩阵转成优化后的目标权重。
+`06_optimiser/` 是 TP 唯一 Python 组合优化器。公开入口只有：
 
-旧 `portfolio_generator.py`、`turnover_optimization.py`、`sec_list_generation.py` 功能不完善且重复，已移动到 `_quarantine_20260701/legacy_optimizer/`，只作为可回滚历史参考。
+```python
+from optimizer import OptimizerConfig, OptimizerObjective, optimize_portfolio
+```
 
-注意：`06_optimiser/` 不替代普通 sec list 生成逻辑。普通组合仍由 `07_backtest_code.PtfBuilder.sec_list_spot()` 按 `ponderation` 生成；只有显式调用 `sec_list_spot_optim()` 时才进入本优化器。
+`optimizer.py` 接收候选证券、benchmark 权重、score、协方差、当前权重、
+上下界、分组约束和任意线性暴露约束，返回 `target_weight`、求解状态、
+约束审计和完整 optimizer metadata。
+
+普通因子选股由
+`tp_core.backtesting.SecurityListConstructor` 完成；只有显式调用
+`OfficialPortfolioBacktest.build_optimized_monthly_security_list()` 或
+`02_pipelines.optimize_portfolio` 时才进入优化器。
 
 ## 当前模块
 
 | 文件 | 作用 |
 | --- | --- |
-| `optimizer_engine.py` | 现役 download_09 优化器：screen 准备、协方差、sector/geo target、lb/ub、heuristique、cvxpy MIP 优化、约束报告 |
-| `test_optimizer_engine.py` | 现役优化器的导入、heuristique、标准权重转换和 cvxpy 环境测试 |
-| `optimiser/__init__.py` | 兼容逻辑包入口，导出 `optimizer_engine.py` 的现役函数 |
-| `_quarantine_20260701/legacy_optimizer/` | 旧优化器文件和旧测试，可回滚但不作为主线 |
+| `optimizer.py` | 唯一求解 API、目标函数、约束、solver fallback 和审计 |
+| `test_optimizer.py` | 目标函数、TE、换手、分组、线性、基数与 metadata 测试 |
 
-## 标准入口
+旧 `optimizer_engine.py`、`optimiser` package shim、`01_tp_core/optimisation.py`
+和 `FRAIS.py` 已从活动代码删除。
 
-```python
-from optimizer_engine import (
-    generate_screen_for_optim,
-    generate_covariance_matrix,
-    define_secto_target_and_geo_target2,
-    define_lb_ub,
-    verifier_contraintes,
-    selection_repechage,
-    optimize,
-    generate_exposure_reports,
-    to_standard_weight_table,
-)
-```
+## 支持能力
 
-`optimize()` 返回含 `Wopt` 的 dataframe。回测前用：
+- 目标：min tracking error、max score、min turnover、min variance、blended
+- 约束：单股上下界、主动偏离、TE、换手、score、持仓数、forced/forbidden
+- 分组：行业、国家、地区、规模桶或任意类别上下界
+- 线性暴露：beta、dividend、carbon、ESG、liquidity 或任意系数矩阵
+- 求解：按可用 solver 顺序回退，结果记录实际 solver 和失败尝试
 
-```python
-weights = to_standard_weight_table(result_df)
-```
+详细契约见
+[`../11_docs/PORTFOLIO_OPTIMIZER.md`](../11_docs/PORTFOLIO_OPTIMIZER.md)。
 
-然后交给 `tp_core.backtesting.OptimizerBacktestAdapter`；适配器只负责标准化权重，NAV 始终由 `tp_core.general_backtest` 计算。
+## 与回测边界
 
-## 环境注意
-
-该优化器使用 `cvxpy` 混合整数优化，优先使用 SCIP solver；若本机没有 SCIP，会尝试 `ECOS_BB`、`CBC`、`GLPK_MI`、`HIGHS`。当前代码已改成 cvxpy 懒加载：模块可以导入，但调用 `optimize()` 时必须有可用 cvxpy/solver 环境。
-
-当前 `.venv_tp` 已在本地环境层覆盖安装 `cvxpy 1.7.5` 和 `ecos 2.0.14`，保留项目现有 `numpy 1.26.4` 约束。已验证 `cvxpy` 可以导入，且 `ECOS_BB` mixed-integer solver 可以求解小型问题。由于 `.venv_tp` 是 `--system-site-packages` 环境，`pip check` 仍会看到 Anaconda 历史包的其他冲突；这些冲突和当前优化器依赖无关。
-
-## 数据来源
-
-新入口应读取：
-
-- canonical `00_screen/` 数据；
-- `04_signals/` 下的统一信号表或包含 `Score ML` 的候选名单；
-- `07_backtest_code/runs/` 或当前组合持仓作为旧组合输入；
-- canonical `00_screen/returns.parquet` 用于 drift 和 covariance。
-
-不要读取冻结目录，也不要从 Excel notebook 流程开始新工作。
-
-
-
+优化器不计算 NAV。`OptimizerBacktestAdapter` 把 `target_weight` 转成
+标准权重后委托 `SecurityNavEngine`。优化产物必须保留
+`optimizer_id`、`optimizer_version`、objective、solver、objective policy
+和 constraint policy。

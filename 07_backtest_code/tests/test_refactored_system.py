@@ -12,7 +12,7 @@ from tp_core.data_sources import SCREEN_AGGREGATE_PATH
 
 import pandas as pd
 from datetime import datetime
-from tp_core.backtesting import PtfBuilder
+from tp_core.backtesting import OfficialPortfolioBacktest
 
 print("=" * 60)
 print("TESTING REFACTORED BACKTEST SYSTEM")
@@ -37,10 +37,10 @@ except Exception as e:
     print(f"   ✗ Error loading data: {e}")
     sys.exit(1)
 
-# Test 1: Initialize PtfBuilder
-print("\n2. Testing PtfBuilder initialization...")
+# Test 1: Initialize OfficialPortfolioBacktest
+print("\n2. Testing OfficialPortfolioBacktest initialization...")
 try:
-    builder = PtfBuilder(
+    builder = OfficialPortfolioBacktest(
         screen=screen_agg,
         returns=returns,
         bench='STOXX EUROPE 600',
@@ -49,15 +49,15 @@ try:
         ptf_name='Test Portfolio',
         ponderation='Market cap'
     )
-    print("   ✓ PtfBuilder initialized successfully")
+    print("   ✓ OfficialPortfolioBacktest initialized successfully")
 except Exception as e:
-    print(f"   ✗ Error initializing PtfBuilder: {e}")
+    print(f"   ✗ Error initializing OfficialPortfolioBacktest: {e}")
     sys.exit(1)
 
 # Test 2: Generate single month sec list
 print("\n3. Testing single month security list generation...")
 try:
-    sec_list, exclusions = builder.sec_list_spot()
+    sec_list, exclusions = builder.build_monthly_security_list()
     print(f"   ✓ Security list generated: {len(sec_list)} securities")
     print(f"   ✓ Exclusions tracked: {len(exclusions)} exclusions")
 except Exception as e:
@@ -70,7 +70,7 @@ except Exception as e:
 print("\n4. Testing historical security list generation...")
 try:
     start_date = datetime(2024, 12, 31)
-    hist_sec_list = builder.generic_histo_seclist(start_date=start_date)
+    hist_sec_list = builder.build_historical_security_lists(start_date=start_date)
     print(f"   ✓ Historical security list generated")
     print(f"   ✓ Total securities: {len(hist_sec_list)}")
     print(f"   ✓ Date range: {hist_sec_list['Date'].min()} to {hist_sec_list['Date'].max()}")
@@ -83,7 +83,7 @@ except Exception as e:
 # Test 4: Backtest
 print("\n5. Testing backtest...")
 try:
-    perf, buy_list = builder.backtest()
+    perf, buy_list = builder.run_portfolio_nav()
     print(f"   ✓ Backtest completed successfully")
     print(f"   ✓ Performance series length: {len(perf)}")
     print(f"   ✓ Final value: {perf.iloc[-1]:.2f}")
@@ -96,7 +96,7 @@ except Exception as e:
 # Test 5: Benchmark performance
 print("\n6. Testing benchmark performance...")
 try:
-    builder.backtest_get_bench_perf(screen_agg, builder.start_date, builder.bench)
+    builder.run_benchmark_nav(screen_agg, builder.start_date, builder.bench)
     print(f"   ✓ Benchmark performance calculated")
     print(f"   ✓ Final benchmark value: {builder.perf_bench.iloc[-1]:.2f}")
 except Exception as e:
@@ -131,7 +131,7 @@ except Exception as e:
 # Test 7: Plotting
 print("\n8. Testing plotting...")
 try:
-    fig = builder.backtest_plot_ptf_bench(
+    fig = builder.plot_portfolio_vs_benchmark(
         title="Refactored System Test",
         save_path="test_plot.html",
         show_plot=False
@@ -148,13 +148,11 @@ print("=" * 60)
 print("\nRefactored system is working correctly!")
 print("New modular structure:")
 print("  - core/data_loader.py")
-print("  - core/portfolio_builder.py")
+print("  - core/security_list_constructor.py")
 print("  - core/backtest_engine.py")
-print("  - core/weight_manager.py")
+print("  - tp_core/portfolio_weights.py")
 print("  - core/metrics.py")
 print("  - utils/data_utils.py")
 print("  - utils/plotting.py")
 print("  - utils/constants.py")
 print("  - utils/performance_utils.py")
-
-

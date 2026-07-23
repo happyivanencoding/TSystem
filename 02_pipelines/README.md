@@ -54,5 +54,5 @@ manifest 记录参数、run_type、输入文件概况、输出文件概况、校
 - `refresh_ml` 调用 `03_ml_enhanced.cli`，默认可用 `--inspect-only` 做轻量检查；写主库的 Score ML 刷新必须显式运行。
 - `export_signals` 调用 `03_ml_enhanced`、`03_technical_analysis`、`03_regime_model` 的现有导出函数。
 - `build_candidates` 当前使用证券 alpha、国家/行业配置倾斜和 Regime 风险预算乘数的分层可解释组合分数。
-- `optimize_portfolio` 默认使用 constrained optimizer，优先复用 `06_optimiser/optimizer_engine.py` 的 cvxpy 求解入口；环境不可用时回退到 scipy SLSQP，并保留 `score_weight`、`equal_weight` 作为 smoke/debug 方法。
+- `optimize_portfolio` 只调用 `06_optimiser/optimizer.py::optimize_portfolio()`；目标函数、持仓与换手约束、TE/score 边界、分组及一般线性约束、求解器回退和 optimizer metadata 均由这一公开 API 负责。
 - `run_backtest` 包装 `07_backtest_code/run_backtest.py`，默认可用 `--inspect-only` 做轻量校验。

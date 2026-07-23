@@ -7,7 +7,12 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from core.weight_manager import WeightManager
+from tp_core.portfolio_weights import (
+    apply_weighting_transform,
+    cap_weights_preserving_group_totals,
+    match_group_weight_targets,
+    normalize_weight_table,
+)
 from utils.constants import (
     COL_DATE,
     COL_ISIN,
@@ -29,21 +34,18 @@ def security_list_to_weight_table(
     col_date: str = COL_DATE,
     col_mkt_cap: str = COL_MKT_CAP,
 ) -> pd.DataFrame:
-    """Convert a PtfBuilder security list into canonical target weights."""
+    """Convert a OfficialPortfolioBacktest security list into canonical target weights."""
 
     if "Weight" not in sec_list.columns:
         raise ValueError("security list is missing the Weight column")
     screen_agg = pd.read_parquet(screen) if isinstance(screen, str) else screen
     weights = sec_list[[col_date, col_isin, "Weight"]].copy()
-    weights["Weight"] = weights.groupby(col_date)["Weight"].transform(
-        lambda values: values / values.sum()
+    weights = normalize_weight_table(
+        weights,
+        weight_col="Weight",
+        group_cols=col_date,
+        max_weight=max_weight,
     )
-    weights["Weight"] = weights["Weight"].apply(lambda value: max(value, 0))
-    weights["Weight"] = weights["Weight"].apply(
-        lambda value: min(value, max_weight)
-    )
-    weights["WeightSum"] = weights.groupby(col_date)["Weight"].transform("sum")
-    weights["Weight"] /= weights["WeightSum"]
     weights = weights.reset_index(drop=True).rename(
         columns={"Weight": COL_PORTFOLIO_WEIGHT}
     )
@@ -59,10 +61,51 @@ def security_list_to_weight_table(
         on=[col_date, col_isin],
         how="left",
     )
+    rows_before_returns_filter = len(weights)
     weights = weights[weights[col_sedol].notna()]
+    if len(weights) != rows_before_returns_filter:
+        weights = normalize_weight_table(
+            weights,
+            weight_col=COL_PORTFOLIO_WEIGHT,
+            group_cols=col_date,
+            max_weight=max_weight,
+        )
     return weights[
         [col_date, col_sedol, col_isin, COL_PORTFOLIO_WEIGHT, col_sector]
     ].set_index([col_date, col_sedol])
+
+
+def optimizer_result_to_weight_table(
+    result: pd.DataFrame,
+    *,
+    date_col: str = COL_DATE,
+    id_col: str = COL_SEDOL,
+    weight_col: str = "target_weight",
+) -> pd.DataFrame:
+    """Convert optimizer output to the canonical target-weight contract."""
+
+    required = [date_col, id_col, weight_col]
+    missing = [column for column in required if column not in result.columns]
+    if missing:
+        raise KeyError(f"optimizer result is missing required columns: {missing}")
+    weights = result.loc[
+        pd.to_numeric(result[weight_col], errors="coerce").fillna(0.0) > 0,
+        required,
+    ].copy()
+    weights = weights.rename(
+        columns={
+            date_col: COL_DATE,
+            id_col: COL_SEDOL,
+            weight_col: COL_PORTFOLIO_WEIGHT,
+        }
+    )
+    weights[COL_DATE] = pd.to_datetime(weights[COL_DATE])
+    weights[COL_SEDOL] = weights[COL_SEDOL].astype(str)
+    return normalize_weight_table(
+        weights,
+        weight_col=COL_PORTFOLIO_WEIGHT,
+        group_cols=COL_DATE,
+    )
 
 
 def benchmark_to_weight_table(
@@ -112,69 +155,50 @@ def benchmark_to_weight_table(
     )
     selections = selections[selections[col_sedol].notna()]
 
-    if method == "EW":
-        selections = selections.set_index(col_date)
-        selections[COL_PORTFOLIO_WEIGHT] = selections.groupby(
-            col_date,
-            group_keys=False,
-        ).apply(lambda group: 1 / len(group))
-        selections = selections.reset_index()
-    else:
+    if method not in {"EW", "Equalweight"}:
         selections = selections[selections[col_mkt_cap].notna()]
-        selections = WeightManager.apply_weighting_scheme(
-            selections,
-            method,
-            col_mkt_cap,
-        )
-        selections = selections.set_index(col_date)
-        selections[COL_PORTFOLIO_WEIGHT] = (
-            selections[col_mkt_cap]
-            / selections.groupby(col_date)[col_mkt_cap].sum()
-        )
-        selections = selections.reset_index()
+    selections = apply_weighting_transform(
+        selections,
+        "Equalweight" if method == "EW" else method,
+        col_mkt_cap,
+    )
+    selections[COL_PORTFOLIO_WEIGHT] = selections[col_mkt_cap]
+    selections = normalize_weight_table(
+        selections,
+        weight_col=COL_PORTFOLIO_WEIGHT,
+        group_cols=col_date,
+    )
 
     if sector_neutral:
-        indice = indice.set_index(col_date)
-        indice["Indice weight"] /= indice.groupby(col_date)[
-            "Indice weight"
-        ].sum()
-        indice = indice.reset_index()
-        sector_weights = (
-            indice.groupby([col_date, col_sector])["Indice weight"]
+        indice = normalize_weight_table(
+            indice,
+            weight_col="Indice weight",
+            group_cols=col_date,
+        )
+        sector_targets = (
+            indice.groupby([col_date, col_sector], dropna=False)["Indice weight"]
             .sum()
-            .reset_index()
         )
-        selections = selections.set_index(col_date)
-        selections[COL_PORTFOLIO_WEIGHT] /= selections.groupby(col_date)[
-            COL_PORTFOLIO_WEIGHT
-        ].sum()
-        selections = selections.reset_index().set_index(
-            [col_date, col_sector]
+        selections = match_group_weight_targets(
+            selections,
+            sector_targets,
+            weight_col=COL_PORTFOLIO_WEIGHT,
+            group_cols=[col_date, col_sector],
         )
-        selections["weight_secto_ptf"] = selections.groupby(
-            [col_date, col_sector],
-            group_keys=False,
-        )[COL_PORTFOLIO_WEIGHT].sum()
-        selections = selections.reset_index().merge(
-            sector_weights[[col_date, col_sector, "Indice weight"]],
-            on=[col_date, col_sector],
-            how="left",
+        selections = cap_weights_preserving_group_totals(
+            selections,
+            weight_col=COL_PORTFOLIO_WEIGHT,
+            max_weight=max_weight,
+            group_cols=[col_date, col_sector],
         )
-        selections[COL_PORTFOLIO_WEIGHT] *= (
-            selections["Indice weight"] / selections["weight_secto_ptf"]
+    else:
+        selections = normalize_weight_table(
+            selections,
+            weight_col=COL_PORTFOLIO_WEIGHT,
+            group_cols=col_date,
+            max_weight=max_weight,
         )
 
-    selections = selections.set_index(col_date)
-    selections[COL_PORTFOLIO_WEIGHT] /= selections.groupby(col_date)[
-        COL_PORTFOLIO_WEIGHT
-    ].sum()
-    selections[COL_PORTFOLIO_WEIGHT] = selections[
-        COL_PORTFOLIO_WEIGHT
-    ].apply(lambda value: min(value, max_weight))
-    selections[COL_PORTFOLIO_WEIGHT] /= selections.groupby(col_date)[
-        COL_PORTFOLIO_WEIGHT
-    ].sum()
-    selections = selections.reset_index()
     return selections[
         [col_date, col_sedol, col_isin, COL_PORTFOLIO_WEIGHT, col_sector]
     ].set_index([col_date, col_sedol])
@@ -185,7 +209,7 @@ def benchmark_reference_list(
     start_date: pd.Timestamp,
     bench: str,
 ) -> pd.DataFrame:
-    """Return the legacy benchmark security list used by PtfBuilder."""
+    """Return the legacy benchmark security list used by OfficialPortfolioBacktest."""
 
     reference = screen[
         (screen[COL_DATE] >= start_date)
@@ -270,6 +294,7 @@ def plot_tracking_error(
 __all__ = [
     "benchmark_reference_list",
     "benchmark_to_weight_table",
+    "optimizer_result_to_weight_table",
     "plot_tracking_error",
     "rolling_tracking_error",
     "security_list_to_weight_table",

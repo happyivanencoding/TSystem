@@ -24,8 +24,9 @@
 | `data_contract.py` | 主键、日期、SEDOL 和字段契约校验 |
 | `production_inputs.py` | 月更输入识别、标准化命名和归档 |
 | `returns_audit.py` | 极端收益审计 |
-| `backtesting.py` | 共享 `PtfBuilder` 入口，当前指向 `07_backtest_code` |
-| `general_backtest.py` | 通用目标权重表回测核心，返回净值、日收益、执行权重、指标和 manifest |
+| `backtesting.py` | 唯一公开回测 API，导出明确职责对象 |
+| `security_nav_engine.py` | 精确漂移、日收益与 NAV 内核 |
+| `portfolio_weights.py` | 归一、硬封顶、权重变换和行业目标匹配 |
 
 ## 常用命令
 

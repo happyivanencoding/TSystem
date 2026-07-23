@@ -19,7 +19,7 @@ if str(config.TP_ROOT) not in sys.path:
 
 import sitecustomize  # noqa: E402,F401
 from tp_core.data_sources import RETURNS_PATH, SCREEN_AGGREGATE_PATH  # noqa: E402
-from tp_core.general_backtest import backtest_return_series  # noqa: E402
+from tp_core.backtesting import calculate_return_series_nav  # noqa: E402
 
 
 ID_COL = "Company SEDOL"
@@ -552,7 +552,7 @@ def evaluate_predictions(predictions: pd.DataFrame) -> pd.DataFrame:
                     index=pd.to_datetime(group["trading_date"]),
                     name=f"{market}_{target}",
                 )
-                wealth = backtest_return_series(
+                wealth = calculate_return_series_nav(
                     strategy_returns,
                     initial_nav=1.0,
                     periods_per_year=252,

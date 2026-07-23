@@ -22,12 +22,12 @@ def test_optimized_backtest_engine_runs_optimizer_result_wopt():
         {
             "Date": ["2024-01-31", "2024-01-31"],
             "Company SEDOL": ["A", "B"],
-            "Wopt": [0.6, 0.4],
+            "target_weight": [0.6, 0.4],
         }
     )
     engine = OptimizerBacktestAdapter(returns)
 
-    result = engine.backtest_optimizer_result(optimizer_result)
+    result = engine.calculate_optimizer_nav(optimizer_result)
 
     assert result.nav.index[0] == pd.Timestamp("2024-02-01")
     assert not result.nav.empty

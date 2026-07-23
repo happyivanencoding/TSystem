@@ -36,6 +36,10 @@ for path in (TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src"):
 import sitecustomize  # noqa: F401,E402
 
 from backtest_code.config.loader import load_settings  # noqa: E402
+from backtest_code.research.executor import (  # noqa: E402
+    GateThresholds,
+    evaluate_official_top_worst_gate,
+)
 from backtest_code.runner.artifacts import (  # noqa: E402
     create_run_directory,
     save_config_snapshot,
@@ -46,7 +50,7 @@ from backtest_code.runner.artifacts import (  # noqa: E402
 )
 from backtest_code.runner.service import BacktestService  # noqa: E402
 from backtest_code.runner.validators import load_tabular_file, validate_settings  # noqa: E402
-from tp_core.general_backtest import engine_metadata  # noqa: E402
+from tp_core.backtesting import nav_engine_metadata  # noqa: E402
 
 
 DEFAULT_SCREEN = TP_ROOT / "00_screen" / "screen_aggregate.parquet"
@@ -524,50 +528,48 @@ def build_raw_validation_gate(
     if summary.empty or metric_diag.empty:
         return pd.DataFrame()
 
-    top = summary[(summary["side"].eq("Top")) & (summary["status"].eq("success"))].copy()
-    status = summary.pivot_table(index="metric", columns="side", values="status", aggfunc="first")
-    top_by_metric = top.set_index("metric").to_dict(orient="index")
-    rows = []
-    for _, diag in metric_diag[metric_diag["family"].astype(str).str.startswith("raw_")].iterrows():
-        metric = str(diag["metric"])
-        perf = top_by_metric.get(metric, {})
-        family = str(diag["family"]).replace("raw_", "", 1)
-        coverage = float(diag.get("coverage", np.nan))
-        ratio_cagr = float(perf.get("ratio_cagr", np.nan))
-        top_worst = float(perf.get("top_worst_ratio_return", np.nan))
-        robust_score = float(perf.get("robust_score", np.nan))
-        top_ok = status.get("Top", pd.Series(dtype=object)).get(metric) == "success" if not status.empty else False
-        worst_ok = status.get("Worst", pd.Series(dtype=object)).get(metric) == "success" if not status.empty else False
-        checks = {
-            "coverage": coverage >= min_coverage,
-            "ratio_cagr": ratio_cagr > min_ratio_cagr,
-            "top_worst_ratio_return": top_worst > min_top_worst_ratio_return,
-            "robust_score": robust_score > min_robust_score,
-            "top_worst_success": bool(top_ok and worst_ok),
-        }
-        fail_reasons = [name for name, passed in checks.items() if not passed]
-        rows.append(
-            {
-                "metric": metric,
-                "raw_variable": str(diag.get("label", "")).split(": ", 1)[-1],
-                "family": family,
-                "role": diag.get("role", ""),
-                "source_hint": raw_source_hint(diag),
-                "coverage": coverage,
-                "top_ratio_cagr": ratio_cagr,
-                "top_worst_ratio_return": top_worst,
-                "robust_score": robust_score,
-                "top_success": bool(top_ok),
-                "worst_success": bool(worst_ok),
-                "pass_coverage": checks["coverage"],
-                "pass_ratio_cagr": checks["ratio_cagr"],
-                "pass_top_worst_ratio_return": checks["top_worst_ratio_return"],
-                "pass_robust_score": checks["robust_score"],
-                "passed": not fail_reasons,
-                "fail_reasons": ";".join(fail_reasons),
-            }
-        )
-    return pd.DataFrame(rows).sort_values(["passed", "family", "robust_score"], ascending=[False, True, False])
+    raw_diag = metric_diag[
+        metric_diag["family"].astype(str).str.startswith("raw_")
+    ].copy()
+    metadata = raw_diag[["metric", "label", "family", "role"]].copy()
+    metadata["raw_variable"] = metadata["label"].astype(str).str.split(
+        ": ",
+        n=1,
+    ).str[-1]
+    metadata["family"] = metadata["family"].astype(str).str.replace(
+        "raw_",
+        "",
+        n=1,
+    )
+    metadata["source_hint"] = raw_diag.apply(raw_source_hint, axis=1)
+    gate = evaluate_official_top_worst_gate(
+        summary,
+        raw_diag,
+        thresholds=GateThresholds(
+            min_coverage=min_coverage,
+            min_ratio_cagr=min_ratio_cagr,
+            min_top_worst_ratio=min_top_worst_ratio_return,
+            min_robust_score=min_robust_score,
+        ),
+        metadata=metadata,
+        metrics=raw_diag["metric"].astype(str),
+    )
+    if gate.empty:
+        return gate
+    gate["top_ratio_cagr"] = gate["ratio_cagr"]
+    gate["top_success"] = gate["official_top_complete"]
+    gate["worst_success"] = gate["official_worst_complete"]
+    gate["pass_coverage"] = gate["coverage"].ge(min_coverage)
+    gate["pass_ratio_cagr"] = gate["ratio_cagr"].gt(min_ratio_cagr)
+    gate["pass_top_worst_ratio_return"] = gate[
+        "top_worst_ratio_return"
+    ].gt(min_top_worst_ratio_return)
+    gate["pass_robust_score"] = gate["robust_score"].gt(min_robust_score)
+    gate["passed"] = gate["pass_gate"]
+    return gate.sort_values(
+        ["passed", "family", "robust_score"],
+        ascending=[False, True, False],
+    )
 
 
 def read_raw_validation_gate(path_text: str) -> pd.DataFrame:
@@ -820,7 +822,7 @@ def run_single_official_engine(
     log_buffer = io.StringIO()
     try:
         with redirect_stdout(log_buffer), redirect_stderr(log_buffer):
-            builder = engine_module.PtfBuilder(
+            builder = engine_module.OfficialPortfolioBacktest(
                 screen=prepared_screen,
                 returns=prepared_returns,
                 bench=settings.run.bench,
@@ -847,15 +849,15 @@ def run_single_official_engine(
                 monthly_base_cache=service._monthly_base_cache,  # noqa: SLF001
                 benchmark_cache=service._benchmark_cache,  # noqa: SLF001
             )
-            builder.generic_histo_seclist(
+            builder.build_historical_security_lists(
                 start_date=pd.to_datetime(settings.run.start_date),
                 freq_rebal=settings.run.freq_rebal,
                 screen_start_date=settings.run.screen_start_date,
                 fill_method=settings.run.fill_method,
             )
-            builder.backtest(max_weight=settings.run.max_weight, sector_neutral=settings.run.sector_neutral)
-            builder.backtest_get_bench_perf(prepared_screen, builder.start_date, settings.run.bench)
-            builder.backtest_plot_ptf_bench(title=run_label, save_path=str(artifacts["plot"]), show_plot=False)
+            builder.run_portfolio_nav(max_weight=settings.run.max_weight, sector_neutral=settings.run.sector_neutral)
+            builder.run_benchmark_nav(prepared_screen, builder.start_date, settings.run.bench)
+            builder.plot_portfolio_vs_benchmark(title=run_label, save_path=str(artifacts["plot"]), show_plot=False)
 
         save_dataframe(builder.sec_list_historical, artifacts["sec_list"])
         save_dataframe(builder.list_exclusion_histo, artifacts["exclusions"])
@@ -1391,7 +1393,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         args=args,
     )
     manifest = {
-        **engine_metadata(
+        **nav_engine_metadata(
             strictly_after_rebalance=True,
             apply_weights_at_close=True,
         ),
@@ -1419,4 +1421,3 @@ def main(argv: Iterable[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

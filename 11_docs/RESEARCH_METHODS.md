@@ -112,13 +112,29 @@
 
 - `BacktestService` 必须通过 `load_pruned_backtest_inputs` 规划输入。单次运行按 metric、benchmark 和 start date 裁剪；batch 按全部配置的 metric/benchmark 并集和最早 start date 一次读取。
 - Parquet 读取应下推 screen 和 returns 的起始日期，并只物化所需列。returns 证券列应限定为所选 benchmark 历史正权重成员，同时保留 dual-listing pair 的两条记录；CSV/XLS fallback 可以先读取再裁剪，但输出契约必须一致。
-- `PtfBuilder`、`PortfolioBuilder`、`GeneralBacktestEngine` 默认共享只读 DataFrame，不做整表 deep copy；调用方不得原地修改共享输入。
+- `OfficialPortfolioBacktest`、`SecurityListConstructor`、`SecurityNavEngine`
+  默认共享只读 DataFrame，不做整表 deep copy；调用方不得原地修改共享输入。
 - 月度历史循环应先建立一次 date-to-row-position 索引，禁止每个月对完整 screen 重复布尔扫描。
 - EU Small、S&P 500、Nasdaq、STOXX600 等直连 official runner 必须通过同一 `BacktestService` 准备 screen/returns，并传入 worker-local 月度底表和 benchmark cache。
 - 不得把 float downcast、改变日收益复利顺序、近似 rank 或缓存键不完整的优化设为默认。它们必须独立通过 exact artifact gate 后才能晋级。
-- 证券级回测唯一入口是 `tp_core.general_backtest.GeneralBacktestEngine` / `backtest_weight_table()`；`PtfBuilder` 只能构造标准权重和 official artifacts，`OptimizerBacktestAdapter` 只能转换优化器权重。
-- sector、regime、news 等已有聚合收益序列的研究使用 `backtest_return_series()`，不得强行进入证券级引擎。
+- 回测公开入口是 `tp_core.backtesting`；证券级净值计算唯一内核是
+  `SecurityNavEngine` / `calculate_security_nav()`。
+  `SecurityListConstructor` 只构造证券列表，
+  `OfficialPortfolioBacktest` 只编排标准权重、benchmark 和 official
+  artifacts，`OptimizerBacktestAdapter` 只转换优化器权重。
+- sector、regime、news 等已有聚合收益序列的研究使用
+  `calculate_return_series_nav()`，不得强行进入证券级引擎。
 - official manifest 必须记录 `engine_id`、`engine_version` 和日期执行口径。活动代码不得恢复 `BacktestEngine.py`、`core.backtest_engine` 或 `BacktestEngineOptimized`。
+- 权重变换统一使用 `tp_core.portfolio_weights`。顺序为原始权重、日期内
+  归一、行业目标匹配、行业内硬封顶并保持行业总权重；不可行的单股上限
+  必须报错。
+- raw、relative、pair、subset、bucket/individual leave-one-out 的 gate、resume、分片和
+  候选矩阵统一使用 `backtest_code.research.executor`。gate 必须同时有
+  official Top 与 Worst 终态证据；完全缺失结果的应测变量也必须留在
+  gate 表并判定失败。
+- 组合优化唯一入口是 `optimizer.optimize_portfolio()`。目标函数、线性
+  约束、求解器和版本必须写入产物；不得从市场脚本调用优化器内部函数。
+  求解后不得删除小权重再归一，必须复核所有约束后才可落盘。
 
 2026-07-23 共享层验证：代表性 STOXX600 Top/Worst 的持仓、标准权重、`perf_ptf`、`perf_bench` 与既有 official 产物全部 exact；最大差异 0.0。月度取片微基准由每轮 0.0583 秒降至 0.0168 秒。
 

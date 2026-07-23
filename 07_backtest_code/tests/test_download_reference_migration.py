@@ -9,9 +9,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from tp_core.backtesting import (
-    BacktestSchema,
-    PtfBuilder,
-    backtest_weight_table,
+    TargetWeightSchema,
+    OfficialPortfolioBacktest,
+    calculate_security_nav,
     benchmark_to_weight_table,
 )
 from core.factor_pipeline import (
@@ -100,7 +100,7 @@ def test_ptfbuilder_download_reference_compatibility_methods():
         },
         index=pd.to_datetime(["2024-02-01", "2024-02-02", "2024-03-01"]),
     )
-    builder = PtfBuilder(
+    builder = OfficialPortfolioBacktest(
         screen=screen,
         returns=returns,
         bench="TEST",
@@ -109,7 +109,7 @@ def test_ptfbuilder_download_reference_compatibility_methods():
         ponderation="Racine carrée",
     )
 
-    adjusted = builder.adjust_companies_ponderation(screen)
+    adjusted = builder.transform_weighting_base(screen)
     assert adjusted.loc["AAA", COL_MKT_CAP].iloc[0] == 10.0
 
     sec_list = pd.DataFrame(
@@ -128,9 +128,9 @@ def test_ptfbuilder_download_reference_compatibility_methods():
     assert not weights.empty
     assert weights.groupby(level=0)["Portfolio weight"].sum().round(10).eq(1.0).all()
 
-    nav = backtest_weight_table(
+    nav = calculate_security_nav(
         weights.reset_index(),
         returns,
-        schema=BacktestSchema(),
+        schema=TargetWeightSchema(),
     ).nav
     assert nav.iloc[0] == 100.0

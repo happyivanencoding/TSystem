@@ -48,7 +48,11 @@ from backtest_code.runner.artifacts import (  # noqa: E402
 from backtest_code.runner.service import BacktestService  # noqa: E402
 from backtest_code.runner.input_loader import load_pruned_backtest_inputs  # noqa: E402
 from backtest_code.runner.validators import load_tabular_file, validate_settings  # noqa: E402
-from tp_core.general_backtest import engine_metadata  # noqa: E402
+from backtest_code.research.executor import (  # noqa: E402
+    GateThresholds,
+    evaluate_official_top_worst_gate,
+)
+from tp_core.backtesting import nav_engine_metadata  # noqa: E402
 
 
 DEFAULT_SCREEN = TP_ROOT / "00_screen" / "screen_aggregate.parquet"
@@ -527,31 +531,8 @@ def raw_gate_table(
 ) -> pd.DataFrame:
     spec_map = {spec.column: spec for spec in metric_specs}
     raw_lookup = {spec.score_column: spec for spec in RAW_METRICS}
-    diag_map = (
-        metric_diag.drop_duplicates("metric", keep="last").set_index("metric").to_dict(orient="index")
-        if not metric_diag.empty
-        else {}
-    )
-    top = summary[(summary["status"].eq("success")) & (summary["side"].eq("Top"))].copy()
-    top = top[top["metric"].isin(raw_lookup)]
-    rows = []
-    for _, row in top.iterrows():
-        metric = str(row["metric"])
-        raw_spec = raw_lookup[metric]
-        coverage = float(row.get("coverage", diag_map.get(metric, {}).get("coverage", np.nan)))
-        ratio_cagr = float(row.get("ratio_cagr", np.nan))
-        top_worst = float(row.get("top_worst_ratio_return", np.nan))
-        robust = float(row.get("robust_score", np.nan))
-        failures = []
-        if not np.isfinite(coverage) or coverage < min_coverage:
-            failures.append(f"coverage<{min_coverage:g}")
-        if not np.isfinite(ratio_cagr) or ratio_cagr <= min_ratio_cagr:
-            failures.append(f"ratio_cagr<={min_ratio_cagr:g}")
-        if not np.isfinite(top_worst) or top_worst <= min_top_worst_ratio:
-            failures.append(f"top_worst_ratio_return<={min_top_worst_ratio:g}")
-        if not np.isfinite(robust) or robust <= min_robust_score:
-            failures.append(f"robust_score<={min_robust_score:g}")
-        rows.append(
+    metadata = pd.DataFrame(
+        [
             {
                 "metric": metric,
                 "raw_column": raw_spec.column,
@@ -560,19 +541,23 @@ def raw_gate_table(
                 "source": raw_source(raw_spec),
                 "direction": raw_spec.direction,
                 "label": spec_map.get(metric, ModelSpec(metric, metric, "", {}, "")).label,
-                "coverage": coverage,
-                "ratio_cagr": ratio_cagr,
-                "top_worst_ratio_return": top_worst,
-                "robust_score": robust,
-                "ratio_max_drawdown": row.get("ratio_max_drawdown", np.nan),
-                "tracking_error": row.get("tracking_error", np.nan),
-                "annual_active_hit_rate": row.get("annual_active_hit_rate", np.nan),
-                "pass_gate": not failures,
-                "fail_reasons": "; ".join(failures),
                 "note": raw_spec.note,
             }
-        )
-    gate = pd.DataFrame(rows)
+            for metric, raw_spec in raw_lookup.items()
+        ]
+    )
+    gate = evaluate_official_top_worst_gate(
+        summary,
+        metric_diag,
+        thresholds=GateThresholds(
+            min_coverage=min_coverage,
+            min_ratio_cagr=min_ratio_cagr,
+            min_top_worst_ratio=min_top_worst_ratio,
+            min_robust_score=min_robust_score,
+        ),
+        metadata=metadata,
+        metrics=raw_lookup,
+    )
     if gate.empty:
         return gate
     return gate.sort_values(["pass_gate", "family", "robust_score"], ascending=[False, True, False]).reset_index(drop=True)
@@ -811,7 +796,7 @@ def run_single_official_engine(
     log_buffer = io.StringIO()
     try:
         with redirect_stdout(log_buffer), redirect_stderr(log_buffer):
-            builder = engine_module.PtfBuilder(
+            builder = engine_module.OfficialPortfolioBacktest(
                 screen=prepared_screen,
                 returns=prepared_returns,
                 bench=settings.run.bench,
@@ -838,15 +823,15 @@ def run_single_official_engine(
                 monthly_base_cache=service._monthly_base_cache,  # noqa: SLF001
                 benchmark_cache=service._benchmark_cache,  # noqa: SLF001
             )
-            builder.generic_histo_seclist(
+            builder.build_historical_security_lists(
                 start_date=pd.to_datetime(settings.run.start_date),
                 freq_rebal=settings.run.freq_rebal,
                 screen_start_date=settings.run.screen_start_date,
                 fill_method=settings.run.fill_method,
             )
-            builder.backtest(max_weight=settings.run.max_weight, sector_neutral=settings.run.sector_neutral)
-            builder.backtest_get_bench_perf(prepared_screen, builder.start_date, settings.run.bench)
-            builder.backtest_plot_ptf_bench(title=run_label, save_path=str(artifacts["plot"]), show_plot=False)
+            builder.run_portfolio_nav(max_weight=settings.run.max_weight, sector_neutral=settings.run.sector_neutral)
+            builder.run_benchmark_nav(prepared_screen, builder.start_date, settings.run.bench)
+            builder.plot_portfolio_vs_benchmark(title=run_label, save_path=str(artifacts["plot"]), show_plot=False)
 
         save_dataframe(builder.sec_list_historical, artifacts["sec_list"])
         save_dataframe(builder.list_exclusion_histo, artifacts["exclusions"])
@@ -1375,7 +1360,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         args=args,
     )
     manifest = {
-        **engine_metadata(
+        **nav_engine_metadata(
             strictly_after_rebalance=True,
             apply_weights_at_close=True,
         ),

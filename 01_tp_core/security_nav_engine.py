@@ -1,4 +1,4 @@
-"""General long-only backtest engine used across TP projects.
+"""Exact security-level drift and NAV calculation for TP portfolios.
 
 The common contract is intentionally small:
 
@@ -23,12 +23,12 @@ import pandas as pd
 DEFAULT_DATE_COL = "Date"
 DEFAULT_ID_COL = "Company SEDOL"
 DEFAULT_WEIGHT_COL = "Portfolio weight"
-ENGINE_ID = "tp.general_backtest"
-ENGINE_VERSION = "2.0.0"
+NAV_ENGINE_ID = "tp.security_nav"
+NAV_ENGINE_VERSION = "3.0.0"
 
 
 @dataclass(frozen=True)
-class BacktestSchema:
+class TargetWeightSchema:
     """Column mapping for a standard long-format rebalance table."""
 
     date_col: str = DEFAULT_DATE_COL
@@ -37,8 +37,8 @@ class BacktestSchema:
 
 
 @dataclass
-class GeneralBacktestResult:
-    """Result object returned by the general backtest engine."""
+class SecurityNavResult:
+    """Result of an exact security-level target-weight calculation."""
 
     nav: pd.Series
     daily_returns: pd.Series
@@ -50,7 +50,7 @@ class GeneralBacktestResult:
 
 
 @dataclass
-class ReturnSeriesBacktestResult:
+class ReturnSeriesNavResult:
     """Result returned for an already-aggregated return series."""
 
     nav: pd.Series
@@ -74,7 +74,7 @@ def load_returns(returns: str | Path | pd.DataFrame) -> pd.DataFrame:
     return df_returns.sort_index()
 
 
-def ensure_weight_columns(weights: pd.DataFrame, schema: BacktestSchema) -> None:
+def ensure_weight_columns(weights: pd.DataFrame, schema: TargetWeightSchema) -> None:
     """Raise a clear error if the rebalance table does not match the contract."""
 
     missing = [col for col in [schema.date_col, schema.id_col, schema.weight_col] if col not in weights.columns]
@@ -85,7 +85,7 @@ def ensure_weight_columns(weights: pd.DataFrame, schema: BacktestSchema) -> None
 def normalize_rebalance_weights(
     weights: pd.DataFrame,
     returns_columns: Iterable[str],
-    schema: BacktestSchema = BacktestSchema(),
+    schema: TargetWeightSchema = TargetWeightSchema(),
     normalize: bool = True,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Clean a long-format rebalance table and normalize weights by date."""
@@ -140,7 +140,7 @@ def normalize_rebalance_weights(
 def map_rebalance_to_execution_dates(
     weights: pd.DataFrame,
     returns_index: pd.DatetimeIndex,
-    schema: BacktestSchema = BacktestSchema(),
+    schema: TargetWeightSchema = TargetWeightSchema(),
     strictly_after_rebalance: bool = True,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Map rebalance dates to executable dates available in the returns index."""
@@ -190,7 +190,7 @@ def map_rebalance_to_execution_dates(
 
 def calculate_simple_turnover(
     execution_weights: pd.DataFrame,
-    schema: BacktestSchema = BacktestSchema(),
+    schema: TargetWeightSchema = TargetWeightSchema(),
 ) -> pd.Series:
     """Calculate one-way turnover between consecutive target-weight vectors."""
 
@@ -243,7 +243,7 @@ def summarize_daily_returns(daily_returns: pd.Series, periods_per_year: int = 25
     }
 
 
-def engine_metadata(
+def nav_engine_metadata(
     *,
     strictly_after_rebalance: bool | None = None,
     apply_weights_at_close: bool | None = None,
@@ -251,8 +251,8 @@ def engine_metadata(
     """Return stable engine identity and optional execution semantics."""
 
     metadata: dict[str, Any] = {
-        "engine_id": ENGINE_ID,
-        "engine_version": ENGINE_VERSION,
+        "engine_id": NAV_ENGINE_ID,
+        "engine_version": NAV_ENGINE_VERSION,
     }
     if strictly_after_rebalance is not None or apply_weights_at_close is not None:
         metadata["execution_policy"] = {
@@ -272,14 +272,14 @@ def engine_metadata(
     return metadata
 
 
-def backtest_return_series(
+def calculate_return_series_nav(
     returns: pd.Series,
     *,
     initial_nav: float = 100.0,
     periods_per_year: int = 252,
     name: str = "strategy",
     fill_missing_with_zero: bool = True,
-) -> ReturnSeriesBacktestResult:
+) -> ReturnSeriesNavResult:
     """Build NAV and metrics for an already-aggregated return series."""
 
     series = pd.Series(returns).copy()
@@ -293,7 +293,7 @@ def backtest_return_series(
     nav = (1.0 + series).cumprod() * float(initial_nav)
     nav.name = f"{name}_nav"
     manifest = {
-        **engine_metadata(),
+        **nav_engine_metadata(),
         "input_kind": "aggregated_return_series",
         "execution_policy": {
             "return_observation": "already_aggregated",
@@ -305,7 +305,7 @@ def backtest_return_series(
         "fill_missing_with_zero": bool(fill_missing_with_zero),
         "observations": int(len(series)),
     }
-    return ReturnSeriesBacktestResult(
+    return ReturnSeriesNavResult(
         nav=nav,
         returns=series,
         metrics=summarize_daily_returns(series, periods_per_year=periods_per_year),
@@ -316,7 +316,7 @@ def backtest_return_series(
 def _calculate_daily_returns_exact(
     df_returns: pd.DataFrame,
     execution_weights: pd.DataFrame,
-    schema: BacktestSchema,
+    schema: TargetWeightSchema,
     *,
     apply_weights_at_close: bool,
 ) -> pd.Series:
@@ -373,15 +373,15 @@ def _calculate_daily_returns_exact(
     )
 
 
-def backtest_weight_table(
+def calculate_security_nav(
     weights: pd.DataFrame,
     returns: str | Path | pd.DataFrame,
-    schema: BacktestSchema = BacktestSchema(),
+    schema: TargetWeightSchema = TargetWeightSchema(),
     initial_nav: float = 100.0,
     normalize: bool = True,
     strictly_after_rebalance: bool = True,
     apply_weights_at_close: bool = True,
-) -> GeneralBacktestResult:
+) -> SecurityNavResult:
     """Run a drift-aware backtest from target weights and a returns matrix."""
 
     df_returns = load_returns(returns)
@@ -410,7 +410,7 @@ def backtest_weight_table(
     metrics = summarize_daily_returns(daily_returns=daily_returns)
 
     manifest = {
-        **engine_metadata(
+        **nav_engine_metadata(
             strictly_after_rebalance=strictly_after_rebalance,
             apply_weights_at_close=apply_weights_at_close,
         ),
@@ -423,7 +423,7 @@ def backtest_weight_table(
         "returns_observations": int(len(df_returns)),
     }
 
-    return GeneralBacktestResult(
+    return SecurityNavResult(
         nav=nav,
         daily_returns=daily_returns,
         rebalance_weights=rebalance_weights,
@@ -434,25 +434,25 @@ def backtest_weight_table(
     )
 
 
-class GeneralBacktestEngine:
-    """Reusable engine for all projects that can produce target weights."""
+class SecurityNavEngine:
+    """Exact drift/NAV calculator for standard security target weights."""
 
     def __init__(self, returns: str | Path | pd.DataFrame):
         self.returns = load_returns(returns)
-        self.last_result: GeneralBacktestResult | None = None
+        self.last_result: SecurityNavResult | None = None
 
     def run_weights(
         self,
         weights: pd.DataFrame,
-        schema: BacktestSchema = BacktestSchema(),
+        schema: TargetWeightSchema = TargetWeightSchema(),
         initial_nav: float = 100.0,
         normalize: bool = True,
         strictly_after_rebalance: bool = True,
         apply_weights_at_close: bool = True,
-    ) -> GeneralBacktestResult:
-        """Run a general backtest from a standard target-weight table."""
+    ) -> SecurityNavResult:
+        """Calculate security-level NAV from a standard target-weight table."""
 
-        result = backtest_weight_table(
+        result = calculate_security_nav(
             weights=weights,
             returns=self.returns,
             schema=schema,
@@ -466,16 +466,16 @@ class GeneralBacktestEngine:
 
 
 __all__ = [
-    "ENGINE_ID",
-    "ENGINE_VERSION",
-    "BacktestSchema",
-    "GeneralBacktestEngine",
-    "GeneralBacktestResult",
-    "ReturnSeriesBacktestResult",
-    "backtest_weight_table",
-    "backtest_return_series",
+    "NAV_ENGINE_ID",
+    "NAV_ENGINE_VERSION",
+    "ReturnSeriesNavResult",
+    "SecurityNavEngine",
+    "SecurityNavResult",
+    "TargetWeightSchema",
+    "calculate_return_series_nav",
+    "calculate_security_nav",
     "calculate_simple_turnover",
-    "engine_metadata",
+    "nav_engine_metadata",
     "load_returns",
     "map_rebalance_to_execution_dates",
     "normalize_rebalance_weights",

@@ -2,69 +2,61 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Optional
 
 import pandas as pd
 
-from tp_core.general_backtest import (
-    BacktestSchema,
-    GeneralBacktestEngine,
-    GeneralBacktestResult,
+from tp_core.security_nav_engine import (
+    TargetWeightSchema,
+    SecurityNavEngine,
+    SecurityNavResult,
 )
-
-TP_ROOT = Path(__file__).resolve().parents[2]
-OPTIMISER_ROOT = TP_ROOT / "06_optimiser"
-if str(OPTIMISER_ROOT) not in sys.path:
-    sys.path.insert(0, str(OPTIMISER_ROOT))
-
-from optimizer_engine import to_standard_weight_table  # noqa: E402
+from core.weight_table_adapter import optimizer_result_to_weight_table
 
 
-class OptimizerBacktestAdapter(GeneralBacktestEngine):
-    """Convert optimizer output and delegate NAV calculation to the sole kernel."""
+class OptimizerBacktestAdapter:
+    """Convert optimizer output and delegate calculation to ``SecurityNavEngine``."""
 
     def __init__(self, returns: pd.DataFrame):
-        super().__init__(returns=returns)
+        self.nav_engine = SecurityNavEngine(returns=returns)
         self.last_optimized_weights: Optional[pd.DataFrame] = None
-        self.last_optimized_backtest: Optional[GeneralBacktestResult] = None
+        self.last_nav_result: Optional[SecurityNavResult] = None
         self.perf_ptf: Optional[pd.Series] = None
 
-    def backtest_optimizer_result(
+    def calculate_optimizer_nav(
         self,
         optimizer_result: pd.DataFrame,
-        weight_col: str = "Wopt",
-        schema: BacktestSchema = BacktestSchema(),
+        weight_col: str = "target_weight",
+        schema: TargetWeightSchema = TargetWeightSchema(),
         **backtest_kwargs,
-    ) -> GeneralBacktestResult:
-        """Backtest a dataframe returned by optimizer_engine.optimize()."""
+    ) -> SecurityNavResult:
+        """Calculate NAV for a table returned by ``optimize_portfolio``."""
 
-        weights = to_standard_weight_table(
+        weights = optimizer_result_to_weight_table(
             optimizer_result,
             weight_col=weight_col,
         )
-        return self.backtest_weight_table_optimized(
+        return self.calculate_standard_weight_nav(
             weights,
             schema=schema,
             **backtest_kwargs,
         )
 
-    def backtest_weight_table_optimized(
+    def calculate_standard_weight_nav(
         self,
         weights: pd.DataFrame,
-        schema: BacktestSchema = BacktestSchema(),
+        schema: TargetWeightSchema = TargetWeightSchema(),
         **backtest_kwargs,
-    ) -> GeneralBacktestResult:
+    ) -> SecurityNavResult:
         """Backtest an already-standard optimized target-weight table."""
 
-        result = self.run_weights(
+        result = self.nav_engine.run_weights(
             weights,
             schema=schema,
             **backtest_kwargs,
         )
         self.last_optimized_weights = result.rebalance_weights
-        self.last_optimized_backtest = result
+        self.last_nav_result = result
         self.perf_ptf = result.nav
         return result
 

@@ -7,7 +7,13 @@ from typing import Any, Sequence
 import numpy as np
 import pandas as pd
 
-from tp_core.general_backtest import BacktestSchema, backtest_weight_table
+from tp_core.backtesting import TargetWeightSchema, calculate_security_nav
+from tp_core.portfolio_weights import (
+    cap_weights_preserving_group_totals,
+    match_group_weight_targets,
+    normalize_long_only_weights,
+    normalize_weight_table,
+)
 
 
 CANONICAL_MKT_CAP_COL = "Benchmark Market Value Millions in EUR"
@@ -83,6 +89,7 @@ def run_ranked_pattern_backtest(
     strategy_name: str = "Pattern Strategy",
     sector_neutral: bool = False,
     sector_column: str = DEFAULT_SECTOR_COL,
+    max_weight: float = 1.0,
     min_names: int = 1,
 ) -> PatternBacktestResult:
     if not score_columns:
@@ -106,6 +113,7 @@ def run_ranked_pattern_backtest(
         start_date=start_date,
         sector_neutral=sector_neutral,
         sector_column=sector_column,
+        max_weight=max_weight,
         min_names=min_names,
     )
 
@@ -146,6 +154,7 @@ def run_ranked_pattern_backtest(
         "strategy_name": strategy_name,
         "sector_neutral": sector_neutral,
         "sector_column": sector_column,
+        "max_weight": max_weight,
         "min_names": min_names,
     }
 
@@ -178,6 +187,7 @@ def build_ranked_rebalances(
     start_date: str | pd.Timestamp | None = None,
     sector_neutral: bool = False,
     sector_column: str = DEFAULT_SECTOR_COL,
+    max_weight: float = 1.0,
     min_names: int = 1,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     selection_base = prepare_selection_base(
@@ -217,14 +227,24 @@ def build_ranked_rebalances(
         group["Selection Rank"] = group["Total Score"].rank(method="first", ascending=False).astype(int)
         group["Sector Rank"] = group.groupby("Sector")["Total Score"].rank(method="first", ascending=False).astype(int)
 
-        selected = _select_group_members(group=group, target_count=target_count, sector_neutral=sector_neutral)
+        selected = _select_group_members(
+            group=group,
+            target_count=target_count,
+            sector_neutral=sector_neutral,
+            max_weight=max_weight,
+        )
         if len(selected) < min_names:
             continue
 
         group["Date"] = pd.to_datetime(effective_date)
         selected["Date"] = pd.to_datetime(effective_date)
 
-        selected = _assign_strategy_weights(selected=selected, full_group=group, sector_neutral=sector_neutral)
+        selected = _assign_strategy_weights(
+            selected=selected,
+            full_group=group,
+            sector_neutral=sector_neutral,
+            max_weight=max_weight,
+        )
         benchmark_group = _assign_market_cap_weights(group.copy(), "Benchmark Portfolio weight")
         benchmark_group["Date"] = pd.to_datetime(effective_date)
 
@@ -306,10 +326,10 @@ def match_screen_dates(signal_dates: pd.Index, screen_dates: pd.Index) -> pd.Ser
 
 def run_drift_backtest(rebal_weights: pd.DataFrame, returns: pd.DataFrame) -> tuple[pd.Series, pd.Series, pd.DataFrame]:
     weights = rebal_weights.reset_index().copy()
-    result = backtest_weight_table(
+    result = calculate_security_nav(
         weights=weights,
         returns=returns,
-        schema=BacktestSchema(date_col="Date", id_col="Company SEDOL", weight_col="Portfolio weight"),
+        schema=TargetWeightSchema(date_col="Date", id_col="Company SEDOL", weight_col="Portfolio weight"),
         strictly_after_rebalance=True,
         apply_weights_at_close=True,
     )
@@ -504,7 +524,12 @@ def _pattern_presence_mask(series: pd.Series) -> pd.Series:
     )
 
 
-def _select_group_members(group: pd.DataFrame, target_count: int, sector_neutral: bool) -> pd.DataFrame:
+def _select_group_members(
+    group: pd.DataFrame,
+    target_count: int,
+    sector_neutral: bool,
+    max_weight: float = 1.0,
+) -> pd.DataFrame:
     group = group.sort_values(["Total Score", "Company SEDOL"], ascending=[False, True]).copy()
     if not sector_neutral:
         return group.head(target_count).copy()
@@ -523,7 +548,71 @@ def _select_group_members(group: pd.DataFrame, target_count: int, sector_neutral
     if len(selected) < target_count:
         remaining = group.loc[~group.index.isin(selected.index)].head(target_count - len(selected))
         selected = pd.concat([selected, remaining], axis=0)
-    return selected.head(target_count).copy()
+    return _ensure_sector_weight_capacity(
+        selected=selected,
+        eligible=group,
+        target_count=target_count,
+        max_weight=max_weight,
+    )
+
+
+def _ensure_sector_weight_capacity(
+    selected: pd.DataFrame,
+    eligible: pd.DataFrame,
+    target_count: int,
+    max_weight: float,
+) -> pd.DataFrame:
+    sector_targets = normalize_long_only_weights(
+        eligible.groupby("Sector")["Benchmark Weight"].sum()
+    )
+    if max_weight <= 0:
+        raise ValueError("max_weight must be positive")
+    required = np.ceil(
+        (sector_targets - 1e-12).clip(lower=0.0) / float(max_weight)
+    ).astype(int).clip(lower=1)
+    available = eligible.groupby("Sector").size().reindex(required.index).fillna(0)
+    if (available < required).any():
+        sectors = required.index[available < required].astype(str).tolist()
+        raise ValueError(
+            "sector-neutral cap is infeasible for sectors: "
+            + ", ".join(sectors)
+        )
+    if int(required.sum()) > int(target_count):
+        raise ValueError(
+            "target_count is too small for sector-neutral max_weight capacity"
+        )
+
+    output = selected.copy()
+    counts = output.groupby("Sector").size().reindex(required.index).fillna(0)
+    for sector, minimum in required.items():
+        deficit = int(minimum - counts.loc[sector])
+        if deficit <= 0:
+            continue
+        additions = eligible[
+            eligible["Sector"].eq(sector)
+            & ~eligible.index.isin(output.index)
+        ].head(deficit)
+        output = pd.concat([output, additions], axis=0)
+        counts.loc[sector] += len(additions)
+
+    while len(output) > target_count:
+        counts = output.groupby("Sector").size()
+        removable = output[
+            output["Sector"].map(counts).gt(output["Sector"].map(required))
+        ]
+        if removable.empty:
+            raise ValueError(
+                "cannot keep target_count while preserving sector capacity"
+            )
+        drop_index = removable.sort_values(
+            ["Total Score", "Company SEDOL"],
+            ascending=[True, False],
+        ).index[0]
+        output = output.drop(index=drop_index)
+    return output.sort_values(
+        ["Total Score", "Company SEDOL"],
+        ascending=[False, True],
+    ).copy()
 
 
 def _allocate_sector_counts(sector_weights: pd.Series, available_counts: pd.Series, target_count: int) -> pd.Series:
@@ -556,39 +645,64 @@ def _allocate_sector_counts(sector_weights: pd.Series, available_counts: pd.Seri
     return counts.astype(int)
 
 
-def _assign_strategy_weights(selected: pd.DataFrame, full_group: pd.DataFrame, sector_neutral: bool) -> pd.DataFrame:
+def _assign_strategy_weights(
+    selected: pd.DataFrame,
+    full_group: pd.DataFrame,
+    sector_neutral: bool,
+    max_weight: float,
+) -> pd.DataFrame:
     selected = selected.copy()
     if not sector_neutral:
-        return _assign_market_cap_weights(selected, "Portfolio weight")
+        return _assign_market_cap_weights(
+            selected,
+            "Portfolio weight",
+            max_weight=max_weight,
+        )
 
-    sector_weights = full_group.groupby("Sector")["Benchmark Weight"].sum()
-    represented_sectors = selected["Sector"].unique().tolist()
-    sector_weights = sector_weights.reindex(represented_sectors).fillna(0.0)
-    if sector_weights.sum() <= 0:
-        sector_weights = pd.Series(1.0, index=represented_sectors)
-    sector_weights = sector_weights / sector_weights.sum()
+    sector_weights = normalize_long_only_weights(
+        full_group.groupby("Sector")["Benchmark Weight"].sum()
+    )
+    selected["Portfolio weight"] = (
+        pd.to_numeric(selected[CANONICAL_MKT_CAP_COL], errors="coerce")
+        .fillna(0.0)
+        .clip(lower=0.0)
+    )
+    zero_sector = (
+        selected.groupby("Sector")["Portfolio weight"].transform("sum").le(0.0)
+    )
+    selected.loc[zero_sector, "Portfolio weight"] = 1.0
+    selected = match_group_weight_targets(
+        selected,
+        sector_weights,
+        weight_col="Portfolio weight",
+        group_cols="Sector",
+    )
+    return cap_weights_preserving_group_totals(
+        selected,
+        weight_col="Portfolio weight",
+        max_weight=max_weight,
+        group_cols="Sector",
+    )
 
-    selected["Portfolio weight"] = 0.0
-    for sector, sector_group in selected.groupby("Sector"):
-        sector_cap = sector_group[CANONICAL_MKT_CAP_COL].clip(lower=0).fillna(0.0)
-        if sector_cap.sum() <= 0:
-            sector_inner = pd.Series(1.0 / len(sector_group), index=sector_group.index)
-        else:
-            sector_inner = sector_cap / sector_cap.sum()
-        selected.loc[sector_group.index, "Portfolio weight"] = sector_inner * float(sector_weights.loc[sector])
 
-    selected["Portfolio weight"] = selected["Portfolio weight"] / selected["Portfolio weight"].sum()
-    return selected
-
-
-def _assign_market_cap_weights(df: pd.DataFrame, output_col: str) -> pd.DataFrame:
+def _assign_market_cap_weights(
+    df: pd.DataFrame,
+    output_col: str,
+    *,
+    max_weight: float = 1.0,
+) -> pd.DataFrame:
     df = df.copy()
-    market_cap = df[CANONICAL_MKT_CAP_COL].clip(lower=0).fillna(0.0)
-    if market_cap.sum() <= 0:
-        df[output_col] = 1.0 / len(df)
-    else:
-        df[output_col] = market_cap / market_cap.sum()
-    return df
+    df[output_col] = pd.to_numeric(
+        df[CANONICAL_MKT_CAP_COL],
+        errors="coerce",
+    )
+    return normalize_weight_table(
+        df,
+        weight_col=output_col,
+        group_cols=None,
+        max_weight=max_weight,
+        allow_equal_fallback=True,
+    )
 
 
 def _finalize_rebalance_frame(frames: list[pd.DataFrame], weight_col: str = "Portfolio weight") -> pd.DataFrame:

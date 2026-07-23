@@ -27,7 +27,12 @@ from utils.constants import (  # noqa: E402
     COL_SEDOL,
 )
 from utils.plotting import PlotlyVisualizer  # noqa: E402
-from tp_core.general_backtest import BacktestSchema, backtest_weight_table  # noqa: E402
+from tp_core.backtesting import TargetWeightSchema, calculate_security_nav  # noqa: E402
+from tp_core.portfolio_weights import (  # noqa: E402
+    cap_weights_preserving_group_totals,
+    match_group_weight_targets,
+    normalize_long_only_weights,
+)
 
 
 BENCH = "STOXX EUROPE 600"
@@ -345,23 +350,45 @@ def select_weights(screen: pd.DataFrame, score_col: str, top: bool) -> pd.DataFr
         df = neutralize_scores(df, score_col)
         n = max(1, int(round(len(df) * PERCENTILE)))
         selected = df.nlargest(n, score_col) if top else df.nsmallest(n, score_col)
-        sector_weights = month.groupby(COL_SECTOR_ICB19)[WEIGHT_COL].sum()
-        sector_weights = sector_weights / sector_weights.sum()
-        selected = selected.copy()
-        sector_sum = selected.groupby(COL_SECTOR_ICB19)[COL_MKT_CAP].transform("sum")
-        selected[COL_PORTFOLIO_WEIGHT] = (
-            selected[COL_MKT_CAP]
-            * selected[COL_SECTOR_ICB19].map(sector_weights)
-            / sector_sum
+        sector_weights = normalize_long_only_weights(
+            month.groupby(COL_SECTOR_ICB19)[WEIGHT_COL].sum()
         )
-        selected[COL_PORTFOLIO_WEIGHT] = selected[
-            COL_PORTFOLIO_WEIGHT
-        ].clip(lower=0, upper=MAX_WEIGHT).fillna(0)
-        total = selected[COL_PORTFOLIO_WEIGHT].sum()
-        if total <= 0 or pd.isna(total):
-            continue
+        missing_sectors = sector_weights.index.difference(
+            selected[COL_SECTOR_ICB19].dropna().unique()
+        )
+        if len(missing_sectors):
+            representatives = (
+                df[df[COL_SECTOR_ICB19].isin(missing_sectors)]
+                .sort_values(score_col, ascending=not top)
+                .drop_duplicates(COL_SECTOR_ICB19)
+            )
+            selected = pd.concat([selected, representatives], axis=0)
+            selected = selected[
+                ~selected[COL_SEDOL].astype(str).duplicated(keep="first")
+            ]
+        selected = selected.copy()
         selected[COL_PORTFOLIO_WEIGHT] = (
-            selected[COL_PORTFOLIO_WEIGHT] / total
+            pd.to_numeric(selected[COL_MKT_CAP], errors="coerce")
+            .fillna(0.0)
+            .clip(lower=0.0)
+        )
+        zero_sector = (
+            selected.groupby(COL_SECTOR_ICB19)[COL_PORTFOLIO_WEIGHT]
+            .transform("sum")
+            .le(0.0)
+        )
+        selected.loc[zero_sector, COL_PORTFOLIO_WEIGHT] = 1.0
+        selected = match_group_weight_targets(
+            selected,
+            sector_weights,
+            weight_col=COL_PORTFOLIO_WEIGHT,
+            group_cols=COL_SECTOR_ICB19,
+        )
+        selected = cap_weights_preserving_group_totals(
+            selected,
+            weight_col=COL_PORTFOLIO_WEIGHT,
+            max_weight=MAX_WEIGHT,
+            group_cols=COL_SECTOR_ICB19,
         )
         selected[COL_DATE] = pd.Timestamp(date) + pd.offsets.MonthBegin(1)
         pieces.append(
@@ -391,10 +418,10 @@ def select_weights(screen: pd.DataFrame, score_col: str, top: bool) -> pd.DataFr
 def nav_from_weights(weights: pd.DataFrame, returns: pd.DataFrame) -> pd.Series:
     if weights.empty:
         return pd.Series(dtype=float)
-    return backtest_weight_table(
+    return calculate_security_nav(
         weights=weights,
         returns=returns,
-        schema=BacktestSchema(
+        schema=TargetWeightSchema(
             date_col=COL_DATE,
             id_col=COL_SEDOL,
             weight_col=COL_PORTFOLIO_WEIGHT,

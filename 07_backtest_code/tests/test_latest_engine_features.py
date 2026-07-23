@@ -10,7 +10,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from core.esg_pivot import resolve_esg_pivot_score
-from core.portfolio_builder import PortfolioBuilder
+from core.security_list_constructor import SecurityListConstructor
 from backtest_code.runner.input_loader import (
     MULTI_AVG_SOURCE_COLUMNS,
     load_pruned_backtest_inputs,
@@ -62,7 +62,7 @@ def test_update_ptf_with_monthly_drift_is_idempotent_for_existing_months():
             "score": [1.0],
         }
     ).set_index(COL_ISIN)
-    builder = PortfolioBuilder(
+    builder = SecurityListConstructor(
         screen=screen,
         bench="TEST",
         percentile=0.2,
@@ -138,7 +138,7 @@ def test_resolve_esg_pivot_score_uses_latest_dated_folder_and_file(tmp_path):
     assert score == 42.5
 
 
-def test_portfolio_builder_applies_numeric_esg_pivot_threshold():
+def test_security_list_constructor_applies_numeric_esg_pivot_threshold():
     screen = pd.DataFrame(
         {
             COL_ISIN: ["AAA", "BBB"],
@@ -152,7 +152,7 @@ def test_portfolio_builder_applies_numeric_esg_pivot_threshold():
             "score": [1.0, 2.0],
         }
     ).set_index(COL_ISIN)
-    builder = PortfolioBuilder(
+    builder = SecurityListConstructor(
         screen=screen,
         bench="TEST",
         percentile=0.5,
@@ -168,7 +168,7 @@ def test_portfolio_builder_applies_numeric_esg_pivot_threshold():
     assert excluded.loc["AAA", "Raison Exclusion"] == "ESG Reason"
 
 
-def test_portfolio_builder_resolves_text_esg_pivot_threshold(tmp_path):
+def test_security_list_constructor_resolves_text_esg_pivot_threshold(tmp_path):
     pivot_dir = tmp_path / "20240531_new"
     pivot_dir.mkdir()
     (pivot_dir / "20240531_pivot.csv").write_text(
@@ -189,7 +189,7 @@ def test_portfolio_builder_resolves_text_esg_pivot_threshold(tmp_path):
         }
     ).set_index(COL_ISIN)
 
-    builder = PortfolioBuilder(
+    builder = SecurityListConstructor(
         screen=screen,
         bench="TEST",
         percentile=0.5,
@@ -217,7 +217,7 @@ def test_vectorized_sector_neutralization_matches_legacy_algorithm():
             "score_b": np.cos(np.arange(len(sectors))) - np.arange(len(sectors)) / 200,
         }
     ).set_index(COL_ISIN)
-    builder = PortfolioBuilder(
+    builder = SecurityListConstructor(
         screen=screen,
         bench="TEST",
         percentile=0.2,
@@ -261,7 +261,7 @@ def test_monthly_base_cache_is_exact_across_scores_and_sides():
     ).set_index(COL_ISIN)
     cache = {}
 
-    warm_builder = PortfolioBuilder(
+    warm_builder = SecurityListConstructor(
         screen=screen,
         bench="TEST",
         percentile=0.2,
@@ -270,10 +270,10 @@ def test_monthly_base_cache_is_exact_across_scores_and_sides():
         copy_inputs=False,
         monthly_base_cache=cache,
     )
-    warm_builder.sec_list_spot(screen)
+    warm_builder.build_monthly_security_list(screen)
 
     for top, ptf_name in ((True, "TOP"), (False, "WORST")):
-        uncached_builder = PortfolioBuilder(
+        uncached_builder = SecurityListConstructor(
             screen=screen,
             bench="TEST",
             percentile=0.2,
@@ -283,7 +283,7 @@ def test_monthly_base_cache_is_exact_across_scores_and_sides():
             Top=top,
             copy_inputs=False,
         )
-        cached_builder = PortfolioBuilder(
+        cached_builder = SecurityListConstructor(
             screen=screen,
             bench="TEST",
             percentile=0.2,
@@ -295,8 +295,8 @@ def test_monthly_base_cache_is_exact_across_scores_and_sides():
             monthly_base_cache=cache,
         )
 
-        uncached_selection, uncached_exclusions = uncached_builder.sec_list_spot(screen)
-        cached_selection, cached_exclusions = cached_builder.sec_list_spot(screen)
+        uncached_selection, uncached_exclusions = uncached_builder.build_monthly_security_list(screen)
+        cached_selection, cached_exclusions = cached_builder.build_monthly_security_list(screen)
 
         assert_frame_equal(cached_selection, uncached_selection, check_exact=True)
         assert_frame_equal(cached_exclusions, uncached_exclusions, check_exact=True)
@@ -379,7 +379,7 @@ def test_pruned_input_loader_expands_multi_avg_dependencies(tmp_path):
     assert "unused_score" not in loaded_screen.columns
 
 
-def test_portfolio_builder_default_shares_inputs_without_mutating_them():
+def test_security_list_constructor_shares_inputs_without_mutating_them():
     screen = pd.DataFrame(
         {
             COL_ISIN: ["AAA", "BBB"],
@@ -394,7 +394,7 @@ def test_portfolio_builder_default_shares_inputs_without_mutating_them():
         }
     ).set_index(COL_ISIN)
     original = screen.copy(deep=True)
-    builder = PortfolioBuilder(
+    builder = SecurityListConstructor(
         screen=screen,
         bench="TEST",
         percentile=0.5,
@@ -403,7 +403,7 @@ def test_portfolio_builder_default_shares_inputs_without_mutating_them():
     )
 
     assert builder.screen is screen
-    builder.sec_list_spot(screen)
+    builder.build_monthly_security_list(screen)
     assert_frame_equal(screen, original, check_exact=True)
 
 

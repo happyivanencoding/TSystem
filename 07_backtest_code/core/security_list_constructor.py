@@ -11,16 +11,35 @@ import sys
 from typing import Union, List, Optional, Tuple
 import logging
 from pathlib import Path
+from collections.abc import Mapping, Sequence
 
 from utils.data_utils import merge_ticker_secondaire, read_liste_noire, update_ptf_with_monthly_additions, find_next_closest_date
 from utils.constants import *
-from core.weight_manager import WeightManager
 from core.esg_pivot import resolve_esg_pivot_score
+from tp_core.portfolio_weights import (
+    apply_weighting_transform,
+    cap_weights_preserving_group_totals,
+    match_group_weight_targets,
+    normalize_long_only_weights,
+    normalize_weight_table,
+)
+
+OPTIMIZER_ROOT = Path(__file__).resolve().parents[2] / "06_optimiser"
+if str(OPTIMIZER_ROOT) not in sys.path:
+    sys.path.insert(0, str(OPTIMIZER_ROOT))
+
+from optimizer import (  # noqa: E402
+    GroupConstraint,
+    LinearConstraint,
+    OptimizerConfig,
+    OptimizerObjective,
+    optimize_portfolio,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class PortfolioBuilder:
+class SecurityListConstructor:
     """
     基于因子得分和约束条件构建投资组合
     """
@@ -419,21 +438,60 @@ class PortfolioBuilder:
         
         return selected_titles
     
-    def adjust_companies_ponderation(
+    def transform_weighting_base(
         self,
         df: pd.DataFrame,
         mkt_cap_col: str = COL_MKT_CAP,
     ) -> pd.DataFrame:
-        """兼容旧 PtfBuilder API：按当前 ponderation 转换 market-cap 权重基数。"""
-        return WeightManager.apply_weighting_scheme(df, self.ponderation, mkt_cap_col)
+        """Apply the configured weighting transform to the market-cap base."""
+        return apply_weighting_transform(df, self.ponderation, mkt_cap_col)
 
-    def adjust_companies_ponderation_legacy(
+    def _apply_security_weight_constraints(
         self,
-        df: pd.DataFrame,
-        mkt_cap_col: str = COL_MKT_CAP,
+        securities: pd.DataFrame,
+        sector_targets: pd.Series,
     ) -> pd.DataFrame:
-        """Alias for notebooks that used the legacy wording explicitly."""
-        return self.adjust_companies_ponderation(df, mkt_cap_col=mkt_cap_col)
+        """Apply the canonical normalization, neutrality and hard-cap policy."""
+
+        result = normalize_weight_table(
+            securities,
+            weight_col="Weight",
+            group_cols=COL_DATE,
+        )
+        if self.weight_neutral in {"ICB 19", "ICB 11"}:
+            targets = normalize_long_only_weights(sector_targets)
+            selected_sectors = set(result["Secto"].dropna().tolist())
+            missing = [
+                sector
+                for sector, target in targets.items()
+                if target > 0 and sector not in selected_sectors
+            ]
+            if missing:
+                raise ValueError(
+                    "sector-neutral weights are infeasible because selected "
+                    f"securities do not cover target sectors: {missing}"
+                )
+            result = match_group_weight_targets(
+                result,
+                targets,
+                weight_col="Weight",
+                group_cols="Secto",
+            )
+            if self.cap_weight_threshold is not None:
+                result = cap_weights_preserving_group_totals(
+                    result,
+                    weight_col="Weight",
+                    max_weight=self.cap_weight_threshold,
+                    group_cols=[COL_DATE, "Secto"],
+                )
+        else:
+            result = normalize_weight_table(
+                result,
+                weight_col="Weight",
+                group_cols=COL_DATE,
+                max_weight=self.cap_weight_threshold,
+            )
+        return result
 
     def _prepare_market_cap_for_weighting(self, df: pd.DataFrame) -> pd.DataFrame:
         """Prepare a weighting base without making market cap mandatory for ranking."""
@@ -482,23 +540,17 @@ class PortfolioBuilder:
         
         return df
     
-    @staticmethod
-    def _get_optimizer_engine():
-        """Import the active download_09 optimizer engine without affecting normal sec-list mode."""
-        tp_root = Path(__file__).resolve().parents[2]
-        optimiser_root = tp_root / "06_optimiser"
-        if str(optimiser_root) not in sys.path:
-            sys.path.insert(0, str(optimiser_root))
-        import optimizer_engine
-
-        return optimizer_engine
-
     def _prepare_screen_for_optimizer(self, screen: pd.DataFrame) -> pd.DataFrame:
-        """Prepare screen columns expected by the download_09 optimizer."""
+        """Prepare explicit identifiers, benchmark weights and scores."""
+
         out = screen.copy()
+        if COL_ISIN not in out.columns:
+            out[COL_ISIN] = out.index.astype(str)
+        if COL_SEDOL not in out.columns:
+            raise KeyError(f"optimizer candidates require {COL_SEDOL}")
         bench_col = f"Weight in {self.bench}"
-        if bench_col in out.columns:
-            out["Weight in MSCI WORLD"] = out[bench_col]
+        if bench_col not in out.columns:
+            raise KeyError(f"optimizer candidates require {bench_col}")
         if "Score ML" not in out.columns:
             metric = self.metrics[0] if isinstance(self.metrics, list) else self.metrics
             if metric in out.columns:
@@ -509,222 +561,273 @@ class PortfolioBuilder:
             out["Name"] = out.index.astype(str)
         if "Exchange Country Region" not in out.columns:
             out["Exchange Country Region"] = "Others"
+        if "Secto" not in out.columns:
+            out["Secto"] = out[COL_SECTOR_ICB19]
+        out["Key_Secto_Geo"] = (
+            out["Secto"].astype("string")
+            + "_"
+            + out["Exchange Country Region"].astype("string")
+        )
         if COL_ESG_SCORE not in out.columns:
             out[COL_ESG_SCORE] = 100.0
-        return out
-
-    def _default_optimizer_params(self, current_params: Optional[dict] = None) -> dict:
-        params = {
-            "margin_title": 0.005,
-            "margin_country": 0.03,
-            "margin_sector": 0.02,
-            "nb_max_titres": 120,
-            "nb_min_titres": 20,
-            "max_turnover": 0.30,
-            "min_score_target": 0.0,
-            "te_max": 0.03,
-        }
-        if current_params:
-            params.update(current_params)
-        return params
+        out[bench_col] = pd.to_numeric(out[bench_col], errors="coerce").fillna(0.0)
+        out["Score ML"] = pd.to_numeric(out["Score ML"], errors="coerce").fillna(0.0)
+        return out.reset_index(drop=True)
 
     @staticmethod
-    def _default_optimizer_ub_config() -> dict:
-        return {
-            "North America": {"bins": [0, 0.0005, 0.001, 0.0025, 0.005, 0.01, 1], "values": [0.001, 0.002, 0.003, 0.005, 0.0075, 0.01]},
-            "West Europe": {"bins": [0, 0.0005, 0.001, 0.0025, 0.005, 0.01, 1], "values": [0.001, 0.002, 0.003, 0.005, 0.0075, 0.01]},
-            "Others": {"bins": [0, 0.0005, 0.001, 0.0025, 0.005, 0.01, 1], "values": [0.0005, 0.001, 0.002, 0.003, 0.005, 0.0075]},
-        }
-
-    @staticmethod
-    def _default_optimizer_lb_config() -> dict:
-        return {"North America": 0.0001, "West Europe": 0.0001, "Others": 0.0}
-
-    def _build_current_optimizer_targets(self, result_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """Build no-tilt sector/geo targets when no Excel sector recommendation is supplied."""
-        bench_col = f"Weight in {self.bench}"
-        result_df["Key_Secto_Geo"] = result_df["Secto"].astype(int).astype(str) + "_" + result_df["Exchange Country Region"].astype(str)
-        df_sector_cible = (
-            result_df.groupby("Key_Secto_Geo", as_index=False)[bench_col]
+    def _optimizer_group_targets(
+        candidates: pd.DataFrame,
+        group_col: str,
+        benchmark_col: str,
+        overrides: Mapping[object, float] | None,
+    ) -> dict[object, float]:
+        if overrides is not None:
+            targets = normalize_long_only_weights(pd.Series(overrides, dtype=float))
+            return targets.to_dict()
+        return (
+            candidates.groupby(group_col, dropna=False)[benchmark_col]
             .sum()
-            .rename(columns={bench_col: f"Weight in {self.bench}"})
+            .to_dict()
         )
-        df_sector_cible["Before tilt W in MSCI WORLD"] = df_sector_cible[f"Weight in {self.bench}"]
-        df_pays_cible = result_df.groupby("Exchange Country Region", as_index=False)[bench_col].sum()
-        return self._ensure_optimizer_target_weight_aliases(df_sector_cible), self._ensure_optimizer_target_weight_aliases(df_pays_cible)
 
-    def _ensure_optimizer_target_weight_aliases(self, target: pd.DataFrame) -> pd.DataFrame:
-        """Keep download_09 optimizer target tables compatible with non-MSCI benchmarks."""
-        out = target.copy()
-        bench_col = f"Weight in {self.bench}"
-        if bench_col in out.columns:
-            out["Weight in MSCI WORLD"] = out[bench_col]
-        if bench_col not in out.columns and "Weight in MSCI WORLD" in out.columns:
-            out[bench_col] = out["Weight in MSCI WORLD"]
-        return out
-    def sec_list_spot_optim(
+    def _optimizer_current_weights(
+        self,
+        candidates: pd.DataFrame,
+        previous_portfolio: pd.DataFrame | None,
+        *,
+        drift: bool,
+    ) -> tuple[pd.Series | None, float]:
+        if previous_portfolio is None or previous_portfolio.empty:
+            return None, 0.0
+        previous = previous_portfolio.copy()
+        id_col = COL_SEDOL if COL_SEDOL in previous.columns else COL_ISIN
+        if id_col not in previous.columns or "Weight" not in previous.columns:
+            raise KeyError(
+                f"previous_portfolio requires Weight and {COL_SEDOL} or {COL_ISIN}"
+            )
+        previous["Weight"] = pd.to_numeric(previous["Weight"], errors="coerce").fillna(0.0)
+        if drift and COL_DATE in previous.columns:
+            previous_date = pd.to_datetime(previous[COL_DATE], errors="coerce").max()
+            target_date = pd.to_datetime(candidates[COL_DATE], errors="coerce").max()
+            returns = self._get_returns_for_drift()
+            if id_col == COL_ISIN:
+                id_map = candidates.set_index(COL_ISIN)[COL_SEDOL]
+                previous["__returns_id"] = previous[COL_ISIN].map(id_map)
+            else:
+                previous["__returns_id"] = previous[COL_SEDOL]
+            period = returns.loc[
+                (returns.index > previous_date) & (returns.index <= target_date)
+            ]
+            growth = (1.0 + period).prod() if not period.empty else pd.Series(dtype=float)
+            previous["Weight"] *= previous["__returns_id"].map(growth).fillna(1.0)
+
+        if float(previous["Weight"].sum()) <= 0:
+            return None, 0.0
+        previous["Weight"] = normalize_long_only_weights(previous["Weight"])
+        current = candidates[[id_col]].merge(
+            previous[[id_col, "Weight"]].groupby(id_col, as_index=False).sum(),
+            on=id_col,
+            how="left",
+        )["Weight"].fillna(0.0)
+        if float(current.sum()) <= 0:
+            return None, 0.0
+        external_weight = max(0.0, 1.0 - float(current.sum()))
+        return current, external_weight
+
+    def _optimizer_covariance(
+        self,
+        candidates: pd.DataFrame,
+        model: str,
+    ) -> np.ndarray:
+        count = len(candidates)
+        if model == "identity":
+            return np.eye(count) * 0.04**2
+        returns = self._get_returns_for_drift().reindex(
+            columns=candidates[COL_SEDOL].astype(str)
+        )
+        usable = returns.tail(756).fillna(0.0)
+        if len(usable) < 2:
+            return np.eye(count) * 0.04**2
+        covariance = usable.cov().to_numpy(dtype=float) * 252.0
+        if not np.isfinite(covariance).all() or float(np.trace(covariance)) <= 0:
+            return np.eye(count) * 0.04**2
+        return covariance
+
+    def build_optimized_monthly_security_list(
         self,
         screen_agg_monthly: Optional[pd.DataFrame] = None,
-        ptf_last: Optional[pd.DataFrame] = None,
+        previous_portfolio: Optional[pd.DataFrame] = None,
         drift: bool = True,
-        init: bool = True,
-        secto_reco_path: Optional[str] = None,
-        current_params: Optional[dict] = None,
-        scip_options: Optional[dict] = None,
-        lb_title: Optional[dict] = None,
-        config_ub: Optional[dict] = None,
-        top_mandatory: Optional[int] = None,
-        model_cov: str = "norm",
-        path_output: Optional[str] = None,
-        obj_func: str = "Min_TE",
-        te_constraint: bool = False,
-        te_threshold: float = 0.03,
-        mois_rebal_europe: Optional[List[int]] = None,
-        mois_rebal_us: Optional[List[int]] = None,
-        alpha_score_target: float = 0.0,
+        objective: OptimizerObjective | str = OptimizerObjective.MIN_TRACKING_ERROR,
+        score_col: str = "Score ML",
+        model_covariance: str = "sample",
+        min_weight: float = 0.0,
+        max_weight: float = 1.0,
+        max_active_weight: float | None = None,
+        max_tracking_error: float | None = None,
+        max_turnover: float | None = None,
+        min_score: float | None = None,
+        max_score: float | None = None,
+        min_holdings: int | None = None,
+        max_holdings: int | None = None,
+        min_weight_if_selected: float = 0.0,
+        sector_margin: float | None = 0.02,
+        country_margin: float | None = 0.03,
+        sector_targets: Mapping[object, float] | None = None,
+        country_targets: Mapping[object, float] | None = None,
+        linear_constraints: Sequence[LinearConstraint] = (),
+        forced_ids: Sequence[object] = (),
+        forbidden_ids: Sequence[object] = (),
+        score_weight: float = 1.0,
+        tracking_error_weight: float = 1.0,
+        turnover_weight: float = 0.0,
+        active_weight_penalty: float = 0.0,
+        solver_order: Sequence[str] = (),
     ) -> pd.DataFrame:
-        """Generate an optimized sec list. Normal sec_list_spot() remains ponderation-based."""
-        optimizer_engine = self._get_optimizer_engine()
-        screen = self.screen[self.screen[COL_DATE] == self.screen[COL_DATE].max()] if screen_agg_monthly is None else screen_agg_monthly
-        screen = self._prepare_screen_for_optimizer(screen)
-        returns = self._get_returns_for_drift()
-        liste_noire = []
-        if self._liste_noire is not None:
-            liste_noire = read_liste_noire(self._liste_noire, [], []) if isinstance(self._liste_noire, str) else list(self._liste_noire)
-        if ptf_last is None:
-            ptf_last = pd.DataFrame()
+        """Build one optimized security list through the sole optimizer API."""
 
-        result_df = optimizer_engine.generate_screen_for_optim(
-            screen=screen,
-            ptf_last=ptf_last,
-            returns=returns,
-            bench=self.bench,
-            liste_noire=liste_noire,
-            init=init,
+        screen = (
+            self.screen[self.screen[COL_DATE] == self.screen[COL_DATE].max()]
+            if screen_agg_monthly is None
+            else screen_agg_monthly
+        )
+        candidates = self._prepare_screen_for_optimizer(screen)
+        bench_col = f"Weight in {self.bench}"
+        candidates[bench_col] = normalize_long_only_weights(
+            candidates[bench_col],
+            allow_equal_fallback=True,
+        )
+        if score_col not in candidates.columns:
+            raise KeyError(f"optimizer candidates require score column {score_col}")
+        current, external_current_weight = self._optimizer_current_weights(
+            candidates,
+            previous_portfolio,
             drift=drift,
         )
-        bench_col = f"Weight in {self.bench}"
-        if bench_col in result_df.columns:
-            result_df["Weight in MSCI WORLD"] = result_df[bench_col]
-        date = pd.to_datetime(result_df[COL_DATE].max())
-        bool_rebal_europe, bool_rebal_us = optimizer_engine.define_bool_rebal(
-            date,
-            mois_rebal_europe or list(range(1, 13)),
-            mois_rebal_us or list(range(1, 13)),
-        )
-        params = self._default_optimizer_params(current_params)
-        params["min_score_target"] = params.get("min_score_target", 0.0) + alpha_score_target
-
-        if secto_reco_path:
-            df_sector_cible, df_pays_cible, result_df = optimizer_engine.define_secto_target_and_geo_target2(
-                secto_reco_path=secto_reco_path,
-                df=result_df,
-                date=date,
-                bench=self.bench,
-                bool_rebal_Europe=bool_rebal_europe,
-                bool_rebal_US=bool_rebal_us,
+        blocked = set(str(value) for value in forbidden_ids)
+        if self._liste_noire is not None:
+            blacklist = (
+                read_liste_noire(self._liste_noire, [], [])
+                if isinstance(self._liste_noire, str)
+                else list(self._liste_noire)
             )
-        else:
-            df_sector_cible, df_pays_cible = self._build_current_optimizer_targets(result_df)
-
-        result_df = optimizer_engine.define_lb_ub(
-            df_full=result_df,
-            lb_title=lb_title or self._default_optimizer_lb_config(),
-            CONFIG_UB=config_ub or self._default_optimizer_ub_config(),
-            bench_4_ub=self.bench,
-            margin_title=params["margin_title"],
-            top_mandatory=top_mandatory or self.top_mandatory or 5,
-            bool_rebal_Europe=bool_rebal_europe,
-            bool_rebal_US=bool_rebal_us,
-        )
-        prob_secto_add, prob_pays_add = optimizer_engine.verifier_contraintes(
-            result_df,
-            params["margin_country"],
-            params["margin_sector"],
-            df_sector_cible,
-            df_pays_cible,
-            name_col=bench_col,
-        )
-        while len(prob_secto_add + prob_pays_add) > 0:
-            eligible_before = len(result_df[result_df["ub"] > 0.0010])
-            result_df = optimizer_engine.selection_repechage(
-                result_df,
-                prob_secto_add,
-                prob_pays_add,
-                self.bench,
-                config_ub or self._default_optimizer_ub_config(),
-                lb_title or self._default_optimizer_lb_config(),
+            blacklist_values = {str(value) for value in blacklist}
+            blocked.update(blacklist_values)
+            blocked.update(
+                candidates.loc[
+                    candidates[COL_ISIN].astype(str).isin(blacklist_values),
+                    COL_SEDOL,
+                ]
+                .astype(str)
+                .tolist()
             )
-            prob_secto_add, prob_pays_add = optimizer_engine.verifier_contraintes(
-                result_df,
-                params["margin_country"],
-                params["margin_sector"],
-                df_sector_cible,
-                df_pays_cible,
-                name_col=bench_col,
+        forced = set(str(value) for value in forced_ids)
+        if self.top_mandatory:
+            forced.update(
+                candidates.nlargest(int(self.top_mandatory), bench_col)[COL_SEDOL]
+                .astype(str)
+                .tolist()
             )
-            if eligible_before == len(result_df[result_df["ub"] > 0.0010]):
-                break
 
-        df_sector_tmp = df_sector_cible.rename(columns={bench_col: "PoidsSectGeo"})
-        if "Before tilt W in MSCI WORLD" in df_sector_tmp.columns:
-            result_df = result_df.merge(df_sector_tmp[["Key_Secto_Geo", "PoidsSectGeo", "Before tilt W in MSCI WORLD"]], how="left", on="Key_Secto_Geo")
-        if "PoidsSectGeo" in result_df.columns:
-            zero_target_mask = result_df["PoidsSectGeo"] == 0
-            result_df.loc[zero_target_mask, "lb"] = 0
-            result_df.loc[zero_target_mask, "ub"] = 10e-6
+        group_constraints: list[GroupConstraint] = []
+        if sector_margin is not None:
+            targets = self._optimizer_group_targets(
+                candidates,
+                "Key_Secto_Geo",
+                bench_col,
+                sector_targets,
+            )
+            group_constraints.append(
+                GroupConstraint.around_targets(
+                    name="sector_region",
+                    group_col="Key_Secto_Geo",
+                    targets=targets,
+                    margin=float(sector_margin),
+                )
+            )
+        if country_margin is not None:
+            targets = self._optimizer_group_targets(
+                candidates,
+                "Exchange Country Region",
+                bench_col,
+                country_targets,
+            )
+            group_constraints.append(
+                GroupConstraint.around_targets(
+                    name="country_region",
+                    group_col="Exchange Country Region",
+                    targets=targets,
+                    margin=float(country_margin),
+                )
+            )
 
-        sigma = optimizer_engine.generate_covariance_matrix(result_df, returns, model_cov)
-        result_df, state = optimizer_engine.optimize(
-            result_df,
-            sigma,
-            df_sector_cible,
-            df_pays_cible,
-            self.bench,
-            params,
-            init,
-            scip_options or {},
-            bool_rebal_europe,
-            bool_rebal_us,
-            path_output=path_output,
-            obj_func=obj_func,
-            TE_constraint=te_constraint,
-            te_threshold=te_threshold,
+        result = optimize_portfolio(
+            candidates,
+            id_col=COL_SEDOL,
+            benchmark_weights=bench_col,
+            scores=score_col,
+            covariance=self._optimizer_covariance(candidates, model_covariance),
+            current_weights=current,
+            external_current_weight=external_current_weight,
+            lower_bounds=np.full(len(candidates), float(min_weight)),
+            upper_bounds=np.full(len(candidates), float(max_weight)),
+            group_constraints=group_constraints,
+            linear_constraints=linear_constraints,
+            config=OptimizerConfig(
+                objective=OptimizerObjective(objective),
+                score_weight=float(score_weight),
+                tracking_error_weight=float(tracking_error_weight),
+                turnover_weight=float(turnover_weight),
+                active_weight_penalty=float(active_weight_penalty),
+                min_score=min_score,
+                max_score=max_score,
+                max_tracking_error=max_tracking_error,
+                max_turnover=max_turnover,
+                max_active_weight=max_active_weight,
+                min_holdings=min_holdings,
+                max_holdings=max_holdings,
+                min_weight_if_selected=min_weight_if_selected,
+                forced_ids=tuple(forced),
+                forbidden_ids=tuple(blocked),
+                solver_order=tuple(solver_order),
+            ),
         )
-        if state not in ["optimal", "optimal_inaccurate"]:
-            raise RuntimeError(f"Optimizer failed with status: {state}")
-
-        result_df2, rapport_pays, rapport_secto = optimizer_engine.generate_exposure_reports(result_df, df_pays_cible, df_sector_cible)
-        if bench_col not in result_df2.columns and "Weight in MSCI WORLD" in result_df2.columns:
-            result_df2[bench_col] = result_df2["Weight in MSCI WORLD"]
-        self.optimizer_constraint_log = optimizer_engine.log_constraints(
-            self.optimizer_constraint_log,
-            result_df2,
-            date,
-            rapport_secto,
-            rapport_pays,
-            params,
-            sigma,
-            self.bench,
-        )
-        optimized = result_df2.rename(columns={"Wopt": "Weight"})
-        optimized = optimized[optimized["Weight"] > 0.0001].copy()
+        optimized_full = result.to_frame(candidates)
+        optimized = optimized_full.rename(columns={"target_weight": "Weight"})
+        if abs(float(optimized["Weight"].sum()) - 1.0) > 1e-8:
+            raise RuntimeError(
+                "optimizer output weights do not sum to one"
+            )
         optimized["PTF"] = f"{self.ptf_name} OPTIM"
         columns = [
             "PTF", "Name", COL_ISIN, COL_SEDOL, "Weight", "Exchange Country Region",
             "Key_Secto_Geo", COL_DATE, "Secto", "Score ML", "Raison Exclusion",
-            "lb", "ub", "Weight_last_drift",
+            "optimizer_id", "optimizer_version", "optimizer_objective",
+            "optimizer_solver", "optimizer_status",
         ]
         columns = [column for column in columns if column in optimized.columns]
         result_sec_list = optimized[columns].copy()
-        self.optimizer_result_monthly = result_df.copy()
+        self.optimizer_result_monthly = optimized_full.copy()
+        audit_row = {
+            COL_DATE: pd.to_datetime(candidates[COL_DATE]).max(),
+            **result.metadata,
+            **{
+                key: value
+                for key, value in result.audit.items()
+                if not isinstance(value, (list, dict))
+            },
+        }
+        self.optimizer_constraint_log = pd.concat(
+            [self.optimizer_constraint_log, pd.DataFrame([audit_row])],
+            ignore_index=True,
+        )
         self.sec_list_optimized_monthly = result_sec_list.copy(deep=True)
         return result_sec_list
 
     def _get_returns_for_drift(self) -> pd.DataFrame:
         """Return a clean returns matrix required by monthly drift filling."""
         if self.returns is None:
-            raise ValueError("fill_method='drift' requires returns data on PortfolioBuilder")
+            raise ValueError("fill_method='drift' requires returns data on SecurityListConstructor")
         if isinstance(self.returns, str):
             returns = pd.read_parquet(self.returns)
         else:
@@ -898,7 +1001,7 @@ class PortfolioBuilder:
             logger.error(f"Error writing to file: {e}")
             raise
     
-    def sec_list_spot(
+    def build_monthly_security_list(
         self,
         screen_agg_monthly: Optional[pd.DataFrame] = None
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -1012,7 +1115,7 @@ class PortfolioBuilder:
 
             df = df.copy()
             df.loc[:, COL_DATE] = date
-            df = WeightManager.apply_weighting_scheme(
+            df = apply_weighting_transform(
                 df,
                 self.ponderation,
                 COL_MKT_CAP,
@@ -1129,22 +1232,10 @@ class PortfolioBuilder:
             temp_df[COL_DATE] = df_top[COL_DATE].values
             temp_df['Raison Repechage'] = df_top['Raison Repechage'].values
             
-            # Apply sector weights
-            if self.weight_neutral in ["ICB 19", "ICB 11"]:
-                temp_df_sectors = set(temp_df['Secto'].unique())
-                benchmark_sectors = set(weight_secto_bench.index)
-                if temp_df_sectors.issubset(benchmark_sectors):
-                    secto_weight_sum = temp_df.groupby('Secto')['Weight'].transform('sum')
-                    secto_benchmark_weight = temp_df['Secto'].map(weight_secto_bench)
-                    scaling_factor = secto_benchmark_weight / secto_weight_sum
-                    temp_df['Weight'] = temp_df['Weight'] * scaling_factor
-                    temp_df['Weight'] = temp_df['Weight'] / temp_df['Weight'].sum()
-            else:
-                temp_df['Weight'] = temp_df['Weight'] / temp_df['Weight'].sum()
-            
-            # Cap weights if necessary
-            if self.cap_weight_threshold is not None:
-                temp_df = WeightManager.cap_weight_by_sector(temp_df, self.cap_weight_threshold)
+            temp_df = self._apply_security_weight_constraints(
+                temp_df,
+                weight_secto_bench,
+            )
             
             # Assign portfolio name
             temp_df['PTF'] = self.ptf_name
@@ -1181,7 +1272,13 @@ class PortfolioBuilder:
                         'Raison Exclusion': [f"Bad {list_score_col[i]}"] * len(list_exclusion_metrics)
                     }, index=list_exclusion_metrics)
                     
-                    titles_excluded = pd.concat([titles_excluded, new_entries_exclusion], axis=0)
+                    if titles_excluded.empty:
+                        titles_excluded = new_entries_exclusion.copy()
+                    else:
+                        titles_excluded = pd.concat(
+                            [titles_excluded, new_entries_exclusion],
+                            axis=0,
+                        )
                     titles_excluded.index.name = COL_ISIN
                     titles_excluded = titles_excluded.reset_index()
                 else:
@@ -1196,6 +1293,38 @@ class PortfolioBuilder:
                     
                     df_top_combined = pd.concat([liste_top_mandatory, df_top], axis=0)
                     df_top = df_top_combined[~df_top_combined.index.duplicated(keep='first')]
+
+                if self.weight_neutral in {"ICB 19", "ICB 11"}:
+                    neutral_sector_col = (
+                        COL_SECTOR_ICB19
+                        if self.weight_neutral == "ICB 19"
+                        else COL_SECTOR_ICB11
+                    )
+                    required_sectors = {
+                        sector
+                        for sector, target in weight_secto_bench.items()
+                        if target > 0
+                    }
+                    selected_sectors = set(
+                        df_top[neutral_sector_col].dropna().tolist()
+                    )
+                    additions = []
+                    for missing_sector in required_sectors - selected_sectors:
+                        candidates = df[df[neutral_sector_col] == missing_sector]
+                        if candidates.empty:
+                            continue
+                        selected = (
+                            candidates.nlargest(1, list_score_col[i])
+                            if self.Top
+                            else candidates.nsmallest(1, list_score_col[i])
+                        ).copy()
+                        selected["Raison Repechage"] = "Sector neutrality"
+                        additions.append(selected)
+                    if additions:
+                        df_top = pd.concat([df_top, *additions])
+                        df_top = df_top[
+                            ~df_top.index.duplicated(keep="first")
+                        ]
                 
                 # Sector neutralization
                 temp_df = pd.DataFrame(columns=columns)
@@ -1221,20 +1350,10 @@ class PortfolioBuilder:
                     missing_sectors = temp_df_sectors.difference(benchmark_sectors)
                     raise ValueError(f"Error: Sectors {missing_sectors} not defined in weight_secto_bench")
                 
-                # Apply sector weights (只有在明确设置了行业中性化时才应用)
-                if self.weight_neutral in ["ICB 19", "ICB 11"]:
-                    secto_weight_sum = temp_df.groupby('Secto')['Weight'].transform('sum')
-                    secto_benchmark_weight = temp_df['Secto'].map(weight_secto_bench)
-                    scaling_factor = secto_benchmark_weight / secto_weight_sum
-                    temp_df['Weight'] = temp_df['Weight'] * scaling_factor
-                    temp_df['Weight'] = temp_df['Weight'] / temp_df['Weight'].sum()
-                else:
-                    # 当权重中性化为None时，简单归一化权重使其总和为1
-                    temp_df['Weight'] = temp_df['Weight'] / temp_df['Weight'].sum()
-            
-                # Cap weights if necessary
-                if self.cap_weight_threshold is not None:
-                    temp_df = WeightManager.cap_weight_by_sector(temp_df, self.cap_weight_threshold)
+                temp_df = self._apply_security_weight_constraints(
+                    temp_df,
+                    weight_secto_bench,
+                )
                 
                 # Assign portfolio name
                 temp_df['PTF'] = self.get_portfolio_name(list_score_col[i])
@@ -1255,7 +1374,7 @@ class PortfolioBuilder:
         
         return result_sec_list, titles_excluded
     
-    def generic_histo_seclist(
+    def build_historical_security_lists(
         self,
         start_date: datetime.datetime,
         freq_rebal: Optional[int] = None,
@@ -1350,7 +1469,7 @@ class PortfolioBuilder:
                     logger.info(f"Progress: {i+1}/{total} months ({(i+1)*100/total:.0f}%)")
 
             screen = screen_agg.iloc[monthly_positions[pd.Timestamp(date_)]]
-            result = self.sec_list_spot(screen_agg_monthly=screen)
+            result = self.build_monthly_security_list(screen_agg_monthly=screen)
             result_sec_list.append(result[0])
             result_exclusion.append(result[1])
         
@@ -1381,10 +1500,3 @@ class PortfolioBuilder:
         logger.info("Historical exclusion list generated")
         
         return df
-
-
-
-
-
-
-

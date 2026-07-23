@@ -12,8 +12,6 @@ import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
-import hashlib
-from itertools import combinations
 import json
 from pathlib import Path
 import sys
@@ -34,6 +32,14 @@ for path in (SCRIPT_DIR, TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src"):
 
 import run_eu_small_multifactor_research as base  # noqa: E402
 import run_eu_small_validated_gate_research as gate_runner  # noqa: E402
+from backtest_code.research.executor import (  # noqa: E402
+    build_synergy_candidate_matrix,
+    dedupe_official_results,
+    incomplete_official_metrics,
+    new_wave_id,
+    read_official_results,
+    shard_metric_names,
+)
 
 
 AD_HOC_ROOT = BACKTEST_ROOT / "runs" / "ad_hoc"
@@ -198,22 +204,6 @@ def select_legs(raw_gate: pd.DataFrame, rel_gate: pd.DataFrame) -> pd.DataFrame:
     return out.sort_values(["bucket", "robust_score"], ascending=[True, False]).reset_index(drop=True)
 
 
-def stable_hash(items: Iterable[str], length: int = 12) -> str:
-    return hashlib.sha1("|".join(items).encode("utf-8")).hexdigest()[:length]
-
-
-def pair_column(left: str, right: str) -> str:
-    return f"eu_small_syn_pair_{stable_hash(sorted([left, right]))}"
-
-
-def subset_column(buckets: tuple[str, ...]) -> str:
-    return f"eu_small_syn_subset_{stable_hash(buckets, 10)}"
-
-
-def loo_column(bucket: str) -> str:
-    return f"eu_small_syn_loo_without_{base.slugify(bucket)}"
-
-
 def full_column() -> str:
     return "eu_small_syn_full_bucket_equal"
 
@@ -235,107 +225,62 @@ def load_research_inputs(raw_dir: Path, relative_dir: Path, legs: pd.DataFrame) 
 
 
 def add_candidates(screen: pd.DataFrame, legs: pd.DataFrame) -> tuple[pd.DataFrame, list[base.ModelSpec], pd.DataFrame]:
-    specs: list[base.ModelSpec] = []
-    map_rows: list[dict[str, object]] = []
     leg_meta = legs.set_index("metric").to_dict(orient="index")
-    leg_metrics = legs["metric"].tolist()
-
-    for left, right in combinations(leg_metrics, 2):
-        left_bucket = str(leg_meta[left]["bucket"])
-        right_bucket = str(leg_meta[right]["bucket"])
-        if left_bucket == right_bucket:
-            continue
-        column = pair_column(left, right)
-        screen[column] = base.weighted_scores(screen, {left: 0.5, right: 0.5}, min_count=2)
-        label = f"{leg_meta[left]['label']} + {leg_meta[right]['label']}"
-        specs.append(base.ModelSpec(column, label, "pair_synergy", {left: 0.5, right: 0.5}, f"{left_bucket} + {right_bucket}"))
-        map_rows.append(
-            {
-                "metric": column,
-                "candidate_type": "pair",
-                "component_count": 2,
-                "buckets": f"{left_bucket}|{right_bucket}",
-                "components": f"{left}|{right}",
-                "label": label,
-            }
-        )
-
-    bucket_cols: dict[str, str] = {}
-    for bucket in BUCKET_ORDER:
-        metrics = legs[legs["bucket"].eq(bucket)]["metric"].tolist()
-        if not metrics:
-            continue
-        column = f"eu_small_syn_bucket_{base.slugify(bucket)}"
-        screen[column] = base.average_scores(screen, metrics, min_count=1)
-        bucket_cols[bucket] = column
-        specs.append(base.ModelSpec(column, bucket, "bucket_component", {metric: 1.0 / len(metrics) for metric in metrics}, economic_role(bucket)))
-        map_rows.append(
-            {
-                "metric": column,
-                "candidate_type": "bucket_component",
-                "component_count": len(metrics),
-                "buckets": bucket,
-                "components": "|".join(metrics),
-                "label": bucket,
-            }
-        )
-
-    for size in (2, 3):
-        for buckets in combinations(bucket_cols.keys(), size):
-            column = subset_column(buckets)
-            components = {bucket_cols[bucket]: 1.0 / size for bucket in buckets}
-            screen[column] = base.weighted_scores(screen, components, min_count=size)
-            label = " + ".join(buckets)
-            specs.append(base.ModelSpec(column, label, "family_subset", components, f"{size}-bucket subset"))
-            map_rows.append(
-                {
-                    "metric": column,
-                    "candidate_type": "family_subset",
-                    "component_count": size,
-                    "buckets": "|".join(buckets),
-                    "components": "|".join(components),
-                    "label": label,
-                }
+    screen, candidate_map = build_synergy_candidate_matrix(
+        screen,
+        legs[["metric", "bucket"]],
+        bucket_order=BUCKET_ORDER,
+        prefix="eu_small_syn",
+        weighted_scores=lambda frame, components, min_count: base.weighted_scores(
+            frame,
+            dict(components),
+            min_count=min_count,
+        ),
+        average_scores=lambda frame, columns, min_count: base.average_scores(
+            frame,
+            list(columns),
+            min_count=min_count,
+        ),
+        subset_sizes=(2, 3),
+    )
+    specs: list[base.ModelSpec] = []
+    for index, row in candidate_map.iterrows():
+        candidate_type = str(row["candidate_type"])
+        components = dict(row["component_weights"])
+        buckets = [item for item in str(row["buckets"]).split("|") if item]
+        if candidate_type == "pair":
+            label = " + ".join(
+                str(leg_meta[item]["label"]) for item in components
             )
-
-    if bucket_cols:
-        full = full_column()
-        full_components = {column: 1.0 / len(bucket_cols) for column in bucket_cols.values()}
-        screen[full] = base.weighted_scores(screen, full_components, min_count=max(2, min(4, len(bucket_cols))))
-        specs.append(base.ModelSpec(full, "all selected buckets equal-weight", "full_model", full_components, "full selected synergy model"))
-        map_rows.append(
-            {
-                "metric": full,
-                "candidate_type": "full_model",
-                "component_count": len(bucket_cols),
-                "buckets": "|".join(bucket_cols.keys()),
-                "components": "|".join(full_components),
-                "label": "all selected buckets equal-weight",
-            }
+            family = "pair_synergy"
+            note = " + ".join(buckets)
+        elif candidate_type == "bucket_component":
+            label = buckets[0]
+            family = candidate_type
+            note = economic_role(label)
+        elif candidate_type == "family_subset":
+            label = " + ".join(buckets)
+            family = candidate_type
+            note = f"{len(buckets)}-bucket subset"
+        elif candidate_type == "full_model":
+            label = "all selected buckets equal-weight"
+            family = candidate_type
+            note = "full selected synergy model"
+        else:
+            left_out = str(row.get("left_out_bucket", ""))
+            label = f"full model without {left_out}"
+            family = "leave_one_out"
+            note = f"leave one bucket out: {left_out}"
+        candidate_map.at[index, "label"] = label
+        specs.append(
+            base.ModelSpec(
+                str(row["metric"]),
+                label,
+                family,
+                components,
+                note,
+            )
         )
-
-    for bucket, bucket_col in bucket_cols.items():
-        kept = {name: col for name, col in bucket_cols.items() if name != bucket}
-        if len(kept) < 2:
-            continue
-        column = loo_column(bucket)
-        components = {col: 1.0 / len(kept) for col in kept.values()}
-        screen[column] = base.weighted_scores(screen, components, min_count=max(2, min(4, len(kept))))
-        label = f"full model without {bucket}"
-        specs.append(base.ModelSpec(column, label, "leave_one_out", components, f"leave one bucket out: {bucket}"))
-        map_rows.append(
-            {
-                "metric": column,
-                "candidate_type": "leave_one_out",
-                "component_count": len(kept),
-                "buckets": "|".join(kept.keys()),
-                "left_out_bucket": bucket,
-                "components": "|".join(components),
-                "label": label,
-            }
-        )
-
-    candidate_map = pd.DataFrame(map_rows)
     return screen, specs, candidate_map
 
 
@@ -401,47 +346,19 @@ def build_or_load_screen(
 
 
 def read_existing(paths: list[Path]) -> pd.DataFrame:
-    frames = []
-    for path in paths:
-        if path.exists() and path.stat().st_size > 0:
-            try:
-                frames.append(pd.read_csv(path))
-            except pd.errors.EmptyDataError:
-                pass
-    if not frames:
-        return pd.DataFrame()
-    return dedupe_results(pd.concat(frames, ignore_index=True))
+    return read_official_results(paths)
 
 
 def dedupe_results(results: pd.DataFrame) -> pd.DataFrame:
-    if results.empty or not {"metric", "side", "status"}.issubset(results.columns):
-        return results
-    rank = {"success": 3, "skipped": 2, "failed": 1}
-    out = results.copy()
-    out["_rank"] = out["status"].map(rank).fillna(0)
-    out["_order"] = range(len(out))
-    out = out.sort_values(["metric", "side", "_rank", "_order"], ascending=[True, True, False, True])
-    out = out.drop_duplicates(["metric", "side"], keep="first")
-    return out.drop(columns=["_rank", "_order"]).sort_values(["metric", "side"]).reset_index(drop=True)
+    return dedupe_official_results(results)
 
 
 def incomplete_metrics(metrics: list[str], completed: pd.DataFrame) -> list[str]:
-    if completed.empty:
-        return metrics
-    done = set(
-        (str(row["metric"]), str(row["side"]))
-        for _, row in completed[completed["status"].isin(["success", "skipped"])].iterrows()
-    )
-    return [metric for metric in metrics if (metric, "Top") not in done or (metric, "Worst") not in done]
+    return incomplete_official_metrics(metrics, completed)
 
 
 def shard_metrics(metrics: list[str], workers: int, shard_size: int = 0) -> list[list[str]]:
-    if shard_size > 0:
-        return [metrics[idx : idx + shard_size] for idx in range(0, len(metrics), shard_size)]
-    shards = [[] for _ in range(max(1, workers))]
-    for idx, metric in enumerate(metrics):
-        shards[idx % len(shards)].append(metric)
-    return [shard for shard in shards if shard]
+    return shard_metric_names(metrics, workers, shard_size)
 
 
 def worker_run(payload: dict[str, object]) -> dict[str, object]:
@@ -761,7 +678,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             remaining = remaining[: max(1, (int(args.max_runs) + 1) // 2)]
         workers = max(args.workers, 1)
         shards = shard_metrics(remaining, workers, max(args.shard_size, 0))
-        wave = args.wave.strip() or datetime.now().strftime("wave_%Y%m%d_%H%M%S")
+        wave = new_wave_id(args.wave)
         print(
             json.dumps(
                 {

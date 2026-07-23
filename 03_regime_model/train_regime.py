@@ -7,7 +7,7 @@ import pandas as pd
 
 import config
 import model
-from tp_core.general_backtest import backtest_return_series
+from tp_core.backtesting import calculate_return_series_nav
 
 
 def evaluate(res: pd.DataFrame) -> pd.DataFrame:
@@ -26,7 +26,7 @@ def evaluate(res: pd.DataFrame) -> pd.DataFrame:
 def plot_regime(res: pd.DataFrame, region: str, k: int) -> None:
     """市场累计收益曲线 + 状态背景着色（K 自适应）。"""
     realized = res["fwd_ret"].shift(1).fillna(0)  # 当月已实现≈上月前瞻
-    cum = backtest_return_series(
+    cum = calculate_return_series_nav(
         realized,
         initial_nav=1.0,
         periods_per_year=12,

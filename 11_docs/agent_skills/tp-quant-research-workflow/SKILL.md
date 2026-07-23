@@ -96,12 +96,32 @@ Use this protocol after raw and relative raw variables pass their individual gat
 Implementation pattern:
 
 - Put one-off research scripts under `07_backtest_code/scripts/` and outputs under `07_backtest_code/runs/ad_hoc/`.
+- Import the public workflow only from `tp_core.backtesting`. Use
+  `SecurityNavEngine` / `calculate_security_nav()` for security-level NAV,
+  `SecurityListConstructor` for security lists, and
+  `OfficialPortfolioBacktest` for official artifacts.
+- Use `tp_core.portfolio_weights` for normalization, hard-cap redistribution,
+  weighting transforms, and sector target matching.
+- Use `optimizer.optimize_portfolio()` as the sole optimization API and retain
+  optimizer identity, version, objective, solver, objective policy, and
+  constraint policy in artifacts.
+- Never prune small optimizer weights and renormalize after solving. Validate
+  every configured constraint on the final weights before writing artifacts.
+- Use `backtest_code.research.executor` for raw/relative gates,
+  same-security relative variants, pair/subset/bucket and individual
+  leave-one-out candidates,
+  completed Top/Worst detection, dedupe, sharding, and unique-wave paths.
+- Requested metrics with no result rows remain in the gate as failed Top/Worst
+  evidence; missing work must never disappear from the gate table.
 - Write `metric_definitions.json`, `data_construction_checks.csv`, `metric_diagnostics.csv`, `official_run_results.csv`, `performance_summary.csv`, Plotly HTML files, and a Chinese markdown report.
 - Add `--metrics`, `--max-runs`, and `--resume` to long official-run scripts so multi-hour Top/Worst matrices can be resumed without repeating successful runs.
 - For reusable universe runners, add or use a two-stage interface like `--raw-only` followed by `--validated-from <raw_run_dir_or_summary>` so raw evidence gates family construction.
 - For large official run matrices, use resumable process-level sharding rather than Python threads. Each worker must write its own shard result file and official run root; the parent process merges and deduplicates results. Use unique wave directories on restart so shard CSVs are not overwritten.
 - Keep Windows run paths short for official artifacts; long metric names plus nested shard directories can exceed path limits before `config_snapshot.yaml` is written.
-- If the GUI `BacktestService` logger relay fails or recurses during batch runs, call the same official engine path directly while preserving `PtfBuilder`, `generic_histo_seclist`, `backtest`, benchmark performance, and artifact outputs.
+- If the GUI `BacktestService` logger relay fails or recurses during batch runs,
+  call the same official engine path directly while preserving
+  `OfficialPortfolioBacktest`, `build_historical_security_lists`,
+  `run_portfolio_nav`, benchmark performance, and artifact outputs.
 - Do not modify production screen, signal, dashboard, model, or portfolio contracts unless the user explicitly asks to promote the research result.
 
 ## Data Audit And Idea Generation

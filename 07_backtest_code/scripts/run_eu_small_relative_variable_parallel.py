@@ -30,6 +30,12 @@ for path in (SCRIPT_DIR, TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src"):
 import run_eu_small_multifactor_research as base  # noqa: E402
 import run_eu_small_relative_variable_research as rel  # noqa: E402
 import run_eu_small_validated_gate_research as gate_runner  # noqa: E402
+from backtest_code.research.executor import (  # noqa: E402
+    dedupe_official_results,
+    incomplete_official_metrics,
+    read_official_results,
+    shard_metric_names,
+)
 
 
 def parse_csv_arg(raw: str | None, default: list[str]) -> list[str]:
@@ -85,6 +91,12 @@ def shard_metrics(metrics: list[str], workers: int, shard_size: int = 0) -> list
     for idx, metric in enumerate(metrics):
         shards[idx % len(shards)].append(metric)
     return [shard for shard in shards if shard]
+
+
+dedupe_results = dedupe_official_results
+load_completed = read_official_results
+incomplete_metrics = incomplete_official_metrics
+shard_metrics = shard_metric_names
 
 
 def worker_run(payload: dict[str, object]) -> dict[str, object]:

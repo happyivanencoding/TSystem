@@ -29,6 +29,12 @@ for path in (SCRIPT_DIR, TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src"):
         sys.path.insert(0, str(path))
 
 import run_stoxx600_multifactor_research as base  # noqa: E402
+from backtest_code.research.executor import (  # noqa: E402
+    GateThresholds,
+    RelativeLevelSpec,
+    build_same_security_relative_variables,
+    evaluate_official_top_worst_gate,
+)
 
 
 AD_HOC_ROOT = BACKTEST_ROOT / "runs" / "ad_hoc"
@@ -122,44 +128,76 @@ def build_relative_screen(
     screen = screen.dropna(subset=[base.DATE_COL, base.ISIN_COL, base.SEDOL_COL, base.SECTOR_COL])
     screen = screen.sort_values([base.ISIN_COL, base.DATE_COL]).reset_index(drop=True)
 
+    spec_lookup = {spec.column: spec for spec in level_specs}
+    common_specs = [
+        RelativeLevelSpec(
+            raw_column=spec.column,
+            score_column=spec.score_column,
+            family=spec.family,
+            direction=spec.direction,
+            role=spec.role,
+            source=base.raw_source(spec),
+            note=spec.note,
+        )
+        for spec in level_specs
+    ]
+    screen, definitions = build_same_security_relative_variables(
+        screen,
+        common_specs,
+        lags=lags,
+        transforms=transforms,
+        date_col=base.DATE_COL,
+        security_col=base.ISIN_COL,
+        sector_col=base.SECTOR_COL,
+        raw_score=lambda frame, spec: base.score_raw_metric(
+            frame,
+            spec_lookup[spec.raw_column],
+        ),
+        winsorize=base.winsorize_by_date,
+        sector_score=base.sector_rank_score,
+        column_name=lambda spec, transform, lag: relative_column(
+            spec_lookup[spec.raw_column],
+            transform,
+            lag,
+        ),
+    )
     metrics: list[base.ModelSpec] = []
     meta_rows: list[dict[str, object]] = []
-    entity = screen[base.ISIN_COL].astype(str)
-    for spec in level_specs:
-        raw = (pd.to_numeric(screen[spec.column], errors="coerce") * spec.direction).replace([np.inf, -np.inf], np.nan)
-        raw_score = base.score_raw_metric(screen, spec)
-        for lag in lags:
-            if "directional_delta" in transforms:
-                delta = raw - raw.groupby(entity).shift(lag)
-                clipped = base.winsorize_by_date(delta, screen[base.DATE_COL])
-                column = relative_column(spec, "directional_delta", lag)
-                screen[column] = base.sector_rank_score(clipped, screen[base.DATE_COL], screen[base.SECTOR_COL])
-                metrics.append(
-                    base.ModelSpec(
-                        column=column,
-                        label=f"{spec.family}: d{lag} {spec.column}",
-                        family=f"relative_{spec.family}",
-                        components={spec.column: float(spec.direction)},
-                        note=f"direction-adjusted level change versus lag {lag} screen observations",
+    for _, definition in definitions.iterrows():
+        spec = spec_lookup[str(definition["raw_column"])]
+        transform = str(definition["transform"])
+        lag = int(definition["lag_observations"])
+        column = str(definition["metric"])
+        metrics.append(
+            base.ModelSpec(
+                column=column,
+                label=(
+                    f"{spec.family}: d{lag} {spec.column}"
+                    if transform == "directional_delta"
+                    else f"{spec.family}: rank d{lag} {spec.column}"
+                ),
+                family=f"relative_{spec.family}",
+                components={
+                    (
+                        spec.column
+                        if transform == "directional_delta"
+                        else spec.score_column
+                    ): (
+                        float(spec.direction)
+                        if transform == "directional_delta"
+                        else 1.0
                     )
-                )
-                meta_rows.append(meta_row(spec, column, "directional_delta", lag))
-            if "score_delta" in transforms:
-                score_delta = raw_score - raw_score.groupby(entity).shift(lag)
-                column = relative_column(spec, "score_delta", lag)
-                screen[column] = base.sector_rank_score(score_delta, screen[base.DATE_COL], screen[base.SECTOR_COL])
-                metrics.append(
-                    base.ModelSpec(
-                        column=column,
-                        label=f"{spec.family}: rank d{lag} {spec.column}",
-                        family=f"relative_{spec.family}",
-                        components={spec.score_column: 1.0},
-                        note=f"sector-rank score change versus lag {lag} screen observations",
-                    )
-                )
-                meta_rows.append(meta_row(spec, column, "score_delta", lag))
-
-    screen = screen.sort_values([base.DATE_COL, base.ISIN_COL]).reset_index(drop=True)
+                },
+                note=(
+                    f"direction-adjusted level change versus lag {lag} "
+                    "screen observations"
+                    if transform == "directional_delta"
+                    else f"sector-rank score change versus lag {lag} "
+                    "screen observations"
+                ),
+            )
+        )
+        meta_rows.append(meta_row(spec, column, transform, lag))
     meta = pd.DataFrame(meta_rows)
     checks = base.construction_checks(screen, returns, pq.ParquetFile(screen_path).metadata.num_rows)
     checks = pd.concat(
@@ -226,55 +264,18 @@ def relative_gate_table(
     min_top_worst_ratio: float,
     min_robust_score: float,
 ) -> pd.DataFrame:
-    top = summary[(summary["status"].eq("success")) & (summary["side"].eq("Top"))].copy()
-    diag = metric_diag.drop_duplicates("metric", keep="last").set_index("metric").to_dict(orient="index")
-    meta_map = meta.drop_duplicates("metric", keep="last").set_index("metric").to_dict(orient="index")
-    rows = []
-    for _, row in top.iterrows():
-        metric = str(row.get("metric", ""))
-        info = meta_map.get(metric, {})
-        coverage = float(diag.get(metric, {}).get("coverage", np.nan))
-        ratio_cagr = float(row.get("ratio_cagr", np.nan))
-        top_worst = float(row.get("top_worst_ratio_return", np.nan))
-        robust = float(row.get("robust_score", np.nan))
-        failures = []
-        if not np.isfinite(coverage) or coverage < min_coverage:
-            failures.append("coverage")
-        if not np.isfinite(ratio_cagr) or ratio_cagr <= min_ratio_cagr:
-            failures.append("ratio_cagr")
-        if not np.isfinite(top_worst) or top_worst <= min_top_worst_ratio:
-            failures.append("top_worst_ratio")
-        if not np.isfinite(robust) or robust <= min_robust_score:
-            failures.append("robust_score")
-        rows.append(
-            {
-                "metric": metric,
-                "raw_column": info.get("raw_column"),
-                "base_family": info.get("base_family"),
-                "role": info.get("role"),
-                "source": info.get("source"),
-                "base_direction": info.get("base_direction"),
-                "transform": info.get("transform"),
-                "lag_observations": info.get("lag_observations"),
-                "coverage": coverage,
-                "ratio_cagr": ratio_cagr,
-                "top_worst_ratio_return": top_worst,
-                "robust_score": robust,
-                "ratio_max_drawdown": row.get("ratio_max_drawdown", np.nan),
-                "tracking_error": row.get("tracking_error", np.nan),
-                "annual_active_hit_rate": row.get("annual_active_hit_rate", np.nan),
-                "avg_turnover": row.get("avg_turnover", np.nan),
-                "start_date": row.get("start_date", ""),
-                "pass_gate": not failures,
-                "fail_reasons": ";".join(failures),
-                "economic_read": info.get("economic_read"),
-                "base_note": info.get("base_note"),
-            }
-        )
-    out = pd.DataFrame(rows)
-    if out.empty:
-        return out
-    return out.sort_values(["pass_gate", "robust_score", "ratio_cagr"], ascending=[False, False, False]).reset_index(drop=True)
+    return evaluate_official_top_worst_gate(
+        summary,
+        metric_diag,
+        thresholds=GateThresholds(
+            min_coverage=min_coverage,
+            min_ratio_cagr=min_ratio_cagr,
+            min_top_worst_ratio=min_top_worst_ratio,
+            min_robust_score=min_robust_score,
+        ),
+        metadata=meta,
+        metrics=meta["metric"].astype(str).tolist() if "metric" in meta else None,
+    )
 
 
 def compare_with_level_gate(relative_gate: pd.DataFrame, level_gate_path: Path, output_dir: Path) -> pd.DataFrame:

@@ -429,7 +429,7 @@ class BacktestService:
 
         try:
             with redirect_stdout(relay), redirect_stderr(relay):
-                builder = engine_module.PtfBuilder(
+                builder = engine_module.OfficialPortfolioBacktest(
                     screen=prepared_screen,
                     returns=prepared_returns,
                     bench=settings.run.bench,
@@ -457,18 +457,18 @@ class BacktestService:
                     benchmark_cache=self._benchmark_cache,
                 )
 
-                builder.generic_histo_seclist(
+                builder.build_historical_security_lists(
                     start_date=pd.to_datetime(settings.run.start_date),
                     freq_rebal=settings.run.freq_rebal,
                     screen_start_date=settings.run.screen_start_date,
                     fill_method=settings.run.fill_method,
                 )
-                builder.backtest(
+                builder.run_portfolio_nav(
                     max_weight=settings.run.max_weight,
                     sector_neutral=settings.run.sector_neutral,
                 )
-                builder.backtest_get_bench_perf(prepared_screen, builder.start_date, settings.run.bench)
-                builder.backtest_plot_ptf_bench(
+                builder.run_benchmark_nav(prepared_screen, builder.start_date, settings.run.bench)
+                builder.plot_portfolio_vs_benchmark(
                     title=run_label,
                     save_path=str(artifacts.plot),
                     show_plot=False,

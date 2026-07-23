@@ -64,7 +64,10 @@ class PtfBuilder:
         use_factor_ranking: bool = True,
         score_pivot_esg: Optional[Union[str, float]] = None,
         score_pivot_esg_path: Optional[str] = None,
-        optimizer_config: Optional[dict] = None
+        optimizer_config: Optional[dict] = None,
+        copy_inputs: bool = False,
+        monthly_base_cache: Optional[dict] = None,
+        benchmark_cache: Optional[dict] = None,
     ):
         """
         Initialize the Portfolio Builder.
@@ -94,14 +97,25 @@ class PtfBuilder:
             financial_filter_config=financial_filter_config,
             use_factor_ranking=use_factor_ranking,
             score_pivot_esg=score_pivot_esg,
-            score_pivot_esg_path=score_pivot_esg_path
+            score_pivot_esg_path=score_pivot_esg_path,
+            copy_inputs=copy_inputs,
+            monthly_base_cache=monthly_base_cache,
         )
         
         # Initialize backtest engines
-        self.backtest_engine = BacktestEngine(returns=returns)
+        self.backtest_engine = BacktestEngine(
+            returns=returns,
+            copy_inputs=copy_inputs,
+        )
         self._optimized_backtest_engine = None
         self.portfolio_builder.returns = self.backtest_engine.returns
         self.optimizer_config = optimizer_config or {}
+        self.benchmark_cache = benchmark_cache
+        if self.benchmark_cache is not None and not isinstance(
+            self.benchmark_cache,
+            dict,
+        ):
+            raise TypeError("benchmark_cache must be a dictionary or None")
         
         # Keep the legacy data_loader attribute without duplicating loaded frames.
         self.data_loader = DataLoader()
@@ -322,8 +336,23 @@ class PtfBuilder:
         bench: str
     ):
         """Calculate benchmark performance."""
+        cache_key = None
+        if self.benchmark_cache is not None:
+            cache_key = (
+                id(screen),
+                id(self.returns),
+                str(bench),
+                pd.Timestamp(start_date),
+            )
+            cached = self.benchmark_cache.get(cache_key)
+            if cached is not None:
+                self.backtest_engine.perf_bench = cached
+                self.perf_bench = cached
+                return
         self.backtest_engine.backtest_get_bench_perf(screen, start_date, bench)
         self.perf_bench = self.backtest_engine.perf_bench
+        if cache_key is not None:
+            self.benchmark_cache[cache_key] = self.perf_bench.copy(deep=True)
     
     def backtest_plot_ptf_bench(
         self,

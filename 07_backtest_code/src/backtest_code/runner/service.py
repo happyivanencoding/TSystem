@@ -5,10 +5,7 @@ from __future__ import annotations
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass, field
 from itertools import product
-import importlib.util
-import sys
 import io
-from pathlib import Path
 import traceback
 from types import ModuleType
 from typing import Callable, Any
@@ -26,10 +23,10 @@ from .artifacts import (
     save_series,
     save_text,
 )
+from .input_loader import load_pruned_backtest_inputs
 from .validators import (
     ValidationReport,
     load_tabular_file,
-    normalise_screen_columns,
     prepare_returns_dataframe,
     prepare_screen_dataframe,
     validate_settings,
@@ -97,37 +94,21 @@ class BacktestService:
 
     def __init__(self) -> None:
         self._engine_module: ModuleType | None = None
-
-    def _project_root(self) -> Path:
-        """Retourne la racine du projet."""
-
-        return Path(__file__).resolve().parents[3]
-
-    def _engine_path(self) -> Path:
-        """Retourne le chemin du moteur interne."""
-
-        return self._project_root() / "BacktestEngine.py"
+        self._prepared_screen_source_id: int | None = None
+        self._prepared_screen: pd.DataFrame | None = None
+        self._prepared_returns_source_id: int | None = None
+        self._prepared_returns: pd.DataFrame | None = None
+        self._monthly_base_cache: dict = {}
+        self._benchmark_cache: dict = {}
 
     def _load_engine_module(self) -> ModuleType:
-        """Charge dynamiquement le module BacktestEngine interne."""
+        """Load the sole public TP backtest API."""
 
         if self._engine_module is not None:
             return self._engine_module
 
-        project_root = self._project_root()
-        if str(project_root) not in sys.path:
-            sys.path.insert(0, str(project_root))
+        import tp_core.backtesting as module
 
-        engine_path = self._engine_path()
-        if not engine_path.exists():
-            raise FileNotFoundError(f"BacktestEngine.py est introuvable : {engine_path}")
-
-        spec = importlib.util.spec_from_file_location("internal_backtest_engine", engine_path)
-        if spec is None or spec.loader is None:
-            raise ImportError("Impossible de charger BacktestEngine.py")
-
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
         self._engine_module = module
         return module
 
@@ -238,15 +219,80 @@ class BacktestService:
         except ValueError:
             return text
 
-    def _prepare_screen_for_engine(self, screen_df: pd.DataFrame, engine_module: ModuleType) -> pd.DataFrame:
+    def _prepare_screen_for_engine(self, screen_df: pd.DataFrame) -> pd.DataFrame:
         """Prepare le screen avant instanciation du moteur."""
 
+        source_id = id(screen_df)
+        if (
+            self._prepared_screen_source_id == source_id
+            and self._prepared_screen is not None
+        ):
+            return self._prepared_screen
+
         frame = prepare_screen_dataframe(screen_df)
-        if hasattr(engine_module, "drop_duplicates_keep_less_missing"):
-            duplicate_mask = frame.reset_index().duplicated(subset=["ISIN", "Date"], keep=False)
-            if duplicate_mask.any():
-                frame = engine_module.drop_duplicates_keep_less_missing(frame)
-        return normalise_screen_columns(frame)
+        self._prepared_screen_source_id = source_id
+        self._prepared_screen = frame
+        self._monthly_base_cache.clear()
+        self._benchmark_cache.clear()
+        return frame
+
+    def _prepare_returns_for_engine(self, returns_df: pd.DataFrame) -> pd.DataFrame:
+        """Prepare les rendements une seule fois pour un batch partage."""
+
+        source_id = id(returns_df)
+        if (
+            self._prepared_returns_source_id == source_id
+            and self._prepared_returns is not None
+        ):
+            return self._prepared_returns
+        prepared = prepare_returns_dataframe(returns_df)
+        self._prepared_returns_source_id = source_id
+        self._prepared_returns = prepared
+        self._benchmark_cache.clear()
+        return prepared
+
+    def _load_inputs_for_settings(
+        self,
+        settings_list: list[AppSettings],
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Charge un jeu d'entrees compact partage par un run ou un batch."""
+
+        if not settings_list:
+            raise ValueError("At least one backtest setting is required")
+        first = settings_list[0]
+        metrics = list(
+            dict.fromkeys(
+                metric
+                for settings in settings_list
+                for metric in settings.run.metrics
+            )
+        )
+        benchmarks = list(
+            dict.fromkeys(settings.run.bench for settings in settings_list)
+        )
+        start_dates = pd.to_datetime(
+            [settings.run.start_date for settings in settings_list],
+            errors="coerce",
+        )
+        valid_start_dates = start_dates[~pd.isna(start_dates)]
+        earliest_start = (
+            pd.Timestamp(valid_start_dates.min())
+            if len(valid_start_dates)
+            else None
+        )
+        include_esg = any(
+            settings.run.esg_exclusion > 0
+            or self._parse_score_pivot(settings.run.score_pivot_esg) is not None
+            for settings in settings_list
+        )
+        return load_pruned_backtest_inputs(
+            first.paths.screen,
+            first.paths.returns,
+            metrics=metrics,
+            benchmarks=benchmarks,
+            start_date=earliest_start,
+            include_esg=include_esg,
+        )
 
     def _create_artifact_container(self, run_dir: Path) -> RunArtifacts:
         """Instancie les chemins des artefacts standards."""
@@ -282,10 +328,13 @@ class BacktestService:
         save_config_snapshot(settings, run_dir)
 
         try:
-            if screen_df is None:
-                screen_df = load_tabular_file(settings.paths.screen)
-            if returns_df is None:
-                returns_df = load_tabular_file(settings.paths.returns)
+            if screen_df is None and returns_df is None:
+                screen_df, returns_df = self._load_inputs_for_settings([settings])
+            else:
+                if screen_df is None:
+                    screen_df = load_tabular_file(settings.paths.screen)
+                if returns_df is None:
+                    returns_df = load_tabular_file(settings.paths.returns)
         except Exception as exc:
             summary = f"{type(exc).__name__}: {exc}"
             details = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).strip()
@@ -359,8 +408,8 @@ class BacktestService:
             )
 
         engine_module = self._load_engine_module()
-        prepared_screen = self._prepare_screen_for_engine(screen_df, engine_module)
-        prepared_returns = prepare_returns_dataframe(returns_df)
+        prepared_screen = self._prepare_screen_for_engine(screen_df)
+        prepared_returns = self._prepare_returns_for_engine(returns_df)
 
         relay = _StreamRelay(
             lambda line: self._emit(
@@ -403,6 +452,9 @@ class BacktestService:
                     cap_weight_threshold=settings.run.cap_weight_threshold,
                     score_pivot_esg=self._parse_score_pivot(settings.run.score_pivot_esg),
                     score_pivot_esg_path=settings.paths.score_pivot_esg_path or None,
+                    copy_inputs=False,
+                    monthly_base_cache=self._monthly_base_cache,
+                    benchmark_cache=self._benchmark_cache,
                 )
 
                 builder.generic_histo_seclist(
@@ -526,8 +578,9 @@ class BacktestService:
         results: list[SingleRunResult] = []
         total = len(generated_settings)
         try:
-            shared_screen_df = load_tabular_file(settings.paths.screen)
-            shared_returns_df = load_tabular_file(settings.paths.returns)
+            shared_screen_df, shared_returns_df = self._load_inputs_for_settings(
+                generated_settings
+            )
         except Exception:
             shared_screen_df = None
             shared_returns_df = None

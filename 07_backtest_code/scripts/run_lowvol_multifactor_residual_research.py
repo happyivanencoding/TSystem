@@ -18,8 +18,16 @@ BACKTEST_ROOT = TP_ROOT / "07_backtest_code"
 sys.path.insert(0, str(TP_ROOT / "01_tp_core"))
 sys.path.insert(0, str(BACKTEST_ROOT))
 
-from utils.constants import COL_DATE, COL_ISIN, COL_MKT_CAP, COL_SECTOR_ICB19, COL_SEDOL  # noqa: E402
+from utils.constants import (  # noqa: E402
+    COL_DATE,
+    COL_ISIN,
+    COL_MKT_CAP,
+    COL_PORTFOLIO_WEIGHT,
+    COL_SECTOR_ICB19,
+    COL_SEDOL,
+)
 from utils.plotting import PlotlyVisualizer  # noqa: E402
+from tp_core.general_backtest import BacktestSchema, backtest_weight_table  # noqa: E402
 
 
 BENCH = "STOXX EUROPE 600"
@@ -205,60 +213,66 @@ def select_weights(screen: pd.DataFrame, score_col: str, top: bool) -> pd.DataFr
         sector_weights = sector_weights / sector_weights.sum()
         selected = selected.copy()
         sector_sum = selected.groupby(COL_SECTOR_ICB19)[COL_MKT_CAP].transform("sum")
-        selected["Weight"] = selected[COL_MKT_CAP] * selected[COL_SECTOR_ICB19].map(sector_weights) / sector_sum
-        selected["Weight"] = selected["Weight"].clip(lower=0, upper=1.0).fillna(0)
-        total = selected["Weight"].sum()
+        selected[COL_PORTFOLIO_WEIGHT] = (
+            selected[COL_MKT_CAP]
+            * selected[COL_SECTOR_ICB19].map(sector_weights)
+            / sector_sum
+        )
+        selected[COL_PORTFOLIO_WEIGHT] = selected[
+            COL_PORTFOLIO_WEIGHT
+        ].clip(lower=0, upper=1.0).fillna(0)
+        total = selected[COL_PORTFOLIO_WEIGHT].sum()
         if total <= 0 or pd.isna(total):
             continue
-        selected["Weight"] = selected["Weight"] / total
+        selected[COL_PORTFOLIO_WEIGHT] = (
+            selected[COL_PORTFOLIO_WEIGHT] / total
+        )
         selected[COL_DATE] = pd.Timestamp(date) + pd.offsets.MonthBegin(1)
-        pieces.append(selected[[COL_DATE, COL_ISIN, COL_SEDOL, COL_SECTOR_ICB19, "Weight"]])
+        pieces.append(
+            selected[
+                [
+                    COL_DATE,
+                    COL_ISIN,
+                    COL_SEDOL,
+                    COL_SECTOR_ICB19,
+                    COL_PORTFOLIO_WEIGHT,
+                ]
+            ]
+        )
     if not pieces:
-        return pd.DataFrame(columns=[COL_DATE, COL_ISIN, COL_SEDOL, COL_SECTOR_ICB19, "Weight"])
+        return pd.DataFrame(
+            columns=[
+                COL_DATE,
+                COL_ISIN,
+                COL_SEDOL,
+                COL_SECTOR_ICB19,
+                COL_PORTFOLIO_WEIGHT,
+            ]
+        )
     return pd.concat(pieces, ignore_index=True).sort_values([COL_DATE, COL_SEDOL])
 
 
 def nav_from_weights(weights: pd.DataFrame, returns: pd.DataFrame) -> pd.Series:
     if weights.empty:
         return pd.Series(dtype=float)
-    parts = []
-    nav_base = 100.0
-    rebal_dates = sorted(pd.to_datetime(weights[COL_DATE].unique()))
-    date_index = returns.index
-    for idx, date in enumerate(rebal_dates):
-        future = date_index[date_index > date]
-        if future.empty:
-            break
-        start = future[0]
-        if idx + 1 < len(rebal_dates):
-            future_next = date_index[date_index > rebal_dates[idx + 1]]
-            end = future_next[0] if len(future_next) else date_index[-1]
-            seg_idx = date_index[(date_index >= start) & (date_index < end)]
-        else:
-            seg_idx = date_index[date_index >= start]
-        if len(seg_idx) == 0:
-            continue
-        weights_date = weights[weights[COL_DATE].eq(date)].set_index(COL_SEDOL)["Weight"].astype(float)
-        ids = [sedol for sedol in weights_date.index if sedol in returns.columns]
-        if not ids:
-            continue
-        weights_date = weights_date.loc[ids]
-        weights_date = weights_date / weights_date.sum()
-        seg_returns = returns.loc[seg_idx, ids].apply(pd.to_numeric, errors="coerce").fillna(0.0)
-        nav = (1.0 + seg_returns).cumprod().dot(weights_date) * nav_base
-        nav_base = float(nav.iloc[-1])
-        parts.append(nav)
-    if not parts:
-        return pd.Series(dtype=float)
-    nav = pd.concat(parts)
-    return nav[~nav.index.duplicated(keep="last")].sort_index()
+    return backtest_weight_table(
+        weights=weights,
+        returns=returns,
+        schema=BacktestSchema(
+            date_col=COL_DATE,
+            id_col=COL_SEDOL,
+            weight_col=COL_PORTFOLIO_WEIGHT,
+        ),
+        strictly_after_rebalance=True,
+        apply_weights_at_close=False,
+    ).nav
 
 
 def average_turnover(weights: pd.DataFrame) -> float | None:
     prev = None
     vals = []
     for _, group in weights.groupby(COL_DATE, sort=True):
-        cur = group.set_index(COL_SEDOL)["Weight"].astype(float)
+        cur = group.set_index(COL_SEDOL)[COL_PORTFOLIO_WEIGHT].astype(float)
         if prev is not None:
             aligned = pd.concat([prev.rename("prev"), cur.rename("cur")], axis=1).fillna(0)
             vals.append(float((aligned["cur"] - aligned["prev"]).abs().sum() / 2))

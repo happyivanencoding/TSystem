@@ -20,7 +20,7 @@ class BacktestEngine(GeneralBacktestEngine):
     对证券列表执行回测计算
     """
     
-    def __init__(self, returns: pd.DataFrame):
+    def __init__(self, returns: pd.DataFrame, copy_inputs: bool = False):
         """
         初始化回测引擎
         
@@ -32,7 +32,7 @@ class BacktestEngine(GeneralBacktestEngine):
         if isinstance(returns, str):
             self.returns = pd.read_parquet(returns)
         elif isinstance(returns, pd.DataFrame):
-            self.returns = copy.deepcopy(returns)
+            self.returns = copy.deepcopy(returns) if copy_inputs else returns
         else:
             raise TypeError("returns must be str (path) or DataFrame")
         
@@ -137,13 +137,25 @@ class BacktestEngine(GeneralBacktestEngine):
         DataFrame
             带权重的投资组合
         """
-        screen_agg = copy.deepcopy(screen_agg)
+        required_columns = [
+            col_date,
+            col_sedol,
+            col_isin,
+            col_sector,
+            col_mkt_cap,
+            f"Weight in {indice_name}",
+        ]
+        screen_agg = screen_agg.reset_index()
+        screen_agg = screen_agg.loc[
+            :,
+            [column for column in required_columns if column in screen_agg.columns],
+        ].copy()
         
         # 过滤基准相关证券
         indice = screen_agg.loc[
             screen_agg[f'Weight in {indice_name}'] > 0,
             [col_date, col_sedol, col_sector, f'Weight in {indice_name}']
-        ].reset_index()
+        ].reset_index(drop=True)
         indice.rename(columns={f'Weight in {indice_name}': 'Indice weight'}, inplace=True)
         
         indice.sort_values(by=col_date, inplace=True)
@@ -155,7 +167,7 @@ class BacktestEngine(GeneralBacktestEngine):
         
         # 将筛选列添加到证券列表
         sec_list = sec_list.merge(
-            right=screen_agg.reset_index()[[col_date, col_isin, col_sedol, col_sector, col_mkt_cap]],
+            right=screen_agg[[col_date, col_isin, col_sedol, col_sector, col_mkt_cap]],
             on=[col_date, col_isin],
             how='left'
         )
@@ -262,14 +274,14 @@ class BacktestEngine(GeneralBacktestEngine):
         if isinstance(screen, str):
             screen_agg = pd.read_parquet(screen)
         else:
-            screen_agg = copy.deepcopy(screen)
+            screen_agg = screen
         
         if isinstance(self.returns, str):
             df_returns = pd.read_parquet(self.returns)
         else:
-            df_returns = copy.deepcopy(self.returns)
+            df_returns = self.returns
         
-        buy_list = copy.deepcopy(sec_list)
+        buy_list = sec_list.copy(deep=True)
         
         # 对于普通投资组合 (带权重)
         if sec_list_:
@@ -293,12 +305,18 @@ class BacktestEngine(GeneralBacktestEngine):
                 sec_list_full.rename(columns={'Weight': COL_PORTFOLIO_WEIGHT}, inplace=True)
                 
                 # 对齐日期
-                screen_agg[col_date] = pd.to_datetime(screen_agg[col_date])
-                screen_agg[col_date] = screen_agg[col_date] + pd.offsets.MonthBegin(1)
+                screen_lookup = screen_agg.reset_index()
+                screen_lookup = screen_lookup[
+                    [col_date, col_isin, col_sedol, col_sector, col_mkt_cap]
+                ].copy()
+                screen_lookup[col_date] = pd.to_datetime(screen_lookup[col_date])
+                screen_lookup[col_date] = (
+                    screen_lookup[col_date] + pd.offsets.MonthBegin(1)
+                )
                 
                 # 生成最终证券列表
                 sec_list_full = sec_list_full.merge(
-                    right=screen_agg.reset_index()[[col_date, col_isin, col_sedol, col_sector, col_mkt_cap]],
+                    right=screen_lookup,
                     on=[col_date, col_isin],
                     how='left'
                 )

@@ -1,0 +1,435 @@
+"""Portfolio construction facade backed by the canonical TP NAV kernel."""
+
+import pandas as pd
+import datetime
+import logging
+from typing import Union, List, Optional
+
+from core.portfolio_builder import PortfolioBuilder
+from core.optimizer_backtest_adapter import OptimizerBacktestAdapter
+from core.weight_table_adapter import (
+    benchmark_reference_list,
+    benchmark_to_weight_table,
+    plot_tracking_error,
+    security_list_to_weight_table,
+)
+from core.data_loader import DataLoader
+from core.metrics import PerformanceMetrics
+from tp_core.general_backtest import (
+    BacktestSchema,
+    GeneralBacktestEngine,
+)
+from utils.plotting import PlotlyVisualizer
+from utils.data_utils import read_liste_noire, merge_weight_by_pairs, merge_ticker_secondaire
+from utils.constants import *
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+class PtfBuilder:
+    """
+    Portfolio Builder - Main class for portfolio construction and backtesting.
+    
+    This class provides a backward-compatible interface to the refactored system.
+    It wraps the new modular components while maintaining the same API.
+    """
+    
+    def __init__(
+        self,
+        screen: Union[str, pd.DataFrame],
+        returns: Union[str, pd.DataFrame],
+        bench: str,
+        percentile: float,
+        metrics: Union[str, List[str]],
+        ptf_name: str = "PTF TEST",
+        ponderation: str = 'Racine cube',
+        esg_exclusion: float = 0,
+        cut_mkt_cap: float = 0,
+        liste_noire: Optional[Union[str, List[str]]] = None,
+        reco_secto: Union[List[float], pd.DataFrame] = None,
+        reco_facto: Union[List[float], pd.DataFrame] = None,
+        score_neutral: str = "ICB 19",
+        weight_neutral: str = "ICB 19",
+        Top: bool = True,
+        top_mandatory: Optional[int] = None,
+        multiprocessing: bool = False,
+        mode_monthly_prod: bool = False,
+        output_dir: Optional[str] = None,
+        cap_weight_threshold: Optional[float] = None,
+        financial_filter_config: Optional[dict] = None,
+        use_factor_ranking: bool = True,
+        score_pivot_esg: Optional[Union[str, float]] = None,
+        score_pivot_esg_path: Optional[str] = None,
+        optimizer_config: Optional[dict] = None,
+        copy_inputs: bool = False,
+        monthly_base_cache: Optional[dict] = None,
+        benchmark_cache: Optional[dict] = None,
+    ):
+        """
+        Initialize the Portfolio Builder.
+        
+        Parameters match the original PtfBuilder for backward compatibility.
+        """
+        # Initialize portfolio builder
+        self.portfolio_builder = PortfolioBuilder(
+            screen=screen,
+            bench=bench,
+            percentile=percentile,
+            metrics=metrics,
+            ptf_name=ptf_name,
+            ponderation=ponderation,
+            esg_exclusion=esg_exclusion,
+            cut_mkt_cap=cut_mkt_cap,
+            liste_noire=liste_noire,
+            reco_secto=reco_secto,
+            reco_facto=reco_facto,
+            score_neutral=score_neutral,
+            weight_neutral=weight_neutral,
+            Top=Top,
+            top_mandatory=top_mandatory,
+            mode_monthly_prod=mode_monthly_prod,
+            output_dir=output_dir,
+            cap_weight_threshold=cap_weight_threshold,
+            financial_filter_config=financial_filter_config,
+            use_factor_ranking=use_factor_ranking,
+            score_pivot_esg=score_pivot_esg,
+            score_pivot_esg_path=score_pivot_esg_path,
+            copy_inputs=copy_inputs,
+            monthly_base_cache=monthly_base_cache,
+        )
+        
+        self.backtest_engine = GeneralBacktestEngine(returns=returns)
+        self._optimized_backtest_engine = None
+        self.portfolio_builder.returns = self.backtest_engine.returns
+        self.optimizer_config = optimizer_config or {}
+        self.benchmark_cache = benchmark_cache
+        if self.benchmark_cache is not None and not isinstance(
+            self.benchmark_cache,
+            dict,
+        ):
+            raise TypeError("benchmark_cache must be a dictionary or None")
+        
+        # Keep the legacy data_loader attribute without duplicating loaded frames.
+        self.data_loader = DataLoader()
+        
+        # Store original parameters for compatibility
+        self.screen = self.portfolio_builder.screen
+        self.returns = self.backtest_engine.returns
+        self.data_loader.screen = self.screen
+        self.data_loader.returns = self.returns
+        self.bench = bench
+        self.percentile = percentile
+        self.metrics = metrics
+        self.ptf_name = ptf_name
+        self.ponderation = ponderation
+        self.start_date = None
+        
+        # Initialize result containers
+        self.sec_list_monthly = None
+        self.sec_list_historical = None
+        self.list_exclusion_monthly = None
+        self.list_exclusion_histo = None
+        self.sec_list_optimized_monthly = None
+        self.optimizer_result_monthly = None
+        self.perf_ptf = None
+        self.perf_bench = None
+        self.perf_optimized = None
+        self.buy_list = None
+        self.last_result = None
+        self.last_benchmark_result = None
+
+    @property
+    def optimized_backtest_engine(self):
+        """Lazily initialize the optimizer-to-weight adapter."""
+        if self._optimized_backtest_engine is None:
+            self._optimized_backtest_engine = OptimizerBacktestAdapter(
+                returns=self.returns
+            )
+        return self._optimized_backtest_engine
+    
+    def sec_list_spot(self, screen_agg_monthly: Optional[pd.DataFrame] = None):
+        """Generate security list for a single month."""
+        result = self.portfolio_builder.sec_list_spot(screen_agg_monthly)
+        
+        # Update instance variables for backward compatibility
+        self.sec_list_monthly = self.portfolio_builder.sec_list_monthly
+        self.list_exclusion_monthly = self.portfolio_builder.list_exclusion_monthly
+        
+        return result
+    
+    def sec_list_spot_optim(self, screen_agg_monthly: Optional[pd.DataFrame] = None, **optimizer_kwargs):
+        """Generate optimizer-based sec list. Normal sec_list_spot remains ponderation-based."""
+        config = dict(self.optimizer_config)
+        config.update(optimizer_kwargs)
+        result = self.portfolio_builder.sec_list_spot_optim(
+            screen_agg_monthly=screen_agg_monthly,
+            **config,
+        )
+        self.sec_list_optimized_monthly = self.portfolio_builder.sec_list_optimized_monthly
+        self.optimizer_result_monthly = self.portfolio_builder.optimizer_result_monthly
+        return result
+
+    def backtest_optimized_sec_list(self, optimizer_result: Optional[pd.DataFrame] = None, **backtest_kwargs):
+        """Backtest optimizer output with the optimized backtest bridge."""
+        if optimizer_result is None:
+            optimizer_result = self.optimizer_result_monthly
+        if optimizer_result is None:
+            raise ValueError("No optimizer_result provided. Run sec_list_spot_optim() first or pass optimizer_result.")
+        result = self.optimized_backtest_engine.backtest_optimizer_result(
+            optimizer_result=optimizer_result,
+            **backtest_kwargs,
+        )
+        self.perf_optimized = result.nav
+        self.perf_ptf = result.nav
+        return result
+    
+    def generic_histo_seclist(
+        self,
+        start_date: datetime.datetime,
+        freq_rebal: Optional[int] = None,
+        screen_start_date: str = "mois_impair",
+        fill_method: str = "drift"
+    ):
+        """Generate historical security lists."""
+        result = self.portfolio_builder.generic_histo_seclist(
+            start_date=start_date,
+            freq_rebal=freq_rebal,
+            screen_start_date=screen_start_date,
+            fill_method=fill_method
+        )
+        
+        # Update instance variables for backward compatibility
+        self.sec_list_historical = self.portfolio_builder.sec_list_historical
+        self.list_exclusion_histo = self.portfolio_builder.list_exclusion_histo
+        self.start_date = self.portfolio_builder.start_date
+        
+        return result
+    
+    def backtest(
+        self,
+        sec_list: Optional[pd.DataFrame] = None,
+        indice_name: Optional[str] = None,
+        method: Optional[str] = None,
+        max_weight: float = 1,
+        col_sector: str = COL_SECTOR_ICB19,
+        col_sedol: str = COL_SEDOL,
+        col_isin: str = COL_ISIN,
+        col_date: str = COL_DATE,
+        col_mkt_cap: str = COL_MKT_CAP,
+        sector_neutral: bool = False,
+        sec_list_: bool = True,
+        ponderation: Optional[str] = None,
+        **kwargs  # Catch unused parameters for compatibility
+    ):
+        """Perform backtest on security list."""
+        # Use historical sec list if not provided
+        if sec_list is None:
+            if self.sec_list_historical is not None:
+                sec_list = self.sec_list_historical
+            else:
+                raise ValueError("No security list provided and no historical list available")
+        
+        if sec_list_:
+            weights = security_list_to_weight_table(
+                sec_list,
+                self.screen,
+                max_weight=max_weight,
+                col_sector=col_sector,
+                col_sedol=col_sedol,
+                col_isin=col_isin,
+                col_date=col_date,
+                col_mkt_cap=col_mkt_cap,
+            )
+            result = self.backtest_engine.run_weights(
+                weights.reset_index(),
+                schema=BacktestSchema(
+                    date_col=col_date,
+                    id_col=col_sedol,
+                    weight_col=COL_PORTFOLIO_WEIGHT,
+                ),
+            )
+            self.last_result = result
+            self.perf_ptf = result.nav
+            self.buy_list = weights
+            perf_ttr = result.nav
+            buy_list = weights
+        else:
+            if indice_name is None:
+                raise ValueError("indice_name is required for benchmark backtests")
+            weights = benchmark_to_weight_table(
+                sec_list,
+                indice_name,
+                self.screen,
+                max_weight,
+                col_mkt_cap=col_mkt_cap,
+                col_date=col_date,
+                col_sector=col_sector,
+                sector_neutral=sector_neutral,
+                method=ponderation or self.ponderation,
+                col_sedol=col_sedol,
+                col_isin=col_isin,
+            )
+            result = self.backtest_engine.run_weights(
+                weights.reset_index(),
+                schema=BacktestSchema(
+                    date_col=col_date,
+                    id_col=col_sedol,
+                    weight_col=COL_PORTFOLIO_WEIGHT,
+                ),
+            )
+            self.last_benchmark_result = result
+            self.perf_bench = result.nav
+            perf_ttr = result.nav
+            buy_list = self.buy_list
+        
+        return perf_ttr, buy_list
+    
+    def adjust_companies_ponderation(self, df: pd.DataFrame) -> pd.DataFrame:
+        """兼容旧 PtfBuilder API：按当前 ponderation 转换 market-cap 权重基数。"""
+        return self.portfolio_builder.adjust_companies_ponderation(df)
+
+    def plot_tracking_error(
+        self,
+        window: int = 21,
+        save_path: Optional[str] = None,
+        show_plot: bool = True,
+    ) -> pd.DataFrame:
+        """兼容旧 API：画 realized rolling TE，并可叠加 optimizer constraint TE。"""
+        constraint_history = getattr(self, "df_constraint", None)
+        return plot_tracking_error(
+            perf_ptf=self.perf_ptf,
+            perf_bench=self.perf_bench,
+            constraint_history=constraint_history,
+            window=window,
+            save_path=save_path,
+            show_plot=show_plot,
+        )
+
+
+    def backtest_get_bench_perf(
+        self,
+        screen: pd.DataFrame,
+        start_date: pd.Timestamp,
+        bench: str
+    ):
+        """Calculate benchmark performance."""
+        cache_key = None
+        if self.benchmark_cache is not None:
+            cache_key = (
+                id(screen),
+                id(self.returns),
+                str(bench),
+                pd.Timestamp(start_date),
+            )
+            cached = self.benchmark_cache.get(cache_key)
+            if cached is not None:
+                self.perf_bench = cached
+                return
+        indice_ref = benchmark_reference_list(screen, start_date, bench)
+        self.backtest(
+            sec_list=indice_ref,
+            indice_name=bench,
+            sec_list_=False,
+            ponderation=self.ponderation,
+        )
+        if cache_key is not None:
+            self.benchmark_cache[cache_key] = self.perf_bench.copy(deep=True)
+    
+    def backtest_plot_ptf_bench(
+        self,
+        perf_ptf: Optional[pd.Series] = None,
+        perf_bench: Optional[pd.Series] = None,
+        title: Optional[str] = None,
+        save_path: str = "portfolio_performance.html",
+        show_plot: bool = True
+    ):
+        """Plot portfolio vs benchmark performance."""
+        # Use instance variables if not provided
+        if perf_ptf is None:
+            if self.perf_ptf is None:
+                perf_ptf, _ = self.backtest(self.sec_list_historical)
+            else:
+                perf_ptf = self.perf_ptf
+        
+        if perf_bench is None:
+            if self.perf_bench is None:
+                self.backtest_get_bench_perf(self.screen, self.start_date, self.bench)
+            perf_bench = self.perf_bench
+        
+        # Create plot
+        fig = PlotlyVisualizer.plot_portfolio_vs_benchmark(
+            perf_ptf=perf_ptf,
+            perf_bench=perf_bench,
+            title=title,
+            save_path=save_path,
+            show_plot=show_plot
+        )
+        
+        return fig
+    
+    def backtest_plot_top_vs_bottom(
+        self,
+        builder_bottom: "PtfBuilder",
+        perf_top: Optional[pd.Series] = None,
+        perf_bottom: Optional[pd.Series] = None,
+        perf_bench: Optional[pd.Series] = None,
+        title: Optional[str] = None,
+        save_path: str = "top_bottom_performance.html",
+        show_plot: bool = True,
+    ):
+        """Plot top, bottom and benchmark performance with ratio comparisons."""
+        if perf_top is None:
+            if self.perf_ptf is None:
+                perf_top, _ = self.backtest(self.sec_list_historical)
+            else:
+                perf_top = self.perf_ptf
+        if perf_bottom is None:
+            if builder_bottom.perf_ptf is None:
+                perf_bottom, _ = builder_bottom.backtest(builder_bottom.sec_list_historical)
+            else:
+                perf_bottom = builder_bottom.perf_ptf
+        if perf_bench is None:
+            if self.perf_bench is None:
+                self.backtest_get_bench_perf(self.screen, self.start_date, self.bench)
+            perf_bench = self.perf_bench
+
+        return PlotlyVisualizer.plot_top_bottom_vs_benchmark(
+            perf_top=perf_top,
+            perf_bottom=perf_bottom,
+            perf_bench=perf_bench,
+            title=title,
+            save_path=save_path,
+            show_plot=show_plot,
+        )
+    
+    # Additional utility methods for backward compatibility
+    @staticmethod
+    def calculate_metrics(
+        returns: pd.Series,
+        benchmark_returns: Optional[pd.Series] = None,
+        risk_free_rate: float = 0.0
+    ) -> dict:
+        """Calculate performance metrics."""
+        return PerformanceMetrics.calculate_all_metrics(
+            returns=returns,
+            benchmark_returns=benchmark_returns,
+            risk_free_rate=risk_free_rate
+        )
+
+
+# Export functions for backward compatibility
+__all__ = [
+    'PtfBuilder',
+    'read_liste_noire',
+    'merge_weight_by_pairs',
+    'merge_ticker_secondaire',
+    'PerformanceMetrics',
+    'PlotlyVisualizer'
+]
+
+

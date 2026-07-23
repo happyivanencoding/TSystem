@@ -12,6 +12,7 @@ from sklearn.preprocessing import StandardScaler
 import config
 import model
 import vol_compare
+from tp_core.general_backtest import backtest_return_series
 
 # 状态颜色(压力升序：绿->红)
 STATE_COLORS = ["#43a047", "#c0ca33", "#fb8c00", "#e53935"]
@@ -74,7 +75,12 @@ def build_region(region: str) -> dict:
     equity_w = float(np.clip(w_vol * smult, 0.0, 1.0))
 
     # 时间序列(对齐到特征索引)
-    cum = (1 + fwd_ret.reindex(feats.index).shift(1).fillna(0)).cumprod()
+    cum = backtest_return_series(
+        fwd_ret.reindex(feats.index).shift(1).fillna(0),
+        initial_nav=1.0,
+        periods_per_year=12,
+        name=f"{region}_dashboard_market",
+    ).nav
     series = {
         "dates": [d.strftime("%Y-%m") for d in feats.index],
         "state": [int(s) for s in regime["state"].reindex(feats.index).fillna(0)],

@@ -44,7 +44,8 @@ from backtest_code.runner.artifacts import (  # noqa: E402
     save_text,
 )
 from backtest_code.runner.service import BacktestService  # noqa: E402
-from backtest_code.runner.validators import load_tabular_file, prepare_returns_dataframe, validate_settings  # noqa: E402
+from backtest_code.runner.validators import load_tabular_file, validate_settings  # noqa: E402
+from tp_core.general_backtest import engine_metadata  # noqa: E402
 
 
 DEFAULT_SCREEN = TP_ROOT / "00_screen" / "screen_aggregate.parquet"
@@ -587,8 +588,8 @@ def run_single_official_engine(
         )
         return official_record_payload("failed", message, artifacts)
 
-    prepared_screen = service._prepare_screen_for_engine(screen, engine_module)  # noqa: SLF001
-    prepared_returns = prepare_returns_dataframe(returns)
+    prepared_screen = service._prepare_screen_for_engine(screen)  # noqa: SLF001
+    prepared_returns = service._prepare_returns_for_engine(returns)  # noqa: SLF001
     log_buffer = io.StringIO()
     try:
         with redirect_stdout(log_buffer), redirect_stderr(log_buffer):
@@ -615,6 +616,9 @@ def run_single_official_engine(
                 cap_weight_threshold=settings.run.cap_weight_threshold,
                 score_pivot_esg=service._parse_score_pivot(settings.run.score_pivot_esg),  # noqa: SLF001
                 score_pivot_esg_path=settings.paths.score_pivot_esg_path or None,
+                copy_inputs=False,
+                monthly_base_cache=service._monthly_base_cache,  # noqa: SLF001
+                benchmark_cache=service._benchmark_cache,  # noqa: SLF001
             )
             builder.generic_histo_seclist(
                 start_date=pd.to_datetime(settings.run.start_date),
@@ -1067,6 +1071,10 @@ def main(argv: Iterable[str] | None = None) -> int:
         args=args,
     )
     manifest = {
+        **engine_metadata(
+            strictly_after_rebalance=True,
+            apply_weights_at_close=True,
+        ),
         "output_dir": str(output_dir),
         "research_screen": str(research_screen_path),
         "report": str(report_path),

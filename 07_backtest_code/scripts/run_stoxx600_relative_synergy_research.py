@@ -440,21 +440,11 @@ def worker_run(payload: dict[str, object]) -> dict[str, object]:
         pending_metrics = incomplete_metrics(metrics, existing)
         if pending_metrics:
             metrics = pending_metrics[:1]
-    screen = pd.read_parquet(screen_path)
-    if max_runs:
-        required = [
-            base.DATE_COL,
-            base.ISIN_COL,
-            base.SEDOL_COL,
-            base.SECTOR_COL,
-            base.MKT_CAP_COL,
-            base.WEIGHT_COL,
-        ]
-        slim_cols = [col for col in [*required, *metrics] if col in screen.columns]
-        screen = screen.loc[:, list(dict.fromkeys(slim_cols))].copy()
-    returns = base.load_tabular_file(returns_path)
-    returns.index = pd.to_datetime(returns.index, errors="coerce")
-    returns = returns.sort_index()
+    screen, returns = base.load_official_worker_inputs(
+        screen_path,
+        returns_path,
+        metrics,
+    )
     run_root_name = f"ad_hoc/sxsy260709_{wave[-6:]}_s{shard_id:02d}"
     results = base.run_official_backtests(
         screen=screen,
@@ -710,7 +700,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--metrics", default="all")
     parser.add_argument("--build-only", action="store_true")
     parser.add_argument("--force-rebuild", action="store_true")
-    parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--workers", type=int, default=base.DEFAULT_PARALLEL_WORKERS)
     parser.add_argument("--wave", default="")
     parser.add_argument("--limit-metrics", type=int, default=0)
     parser.add_argument("--no-pool", action="store_true")

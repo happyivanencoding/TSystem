@@ -221,8 +221,10 @@ def _build_factor_ptf_builders(
     list_noire_path: str | None,
     percentile: float,
 ):
-    from BacktestEngine import PtfBuilder
+    from tp_core.backtesting import PtfBuilder
 
+    monthly_base_cache: dict = {}
+    benchmark_cache: dict = {}
     builder_top = PtfBuilder(
         screen,
         returns,
@@ -233,6 +235,9 @@ def _build_factor_ptf_builders(
         esg_exclusion=0,
         liste_noire=list_noire_path,
         Top=True,
+        copy_inputs=False,
+        monthly_base_cache=monthly_base_cache,
+        benchmark_cache=benchmark_cache,
     )
     builder_bottom = PtfBuilder(
         screen,
@@ -244,6 +249,9 @@ def _build_factor_ptf_builders(
         esg_exclusion=0,
         liste_noire=list_noire_path,
         Top=False,
+        copy_inputs=False,
+        monthly_base_cache=monthly_base_cache,
+        benchmark_cache=benchmark_cache,
     )
     return builder_top, builder_bottom
 

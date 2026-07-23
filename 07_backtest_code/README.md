@@ -48,7 +48,7 @@ python C:\GoogleDrive\TP\07_backtest_code\run_backtest.py run `
 - ESG pivot threshold：`score_pivot_esg` 可以直接给数值阈值，也可以给 pivot 文件中的 `sec_id` 文本键，并通过 `score_pivot_esg_path` 解析最新 pivot 文件。
 - top/bottom/benchmark 对比图：提供 Top、Bottom、Benchmark 三条净值线，以及 `Top/Benchmark`、`Bottom/Benchmark`、`Top/Bottom` ratio。
 
-统一回测核心说明见 [`../11_docs/BACKTEST_ENGINE.md`](../11_docs/BACKTEST_ENGINE.md)。新项目如果已经有目标权重表，优先调用 `tp_core.general_backtest.backtest_weight_table()` 或 `tp_core.backtesting.BacktestEngine.run_weights()`，不再复制 `BacktestEngine.py`。
+统一回测核心说明见 [`../11_docs/BACKTEST_ENGINE.md`](../11_docs/BACKTEST_ENGINE.md)。新项目如果已经有目标权重表，只调用 `tp_core.general_backtest.backtest_weight_table()` 或 `GeneralBacktestEngine.run_weights()`。`PtfBuilder` 只负责组合构造和 official artifacts。
 
 ## 两种 sec list 入口
 
@@ -62,7 +62,7 @@ python C:\GoogleDrive\TP\07_backtest_code\run_backtest.py run `
 最小示例：
 
 ```python
-from BacktestEngine import PtfBuilder
+from tp_core.backtesting import PtfBuilder
 
 builder = PtfBuilder(
     screen=screen,
@@ -100,11 +100,11 @@ optimized_perf = builder.backtest_optimized_sec_list()
 
 | 路径 | 说明 |
 | --- | --- |
-| `BacktestEngine.py` | 兼容旧 `PtfBuilder` API 的主入口 |
+| `core/ptf_builder.py` | 组合构造 facade；通过 `tp_core.backtesting.PtfBuilder` 导入 |
 | `core/portfolio_builder.py` | 传统选股、过滤、组合构建逻辑，仍由 `PtfBuilder` 使用 |
-| `core/backtest_engine.py` | 传统 security-list 回测兼容层，同时继承通用 `GeneralBacktestEngine` |
+| `core/weight_table_adapter.py` | 将 security list 和 benchmark 转为标准权重表 |
+| `core/optimizer_backtest_adapter.py` | 将优化器结果转为标准权重；不计算第二套 NAV |
 | `core/esg_pivot.py` | ESG pivot 文件定位和阈值解析；PortfolioBuilder 只接收解析后的阈值 |
-| `core/backtest_engine_optimized.py` | 旧优化版兼容 wrapper，不是第二套现役引擎 |
 | `utils/` | 绘图、常量、数据工具；旧 `utils/config.py` 已隔离 |
 | `configs/` | YAML profile；`default.yaml` 是默认代码运行配置 |
 | `src/backtest_code/` | CLI、配置加载、校验、runner 和产物保存 |
@@ -122,5 +122,5 @@ optimized_perf = builder.backtest_optimized_sec_list()
 - `download_09_optimizer_reference.py` 的优化器逻辑不得直接并入 `PortfolioBuilder`。它应迁入 `06_optimiser/` 或后续 `tp_core.optimization`，并以候选名单、约束配置和目标权重表作为输入输出。
 - `download_10_factor_pipeline_reference.py` 的 factor pipeline 不应放进回测引擎。它应迁入信号/模型层，输出统一 signal schema 或标准目标权重表。
 - `download_08_legacy_ptfbuilder.py` 只作为旧 monolithic 参考；若某段行为仍有价值，必须先拆成小函数、补测试，再接入主线。
-- `download_11_latest_ptfbuilder_reference.py` 是最新 monolithic 参考版本，但现役入口仍是 `BacktestEngine.py` + `src/backtest_code/runner`，不能新增第二套 PtfBuilder 入口。
+- `download_11_latest_ptfbuilder_reference.py` 只作历史参考；现役入口是 `tp_core.backtesting.PtfBuilder` + `src/backtest_code/runner`，不得新增第二套 PtfBuilder 或 NAV 内核。
 

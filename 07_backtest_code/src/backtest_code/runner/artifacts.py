@@ -12,6 +12,7 @@ import pandas as pd
 import yaml
 
 from backtest_code.config.settings import AppSettings
+from tp_core.general_backtest import engine_metadata
 
 
 def get_project_root() -> Path:
@@ -78,9 +79,16 @@ def save_manifest(run_dir: Path, payload: dict[str, Any]) -> Path:
     """Sauvegarde un resume compact du run."""
 
     target = run_dir / "manifest.yaml"
+    manifest_payload = {
+        **engine_metadata(
+            strictly_after_rebalance=True,
+            apply_weights_at_close=True,
+        ),
+        **payload,
+    }
     with target.open("w", encoding="utf-8") as handle:
         yaml.safe_dump(
-            payload,
+            manifest_payload,
             handle,
             allow_unicode=True,
             sort_keys=False,

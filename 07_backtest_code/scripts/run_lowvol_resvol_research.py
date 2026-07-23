@@ -27,6 +27,7 @@ from utils.constants import (  # noqa: E402
     COL_SEDOL,
 )
 from utils.plotting import PlotlyVisualizer  # noqa: E402
+from tp_core.general_backtest import BacktestSchema, backtest_weight_table  # noqa: E402
 
 
 BENCH = "STOXX EUROPE 600"
@@ -348,53 +349,59 @@ def select_weights(screen: pd.DataFrame, score_col: str, top: bool) -> pd.DataFr
         sector_weights = sector_weights / sector_weights.sum()
         selected = selected.copy()
         sector_sum = selected.groupby(COL_SECTOR_ICB19)[COL_MKT_CAP].transform("sum")
-        selected["Weight"] = selected[COL_MKT_CAP] * selected[COL_SECTOR_ICB19].map(sector_weights) / sector_sum
-        selected["Weight"] = selected["Weight"].clip(lower=0, upper=MAX_WEIGHT).fillna(0)
-        total = selected["Weight"].sum()
+        selected[COL_PORTFOLIO_WEIGHT] = (
+            selected[COL_MKT_CAP]
+            * selected[COL_SECTOR_ICB19].map(sector_weights)
+            / sector_sum
+        )
+        selected[COL_PORTFOLIO_WEIGHT] = selected[
+            COL_PORTFOLIO_WEIGHT
+        ].clip(lower=0, upper=MAX_WEIGHT).fillna(0)
+        total = selected[COL_PORTFOLIO_WEIGHT].sum()
         if total <= 0 or pd.isna(total):
             continue
-        selected["Weight"] = selected["Weight"] / total
+        selected[COL_PORTFOLIO_WEIGHT] = (
+            selected[COL_PORTFOLIO_WEIGHT] / total
+        )
         selected[COL_DATE] = pd.Timestamp(date) + pd.offsets.MonthBegin(1)
-        pieces.append(selected[[COL_DATE, COL_ISIN, COL_SEDOL, COL_SECTOR_ICB19, "Weight"]])
+        pieces.append(
+            selected[
+                [
+                    COL_DATE,
+                    COL_ISIN,
+                    COL_SEDOL,
+                    COL_SECTOR_ICB19,
+                    COL_PORTFOLIO_WEIGHT,
+                ]
+            ]
+        )
     if not pieces:
-        return pd.DataFrame(columns=[COL_DATE, COL_ISIN, COL_SEDOL, COL_SECTOR_ICB19, "Weight"])
+        return pd.DataFrame(
+            columns=[
+                COL_DATE,
+                COL_ISIN,
+                COL_SEDOL,
+                COL_SECTOR_ICB19,
+                COL_PORTFOLIO_WEIGHT,
+            ]
+        )
     return pd.concat(pieces, ignore_index=True).sort_values([COL_DATE, COL_SEDOL])
 
 
 def nav_from_weights(weights: pd.DataFrame, returns: pd.DataFrame) -> pd.Series:
     if weights.empty:
         return pd.Series(dtype=float)
-    nav_parts = []
-    nav_base = 100.0
-    date_index = returns.index
-    rebal_dates = sorted(pd.to_datetime(weights[COL_DATE].unique()))
-    for idx, date in enumerate(rebal_dates):
-        future = date_index[date_index > date]
-        if future.empty:
-            break
-        start = future[0]
-        if idx + 1 < len(rebal_dates):
-            future_next = date_index[date_index > rebal_dates[idx + 1]]
-            end = future_next[0] if len(future_next) else date_index[-1]
-            seg_idx = date_index[(date_index >= start) & (date_index < end)]
-        else:
-            seg_idx = date_index[date_index >= start]
-        if len(seg_idx) == 0:
-            continue
-        w = weights[weights[COL_DATE].eq(date)].set_index(COL_SEDOL)["Weight"].astype(float)
-        ids = [sedol for sedol in w.index if sedol in returns.columns]
-        if not ids:
-            continue
-        w = w.loc[ids]
-        w = w / w.sum()
-        seg_ret = returns.loc[seg_idx, ids].apply(pd.to_numeric, errors="coerce").fillna(0)
-        nav = (1.0 + seg_ret).cumprod().dot(w) * nav_base
-        nav_base = float(nav.iloc[-1])
-        nav_parts.append(nav)
-    if not nav_parts:
-        return pd.Series(dtype=float)
-    nav = pd.concat(nav_parts)
-    return nav[~nav.index.duplicated(keep="last")].sort_index()
+    return backtest_weight_table(
+        weights=weights,
+        returns=returns,
+        schema=BacktestSchema(
+            date_col=COL_DATE,
+            id_col=COL_SEDOL,
+            weight_col=COL_PORTFOLIO_WEIGHT,
+        ),
+        strictly_after_rebalance=True,
+        apply_weights_at_close=False,
+    ).nav
 
 
 def average_turnover(weights: pd.DataFrame) -> float | None:
@@ -403,7 +410,7 @@ def average_turnover(weights: pd.DataFrame) -> float | None:
     rows = []
     previous = None
     for date, group in weights.groupby(COL_DATE, sort=True):
-        current = group.set_index(COL_SEDOL)["Weight"].astype(float)
+        current = group.set_index(COL_SEDOL)[COL_PORTFOLIO_WEIGHT].astype(float)
         if previous is not None:
             aligned = pd.concat([previous.rename("prev"), current.rename("cur")], axis=1).fillna(0)
             rows.append(float((aligned["cur"] - aligned["prev"]).abs().sum() / 2))
@@ -419,8 +426,13 @@ def liquidity_profile(weights: pd.DataFrame, screen: pd.DataFrame) -> dict[str, 
     merged = weights.merge(attrs, on=[COL_DATE, COL_SEDOL], how="left")
     merged["log_mcap"] = np.log(pd.to_numeric(merged[COL_MKT_CAP], errors="coerce").clip(lower=1))
     result = {
-        "top_weighted_log_mcap": float((merged["Weight"] * merged["log_mcap"]).sum() / merged["Weight"].sum())
-        if merged["Weight"].sum() > 0
+        "top_weighted_log_mcap": float(
+            (
+                merged[COL_PORTFOLIO_WEIGHT] * merged["log_mcap"]
+            ).sum()
+            / merged[COL_PORTFOLIO_WEIGHT].sum()
+        )
+        if merged[COL_PORTFOLIO_WEIGHT].sum() > 0
         else None,
         "top_weighted_pct_mkt_value": None,
     }
@@ -428,7 +440,13 @@ def liquidity_profile(weights: pd.DataFrame, screen: pd.DataFrame) -> dict[str, 
         pct = pd.to_numeric(merged["PCT Mkt Value"], errors="coerce")
         valid = pct.notna()
         if valid.any():
-            result["top_weighted_pct_mkt_value"] = float((merged.loc[valid, "Weight"] * pct.loc[valid]).sum() / merged.loc[valid, "Weight"].sum())
+            result["top_weighted_pct_mkt_value"] = float(
+                (
+                    merged.loc[valid, COL_PORTFOLIO_WEIGHT]
+                    * pct.loc[valid]
+                ).sum()
+                / merged.loc[valid, COL_PORTFOLIO_WEIGHT].sum()
+            )
     return result
 
 

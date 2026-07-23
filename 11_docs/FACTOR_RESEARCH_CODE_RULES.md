@@ -74,6 +74,26 @@ synergy 研究按范围写：
 - Parent process must merge and dedupe shard results, then regenerate summary, gate, plots, report, and manifest.
 - Every restart must use a unique wave directory for shard CSVs; never overwrite previous shard outputs.
 - Keep official run roots short on Windows to avoid path-length failures from long metric names.
+- Prune Parquet inputs before materialization: load only the shard's metric columns plus official technical columns, then load only return columns whose SEDOL appears in the benchmark research screen.
+- Prepare immutable screen and returns objects once per worker. Reuse monthly technical bases and benchmark NAV only inside that worker, with cache keys that cover every portfolio-construction parameter that can change the result.
+- Disable monthly-base reuse for state-dependent recommendation frames, `Multi Avg Percentile`, financial filters, or any configuration not represented in the cache key.
+- Keep several metrics in each shard when possible so Top/Worst and later metrics amortize input preparation and benchmark work. Never create more non-empty workers than metrics.
+- Choose process count from an end-to-end benchmark on the target workstation. STOXX600 defaults to 8 workers on the current 32-logical-CPU, 64GB host and remains CLI-overridable.
+- Before accepting an official-engine optimization, require exact DataFrame equality for representative cached and uncached `sec_list`, `perf_ptf`, and `perf_bench` artifacts, including Top and Worst. CAGR-level agreement is insufficient.
+- Record wall time, successful run count, input dimensions, and per-worker memory for the benchmark. Performance changes must preserve the official artifact schema and research gate.
+
+### Shared Engine Defaults
+
+- Use `backtest_code.runner.input_loader.load_pruned_backtest_inputs` instead of market-local Parquet pruning code. Restrict returns to historical positive-weight benchmark members while retaining both securities in configured dual-listing pairs.
+- `BacktestService` must plan a single run from its metric, benchmark, and start date. For a batch, it must load the metric/benchmark union once from the earliest requested start date.
+- Treat shared DataFrames as immutable. `PtfBuilder`, `PortfolioBuilder`, and `GeneralBacktestEngine` must not mutate caller-owned inputs.
+- Build one monthly date-position index per filtered screen. Do not rescan the full screen with a date mask inside every monthly iteration.
+- Direct official runners for every market must reuse the service's prepared screen, prepared returns, monthly-base cache, and benchmark cache.
+- Do not enable compact float dtypes, reordered compounding, approximate ranks, or incomplete cache keys by default. Each requires exact Top/Worst artifact evidence before promotion.
+- Use only `GeneralBacktestEngine` / `backtest_weight_table()` for security-level NAV. `PtfBuilder` constructs standard weights and artifacts; `OptimizerBacktestAdapter` converts optimizer output. Neither may implement compounding.
+- Use `backtest_return_series()` for already-aggregated sector, regime, or news returns.
+- Every official manifest must record `engine_id`, `engine_version`, and the date execution policy.
+- Legacy engine modules and class names must not exist in active code or public exports. Any old import found by repository scan is a release blocker.
 
 ## Reporting Rules
 
@@ -92,4 +112,3 @@ For synergy, reports must explicitly say when evidence is insufficient and avoid
 ## Promotion Rule
 
 Research scripts do not change production screen, signal, dashboard, model, or portfolio contracts. Promotion requires a separate user request and a production-refresh/control workflow.
-

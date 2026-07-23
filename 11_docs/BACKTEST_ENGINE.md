@@ -1,157 +1,154 @@
-# 统一回测引擎说明
+# TP 唯一回测 API
 
-最后更新：2026-07-01  
-状态：已建立通用核心，旧入口保留兼容层。
+最后更新：2026-07-23
+状态：唯一证券级净值内核已启用，旧入口已移出活动代码。
 
-## 1. 结论
+## 1. 唯一入口
 
-回测主线现在分成两层：
+所有新回测必须从 `tp_core.backtesting` 或 `tp_core.general_backtest` 导入：
 
-1. `01_tp_core/general_backtest.py` 是通用核心，适用于大多数项目。它只要求输入标准目标权重表和 canonical `returns` 矩阵。
-2. `07_backtest_code/` 是传统代码版回测主线，继续保留 `PtfBuilder`、组合构建、benchmark、YAML 配置、批量运行和产物保存。
-
-以后新模型、技术分析、候选池或优化器不要再复制一份 `BacktestEngine.py`。它们应该先输出标准权重表，再调用 `tp_core.general_backtest` 或 `tp_core.backtesting.BacktestEngine.run_weights()`。
-
-## 2. 标准输入输出
-
-### 2.1 输入：目标权重表
-
-最低字段：
-
-| 字段 | 说明 |
+| 职责 | 唯一对象 |
 | --- | --- |
-| `Date` | 信号或再平衡日期 |
-| `Company SEDOL` | 与 `returns.parquet` 列名一致的证券键 |
-| `Portfolio weight` | 目标权重；引擎会按日期重新归一化 |
+| 标准权重表证券级回测 | `GeneralBacktestEngine` / `backtest_weight_table()` |
+| 选股、标准权重与 official artifacts | `PtfBuilder` |
+| 优化器输出转标准权重 | `OptimizerBacktestAdapter` |
+| sector/regime/news 聚合收益 | `backtest_return_series()` |
 
-可以附加字段，例如 `signal_name`、`Sector`、`Name`、`Selection Rank`。这些字段会在执行权重表中尽量保留，但回测计算只依赖最低字段。
+活动目录不再提供：
 
-### 2.2 输入：returns
+- `07_backtest_code/BacktestEngine.py`
+- `07_backtest_code/core/backtest_engine.py`
+- `07_backtest_code/core/backtest_engine_optimized.py`
+- `03_ml_enhanced/Codes/BacktestEngine.py`
+- `BacktestEngineOptimized` 旧类名
 
-`returns` 使用宽表：
+旧源码只保存在
+`99_archive/backtest_engine_consolidation_20260723/`，不在 `sys.path`，
+不得作为运行入口。
 
-| 结构 | 规则 |
+## 2. 标准权重契约
+
+证券级回测输入为 long-format 权重表：
+
+| 字段 | 含义 |
 | --- | --- |
-| index | 交易日，转为 `DatetimeIndex` |
-| columns | 证券 SEDOL，字符串 |
-| value | 日收益率 |
+| `Date` | 信号或调仓日期 |
+| `Company SEDOL` | 与 returns 列匹配的证券 ID |
+| `Portfolio weight` | 目标权重 |
 
-生产默认读取 `C:\GoogleDrive\TP\00_screen\returns.parquet`。
+returns 输入为：
 
-### 2.3 输出
-
-`backtest_weight_table()` 和 `GeneralBacktestEngine.run_weights()` 返回 `GeneralBacktestResult`：
-
-| 属性 | 说明 |
-| --- | --- |
-| `nav` | 基数 100 的净值序列 |
-| `daily_returns` | 组合日收益 |
-| `rebalance_weights` | 清洗、过滤、归一化后的再平衡权重 |
-| `execution_weights` | 映射到可交易日期后的权重，MultiIndex 为 `Date` + `Company SEDOL` |
-| `turnover` | 目标权重之间的单向换手估算 |
-| `metrics` | 年化收益、年化波动、类 Sharpe、最大回撤等 |
-| `manifest` | 输入行数、丢弃行数、日期映射、数据覆盖等审计信息 |
-
-## 3. 交易日期口径
-
-默认口径是保守的：
-
-1. 权重表中的 `Date` 映射到 returns 中严格晚于该日期的第一个交易日。
-2. 权重在该交易日收盘后生效。
-3. 因此第一天组合收益为 0，下一交易日开始承担组合暴露。
-
-这个口径与原 `07_backtest_code` 和 `03_technical_analysis` 中的漂移回测习惯一致，避免信号日和可交易日混淆造成前视偏差。
-
-## 4. 版本对比和处理结果
-
-| 位置 | 原用途 | 问题 | 当前处理 |
-| --- | --- | --- | --- |
-| `01_tp_core/general_backtest.py` | 新增通用权重表回测核心 | 无历史包袱 | 作为大多数项目的共享核心 |
-| `07_backtest_code/BacktestEngine.py` | 旧 `PtfBuilder` API 兼容入口 | 仍承担传统组合构建流程 | 保留为现役主入口 |
-| `07_backtest_code/core/backtest_engine.py` | 传统 security-list 回测核心 | 有历史 API，不能立即删除 | 继承 `GeneralBacktestEngine`，`run_weights()` 与旧 `calculate_portfolio_returns()` 都走通用核心 |
-| `07_backtest_code/core/backtest_engine_optimized.py` | 向量化优化草稿 | `_get_sector_weights()` 未实现，未接入主线 | 原文件归档，原路径改为兼容 wrapper |
-| `03_ml_enhanced/Codes/BacktestEngine.py` | ML 本地复制的单体回测引擎 | 与主线重复，且带旧 country/sector 优化逻辑 | 原文件归档，原路径改为兼容层 |
-| `03_technical_analysis/pattern_backtest_engine.py` | 技术形态专用信号回测 | 有一套重复漂移计算 | 选股和打分逻辑保留，漂移回测改用 `tp_core.general_backtest` |
-| `99_archive/frozen_20260629/`、`99_backtest_*_legacy/` | 历史 Web/GUI/第一版回测 | 多版本重复、旧 pkl 读取、维护成本高 | 只作历史参考，新代码不得引用 |
-
-归档位置：
-
-- `99_archive/backtest_engine_versions_20260629/03_ml_enhanced/Codes/BacktestEngine.py`
-- `99_archive/backtest_engine_versions_20260629/07_backtest_code/core/backtest_engine_optimized.py`
-
-### 4.1 最新开发版功能迁入原则
-
-`07_backtest_code/_quarantine_20260701/latest_engine_downloads/` 中的 `download_08_*` 到 `download_11_*` 是最新 monolithic 开发版本的归档参考文件，不是新的生产入口。当前已迁入主线的内容包括：
-
-| 功能 | 当前落点 | 说明 |
-| --- | --- | --- |
-| monthly drift fill | `core/portfolio_builder.py` | `fill_method: drift` 会用 returns 对缺失月份 sec list 权重做 drift 补齐；`copy` 保留兼容行为 |
-| benchmark-aware secondary ticker merge | `utils/data_utils.py` | 合并双上市证券时使用当前 benchmark 权重列 |
-| ESG pivot score | `core/esg_pivot.py` + `core/portfolio_builder.py` | pivot 文件定位和解析独立成模块，PortfolioBuilder 只使用数值阈值 |
-| top/bottom ratio plot | `utils/plotting.py` + `BacktestEngine.py` | 同时展示 Top、Bottom、Benchmark 以及三个 ratio |
-| download_09 optimizer | `06_optimiser/optimizer_engine.py` | 已作为现役优化器标准接入，旧优化器文件已隔离 |
-| optimized backtest bridge | `core/backtest_engine_optimized.py` | 可以消费优化器 `Wopt` 并转成标准权重表回测 |
-
-尚未直接迁入的内容：`download_10_factor_pipeline_reference.py` factor pipeline 需要进入信号/模型层，不应扩大 `PortfolioBuilder` 的职责。
-
-### 4.2 `07_backtest_code` 内部配置清理
-
-`07_backtest_code` 现在只保留 `configs/default.yaml` 作为现役默认配置。旧版 `config/config.yaml`、`utils/config.py` 和 `configs/user1.yaml`、`configs/user2.yaml` 占位 profile 已移动到 `07_backtest_code/_quarantine_20260630/legacy_config_loader/`。新代码不得引用旧 `config/` 目录；需要新增 profile 时，只在 `configs/` 下创建有明确业务含义的 YAML 文件。
-
-## 5. 新项目接入方式
-
-### 5.1 直接使用通用核心
+- index：交易日；
+- columns：证券 ID；
+- values：日简单收益率。
 
 ```python
-from tp_core.general_backtest import backtest_weight_table
+from tp_core.backtesting import BacktestSchema, GeneralBacktestEngine
 
-result = backtest_weight_table(
-    weights=target_weights,
-    returns=returns,
+engine = GeneralBacktestEngine(returns)
+result = engine.run_weights(
+    weights,
+    schema=BacktestSchema(
+        date_col="Date",
+        id_col="Company SEDOL",
+        weight_col="Portfolio weight",
+    ),
 )
-
-nav = result.nav
-manifest = result.manifest
 ```
 
-### 5.2 使用现役回测引擎
+`GeneralBacktestResult` 包含 `nav`、`daily_returns`、
+`rebalance_weights`、`execution_weights`、`turnover`、`metrics` 和
+`manifest`。
+
+## 3. 日期执行口径
+
+official Top/Worst 默认口径：
+
+- `strictly_after_rebalance=True`：映射到调仓日之后第一个 returns 交易日；
+- `apply_weights_at_close=True`：该交易日收益先按旧权重计算，新权重收盘后生效；
+- 初始 NAV 为 100；
+- 缺失证券收益按 0 处理；
+- 每个交易日按收益漂移权重。
+
+需要“第一个交易日开盘即生效”的研究必须显式使用
+`apply_weights_at_close=False`。low-vol 研究保留这一历史口径。
+
+聚合后的 sector/regime/news 收益不得伪装成证券权重表：
 
 ```python
-from tp_core.backtesting import BacktestEngine
+from tp_core.backtesting import backtest_return_series
 
-engine = BacktestEngine(returns)
-result = engine.run_weights(target_weights)
+result = backtest_return_series(
+    monthly_returns,
+    initial_nav=1.0,
+    periods_per_year=12,
+)
 ```
 
-### 5.3 普通 sec list 与优化器 sec list
+## 4. 已启用优化
 
-`07_backtest_code.BacktestEngine.PtfBuilder` 保留两条入口：
+唯一内核和 official runner 默认使用以下优化：
 
-| 入口 | 是否调用优化器 | 权重来源 | 结果字段 |
-| --- | --- | --- | --- |
-| `sec_list_spot()` | 否 | `ponderation` 规则，例如 Equalweight、Capweight 或已有组合构建规则 | `sec_list_monthly` |
-| `sec_list_spot_optim()` | 是 | `06_optimiser/optimizer_engine.py` 输出的 `Wopt` | `sec_list_optimized_monthly`、`optimizer_result_monthly` |
+- NumPy 行循环替代 pandas `iterrows()`，但保持资产顺序和浮点运算顺序；
+- Parquet 列与日期下推，只读取当前 benchmark、metric 和历史成分证券；
+- screen/returns 作为 worker 内只读共享对象，不做整表 deep copy；
+- 一次建立月度 date-position index；
+- worker 内复用月度技术底表和 benchmark NAV；
+- 大矩阵使用可 resume 的进程级分片和 unique wave 目录。
 
-设计原则是普通路径和优化路径互不覆盖。需要老版 sec list 时只运行 `sec_list_spot()`；需要优化后的 sec list 时再运行 `sec_list_spot_optim()`。优化后回测调用 `backtest_optimized_sec_list()`，它会把 `Wopt` 转为标准目标权重表再交给统一回测核心。
+禁止默认启用 float downcast、近似 rank、改变复利顺序或缓存键不完整的
+优化。新优化必须先通过 official exact artifact gate。
 
-优化器内部仍保留部分历史列名假设，例如 `Weight in MSCI WORLD`。当前兼容层会根据当前 `bench` 自动补齐 `Weight in {bench}` 与 `Weight in MSCI WORLD` 的别名，避免普通 sec list 或非 MSCI benchmark 被硬编码污染。
-### 5.4 技术分析或 ML 的推荐边界
+真实 STOXX600 Top 权重基准中，4,211 个交易日、1,144 个 returns 列、
+23,256 条权重和 198 个调仓日的漂移循环，从旧 `iterrows` 中位数
+1.1673 秒降至 0.0768 秒，约 15.21 倍；逐位相等，最大差异 0.0。
 
-| 项目 | 应负责 | 不应负责 |
-| --- | --- | --- |
-| `03_ml_enhanced/` | 训练、预测、信号解释、输出标准信号表 | 复制回测引擎 |
-| `03_technical_analysis/` | 技术指标、形态识别、输出 technical signals 或目标权重 | 自带独立主回测核心 |
-| `06_optimiser/` | 把候选名单和约束转成目标权重 | 重新计算 returns 或维护自己的数据副本 |
-| `07_backtest_code/` | 回测、绩效、归因、批量运行和产物保存 | 训练模型或生成原始信号 |
+## 5. 产物溯源
 
-## 6. 后续优化建议
+证券级内核版本：
 
-1. `07_backtest_code/core/backtest_engine.py` 中的旧 `calculate_portfolio_returns()` 已改为调用 `tp_core.general_backtest`，保留原静态方法签名给历史调用方。
-2. 为 `GeneralBacktestResult.manifest` 增加文件级写盘函数，和 `10_pipeline_runs/manifests/run_backtest/` 对齐。
-3. `06_optimiser/optimizer_engine.py` 已提供 `to_standard_weight_table()`；当前 `.venv_tp` 已覆盖安装 `cvxpy 1.7.5` 和 `ecos 2.0.14`，可以导入 `cvxpy` 并使用 `ECOS_BB` 求解 mixed-integer 小问题。
-4. 对长周期、大 universe 回测再做向量化优化；优化版必须先通过通用核心的行为测试，不能再保留半成品第二引擎。
+- `engine_id = tp.general_backtest`
+- `engine_version = 2.0.0`
 
+每个 official run 的 `manifest.yaml` 必须写入：
 
+- `engine_id`
+- `engine_version`
+- `execution_policy.strictly_after_rebalance`
+- `execution_policy.apply_weights_at_close`
+- `execution_policy.rebalance_mapping`
+- `execution_policy.weight_application`
 
+主市场研究包的 `manifest.json` 同样写入这些字段。
 
+## 6. 删除旧入口的门槛
 
+2026-07-23 使用 STOXX Europe 600 官方指标
+`stoxx600_syn_pair_196c20ee30b3` 完成 Top/Worst 迁移检查：
+
+| 产物 | 结果 |
+| --- | --- |
+| Top/Worst 持仓与原始权重，各 23,256 行 | exact |
+| Top/Worst 标准组合权重，各 23,256 行 | exact |
+| Top/Worst 组合 NAV，各 4,211 日 | exact |
+| Top/Worst benchmark NAV，各 4,211 日 | exact |
+| benchmark 标准权重，112,568 行 | exact |
+
+全部最大绝对差异为 `0.0`。证据位于：
+
+- `07_backtest_code/runs/ad_hoc/engine_consolidation_exact_20260723/exact_equality.csv`
+- `07_backtest_code/runs/ad_hoc/engine_consolidation_exact_20260723/kernel_benchmark.json`
+- `99_archive/backtest_engine_consolidation_20260723/manifest.json`
+
+以后修改内核时，至少重复比较 Top、Worst 的持仓、标准权重、NAV 和
+benchmark NAV；只比较 CAGR、Sharpe 或曲线外观不构成发布证据。
+
+## 7. 模块边界
+
+- `PtfBuilder` 可以选股、过滤、生成标准权重、调用唯一内核并保存产物，
+  但不能实现另一套收益复利。
+- `OptimizerBacktestAdapter` 只把 `Wopt` 转成标准权重并调用唯一内核。
+- 技术分析和 low-vol 脚本必须输出标准权重表。
+- sector/regime/news 只在已有聚合收益时调用 `backtest_return_series()`。
+- 市场脚本不得重新实现本地 `nav_from_weights`、动态加载旧
+  `BacktestEngine.py`，或恢复任何已归档入口。

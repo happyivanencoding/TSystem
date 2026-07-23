@@ -496,7 +496,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--relative-dir", default=str(DEFAULT_RELATIVE_DIR))
     parser.add_argument("--old-synergy-dir", default=str(DEFAULT_OLD_SYNERGY))
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT))
-    parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--workers", type=int, default=base.DEFAULT_PARALLEL_WORKERS)
     parser.add_argument("--build-only", action="store_true")
     parser.add_argument("--gate-only", action="store_true")
     return parser

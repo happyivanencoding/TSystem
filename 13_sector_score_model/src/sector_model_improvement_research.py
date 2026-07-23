@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 import sector_score_model as model
+from tp_core.general_backtest import backtest_return_series
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
@@ -238,7 +239,12 @@ def _evaluate_candidate(
     for period, (start, end) in PERIODS.items():
         frame = _period_frame(backtest, start, end)
         active = frame["active_return"]
-        nav = (1 + active).cumprod()
+        nav = backtest_return_series(
+            pd.Series(active.to_numpy(), index=pd.to_datetime(frame["Date"])),
+            initial_nav=1.0,
+            periods_per_year=12,
+            name=f"{market}_{candidate}_{period}_active",
+        ).nav
         rows.append(
             {
                 "market": market,

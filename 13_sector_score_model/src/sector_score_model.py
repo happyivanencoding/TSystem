@@ -18,6 +18,7 @@ if str(TP_ROOT) not in sys.path:
 
 import sitecustomize  # noqa: F401,E402
 from tp_core.data_sources import FACTSET_ICB_MAPPING_PATH, RETURNS_PATH, SCREEN_AGGREGATE_PATH  # noqa: E402
+from tp_core.general_backtest import backtest_return_series  # noqa: E402
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
@@ -630,8 +631,20 @@ def run_sector_tilt_backtest(
         )
     result = pd.DataFrame(records).sort_values("Date").reset_index(drop=True)
     if not result.empty:
-        result["model_nav"] = (1 + result["model_return"]).cumprod()
-        result["benchmark_nav"] = (1 + result["benchmark_return"]).cumprod()
+        model_returns = result.set_index("Date")["model_return"]
+        benchmark_returns = result.set_index("Date")["benchmark_return"]
+        result["model_nav"] = backtest_return_series(
+            model_returns,
+            initial_nav=1.0,
+            periods_per_year=12,
+            name="sector_model",
+        ).nav.to_numpy()
+        result["benchmark_nav"] = backtest_return_series(
+            benchmark_returns,
+            initial_nav=1.0,
+            periods_per_year=12,
+            name="sector_benchmark",
+        ).nav.to_numpy()
         result["active_nav"] = result["model_nav"] / result["benchmark_nav"]
     return result
 

@@ -17,6 +17,7 @@ ENTITY_HISTORY_PATH = OUTPUT_DIR / "entity_sector_history.parquet"
 
 START_DATE = "2007-01-01"
 MARKETS = ("US", "EU", "JP", "CN_HK")
+GDELT_V1_DAILY_RELEASE_UTC_HOUR = 11
 
 
 @dataclass(frozen=True)

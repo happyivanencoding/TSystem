@@ -8,7 +8,12 @@ project_root = Path(__file__).resolve().parents[1]
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from BacktestEngine import PtfBuilder
+from tp_core.backtesting import (
+    BacktestSchema,
+    PtfBuilder,
+    backtest_weight_table,
+    benchmark_to_weight_table,
+)
 from core.factor_pipeline import (
     build_factor_component,
     handle_missing_values,
@@ -113,19 +118,19 @@ def test_ptfbuilder_download_reference_compatibility_methods():
             COL_ISIN: ["AAA", "BBB"],
         }
     )
-    weights = builder.backtest_create_ptf_weight(
-        sec_list=sec_list,
-        indice_name="TEST",
-        screen_agg=screen.reset_index(drop=True),
-        max_weight=1.0,
+    weights = benchmark_to_weight_table(
+        sec_list,
+        "TEST",
+        screen.reset_index(drop=True),
+        1.0,
         method="EW",
     )
     assert not weights.empty
     assert weights.groupby(level=0)["Portfolio weight"].sum().round(10).eq(1.0).all()
 
-    nav = builder.backtest_calcul_all_portfolio(
-        weights.copy(),
+    nav = backtest_weight_table(
+        weights.reset_index(),
         returns,
-        col_weight="Portfolio weight",
-    )
+        schema=BacktestSchema(),
+    ).nav
     assert nav.iloc[0] == 100.0

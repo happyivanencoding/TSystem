@@ -39,7 +39,7 @@ from optimizer_engine import (
 weights = to_standard_weight_table(result_df)
 ```
 
-然后交给 `07_backtest_code/core/backtest_engine_optimized.py` 或 `tp_core.general_backtest`。
+然后交给 `tp_core.backtesting.OptimizerBacktestAdapter`；适配器只负责标准化权重，NAV 始终由 `tp_core.general_backtest` 计算。
 
 ## 环境注意
 

@@ -22,6 +22,7 @@ for path in (SCRIPT_DIR, TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src"):
         sys.path.insert(0, str(path))
 
 import run_eu_small_multifactor_research as base  # noqa: E402
+from tp_core.general_backtest import engine_metadata  # noqa: E402
 
 
 BENCHMARK = "SP500"
@@ -476,6 +477,10 @@ def main(argv: Iterable[str] | None = None) -> int:
         args=args,
     )
     manifest = {
+        **engine_metadata(
+            strictly_after_rebalance=True,
+            apply_weights_at_close=True,
+        ),
         "output_dir": str(output_dir),
         "research_screen": str(research_screen_path),
         "report": str(report_path),

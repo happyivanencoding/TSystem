@@ -13,6 +13,7 @@ import pandas as pd
 
 import config
 import model
+from tp_core.general_backtest import backtest_return_series
 
 MIN_TRAIN = 60     # 起始训练窗口(月)
 N_INIT_WF = 3      # 每步随机初始化次数(滚动较多，适当减小)
@@ -52,7 +53,12 @@ def evaluate(res: pd.DataFrame, k: int) -> pd.DataFrame:
 
 def plot_regime(res: pd.DataFrame, region: str, k: int) -> None:
     realized = res["fwd_ret"].shift(1).fillna(0)
-    cum = (1 + realized).cumprod()
+    cum = backtest_return_series(
+        realized,
+        initial_nav=1.0,
+        periods_per_year=12,
+        name=f"{region}_walkforward_market",
+    ).nav
     cmap = plt.get_cmap("RdYlGn_r")
     colors = [cmap(i / max(k - 1, 1)) for i in range(k)]
     _, labels_en = model.state_names(k)

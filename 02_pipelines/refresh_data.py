@@ -108,26 +108,6 @@ def _archive_processed_input_batch(input_batch_dir: str | None, *, dry_run: bool
     if dry_run:
         result["reason"] = "dry_run"
         return result
-
-
-def _run_returns_extreme_audit() -> dict[str, Any]:
-    report = audit_returns_file(
-        RETURNS_PATH,
-        report_path=RETURNS_AUDIT_LATEST,
-        flagged_csv_path=RETURNS_FLAGS_LATEST,
-        review_template_path=RETURNS_REVIEW_TEMPLATE_LATEST,
-    )
-    returns_profile = path_profile(RETURNS_PATH, parquet=True)
-    report_date = str(report.get("date_max", ""))[:10]
-    report["current_with_returns"] = report_date == str(_returns_index_max_date())
-    report["returns_profile"] = returns_profile
-    return report
-
-
-def _returns_index_max_date() -> str | None:
-    frame = pd.read_parquet(RETURNS_PATH, columns=[])
-    dates = pd.to_datetime(frame.index, errors="coerce").dropna()
-    return dates.max().date().isoformat() if len(dates) else None
     if not input_batch_dir:
         result["reason"] = "no_standard_input_batch"
         return result
@@ -211,6 +191,26 @@ def _returns_index_max_date() -> str | None:
             }
         )
         return result
+
+
+def _run_returns_extreme_audit() -> dict[str, Any]:
+    report = audit_returns_file(
+        RETURNS_PATH,
+        report_path=RETURNS_AUDIT_LATEST,
+        flagged_csv_path=RETURNS_FLAGS_LATEST,
+        review_template_path=RETURNS_REVIEW_TEMPLATE_LATEST,
+    )
+    returns_profile = path_profile(RETURNS_PATH, parquet=True)
+    report_date = str(report.get("date_max", ""))[:10]
+    report["current_with_returns"] = report_date == str(_returns_index_max_date())
+    report["returns_profile"] = returns_profile
+    return report
+
+
+def _returns_index_max_date() -> str | None:
+    frame = pd.read_parquet(RETURNS_PATH, columns=[])
+    dates = pd.to_datetime(frame.index, errors="coerce").dropna()
+    return dates.max().date().isoformat() if len(dates) else None
 
 
 def run_refresh_data(args: argparse.Namespace) -> Path:

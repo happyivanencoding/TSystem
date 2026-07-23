@@ -4,7 +4,8 @@ Core modules for the backtesting system.
 
 from .data_loader import DataLoader
 from .portfolio_builder import PortfolioBuilder
-from .backtest_engine import BacktestEngine
+from .optimizer_backtest_adapter import OptimizerBacktestAdapter
+from .ptf_builder import PtfBuilder
 from .factor_pipeline import (
     backtest_factors,
     build_factor_component,
@@ -22,7 +23,8 @@ from .metrics import PerformanceMetrics
 __all__ = [
     'DataLoader',
     'PortfolioBuilder',
-    'BacktestEngine',
+    'OptimizerBacktestAdapter',
+    'PtfBuilder',
     'backtest_factors',
     'build_factor_component',
     'calculate_quality_score',

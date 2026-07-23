@@ -1,0 +1,44 @@
+{
+  "archive_id": "backtest_engine_consolidation_20260723",
+  "archived_at": "2026-07-23",
+  "runtime_status": "not_on_sys_path",
+  "replacement_api": {
+    "security_nav_kernel": "tp_core.general_backtest.GeneralBacktestEngine",
+    "portfolio_facade": "tp_core.backtesting.PtfBuilder",
+    "optimizer_adapter": "tp_core.backtesting.OptimizerBacktestAdapter",
+    "aggregated_returns": "tp_core.general_backtest.backtest_return_series"
+  },
+  "exact_equality_evidence": "07_backtest_code/runs/ad_hoc/engine_consolidation_exact_20260723/exact_equality.csv",
+  "archived_sources": [
+    {
+      "path": "03_ml_enhanced/Codes/BacktestEngine.py",
+      "sha256": "eb474e05abb5984905a5aa1589b14ae2da52805057511944e73ca7138a62b900",
+      "bytes": 4126
+    },
+    {
+      "path": "07_backtest_code/BacktestEngine.py",
+      "sha256": "364c0eb65541cd8853923d84ad83b72a33cd446aac73bee227322d7c075f1d52",
+      "bytes": 16915
+    },
+    {
+      "path": "07_backtest_code/core/backtest_engine.py",
+      "sha256": "f78b21fba1539c8e4455c5c6aa9af148cb83d210a456f07eb5e2df54bc254465",
+      "bytes": 16386
+    },
+    {
+      "path": "07_backtest_code/core/backtest_engine_optimized.py",
+      "sha256": "47bf8f36a12e55cda2076b34bcb6a4af6a8ba36c268040c0bc4fa1a0a4bce941",
+      "bytes": 3301
+    },
+    {
+      "path": "07_backtest_code/scripts/run_lowvol_resvol_research.py",
+      "sha256": "3df404a506fc29adb07829272007a69745dd41244ceca2bf6b14dea4f4fe4fdd",
+      "bytes": 23354
+    },
+    {
+      "path": "07_backtest_code/scripts/run_lowvol_multifactor_residual_research.py",
+      "sha256": "85bb24ddc14fef17cceb8c6d54e621b77415cd859018239cba8fb0c6f8449e82",
+      "bytes": 17646
+    }
+  ]
+}

@@ -21,6 +21,7 @@ import ml_if_features
 import model
 import returns_loader
 import screen_vol_features
+from tp_core.general_backtest import backtest_return_series
 
 MIN_TRAIN = 60
 
@@ -46,7 +47,12 @@ def fwd_risk(region: str) -> pd.DataFrame:
             continue
         port = win.mean(axis=1).fillna(0)            # 等权市场日收益
         vol[t] = port.std() * np.sqrt(252)
-        c = (1 + port).cumprod()
+        c = backtest_return_series(
+            port,
+            initial_nav=1.0,
+            periods_per_year=252,
+            name=f"{region}_market_risk",
+        ).nav
         mdd[t] = float((1 - c / c.cummax()).max())
     return pd.DataFrame({"fwd_vol": pd.Series(vol), "fwd_mdd": pd.Series(mdd)}).sort_index()
 

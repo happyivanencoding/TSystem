@@ -99,6 +99,28 @@
 - 每次 restart 使用唯一 wave 目录，避免覆盖上一轮 shard CSV。
 - Windows 下保持 official run root 短路径，防止长 metric name 导致 artifact path 过长。
 - 中断后先读取主结果和所有 shard/wave 结果，再只补缺口。
+- worker 应在 Parquet 读取层只加载本 shard 的 metric 列、组合构建技术列，以及历史 benchmark 成分股实际出现过的 returns 列；不得先读全宽表再裁剪。
+- 同一 worker 内应只准备一次 screen/returns，并复用与 metric 无关的月度技术底表和 benchmark NAV。只有输入只读、缓存键覆盖 benchmark、日期、权重、中性化、分位数和推荐参数时才允许复用。
+- shard 应尽量包含多个 metric，使 Top/Worst 和后续 metric 能复用月度底表与 benchmark；worker 数量不能超过待测 metric 数。
+- 并行度必须在目标机器上用完整 official artifact 流程实测。当前 32 logical CPU / 64GB 工作站的 STOXX600 长矩阵默认使用 8 个进程，内存紧张或同时运行其他任务时应显式下调。
+- 任何性能优化进入 official 路径前，必须用既有 official 产物逐值核对 `sec_list`、`perf_ptf`、`perf_bench`，至少覆盖 Top、Worst 和跨 metric 缓存命中；只比较最终 CAGR 或图形不构成等价证明。
+- 性能记录至少包含端到端 wall time、成功运行数、screen/returns 裁剪前后维度和单 worker 内存。速度提升不能改变 gate、持仓、权重、净值或 artifact contract。
+
+### 共享回测引擎默认优化
+
+以下优化属于共享 official 路径，不应由单一市场脚本重复实现：
+
+- `BacktestService` 必须通过 `load_pruned_backtest_inputs` 规划输入。单次运行按 metric、benchmark 和 start date 裁剪；batch 按全部配置的 metric/benchmark 并集和最早 start date 一次读取。
+- Parquet 读取应下推 screen 和 returns 的起始日期，并只物化所需列。returns 证券列应限定为所选 benchmark 历史正权重成员，同时保留 dual-listing pair 的两条记录；CSV/XLS fallback 可以先读取再裁剪，但输出契约必须一致。
+- `PtfBuilder`、`PortfolioBuilder`、`GeneralBacktestEngine` 默认共享只读 DataFrame，不做整表 deep copy；调用方不得原地修改共享输入。
+- 月度历史循环应先建立一次 date-to-row-position 索引，禁止每个月对完整 screen 重复布尔扫描。
+- EU Small、S&P 500、Nasdaq、STOXX600 等直连 official runner 必须通过同一 `BacktestService` 准备 screen/returns，并传入 worker-local 月度底表和 benchmark cache。
+- 不得把 float downcast、改变日收益复利顺序、近似 rank 或缓存键不完整的优化设为默认。它们必须独立通过 exact artifact gate 后才能晋级。
+- 证券级回测唯一入口是 `tp_core.general_backtest.GeneralBacktestEngine` / `backtest_weight_table()`；`PtfBuilder` 只能构造标准权重和 official artifacts，`OptimizerBacktestAdapter` 只能转换优化器权重。
+- sector、regime、news 等已有聚合收益序列的研究使用 `backtest_return_series()`，不得强行进入证券级引擎。
+- official manifest 必须记录 `engine_id`、`engine_version` 和日期执行口径。活动代码不得恢复 `BacktestEngine.py`、`core.backtest_engine` 或 `BacktestEngineOptimized`。
+
+2026-07-23 共享层验证：代表性 STOXX600 Top/Worst 的持仓、标准权重、`perf_ptf`、`perf_bench` 与既有 official 产物全部 exact；最大差异 0.0。月度取片微基准由每轮 0.0583 秒降至 0.0168 秒。
 
 ## Regime 模型
 

@@ -7,7 +7,7 @@ project_root = Path(__file__).resolve().parents[1]
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from core.backtest_engine_optimized import BacktestEngineOptimized
+from core.optimizer_backtest_adapter import OptimizerBacktestAdapter
 
 
 def test_optimized_backtest_engine_runs_optimizer_result_wopt():
@@ -25,7 +25,7 @@ def test_optimized_backtest_engine_runs_optimizer_result_wopt():
             "Wopt": [0.6, 0.4],
         }
     )
-    engine = BacktestEngineOptimized(returns)
+    engine = OptimizerBacktestAdapter(returns)
 
     result = engine.backtest_optimizer_result(optimizer_result)
 

@@ -10,7 +10,7 @@ for path in [project_root, opt_root]:
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from BacktestEngine import PtfBuilder
+from tp_core.backtesting import PtfBuilder
 import optimizer_engine
 
 

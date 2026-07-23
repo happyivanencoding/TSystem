@@ -23,6 +23,8 @@ import pandas as pd
 DEFAULT_DATE_COL = "Date"
 DEFAULT_ID_COL = "Company SEDOL"
 DEFAULT_WEIGHT_COL = "Portfolio weight"
+ENGINE_ID = "tp.general_backtest"
+ENGINE_VERSION = "2.0.0"
 
 
 @dataclass(frozen=True)
@@ -47,13 +49,23 @@ class GeneralBacktestResult:
     manifest: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass
+class ReturnSeriesBacktestResult:
+    """Result returned for an already-aggregated return series."""
+
+    nav: pd.Series
+    returns: pd.Series
+    metrics: dict[str, float]
+    manifest: dict[str, Any] = field(default_factory=dict)
+
+
 def load_returns(returns: str | Path | pd.DataFrame) -> pd.DataFrame:
     """Load and normalize a wide daily return matrix."""
 
     if isinstance(returns, (str, Path)):
         df_returns = pd.read_parquet(returns)
     elif isinstance(returns, pd.DataFrame):
-        df_returns = returns.copy()
+        df_returns = returns.copy(deep=False)
     else:
         raise TypeError("returns must be a parquet path or a pandas DataFrame")
 
@@ -231,6 +243,136 @@ def summarize_daily_returns(daily_returns: pd.Series, periods_per_year: int = 25
     }
 
 
+def engine_metadata(
+    *,
+    strictly_after_rebalance: bool | None = None,
+    apply_weights_at_close: bool | None = None,
+) -> dict[str, Any]:
+    """Return stable engine identity and optional execution semantics."""
+
+    metadata: dict[str, Any] = {
+        "engine_id": ENGINE_ID,
+        "engine_version": ENGINE_VERSION,
+    }
+    if strictly_after_rebalance is not None or apply_weights_at_close is not None:
+        metadata["execution_policy"] = {
+            "strictly_after_rebalance": strictly_after_rebalance,
+            "apply_weights_at_close": apply_weights_at_close,
+            "rebalance_mapping": (
+                "first_returns_date_strictly_after_rebalance"
+                if strictly_after_rebalance
+                else "first_returns_date_on_or_after_rebalance"
+            ),
+            "weight_application": (
+                "after_close_return"
+                if apply_weights_at_close
+                else "before_open_return"
+            ),
+        }
+    return metadata
+
+
+def backtest_return_series(
+    returns: pd.Series,
+    *,
+    initial_nav: float = 100.0,
+    periods_per_year: int = 252,
+    name: str = "strategy",
+    fill_missing_with_zero: bool = True,
+) -> ReturnSeriesBacktestResult:
+    """Build NAV and metrics for an already-aggregated return series."""
+
+    series = pd.Series(returns).copy()
+    series.index = pd.to_datetime(series.index)
+    series = pd.to_numeric(series, errors="coerce").sort_index()
+    if fill_missing_with_zero:
+        series = series.fillna(0.0)
+    else:
+        series = series.dropna()
+    series.name = name
+    nav = (1.0 + series).cumprod() * float(initial_nav)
+    nav.name = f"{name}_nav"
+    manifest = {
+        **engine_metadata(),
+        "input_kind": "aggregated_return_series",
+        "execution_policy": {
+            "return_observation": "already_aggregated",
+            "weight_application": "not_applicable",
+            "compounding": "same_observation",
+        },
+        "periods_per_year": int(periods_per_year),
+        "initial_nav": float(initial_nav),
+        "fill_missing_with_zero": bool(fill_missing_with_zero),
+        "observations": int(len(series)),
+    }
+    return ReturnSeriesBacktestResult(
+        nav=nav,
+        returns=series,
+        metrics=summarize_daily_returns(series, periods_per_year=periods_per_year),
+        manifest=manifest,
+    )
+
+
+def _calculate_daily_returns_exact(
+    df_returns: pd.DataFrame,
+    execution_weights: pd.DataFrame,
+    schema: BacktestSchema,
+    *,
+    apply_weights_at_close: bool,
+) -> pd.Series:
+    """Run the exact drift loop with NumPy rows instead of pandas iterrows."""
+
+    target_by_date: dict[pd.Timestamp, tuple[np.ndarray, np.ndarray]] = {}
+    return_columns = pd.Index(df_returns.columns)
+    for date, group in execution_weights.groupby(schema.date_col):
+        ids = group[schema.id_col].astype(str)
+        positions = return_columns.get_indexer(ids)
+        if (positions < 0).any():
+            raise ValueError("execution weights contain securities absent from returns")
+        target_by_date[pd.Timestamp(date)] = (
+            positions,
+            group[schema.weight_col].to_numpy(dtype=float, copy=True),
+        )
+
+    start_date = execution_weights[schema.date_col].min()
+    return_block = df_returns.loc[df_returns.index >= start_date]
+    return_values = return_block.to_numpy(dtype=float, copy=False)
+    current_positions: np.ndarray | None = None
+    current_weights: np.ndarray | None = None
+    daily_return_values = np.empty(len(return_block), dtype=float)
+
+    for row_number, date in enumerate(return_block.index):
+        date = pd.Timestamp(date)
+        target = target_by_date.get(date)
+        if not apply_weights_at_close and target is not None:
+            current_positions, current_weights = target
+            current_weights = current_weights.copy()
+
+        if current_weights is None or current_positions is None:
+            portfolio_return = 0.0
+        else:
+            asset_returns = return_values[row_number, current_positions]
+            if np.isnan(asset_returns).any():
+                asset_returns = np.nan_to_num(asset_returns, nan=0.0)
+            portfolio_return = float((current_weights * asset_returns).sum())
+            current_weights = current_weights * (1.0 + asset_returns)
+            total_weight = float(current_weights.sum())
+            if total_weight != 0:
+                current_weights = current_weights / total_weight
+
+        daily_return_values[row_number] = portfolio_return
+
+        if apply_weights_at_close and target is not None:
+            current_positions, current_weights = target
+            current_weights = current_weights.copy()
+
+    return pd.Series(
+        daily_return_values,
+        index=pd.DatetimeIndex(return_block.index.to_numpy(copy=True)),
+        name="daily_return",
+    )
+
+
 def backtest_weight_table(
     weights: pd.DataFrame,
     returns: str | Path | pd.DataFrame,
@@ -256,44 +398,22 @@ def backtest_weight_table(
         strictly_after_rebalance=strictly_after_rebalance,
     )
 
-    target_by_date = {
-        pd.Timestamp(date): group.set_index(schema.id_col)[schema.weight_col].astype(float)
-        for date, group in execution_weights.groupby(schema.date_col)
-    }
-
-    start_date = execution_weights[schema.date_col].min()
-    current_weights: pd.Series | None = None
-    nav_dates: list[pd.Timestamp] = []
-    daily_return_values: list[float] = []
-
-    for date, row in df_returns.loc[df_returns.index >= start_date].iterrows():
-        date = pd.Timestamp(date)
-        if not apply_weights_at_close and date in target_by_date:
-            current_weights = target_by_date[date].copy()
-
-        if current_weights is None:
-            portfolio_return = 0.0
-        else:
-            asset_returns = row.reindex(current_weights.index).fillna(0.0).astype(float)
-            portfolio_return = float((current_weights * asset_returns).sum())
-            current_weights = current_weights * (1.0 + asset_returns)
-            total_weight = float(current_weights.sum())
-            if total_weight != 0:
-                current_weights = current_weights / total_weight
-
-        nav_dates.append(date)
-        daily_return_values.append(portfolio_return)
-
-        if apply_weights_at_close and date in target_by_date:
-            current_weights = target_by_date[date].copy()
-
-    daily_returns = pd.Series(daily_return_values, index=pd.DatetimeIndex(nav_dates), name="daily_return")
+    daily_returns = _calculate_daily_returns_exact(
+        df_returns=df_returns,
+        execution_weights=execution_weights,
+        schema=schema,
+        apply_weights_at_close=apply_weights_at_close,
+    )
     nav = (1.0 + daily_returns.fillna(0.0)).cumprod() * float(initial_nav)
     nav.name = "nav"
     turnover = calculate_simple_turnover(execution_weights=execution_weights, schema=schema)
     metrics = summarize_daily_returns(daily_returns=daily_returns)
 
     manifest = {
+        **engine_metadata(
+            strictly_after_rebalance=strictly_after_rebalance,
+            apply_weights_at_close=apply_weights_at_close,
+        ),
         **normalize_manifest,
         **execution_manifest,
         "initial_nav": float(initial_nav),
@@ -346,11 +466,16 @@ class GeneralBacktestEngine:
 
 
 __all__ = [
+    "ENGINE_ID",
+    "ENGINE_VERSION",
     "BacktestSchema",
     "GeneralBacktestEngine",
     "GeneralBacktestResult",
+    "ReturnSeriesBacktestResult",
     "backtest_weight_table",
+    "backtest_return_series",
     "calculate_simple_turnover",
+    "engine_metadata",
     "load_returns",
     "map_rebalance_to_execution_dates",
     "normalize_rebalance_weights",

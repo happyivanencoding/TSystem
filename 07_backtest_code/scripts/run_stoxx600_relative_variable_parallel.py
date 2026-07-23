@@ -112,10 +112,11 @@ def worker_run(payload: dict[str, object]) -> dict[str, object]:
         existing = dedupe_results(pd.concat(existing_frames, ignore_index=True))
         existing = existing[existing["metric"].isin(metrics)].copy()
 
-    screen = pd.read_parquet(screen_path)
-    returns = base.load_tabular_file(returns_path)
-    returns.index = pd.to_datetime(returns.index, errors="coerce")
-    returns = returns.sort_index()
+    screen, returns = base.load_official_worker_inputs(
+        screen_path,
+        returns_path,
+        metrics,
+    )
     run_root_name = f"ad_hoc/rv260709_s{shard_id:02d}"
     results = base.run_official_backtests(
         screen=screen,
@@ -145,7 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Parallel official backtests for STOXX600 relative variables.")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--returns", default=str(base.DEFAULT_RETURNS))
-    parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--workers", type=int, default=base.DEFAULT_PARALLEL_WORKERS)
     parser.add_argument("--wave", default="")
     parser.add_argument("--metrics", default="all")
     parser.add_argument("--level-gate", default=str(rel.DEFAULT_LEVEL_GATE))

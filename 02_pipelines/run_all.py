@@ -23,6 +23,12 @@ from .refresh_small_cap import DEFAULT_OUTPUT_DIR as DEFAULT_SMALL_CAP_OUTPUT_DI
 from .refresh_small_cap import DEFAULT_CONFIG as DEFAULT_SMALL_CAP_CONFIG
 from .refresh_small_cap import DEFAULT_SIGNAL_OUTPUT as DEFAULT_SMALL_CAP_SIGNAL_OUTPUT
 from .refresh_small_cap import run_refresh_small_cap
+from .refresh_supplemental_data import (
+    DEFAULT_CONFIG as DEFAULT_SUPPLEMENTAL_CONFIG,
+    DEFAULT_SECURITY_MAP as DEFAULT_SUPPLEMENTAL_SECURITY_MAP,
+    SOURCE_CHOICES as SUPPLEMENTAL_SOURCE_CHOICES,
+)
+from .refresh_supplemental_data import run_refresh_supplemental_data
 from .refresh_regime import run_refresh_regime
 from .refresh_technical import DEFAULT_PATTERNS as DEFAULT_TECHNICAL_PATTERNS
 from .refresh_technical import run_refresh_technical
@@ -192,6 +198,32 @@ def run_all(args: argparse.Namespace) -> Path:
                             dry_run=args.dry_run_data,
                             inspect_only=args.inspect_only_refresh_data,
                             qa_report=None,
+                            run_type=run_type,
+                        )
+                    )
+                )
+            )
+
+        if getattr(args, "refresh_supplemental_data", False):
+            child_manifests.append(
+                str(
+                    run_refresh_supplemental_data(
+                        Namespace(
+                            source=getattr(args, "supplemental_source", None),
+                            from_date=getattr(args, "supplemental_from_date", "2000-01-01"),
+                            to_date=getattr(args, "supplemental_to_date", None),
+                            config=getattr(args, "supplemental_config", str(DEFAULT_SUPPLEMENTAL_CONFIG)),
+                            security_map=getattr(
+                                args,
+                                "supplemental_security_map",
+                                str(DEFAULT_SUPPLEMENTAL_SECURITY_MAP),
+                            ),
+                            max_jobs=getattr(args, "supplemental_max_jobs", None),
+                            timeout_seconds=getattr(args, "supplemental_timeout_seconds", 30),
+                            resume=getattr(args, "supplemental_resume", False),
+                            dry_run=getattr(args, "supplemental_dry_run", False),
+                            inspect_only=getattr(args, "inspect_only_supplemental", False),
+                            promote_to_canonical=False,
                             run_type=run_type,
                         )
                     )
@@ -430,6 +462,30 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run-data", action="store_true", help="数据刷新只 dry-run")
     parser.add_argument("--inspect-only-refresh-data", action="store_true", help="数据刷新只检查入口和 canonical 路径")
     parser.add_argument("--skip-refresh-data", action="store_true", help="跳过数据刷新")
+    parser.add_argument(
+        "--refresh-supplemental-data",
+        action="store_true",
+        help="在 refresh_data 后运行显式来源的影子补充数据阶段",
+    )
+    parser.add_argument(
+        "--supplemental-source",
+        action="append",
+        choices=SUPPLEMENTAL_SOURCE_CHOICES,
+        help="补充数据来源，可重复",
+    )
+    parser.add_argument("--supplemental-from-date", default="2000-01-01")
+    parser.add_argument("--supplemental-to-date")
+    parser.add_argument("--supplemental-config", default=str(DEFAULT_SUPPLEMENTAL_CONFIG))
+    parser.add_argument("--supplemental-security-map", default=str(DEFAULT_SUPPLEMENTAL_SECURITY_MAP))
+    parser.add_argument("--supplemental-max-jobs", type=int)
+    parser.add_argument("--supplemental-timeout-seconds", type=int, default=30)
+    parser.add_argument("--supplemental-resume", action="store_true")
+    parser.add_argument("--supplemental-dry-run", action="store_true")
+    parser.add_argument(
+        "--inspect-only-supplemental",
+        action="store_true",
+        help="只检查现有补充数据分区，不访问外部 API",
+    )
     parser.add_argument("--skip-refresh-technical", action="store_true", help="跳过 technical patterns 刷新")
     parser.add_argument("--inspect-only-technical", action="store_true", help="只检查已有 technical patterns，不重算")
     parser.add_argument("--technical-patterns-output", default=str(DEFAULT_TECHNICAL_PATTERNS), help="technical patterns 输出路径")

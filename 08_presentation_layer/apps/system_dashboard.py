@@ -50,6 +50,7 @@ CLIENT_JOB_API_ENABLED = os.environ.get("TP_DASHBOARD_CLIENT_JOB_API", "1") != "
 CLIENT_DIST_DIR = TP_ROOT / "08_presentation_layer" / "frontend" / "system_dashboard" / "dist"
 CLIENT_ASSETS_DIR = CLIENT_DIST_DIR / "assets"
 FACTOR_EXPLORER_PATH = TP_ROOT / "09_reports" / "factor-explorer.html"
+FACTOR_RESEARCH_APP_PATH = TP_ROOT / "09_reports" / "factor-research-app.html"
 REGIME_SIGNAL_PATH = TP_ROOT / "04_signals" / "regime_risk_budget.parquet"
 COUNTRY_SIGNAL_PATH = TP_ROOT / "04_signals" / "country_model_signals.parquet"
 SMALL_CAP_SIGNAL_PATH = TP_ROOT / "04_signals" / "small_cap_model_signals.parquet"
@@ -6188,6 +6189,13 @@ def create_app() -> Dash:
     @server.route("/reports/factor-explorer.html", methods=["GET"])
     def factor_explorer_report():
         return send_from_directory(FACTOR_EXPLORER_PATH.parent, FACTOR_EXPLORER_PATH.name)
+
+    @server.route("/reports/factor-research-app.html", methods=["GET"])
+    def factor_research_app_report():
+        return send_from_directory(
+            FACTOR_RESEARCH_APP_PATH.parent,
+            FACTOR_RESEARCH_APP_PATH.name,
+        )
 
     @server.route("/api/dashboard/state", methods=["GET"])
     def api_dashboard_state():

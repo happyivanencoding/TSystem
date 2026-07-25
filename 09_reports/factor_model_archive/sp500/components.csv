@@ -492,3 +492,61 @@ sp500,new,sp500_factor_extension_20260711:sp500_ext_subset_5e7ca9b3d675,(Net Inc
 sp500,new,sp500_factor_extension_20260711:sp500_ext_subset_d2419acc8234,NetDebt / EBITDA improvement,deleveraging,0.3333333333333333
 sp500,new,sp500_factor_extension_20260711:sp500_ext_subset_d2419acc8234,Earns Yield FY1 improvement,value_improvement,0.3333333333333333
 sp500,new,sp500_factor_extension_20260711:sp500_ext_subset_d2419acc8234,(Net Income - CFO) / Assets + cash-backed margin,accrual_quality,0.3333333333333333
+sp500,new,sp500_reldelta_quality_roe_avg_fy0_lag6_score,ROE avg FY0 directional_delta lag6,ROE avg FY0,1.0
+sp500,new,sp500_reldelta_quality_oper_margin_lag6_score,Oper Margin directional_delta lag6,Oper Margin,1.0
+sp500,new,sp500_relrank_quality_oper_margin_lag6_score,Oper Margin score_delta lag6,Oper Margin,1.0
+sp500,new,sp500_reldelta_quality_cont_op_earning_margin_lag6_score,Cont Op Earning Margin directional_delta lag6,Cont Op Earning Margin,1.0
+sp500,new,sp500_reldelta_quality_netdebt_to_ebitda_exfin_lag6_score,NetDebt to EBITDA exFIN directional_delta lag6,NetDebt to EBITDA exFIN,1.0
+sp500,new,sp500_relrank_quality_roe_avg_fy0_lag6_score,ROE avg FY0 score_delta lag6,ROE avg FY0,1.0
+sp500,new,sp500_reldelta_dividend_dvd_payout_fy0_lag6_score,DVD Payout FY0 directional_delta lag6,DVD Payout FY0,1.0
+sp500,new,sp500_reldelta_quality_net_debt_to_market_cap_lag6_score,Net Debt to Market Cap directional_delta lag6,Net Debt to Market Cap,1.0
+sp500,new,sp500_reldelta_value_earns_yield_fy1_lag6_score,Earns Yield FY1 directional_delta lag6,Earns Yield FY1,1.0
+sp500,new,sp500_reldelta_quality_ebitda_margin_lag6_score,Ebitda Margin directional_delta lag6,Ebitda Margin,1.0
+sp500,new,sp500_reldelta_quality_gross_margin_lag6_score,Gross Margin directional_delta lag6,Gross Margin,1.0
+sp500,new,sp500_reldelta_quality_net_debt_to_tot_equity_lag6_score,Net Debt to Tot Equity directional_delta lag6,Net Debt to Tot Equity,1.0
+sp500,new,sp500_relrank_quality_net_debt_to_market_cap_lag6_score,Net Debt to Market Cap score_delta lag6,Net Debt to Market Cap,1.0
+sp500,new,sp500_relrank_quality_cont_op_earning_margin_lag6_score,Cont Op Earning Margin score_delta lag6,Cont Op Earning Margin,1.0
+sp500,new,sp500_relrank_value_pe_ntm_lag6_score,PE NTM score_delta lag6,PE NTM,1.0
+sp500,new,sp500_relrank_quality_gross_margin_lag6_score,Gross Margin score_delta lag6,Gross Margin,1.0
+sp500,new,sp500_reldelta_value_earns_yield_ntm_lag6_score,Earns Yield NTM directional_delta lag6,Earns Yield NTM,1.0
+sp500,new,sp500_relrank_value_pe_fy1_lag6_score,PE FY1 score_delta lag6,PE FY1,1.0
+sp500,new,sp500_reldelta_value_pe_fy1_lag6_score,PE FY1 directional_delta lag6,PE FY1,1.0
+sp500,new,sp500_relrank_quality_netdebt_to_ebitda_exfin_lag6_score,NetDebt to EBITDA exFIN score_delta lag6,NetDebt to EBITDA exFIN,1.0
+sp500,new,sp500_relrank_quality_net_debt_to_tot_equity_lag6_score,Net Debt to Tot Equity score_delta lag6,Net Debt to Tot Equity,1.0
+sp500,new,sp500_relrank_quality_ebitda_margin_lag6_score,Ebitda Margin score_delta lag6,Ebitda Margin,1.0
+sp500,new,sp500_relrank_value_earns_yield_ntm_lag6_score,Earns Yield NTM score_delta lag6,Earns Yield NTM,1.0
+sp500,new,sp500_reldelta_value_price_to_book_fy1_lag6_score,Price to Book FY1 directional_delta lag6,Price to Book FY1,1.0
+sp500,new,sp500_relrank_value_ev_to_ebitda_ntm_lag6_score,EV To EBITDA NTM score_delta lag6,EV To EBITDA NTM,1.0
+sp500,new,sp500_reldelta_quality_fcf_conversion_lag6_score,FCF Conversion directional_delta lag6,FCF Conversion,1.0
+sp500,new,sp500_relrank_quality_fcf_conversion_lag6_score,FCF Conversion score_delta lag6,FCF Conversion,1.0
+sp500,new,sp500_reldelta_value_pb_ltm_lag6_score,PB LTM directional_delta lag6,PB LTM,1.0
+sp500,new,sp500_reldelta_value_ev_to_ebitda_fy1_lag6_score,EV To EBITDA FY1 directional_delta lag6,EV To EBITDA FY1,1.0
+sp500,new,sp500_relrank_value_ev_to_ebitda_fy1_lag6_score,EV To EBITDA FY1 score_delta lag6,EV To EBITDA FY1,1.0
+sp500,new,sp500_relrank_lowvol_daily_vol_60j_lag6_score,Daily Vol 60J score_delta lag6,Daily Vol 60J,1.0
+sp500,new,sp500_lag6arch_e1f9be8d9632,sp500_relrank_quality_oper_margin_lag6_score,lag6_relative|revision,0.5
+sp500,new,sp500_lag6arch_e1f9be8d9632,EPS Revision Ratio,lag6_relative|revision,0.5
+sp500,new,sp500_lag6arch_3f93c1422c34,sp500_relrank_quality_roe_avg_fy0_lag6_score,lag6_relative|pmom,0.5
+sp500,new,sp500_lag6arch_3f93c1422c34,PMOM 12M1M,lag6_relative|pmom,0.5
+sp500,new,sp500_lag6arch_bbd14f1f5c9c,sp500_reldelta_quality_oper_margin_lag6_score,lag6_relative|revision,0.5
+sp500,new,sp500_lag6arch_bbd14f1f5c9c,EPS Revision Ratio,lag6_relative|revision,0.5
+sp500,new,sp500_lag6arch_4aae48bdee23,sp500_reldelta_quality_roe_avg_fy0_lag6_score,lag6_relative|growth,0.5
+sp500,new,sp500_lag6arch_4aae48bdee23,EPS Growth FY1,lag6_relative|growth,0.5
+sp500,new,sp500_lag6arch_8a8efb968fc4,sp500_relrank_quality_roe_avg_fy0_lag6_score,lag6_relative|revision|pmom,0.3333333333333333
+sp500,new,sp500_lag6arch_8a8efb968fc4,EPS Revision Ratio,lag6_relative|revision|pmom,0.3333333333333333
+sp500,new,sp500_lag6arch_8a8efb968fc4,PMOM 12M1M,lag6_relative|revision|pmom,0.3333333333333333
+sp500,new,sp500_lag6arch_332a5e9da4a5,sp500_reldelta_quality_roe_avg_fy0_lag6_score,lag6_relative|revision,0.5
+sp500,new,sp500_lag6arch_332a5e9da4a5,EPS Revision Ratio,lag6_relative|revision,0.5
+sp500,new,sp500_lag6arch_81fa3e54b20f,sp500_reldelta_quality_net_debt_to_market_cap_lag6_score,lag6_relative|revision,0.5
+sp500,new,sp500_lag6arch_81fa3e54b20f,EPS Revision Ratio,lag6_relative|revision,0.5
+sp500,new,sp500_lag6arch_c94ef9c4e657,sp500_relrank_quality_roe_avg_fy0_lag6_score,lag6_relative|pmom|growth,0.3333333333333333
+sp500,new,sp500_lag6arch_c94ef9c4e657,PMOM 12M1M,lag6_relative|pmom|growth,0.3333333333333333
+sp500,new,sp500_lag6arch_c94ef9c4e657,EPS Growth FY1,lag6_relative|pmom|growth,0.3333333333333333
+sp500,new,sp500_lag6arch_2f96dbb2cd7e,sp500_reldelta_quality_oper_margin_lag6_score,lag6_relative|growth,0.5
+sp500,new,sp500_lag6arch_2f96dbb2cd7e,EPS Growth FY1,lag6_relative|growth,0.5
+sp500,new,sp500_lag6arch_65b00ad122e2,sp500_relrank_quality_roe_avg_fy0_lag6_score,lag6_relative|revision,0.5
+sp500,new,sp500_lag6arch_65b00ad122e2,EPS Revision Ratio,lag6_relative|revision,0.5
+sp500,new,sp500_lag6arch_5441534dc7ae,sp500_relrank_quality_roe_avg_fy0_lag6_score,lag6_relative|growth,0.5
+sp500,new,sp500_lag6arch_5441534dc7ae,EPS Growth FY1,lag6_relative|growth,0.5
+sp500,new,sp500_lag6arch_2b15b8eccf6b,sp500_reldelta_quality_roe_avg_fy0_lag6_score,lag6_relative|revision|growth,0.3333333333333333
+sp500,new,sp500_lag6arch_2b15b8eccf6b,EPS Revision Ratio,lag6_relative|revision|growth,0.3333333333333333
+sp500,new,sp500_lag6arch_2b15b8eccf6b,EPS Growth FY1,lag6_relative|revision|growth,0.3333333333333333

@@ -1,6 +1,6 @@
 # TP 统一数据源
 
-最后更新：2026-06-29
+最后更新：2026-07-25
 
 ## 总规则
 
@@ -15,11 +15,17 @@
 | 月更映射表 | `C:\GoogleDrive\TP\00_screen\Transco_FactSet_ICB.xlsx` |
 | CIQ 月更输入目录 | `C:\GoogleDrive\TP\00_screen\production_inputs\incoming\YYYYMM\ciq` |
 | 生产输入根目录 | `C:\GoogleDrive\TP\00_screen\production_inputs` |
+| 补充数据影子层 | `C:\GoogleDrive\TP\00_screen\supplemental` |
 
 统一声明位于：
 
 ```python
-from tp_core.data_sources import SCREEN_AGGREGATE_PATH, RETURNS_PATH, LAST_SCREEN_PATH
+from tp_core.data_sources import (
+    SCREEN_AGGREGATE_PATH,
+    RETURNS_PATH,
+    LAST_SCREEN_PATH,
+    SUPPLEMENTAL_DIR,
+)
 ```
 
 新代码应从 `tp_core.data_sources` 导入路径。不要在各项目里硬编码本地副本，例如 `Input_files/screen_aggregate.parquet`、`screen_aggregateCIQ.parquet`、`screen_aggregate.pkl` 或 `returns.pkl`。
@@ -49,6 +55,7 @@ from tp_core.data_contract import validate_screen_contract, validate_returns_con
 | `TP_SCREEN_AGGREGATE_5Y_PATH` | 近 5 年 Screen 子集 |
 | `TP_CIQ_NEW_DIR` | 兼容旧代码的 CIQ 输入覆盖；默认指向 `production_inputs/incoming` |
 | `TP_PRODUCTION_INPUTS_DIR` | 生产输入根目录 |
+| `TP_SUPPLEMENTAL_DIR` | 补充数据影子层根目录 |
 
 像 `TA_SCREEN_PATH` 这类项目特定变量可以为兼容旧代码继续存在，但默认值必须来自 `tp_core.data_sources`。
 
@@ -66,6 +73,10 @@ from tp_core.data_contract import validate_screen_contract, validate_returns_con
 | 单独生成候选池 | `python -m pipelines.build_candidates --as-of YYYY-MM-DD` |
 | 单独生成目标权重 | `python -m pipelines.optimize_portfolio --as-of YYYY-MM-DD` |
 | returns 异常收益审计 | `python -m tp_core.returns_audit --report-path 00_screen/qa/returns_anomaly_audit.json` |
+| 补充数据 dry-run | `python -m 02_pipelines.refresh_supplemental_data --source ecb --dry-run` |
+
+补充数据目录不是第三张 canonical 表。默认刷新只生成不可变 raw、标准化记录、point-in-time
+月末结果和 QA，不会改写 `screen_aggregate.parquet`。
 
 ## 迁移状态
 

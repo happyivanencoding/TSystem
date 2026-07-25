@@ -44,6 +44,13 @@ npm run dev
 | `presentation_layer.apps.company_analysis_api` | 公司分析 FastAPI | `08_presentation_layer/legacy_apps/company_analysis/backend/analysis.py` |
 | `presentation_layer.reports.portfolio_dashboard` | 组合 dashboard 和 PDF 报告 | `08_presentation_layer/legacy_apps/dashboard_analysis/dashboard.py`、`pdf_report_generator.py` |
 
+Dashboard 的原因子研究入口为 `/reports/factor-explorer.html`，由
+`09_reports/build_factor_explorer.py` 生成。页面保留四市场每个候选的
+Top/Worst/Benchmark 收益曲线、Top/Worst ratio、Top/Benchmark ratio、
+逐变量经济含义、时期图鉴和可审计证据，并补入 lag1/3/6/12、历史
+out-of-period、pair/subset/leave-one-out 与 DSR 结果。兼容汇总页
+`/reports/factor-research-app.html` 继续保留，但不替代 dashboard 主入口。
+
 ## 维护规则
 
 - 新代码不得直接新建第四套展示/报告入口；需要新增页面或报告时，先接入 `presentation_layer.apps` 或 `presentation_layer.reports`。

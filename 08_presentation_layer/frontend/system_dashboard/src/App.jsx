@@ -49,7 +49,7 @@ const NAV_SECTIONS = [
       ['country', 'Country', '国家与区域评分'],
       ['sector', 'Sector', '行业推荐'],
       ['score-ml', 'Score ML', '组合成分对比'],
-      ['factor-explorer', '多因子表现', '四市场新旧模型回测与解释'],
+      ['factor-explorer', '因子研究', '四市场收益、ratio、经济含义与稳健性证据'],
     ],
   },
   {
@@ -2315,7 +2315,7 @@ function App() {
             <iframe
               className="tp-factor-explorer-frame"
               src="/reports/factor-explorer.html"
-              title="多因子表现"
+              title="四市场因子收益、ratio 与经济含义研究"
             />
           </div>
         </section>

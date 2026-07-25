@@ -44,6 +44,18 @@ synergy 研究按范围写：
 - `leave_one_out_results.csv`
 - `synergy_claims.csv`
 
+historical out-of-period / LOPO 研究还要写：
+
+- `regime_definitions.csv`
+- `candidate_registry.csv`
+- `candidate_period_metrics.csv`
+- `all_leave_one_period_out_results.csv`
+- `single_lopo_results.csv` and `single_lopo_selection_summary.csv`
+- `combination_lopo_results.csv` and `combination_lopo_selection_summary.csv`
+- `single_pre_post_2020_metrics.csv`
+- `synergy_lopo_evidence.csv` and `synergy_lopo_summary.csv`
+- `deflated_sharpe_results.csv`
+
 ## Raw And Relative Variable Rules
 
 - All candidate raw variables must be direction-normalized so higher score means better.
@@ -66,6 +78,26 @@ synergy 研究按范围写：
 - Compare a pair/subset against the stronger leg, not only against benchmark.
 - Classify results as `synergistic`, `additive`, `redundant`, or `harmful`.
 - Keep rejected pairs and leave-one-out failures in the report.
+
+## Historical Out-Of-Period Rules
+
+- Use contiguous, preregistered economic periods. Never random-shuffle monthly
+  financial observations.
+- A holdout fold may not influence its training gate, rank, threshold, weights,
+  or candidate selection.
+- Require both real benchmark/signal snapshots and actual candidate portfolio
+  formation dates inside the holdout. NAV produced only by prior-holding drift
+  is not validation evidence.
+- Persist period eligibility, snapshot counts, formation counts, minimum
+  coverage, and exclusion reasons.
+- Freeze the candidate definition, source run, input fingerprint, and
+  documented trial ledger before scoring folds.
+- If candidates were discovered on full history, label the result historical
+  blocked validation with selection bias, not true future OOS.
+- DSR trial count must use all recoverable documented candidates in scope.
+  Keep an explicit caveat for unrecorded manual trials.
+- A cross-period synergy claim additionally requires training-only selection
+  and repeatable positive holdout uplift versus the strongest individual leg.
 
 ## Official Batch Execution
 
@@ -99,6 +131,11 @@ synergy 研究按范围写：
 - Disable monthly-base reuse for state-dependent recommendation frames, `Multi Avg Percentile`, financial filters, or any configuration not represented in the cache key.
 - Keep several metrics in each shard when possible so Top/Worst and later metrics amortize input preparation and benchmark work. Never create more non-empty workers than metrics.
 - Choose process count from an end-to-end benchmark on the target workstation. STOXX600 defaults to 8 workers on the current 32-logical-CPU, 64GB host and remains CLI-overridable.
+- Schedule multiple markets from one explicit memory budget. Do not run the
+  sum of all market worker counts concurrently. On the current host, execute
+  markets sequentially and use the measured stable per-market caps
+  (Nasdaq/S&P 500/Europe Small: 4/4/3) unless a new full-artifact benchmark
+  proves a higher setting safe.
 - Before accepting an official-engine optimization, require exact DataFrame equality for representative cached and uncached `sec_list`, `perf_ptf`, and `perf_bench` artifacts, including Top and Worst. CAGR-level agreement is insufficient.
 - Record wall time, successful run count, input dimensions, and per-worker memory for the benchmark. Performance changes must preserve the official artifact schema and research gate.
 

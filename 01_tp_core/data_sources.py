@@ -34,6 +34,13 @@ PRODUCTION_INCOMING_DIR = Path(
     os.environ.get("TP_PRODUCTION_INCOMING_DIR", PRODUCTION_INPUTS_DIR / "incoming")
 )
 CIQ_NEW_DIR = Path(os.environ.get("TP_CIQ_NEW_DIR", PRODUCTION_INCOMING_DIR))
+SUPPLEMENTAL_DIR = Path(
+    os.environ.get("TP_SUPPLEMENTAL_DIR", SCREEN_DIR / "supplemental")
+)
+SUPPLEMENTAL_RAW_DIR = SUPPLEMENTAL_DIR / "raw"
+SUPPLEMENTAL_NORMALIZED_DIR = SUPPLEMENTAL_DIR / "normalized"
+SUPPLEMENTAL_RESOLVED_DIR = SUPPLEMENTAL_DIR / "resolved"
+SUPPLEMENTAL_QA_DIR = SUPPLEMENTAL_DIR / "qa"
 
 
 CANONICAL_DATA_SOURCES = {
@@ -48,6 +55,16 @@ CANONICAL_DATA_SOURCES = {
     "production_incoming": PRODUCTION_INCOMING_DIR,
 }
 
+SUPPLEMENTAL_DATA_SOURCES = {
+    "supplemental": SUPPLEMENTAL_DIR,
+    "supplemental_raw": SUPPLEMENTAL_RAW_DIR,
+    "supplemental_normalized": SUPPLEMENTAL_NORMALIZED_DIR,
+    "supplemental_resolved": SUPPLEMENTAL_RESOLVED_DIR,
+    "supplemental_qa": SUPPLEMENTAL_QA_DIR,
+}
+
+ALL_DATA_SOURCES = {**CANONICAL_DATA_SOURCES, **SUPPLEMENTAL_DATA_SOURCES}
+
 
 def as_str(path: Path) -> str:
     """返回兼容旧配置字典的 Windows 字符串路径。"""
@@ -55,10 +72,10 @@ def as_str(path: Path) -> str:
 
 
 def data_sources(as_strings: bool = False) -> dict[str, Path] | dict[str, str]:
-    """返回 canonical 数据源注册表。"""
+    """返回 canonical 与 supplemental 数据源注册表。"""
     if as_strings:
-        return {name: as_str(path) for name, path in CANONICAL_DATA_SOURCES.items()}
-    return CANONICAL_DATA_SOURCES.copy()
+        return {name: as_str(path) for name, path in ALL_DATA_SOURCES.items()}
+    return ALL_DATA_SOURCES.copy()
 
 
 def validate_data_sources(required: tuple[str, ...] = ("screen_aggregate", "returns")) -> dict[str, bool]:

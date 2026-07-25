@@ -7,6 +7,7 @@
 **/_quarantine_*/
 00_screen/_quarantine_*/
 00_screen/production_inputs/
+00_screen/supplemental/
 00_screen/backups/
 03_ml_enhanced/_quarantine_*/
 07_backtest_code/runs/

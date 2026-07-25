@@ -1,33 +1,33 @@
 {
-  "generated_at": "2026-07-11T09:19:07.566430+02:00",
+  "generated_at": "2026-07-25T12:23:12.911360+02:00",
   "markets": {
     "eu-small": {
       "benchmark": "MSCI EUR SMALL",
       "old_run": "C:\\GoogleDrive\\TP\\07_backtest_code\\runs\\ad_hoc\\eu_small_relative_synergy_20260709",
       "new_run": "C:\\GoogleDrive\\TP\\07_backtest_code\\runs\\ad_hoc\\eu_small_factor_extension_20260711",
       "old_models": 96,
-      "new_models": 19
+      "new_models": 40
     },
     "sp500": {
       "benchmark": "SP500",
       "old_run": "C:\\GoogleDrive\\TP\\07_backtest_code\\runs\\ad_hoc\\sp500_relative_synergy_20260710",
       "new_run": "C:\\GoogleDrive\\TP\\07_backtest_code\\runs\\ad_hoc\\sp500_factor_extension_20260711",
       "old_models": 88,
-      "new_models": 19
+      "new_models": 62
     },
     "stoxx600": {
       "benchmark": "STOXX EUROPE 600",
       "old_run": "C:\\GoogleDrive\\TP\\07_backtest_code\\runs\\ad_hoc\\stoxx600_relative_synergy_20260709",
       "new_run": "C:\\GoogleDrive\\TP\\07_backtest_code\\runs\\ad_hoc\\stoxx600_factor_extension_20260711",
       "old_models": 10,
-      "new_models": 16
+      "new_models": 50
     },
     "nasdaq": {
       "benchmark": "NASDAQ COMP",
       "old_run": "C:\\GoogleDrive\\TP\\07_backtest_code\\runs\\ad_hoc\\nasdaq_extended_factor_research_20260709",
       "new_run": "C:\\GoogleDrive\\TP\\07_backtest_code\\runs\\ad_hoc\\nasdaq_tech_factor_extension_20260710",
       "old_models": 5,
-      "new_models": 9
+      "new_models": 23
     }
   },
   "files": [

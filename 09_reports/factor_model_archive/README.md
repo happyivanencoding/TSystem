@@ -14,9 +14,9 @@
 
 ## 市场与版本
 
-- `eu-small`：旧基线 96 个可绘图配置；新扩展 19 个；old=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\eu_small_relative_synergy_20260709`；new=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\eu_small_factor_extension_20260711`。
-- `sp500`：旧基线 88 个可绘图配置；新扩展 19 个；old=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\sp500_relative_synergy_20260710`；new=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\sp500_factor_extension_20260711`。
-- `stoxx600`：旧基线 10 个可绘图配置；新扩展 16 个；old=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\stoxx600_relative_synergy_20260709`；new=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\stoxx600_factor_extension_20260711`。
-- `nasdaq`：旧基线 5 个可绘图配置；新扩展 9 个；old=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\nasdaq_extended_factor_research_20260709`；new=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\nasdaq_tech_factor_extension_20260710`。
+- `eu-small`：旧基线 96 个可绘图配置；新扩展 40 个；old=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\eu_small_relative_synergy_20260709`；new=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\eu_small_factor_extension_20260711`。
+- `sp500`：旧基线 88 个可绘图配置；新扩展 62 个；old=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\sp500_relative_synergy_20260710`；new=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\sp500_factor_extension_20260711`。
+- `stoxx600`：旧基线 10 个可绘图配置；新扩展 50 个；old=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\stoxx600_relative_synergy_20260709`；new=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\stoxx600_factor_extension_20260711`。
+- `nasdaq`：旧基线 5 个可绘图配置；新扩展 23 个；old=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\nasdaq_extended_factor_research_20260709`；new=`C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\nasdaq_tech_factor_extension_20260710`。
 
 默认候选只是页面打开入口，不代表唯一最优模型。比较配置时应同时阅读主动 CAGR、Top/Worst、Robust、Coverage、回撤、换手与经济机制。

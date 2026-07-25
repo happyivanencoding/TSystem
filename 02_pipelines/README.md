@@ -15,6 +15,7 @@
 | 环节 | 命令 | 主要输入 | 标准输出 |
 | --- | --- | --- | --- |
 | 数据刷新 | `python -m 02_pipelines.refresh_data --input-month YYYYMM` | `00_screen/production_inputs/incoming/YYYYMM/` | `00_screen/screen_aggregate.parquet`、`00_screen/returns.parquet`、QA JSON |
+| 补充数据 | `python -m 02_pipelines.refresh_supplemental_data --source fred --dry-run` | 官方免费 API、字段级配置、证券标识映射 | `00_screen/supplemental/` 影子分区、覆盖率与供应商门槛 |
 | ML 刷新 | `python -m 02_pipelines.refresh_ml --inspect-only` | canonical screen、ML_Enhanced CLI | `Score ML` 覆盖检查；显式运行时更新 screen 和 `04_signals/ml_signals.parquet` |
 | 信号导出 | `python -m 02_pipelines.export_signals --as-of YYYY-MM-DD` | canonical screen、技术 patterns、regime output | `04_signals/*.parquet` |
 | 候选池 | `python -m 02_pipelines.build_candidates --as-of YYYY-MM-DD` | `04_signals/*.parquet`、`00_screen/last_screen.parquet` | `05_candidates/latest_candidates.parquet` |
@@ -35,7 +36,23 @@ python -m 02_pipelines.run_all --input-month YYYYMM --as-of YYYY-MM-DD
 ```powershell
 python -m 02_pipelines.run_all --skip-refresh-data --skip-backtest
 python -m 02_pipelines.run_all --dry-run-data --inspect-only-backtest
+python -m 02_pipelines.run_all --skip-refresh-data --refresh-supplemental-data --supplemental-source fred --supplemental-dry-run --skip-export-signals --skip-build-candidates --skip-optimize-portfolio --skip-backtest --skip-report
 ```
+
+## 补充数据影子层
+
+- `refresh_supplemental_data` 必须显式传入至少一个 `--source`，不会隐式访问外部 API。
+- FRED、Alpha Vantage 分别从 `FRED_API_KEY`、`ALPHA_VANTAGE_API_KEY` 读取密钥。
+- SEC 要求设置包含联系邮箱的 `SEC_USER_AGENT`；例如 `TP research name@example.com`。
+- 可选证券映射 CSV 位于 `00_screen/supplemental/identifiers/security_identifiers.csv`，字段为
+  `ISIN,CIK,LEI,AlphaSymbol,Currency`。美国普通 ticker 可通过 SEC 官方映射自动解析 CIK。
+  Alpha Vantage 仅自动采用美国标准 ticker；非美市场必须显式填写其支持的 ticker，运行时会
+  忽略直接复制的 FactSet 内部 `Symbol`。
+- 原始响应不可变保存，标准化 Parquet 按 payload hash 幂等落盘；`--resume` 从来源 checkpoint
+  继续。月末解析只使用 `available_at <= Date` 的记录。
+- 默认只写 `resolved/*_latest.parquet`、`screen_sidecar_latest.parquet` 和 `qa/`，不会修改
+  `screen_aggregate.parquet`。独立入口的 `--promote-to-canonical` 还必须满足连续三期 QA，
+  且字段配置显式设置 `promote_enabled=true`；`run_all` 永不传递 promotion。
 
 ## Manifest
 

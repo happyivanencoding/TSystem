@@ -1,6 +1,6 @@
 # TP 数据契约
 
-最后更新：2026-06-29
+最后更新：2026-07-25
 
 本文档定义 TP 项目中两张核心 canonical 数据集的统一契约：
 
@@ -58,6 +58,26 @@ print(validate_screen_contract(screen))
 print(validate_returns_contract(returns))
 print(sedol_coverage(screen, returns))
 ```
+
+## 补充数据影子契约
+
+`00_screen/supplemental/` 是非 canonical 的 point-in-time sidecar：
+
+| 数据族 | 逻辑主键 |
+| --- | --- |
+| 宏观原始记录 | `(series_id, observation_date, vintage_at, source)` |
+| 财报事实 | `(ISIN, period_end, field, available_at, source)` |
+| 一致预期 | `(ISIN, estimate_as_of, fiscal_period_end, horizon, field, source)` |
+| 证券月末解析 | `(ISIN, Date, field)` |
+| 宏观月末解析 | `(series_id, Date, field)` |
+
+所有有效值必须包含 `source`、`unit`、`retrieved_at` 和 `available_at`；货币值还必须包含
+`currency`。月末解析要求 `available_at <= Date`，宏观与财报还要求实际观察期不晚于
+`Date`。影子 sidecar 保留手工商业源优先的 selected value、自动值、来源、差异和冲突标记。
+
+合入 canonical 必须同时满足：连续三个同配置月末周期通过结构 QA，相关供应商每期覆盖率
+提升至少 15 个百分点且重叠值一致率至少 90%，字段配置显式启用 promotion。合并只能补空，
+不得改变 `(ISIN, Date)` 行数、日期范围或键唯一性。
 
 ## 区域 Beta
 

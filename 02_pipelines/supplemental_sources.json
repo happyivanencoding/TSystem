@@ -1,0 +1,350 @@
+{
+  "version": 1,
+  "source_priority": {
+    "*": [
+      "bloomberg_manual",
+      "factset_manual",
+      "ciq_manual",
+      "sec_companyfacts",
+      "esef_filings",
+      "alpha_vantage",
+      "fred",
+      "ecb",
+      "oecd",
+      "imf",
+      "world_bank",
+      "dbnomics"
+    ]
+  },
+  "source_options": {
+    "fred": {
+      "min_interval_seconds": 0.25,
+      "max_jobs": 50
+    },
+    "ecb": {
+      "min_interval_seconds": 0.5,
+      "max_jobs": 50
+    },
+    "oecd": {
+      "min_interval_seconds": 0.5,
+      "max_jobs": 50
+    },
+    "imf": {
+      "min_interval_seconds": 0.5,
+      "max_jobs": 50
+    },
+    "world_bank": {
+      "min_interval_seconds": 0.5,
+      "max_jobs": 50
+    },
+    "sec": {
+      "min_interval_seconds": 0.15,
+      "max_jobs": 750
+    },
+    "esef": {
+      "min_interval_seconds": 0.5,
+      "max_jobs": 25
+    },
+    "alpha_vantage": {
+      "min_interval_seconds": 12.0,
+      "max_jobs": 25
+    }
+  },
+  "macro_jobs": [
+    {
+      "provider": "fred",
+      "enabled": true,
+      "series_id": "CPIAUCSL",
+      "field": "US_CPI_INDEX_OFFICIAL",
+      "unit": "index"
+    },
+    {
+      "provider": "fred",
+      "enabled": true,
+      "series_id": "UNRATE",
+      "field": "US_UNEMPLOYMENT_RATE_OFFICIAL",
+      "unit": "percent"
+    },
+    {
+      "provider": "fred",
+      "enabled": true,
+      "series_id": "FEDFUNDS",
+      "field": "US_FED_FUNDS_RATE_OFFICIAL",
+      "unit": "percent"
+    },
+    {
+      "provider": "fred",
+      "enabled": true,
+      "series_id": "INDPRO",
+      "field": "US_INDUSTRIAL_PRODUCTION_OFFICIAL",
+      "unit": "index"
+    },
+    {
+      "provider": "fred",
+      "enabled": true,
+      "series_id": "NFCI",
+      "field": "US_FINANCIAL_CONDITIONS_NFCI",
+      "unit": "index"
+    },
+    {
+      "provider": "ecb",
+      "enabled": true,
+      "series_id": "ECB:ICP.M.U2.N.000000.4.ANR",
+      "field": "EU_HICP_YOY_OFFICIAL",
+      "url": "https://data-api.ecb.europa.eu/service/data/ICP/M.U2.N.000000.4.ANR",
+      "parameters": {
+        "format": "csvdata",
+        "includeHistory": "true"
+      },
+      "available_column": "VALID_FROM",
+      "unit": "percent"
+    },
+    {
+      "provider": "ecb",
+      "enabled": true,
+      "series_id": "ECB:FM.D.U2.EUR.4F.KR.MRR_FR.LEV",
+      "field": "EU_ECB_MAIN_REFINANCING_RATE_OFFICIAL",
+      "url": "https://data-api.ecb.europa.eu/service/data/FM/D.U2.EUR.4F.KR.MRR_FR.LEV",
+      "parameters": {
+        "format": "csvdata",
+        "includeHistory": "true"
+      },
+      "available_column": "VALID_FROM",
+      "unit": "percent"
+    },
+    {
+      "provider": "oecd",
+      "enabled": false,
+      "series_id": "OECD_CONFIGURED_SERIES",
+      "field": "OECD_OFFICIAL_MACRO_SERIES",
+      "url": "https://sdmx.oecd.org/public/rest/v1/data/DATAFLOW/KEY",
+      "accept": "text/csv",
+      "unit": "configured",
+      "publication_lag_days": 45
+    },
+    {
+      "provider": "imf",
+      "enabled": true,
+      "indicator": "NGDP_RPCH",
+      "countries": [
+        "USA",
+        "CHN",
+        "IND",
+        "BRA"
+      ],
+      "field_prefix": "IMF_REAL_GDP_GROWTH",
+      "unit": "percent",
+      "publication_lag_days": 365,
+      "fallback": {
+        "provider": "dbnomics",
+        "provider_code": "IMF",
+        "dataset_code": "WEO:2025-04",
+        "series_code_template": "{country}.{indicator}",
+        "unit": "percent"
+      }
+    },
+    {
+      "provider": "world_bank",
+      "enabled": true,
+      "indicator": "NY.GDP.MKTP.KD.ZG",
+      "countries": [
+        "USA",
+        "CHN",
+        "IND",
+        "BRA"
+      ],
+      "field_prefix": "WB_REAL_GDP_GROWTH",
+      "unit": "percent",
+      "publication_lag_days": 365
+    }
+  ],
+  "sec_concepts": [
+    {
+      "taxonomy": "us-gaap",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "field": "revenue_reported",
+      "forms": [
+        "10-K",
+        "10-Q",
+        "20-F",
+        "40-F"
+      ]
+    },
+    {
+      "taxonomy": "us-gaap",
+      "concept": "Revenues",
+      "field": "revenue_reported",
+      "forms": [
+        "10-K",
+        "10-Q",
+        "20-F",
+        "40-F"
+      ]
+    },
+    {
+      "taxonomy": "us-gaap",
+      "concept": "SalesRevenueNet",
+      "field": "revenue_reported",
+      "forms": [
+        "10-K",
+        "10-Q"
+      ]
+    },
+    {
+      "taxonomy": "us-gaap",
+      "concept": "NetIncomeLoss",
+      "field": "net_income_reported"
+    },
+    {
+      "taxonomy": "us-gaap",
+      "concept": "EarningsPerShareDiluted",
+      "field": "eps_diluted_reported"
+    },
+    {
+      "taxonomy": "us-gaap",
+      "concept": "OperatingIncomeLoss",
+      "field": "operating_income_reported"
+    },
+    {
+      "taxonomy": "us-gaap",
+      "concept": "Assets",
+      "field": "assets_reported"
+    },
+    {
+      "taxonomy": "us-gaap",
+      "concept": "StockholdersEquity",
+      "field": "equity_reported"
+    },
+    {
+      "taxonomy": "us-gaap",
+      "concept": "CashAndCashEquivalentsAtCarryingValue",
+      "field": "cash_and_equivalents_reported"
+    },
+    {
+      "taxonomy": "us-gaap",
+      "concept": "NetCashProvidedByUsedInOperatingActivities",
+      "field": "cash_from_operations_reported"
+    },
+    {
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+      "field": "capex_reported"
+    }
+  ],
+  "esef_concepts": [
+    {
+      "concept": "ifrs-full:Revenue",
+      "field": "revenue_reported"
+    },
+    {
+      "concept": "ifrs-full:ProfitLoss",
+      "field": "net_income_reported"
+    },
+    {
+      "concept": "ifrs-full:BasicEarningsLossPerShare",
+      "field": "eps_basic_reported"
+    },
+    {
+      "concept": "ifrs-full:DilutedEarningsLossPerShare",
+      "field": "eps_diluted_reported"
+    },
+    {
+      "concept": "ifrs-full:Assets",
+      "field": "assets_reported"
+    },
+    {
+      "concept": "ifrs-full:Equity",
+      "field": "equity_reported"
+    },
+    {
+      "concept": "ifrs-full:CashAndCashEquivalents",
+      "field": "cash_and_equivalents_reported"
+    },
+    {
+      "concept": "ifrs-full:CashFlowsFromUsedInOperatingActivities",
+      "field": "cash_from_operations_reported"
+    },
+    {
+      "concept": "ifrs-full:PurchaseOfPropertyPlantAndEquipment",
+      "field": "capex_reported"
+    }
+  ],
+  "alpha_vantage_field_map": {
+    "eps_estimate_average": "eps_estimate_average",
+    "eps_estimate_high": "eps_estimate_high",
+    "eps_estimate_low": "eps_estimate_low",
+    "eps_estimate_analyst_count": "eps_estimate_analyst_count",
+    "revenue_estimate_average": "revenue_estimate_average",
+    "revenue_estimate_high": "revenue_estimate_high",
+    "revenue_estimate_low": "revenue_estimate_low",
+    "revenue_estimate_analyst_count": "revenue_estimate_analyst_count"
+  },
+  "field_mappings": {
+    "revenue_reported": {
+      "family": "fundamental",
+      "reference_screen_column": "Sales",
+      "promote_to_screen_column": "Sales",
+      "promote_enabled": false,
+      "auto_multiplier": 0.000001,
+      "tolerance": 0.01
+    },
+    "eps_diluted_reported": {
+      "family": "fundamental",
+      "reference_screen_column": "EPS",
+      "promote_to_screen_column": "EPS",
+      "promote_enabled": false,
+      "tolerance": 0.01
+    },
+    "equity_reported": {
+      "family": "fundamental",
+      "reference_screen_column": "Total Equity",
+      "promote_to_screen_column": "Total Equity",
+      "promote_enabled": false,
+      "auto_multiplier": 0.000001,
+      "tolerance": 0.01
+    },
+    "cash_and_equivalents_reported": {
+      "family": "fundamental",
+      "reference_screen_column": "Total Cash and Equiv",
+      "promote_to_screen_column": "Total Cash and Equiv",
+      "promote_enabled": false,
+      "auto_multiplier": 0.000001,
+      "tolerance": 0.01
+    },
+    "capex_reported": {
+      "family": "fundamental",
+      "reference_screen_column": "Capex CIQ",
+      "promote_to_screen_column": "Capex CIQ",
+      "promote_enabled": false,
+      "auto_multiplier": -0.000001,
+      "tolerance": 0.01
+    }
+  },
+  "field_mapping_patterns": [
+    {
+      "pattern": "^eps_estimate_average__",
+      "family": "estimate",
+      "reference_screen_column": "EPS Estimates FY1",
+      "promote_to_screen_column": "EPS Estimates FY1",
+      "promote_enabled": false,
+      "tolerance": 0.05
+    }
+  ],
+  "acceptance_gate": {
+    "min_coverage_uplift": 0.15,
+    "min_consistency": 0.9,
+    "required_shadow_periods": 3
+  },
+  "paid_candidates": [
+    {
+      "provider": "alpha_vantage",
+      "pricing_url": "https://www.alphavantage.co/premium/",
+      "status": "requires_user_approval"
+    },
+    {
+      "provider": "eodhd",
+      "pricing_url": "https://eodhd.com/pricing",
+      "status": "requires_user_approval"
+    }
+  ]
+}

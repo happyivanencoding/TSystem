@@ -1,0 +1,100 @@
+{
+  "step": "refresh_supplemental_data",
+  "status": "failed",
+  "started_at": "2026-07-25T10:59:32",
+  "finished_at": "2026-07-25T10:59:59",
+  "duration_seconds": 26.999,
+  "run_type": "production",
+  "parameters": {
+    "source": [
+      "ecb",
+      "imf",
+      "world_bank"
+    ],
+    "from_date": "2000-01-01",
+    "to_date": "2026-07-25",
+    "config": "C:\\GoogleDrive\\TP\\02_pipelines\\supplemental_sources.json",
+    "security_map": "C:\\GoogleDrive\\TP\\00_screen\\supplemental\\qa\\security_identifiers.csv",
+    "max_jobs": null,
+    "timeout_seconds": 30,
+    "resume": true,
+    "dry_run": false,
+    "inspect_only": false,
+    "promote_to_canonical": false,
+    "run_type": "production"
+  },
+  "inputs": {
+    "config": {
+      "path": "C:\\GoogleDrive\\TP\\02_pipelines\\supplemental_sources.json",
+      "exists": true,
+      "type": "file",
+      "bytes": 8721,
+      "modified_at": "2026-07-25T10:59:12"
+    },
+    "security_map": {
+      "path": "C:\\GoogleDrive\\TP\\00_screen\\supplemental\\qa\\security_identifiers.csv",
+      "exists": false
+    },
+    "canonical_screen": {
+      "path": "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate.parquet",
+      "exists": true,
+      "bytes": 1142082926,
+      "modified_at": "2026-07-17T17:42:38",
+      "format": "parquet",
+      "rows": 3454342,
+      "columns": 301,
+      "row_groups": 4
+    },
+    "last_screen": {
+      "path": "C:\\GoogleDrive\\TP\\00_screen\\last_screen.parquet",
+      "exists": true,
+      "bytes": 7693726,
+      "modified_at": "2026-07-17T17:42:41",
+      "format": "parquet",
+      "rows": 11107,
+      "columns": 301,
+      "row_groups": 1
+    }
+  },
+  "outputs": {},
+  "validations": [
+    {
+      "name": "jobs_available",
+      "status": "passed",
+      "message": "所有指定来源均生成了 job",
+      "details": {}
+    }
+  ],
+  "details": {
+    "job_plan": {
+      "ecb": {
+        "jobs": 2,
+        "sample": [
+          "ECB:ICP.M.U2.N.000000.4.ANR",
+          "ECB:FM.D.U2.EUR.4F.KR.MRR_FR.LEV"
+        ]
+      },
+      "imf": {
+        "jobs": 1,
+        "sample": [
+          "NGDP_RPCH:USA,CHN,IND,BRA"
+        ]
+      },
+      "world_bank": {
+        "jobs": 1,
+        "sample": [
+          "NY.GDP.MKTP.KD.ZG:USA,CHN,IND,BRA"
+        ]
+      }
+    }
+  },
+  "idempotency": {
+    "policy": "标准产物使用固定 latest 路径覆盖写入；每次运行另写时间戳 manifest 保留审计证据。",
+    "no_duplicate_rows_expected": true
+  },
+  "error": {
+    "type": "KeyError",
+    "message": "'field'",
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\refresh_supplemental_data.py\", line 744, in run_refresh_supplemental_data\n    outputs = _materialize_outputs(\n              ^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\refresh_supplemental_data.py\", line 458, in _materialize_outputs\n    coverage = coverage_by_market_field_year(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\GoogleDrive\\TP\\01_tp_core\\supplemental_data.py\", line 468, in coverage_by_market_field_year\n    automatic[\"field\"].eq(field),\n    ~~~~~~~~~^^^^^^^^^\n  File \"C:\\Users\\jingx\\anaconda3\\Lib\\site-packages\\pandas\\core\\frame.py\", line 4107, in __getitem__\n    indexer = self.columns.get_loc(key)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\jingx\\anaconda3\\Lib\\site-packages\\pandas\\core\\indexes\\range.py\", line 417, in get_loc\n    raise KeyError(key)\nKeyError: 'field'\n"
+  }
+}

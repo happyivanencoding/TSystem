@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 import csv
 import html
 import json
@@ -23,6 +24,41 @@ NASDAQ_EXTENSION_RUN = REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc
 EU_SMALL_EXTENSION_RUN = REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "eu_small_factor_extension_20260711"
 STOXX600_EXTENSION_RUN = REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "stoxx600_factor_extension_20260711"
 SP500_EXTENSION_RUN = REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "sp500_factor_extension_20260711"
+AD_HOC_RUN_DIR = REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc"
+SUPPLEMENTAL_RESEARCH_RUNS = {
+    "eu-small": {
+        "lag6": AD_HOC_RUN_DIR / "eu_small_relative_lag6_20260725",
+        "matrix": AD_HOC_RUN_DIR / "eu_small_lag6_anchor_synergy_20260725",
+        "oop": AD_HOC_RUN_DIR / "eu_small_leave_one_period_out_20260725",
+        "oop_kind": "LOPO",
+        "headline": "跨时期稳健性：改善型质量、现金流估值与融资纪律",
+        "verdict": "7/7 个 signal-valid 留出期覆盖完整；28 个单变量达到 cross-regime core/resilient。质量改善、ROE、P/FCF 与去杠杆最稳定，但新增 lag6-anchor 架构没有通过严格跨期 synergy 门槛。",
+    },
+    "sp500": {
+        "lag6": AD_HOC_RUN_DIR / "sp500_relative_lag6_20260725",
+        "matrix": AD_HOC_RUN_DIR / "sp500_lag6_anchor_synergy_20260725",
+        "oop": AD_HOC_RUN_DIR / "sp500_leave_one_period_out_20260725",
+        "oop_kind": "LOPO",
+        "headline": "跨时期稳健性：盈利改善、资本回报与资产负债表确认",
+        "verdict": "7/7 个 signal-valid 留出期覆盖完整；17 个单变量达到 cross-regime core/resilient。Oper Margin、ROE、EPS Growth 与部分去杠杆变量重复有效，但新增 lag6-anchor 架构没有通过严格跨期 synergy 门槛。",
+    },
+    "stoxx600": {
+        "lag6": AD_HOC_RUN_DIR / "stoxx600_relative_lag6_20260723",
+        "matrix": AD_HOC_RUN_DIR / "stoxx600_sparse_lag_extension_20260723",
+        "oop": AD_HOC_RUN_DIR / "stoxx600_leave_one_regime_out_20260723",
+        "oop_kind": "LORO",
+        "headline": "2020 是显著断点，但改善速度仍能跨制度重复定价",
+        "verdict": "219 个可比较单变量中，121 个由 2020 前正主动收益转为 2020 后负值，前后排名相关仅 0.292。六段 LORO 仍识别出 25 个 core/resilient 单变量，并为 Oper Margin directional_delta lag3 + EPS NTM 3M Growth 提供跨 regime 协同证据。",
+    },
+    "nasdaq": {
+        "lag6": AD_HOC_RUN_DIR / "nasdaq_relative_lag6_20260725",
+        "matrix": AD_HOC_RUN_DIR / "nasdaq_lag6_anchor_synergy_20260725",
+        "oop": AD_HOC_RUN_DIR / "nasdaq_leave_one_period_out_20260725",
+        "oop_kind": "LOPO",
+        "headline": "有限跨期证据：Revision、Growth 与中期改善信号",
+        "verdict": "现有数据只有 3 个 signal-valid 留出期，识别出 4 个 cross-regime core/resilient 单变量；2017-06 至 2022-12 的 formation gap 跨过 2020，因此不能用本样本严谨确认 2020 断点，新增 lag6-anchor 架构也没有严格跨期 synergy 证据。",
+    },
+}
 MODEL_RUNS = {
     "eu-small": {
         "old": REPORT_DIR.parent / "07_backtest_code" / "runs" / "ad_hoc" / "eu_small_relative_synergy_20260709",
@@ -365,13 +401,18 @@ def nasdaq_subset_data(run: Path) -> tuple[list[dict[str, Any]], dict[str, list[
 def nav_series(path_value: str) -> pd.Series:
     path = Path(path_value)
     frame = pd.read_parquet(path) if path.suffix.lower() == ".parquet" else pd.read_csv(path)
-    date_column = "Date" if "Date" in frame.columns else "index" if "index" in frame.columns else frame.columns[0]
-    value_columns = [column for column in frame.columns if column != date_column]
+    if isinstance(frame.index, pd.DatetimeIndex):
+        dates = pd.to_datetime(frame.index, errors="coerce")
+        value_columns = list(frame.columns)
+    else:
+        date_column = "Date" if "Date" in frame.columns else "index" if "index" in frame.columns else frame.columns[0]
+        dates = pd.to_datetime(frame[date_column], errors="coerce")
+        value_columns = [column for column in frame.columns if column != date_column]
     if not value_columns:
         return pd.Series(dtype=float)
-    dates = pd.to_datetime(frame[date_column], errors="coerce")
-    values = pd.to_numeric(frame[value_columns[0]], errors="coerce")
-    return pd.Series(values.to_numpy(), index=dates).dropna().sort_index()
+    value_column = "nav" if "nav" in value_columns else value_columns[0]
+    values = pd.to_numeric(frame[value_column], errors="coerce")
+    return pd.Series(values.to_numpy(), index=pd.DatetimeIndex(dates)).dropna().sort_index()
 
 
 def monthly_nav(frame: pd.DataFrame) -> pd.DataFrame:
@@ -785,6 +826,587 @@ def attach_period_contexts(report: dict[str, Any]) -> dict[str, Any]:
         context = PERIOD_CONTEXTS[(report["id"], period["id"])]
         period["definition"] = context["definition"]
         period["sources"] = [PERIOD_SOURCES[source_id] for source_id in context["sources"]]
+    return report
+
+
+def structured_components(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if item]
+    text = str(value or "").strip()
+    if not text:
+        return []
+    if text.startswith("["):
+        parsed = json.loads(text)
+        return [str(item) for item in parsed if item]
+    return [item for item in text.split("|") if item]
+
+
+def structured_weights(value: Any) -> dict[str, float]:
+    if isinstance(value, dict):
+        parsed = value
+    else:
+        text = str(value or "").strip()
+        parsed = json.loads(text) if text.startswith("{") else {}
+    return {
+        str(metric): number
+        for metric, raw_weight in parsed.items()
+        if (number := finite(raw_weight)) is not None and number > 0
+    }
+
+
+def supplemental_economics(label: str, candidate_type: str) -> str:
+    mechanisms = []
+    for token, explanation in (
+        ("EPS Revision Ratio", "分析师盈利预期上修反映新信息逐步扩散"),
+        ("EPS NTM 3M Growth", "近端盈利预期增长确认经营变化已进入预测"),
+        ("PMOM 12M1M", "中期价格趋势确认市场正在吸收基本面信息"),
+        ("Oper Margin", "经营利润率改善体现定价能力、成本纪律或经营杠杆"),
+        ("ROE avg FY0", "ROE 改善体现资本回报与资产使用效率上升"),
+        ("Cont Op Earning Margin", "持续经营利润率改善排除部分一次性利润干扰"),
+        ("Earns Yield", "盈利收益率改善把基本面兑现与估值纪律联系起来"),
+        ("NetDebt to EBITDA", "净债务负担下降降低再融资和尾部损失风险"),
+        ("Net Debt to", "净负债改善增强资产负债表缓冲"),
+        ("Gross Income Growth", "毛利润增长确认收入扩张具有单位经济效益"),
+        ("EPS Growth", "前瞻 EPS 增长反映未来盈利兑现"),
+        ("DPS 1Y Growth", "股息增长表达管理层对现金流持续性的信心"),
+        ("DVD Payout", "派息率约束用于过滤不可持续的现金回报"),
+        ("PB LTM", "经方向统一后的 PB 改善反映估值折价扩大或账面价值确认"),
+        ("EV To EBITDA", "经方向统一后的 EV/EBITDA 改善反映企业价值相对经营盈利更有吸引力"),
+        ("Price to FreeCF", "自由现金流估值把价格与可分配现金联系起来"),
+        ("PFCF", "自由现金流估值把价格与可分配现金联系起来"),
+    ):
+        if token in label and explanation not in mechanisms:
+            mechanisms.append(explanation)
+    if "directional_delta" in label:
+        mechanisms.append("directional_delta 衡量同一证券自身水平的有向变化")
+    if "score_delta" in label:
+        mechanisms.append("score_delta 衡量同一证券横截面排序的改善，降低量纲和极值影响")
+    lag_match = re.search(r"\blag(1|3|6|12)\b", label)
+    if lag_match:
+        mechanisms.append(f"lag{lag_match.group(1)} 对应 {lag_match.group(1)} 个 screen observation 的变化窗口")
+    if not mechanisms:
+        mechanisms.append("该配置联合验证盈利兑现、价格确认、估值纪律或融资韧性")
+    conclusion = "；".join(mechanisms) + "。"
+    if candidate_type not in {"single", "anchor_single"}:
+        conclusion += "组合高收益本身不构成协同，仍须以 pair/subset/leave-one-out 和留出期证据判定。"
+    return conclusion
+
+
+def gate_candidate_objects(
+    run: Path,
+    gate_filename: str,
+    group: str,
+    *,
+    max_candidates: int | None = None,
+    architectures_only: bool = False,
+) -> list[dict[str, Any]]:
+    gate_rows = csv_rows(run / gate_filename)
+    registry_path = run / "candidate_registry.csv"
+    registry_rows = csv_rows(registry_path) if registry_path.exists() else gate_rows
+    registry = {row["metric"]: row for row in registry_rows}
+    label_by_metric = {
+        row["metric"]: row.get("label") or row.get("raw_column") or row["metric"]
+        for row in registry_rows
+    }
+    official = csv_rows(run / "official_run_results.csv")
+    by_run = {
+        (row["metric"], row["side"]): row
+        for row in official
+        if row.get("status") == "success"
+    }
+    selected = [
+        row
+        for row in gate_rows
+        if str(row.get("pass_gate", "")).lower() == "true"
+        and (
+            not architectures_only
+            or str(row.get("deployable_architecture", "")).lower() == "true"
+            or row.get("candidate_type") in {"pair", "family_subset", "core_model", "core_plus_fixed_sleeve"}
+        )
+        and row.get("candidate_type") not in {"anchor_single"}
+    ]
+    selected.sort(key=lambda row: finite(row.get("robust_score")) or -math.inf, reverse=True)
+    if max_candidates is not None:
+        selected = selected[:max_candidates]
+    candidates = []
+    for row in selected:
+        metric = row["metric"]
+        top = by_run.get((metric, "Top"))
+        worst = by_run.get((metric, "Worst"))
+        if not top or not worst:
+            continue
+        aligned = pd.concat(
+            [
+                nav_series(top["perf_ptf"]).rename("top"),
+                nav_series(worst["perf_ptf"]).rename("worst"),
+                nav_series(top["perf_bench"]).rename("bench"),
+            ],
+            axis=1,
+        ).dropna()
+        aligned = monthly_nav(aligned)
+        if len(aligned) < 2:
+            continue
+        meta = registry.get(metric, row)
+        components = structured_components(meta.get("components") or row.get("components"))
+        if not components:
+            components = [metric]
+        weight_map = structured_weights(meta.get("component_weights") or row.get("component_weights"))
+        if weight_map:
+            total_weight = sum(weight_map.get(component, 0) for component in components)
+            weights = [
+                {
+                    "label": label_by_metric.get(component, component),
+                    "group": row.get("bucket") or row.get("family") or group,
+                    "value": weight_map.get(component, 0) / total_weight,
+                }
+                for component in components
+                if total_weight and weight_map.get(component, 0) > 0
+            ]
+        else:
+            weights = [
+                {
+                    "label": label_by_metric.get(component, component),
+                    "group": row.get("bucket") or row.get("family") or group,
+                    "value": 1 / len(components),
+                }
+                for component in components
+            ]
+        label = row.get("label") or label_by_metric.get(metric, metric)
+        candidate_type = row.get("candidate_type") or "candidate"
+        spread = finite(row.get("top_worst_ratio_return"))
+        candidates.append(
+            {
+                "id": metric,
+                "label": label,
+                "group": group,
+                "kind": candidate_type,
+                "version": "new",
+                "sourceRun": str(run),
+                "thesis": "该变量先单独通过 official Top/Worst gate。" if candidate_type == "single" else "所有输入先通过各自证据门槛，再进入固定架构比较。",
+                "economics": supplemental_economics(label, candidate_type),
+                "metrics": {
+                    "robust": finite(row.get("robust_score")),
+                    "coverage": finite(row.get("coverage")),
+                    "turnover": finite(row.get("avg_turnover")),
+                    "officialActive": finite(row.get("ratio_cagr")),
+                    "officialRatio": None if spread is None else 1 + spread,
+                },
+                "series": [
+                    [
+                        date.strftime("%Y-%m-%d"),
+                        round(point.top, 5),
+                        round(point.worst, 5),
+                        round(point.bench, 5),
+                    ]
+                    for date, point in aligned.iterrows()
+                ],
+                "weights": weights,
+                "subsetKeys": [],
+                "evidenceRows": [
+                    ["Top / Benchmark CAGR", pct(row.get("ratio_cagr"))],
+                    ["Top / Worst 终值", ratio_terminal(row.get("top_worst_ratio_return"))],
+                    ["Robust score", num(row.get("robust_score"))],
+                    ["Coverage", pct(row.get("coverage"))],
+                    ["研究角色", row.get("trial_role") or candidate_type],
+                ],
+            }
+        )
+    return candidates
+
+
+def archived_market_report(market: str) -> dict[str, Any] | None:
+    archive_path = MODEL_ARCHIVE_DIR / "model_archive.json"
+    if not archive_path.exists():
+        return None
+    archive = json.loads(archive_path.read_text(encoding="utf-8"))
+    report = next((row for row in archive.get("reports", []) if row.get("id") == market), None)
+    return copy.deepcopy(report) if report else None
+
+
+def stoxx600_chart_candidates(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    config = SUPPLEMENTAL_RESEARCH_RUNS["stoxx600"]
+    matrix_registry_rows = csv_rows(config["matrix"] / "candidate_registry.csv")
+    matrix_metrics = {row["metric"] for row in matrix_registry_rows}
+    registry_rows = [
+        *csv_rows(config["lag6"] / "candidate_registry.csv"),
+        *matrix_registry_rows,
+        *csv_rows(config["oop"] / "candidate_registry.csv"),
+    ]
+    registry = {row["metric"]: row for row in registry_rows}
+    label_by_metric = {
+        row["metric"]: row.get("label") or row.get("selected_raw_column") or row["metric"]
+        for row in registry_rows
+    }
+    candidates = []
+    for metric, chart in payload["charts"].items():
+        meta = registry.get(metric, {})
+        components = structured_components(meta.get("leaf_components") or meta.get("components"))
+        if not components:
+            components = [metric]
+        weight_map = structured_weights(meta.get("component_weights"))
+        total_weight = sum(weight_map.get(component, 0) for component in components)
+        weights = [
+            {
+                "label": label_by_metric.get(component, component),
+                "group": meta.get("bucket") or meta.get("family") or chart.get("type"),
+                "value": weight_map.get(component, 0) / total_weight if total_weight else 1 / len(components),
+            }
+            for component in components
+        ]
+        label = chart.get("name") or meta.get("label") or metric
+        source_run = config["matrix"] if metric in matrix_metrics else config["oop"]
+        candidates.append(
+            {
+                "id": metric,
+                "label": label,
+                "group": "current official evidence",
+                "kind": chart.get("type") or meta.get("candidate_type") or "candidate",
+                "version": "new",
+                "sourceRun": str(source_run),
+                "thesis": chart.get("note") or "当前官方证据候选。",
+                "economics": supplemental_economics(label, chart.get("type") or "candidate"),
+                "metrics": {
+                    "robust": finite(chart.get("robustScore")),
+                    "coverage": finite(chart.get("coverage")),
+                    "turnover": finite(chart.get("turnover")),
+                    "officialActive": finite(chart.get("activeCagr")),
+                    "officialRatio": 1 + finite(chart.get("topWorst")) if finite(chart.get("topWorst")) is not None else None,
+                },
+                "series": [
+                    [
+                        point["date"],
+                        round(float(point["top"]), 5),
+                        round(float(point["worst"]), 5),
+                        round(float(point["benchmark"]), 5),
+                    ]
+                    for point in chart.get("nav", [])
+                ],
+                "weights": weights,
+                "subsetKeys": [],
+                "evidenceRows": [
+                    ["Top / Benchmark CAGR", pct(chart.get("activeCagr"))],
+                    ["Top / Worst 终值", ratio_terminal(chart.get("topWorst"))],
+                    ["Robust score", num(chart.get("robustScore"))],
+                    ["Coverage", pct(chart.get("coverage"))],
+                ],
+            }
+        )
+    return candidates
+
+
+def current_stoxx600_report(payload: dict[str, Any]) -> dict[str, Any]:
+    report = archived_market_report("stoxx600")
+    if report is None:
+        raise RuntimeError("The current STOXX explorer requires the existing model archive as its legacy baseline.")
+    supplemental_paths = {
+        str(run)
+        for config in SUPPLEMENTAL_RESEARCH_RUNS.values()
+        for key, run in config.items()
+        if key in {"lag6", "matrix", "oop"}
+    }
+    retained_candidates = []
+    for candidate in report["candidates"]:
+        if str(candidate.get("sourceRun") or "") in supplemental_paths:
+            continue
+        candidate = copy.deepcopy(candidate)
+        candidate["group"] = str(candidate.get("group") or "candidate").split(" · ", 1)[-1]
+        candidate.pop("versionLabel", None)
+        candidate.pop("sourceDocument", None)
+        retained_candidates.append(candidate)
+    merged = {candidate["id"]: candidate for candidate in retained_candidates}
+    merged.update({candidate["id"]: candidate for candidate in stoxx600_chart_candidates(payload)})
+    report["candidates"] = list(merged.values())
+    report["defaultCandidate"] = "stoxx600_sx_full_q3_e1"
+    report["evidenceTabs"] = [
+        tab
+        for tab in report["evidenceTabs"]
+        if tab["id"] not in {"models", "supplemental-lag6", "supplemental-matrix", "supplemental-oop", "supplemental-dsr"}
+    ]
+    supplemental_stat_labels = {
+        "旧基线可绘图配置",
+        "新扩展可绘图配置",
+        "lag6 单变量测试",
+        "lag6 单变量通过",
+        "Gate 后矩阵",
+        "可验证留出期",
+        "跨期有效 singles",
+        "严格跨期 synergy",
+    }
+    report["stats"] = [row for row in report["stats"] if row["label"] not in supplemental_stat_labels]
+    report["provenance"] = list(dict.fromkeys([*report["provenance"], str(SOURCES["stoxx600"])]))
+    return report
+
+
+def supplemental_gate_rows(run: Path, filename: str) -> list[list[Any]]:
+    rows = csv_rows(run / filename)
+    rows.sort(
+        key=lambda row: (
+            str(row.get("pass_gate", "")).lower() != "true",
+            -(finite(row.get("robust_score")) or -math.inf),
+        )
+    )
+    return [
+        [
+            row.get("label") or row["metric"],
+            row.get("candidate_type") or "single",
+            row.get("family") or row.get("bucket") or "-",
+            "通过" if str(row.get("pass_gate", "")).lower() == "true" else "未通过",
+            pct(row.get("coverage")),
+            pct(row.get("ratio_cagr")),
+            ratio_terminal(row.get("top_worst_ratio_return")),
+            num(row.get("robust_score")),
+            pct(row.get("avg_turnover")),
+            row.get("fail_reasons") or "-",
+        ]
+        for row in rows
+    ]
+
+
+def supplemental_oop_sections(config: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    run = config["oop"]
+    is_loro = config["oop_kind"] == "LORO"
+    single_rows = csv_rows(run / ("single_loro_selection_summary.csv" if is_loro else "single_lopo_selection_summary.csv"))
+    combo_rows = csv_rows(run / ("combination_loro_selection_summary.csv" if is_loro else "combination_lopo_selection_summary.csv"))
+    synergy_rows = csv_rows(run / ("synergy_loro_summary.csv" if is_loro else "synergy_lopo_summary.csv"))
+    pre_post_rows = csv_rows(run / "single_pre_post_2020_metrics.csv")
+    class_field = "loro_classification" if is_loro else "lopo_classification"
+    core_classes = {"cross_regime_core", "cross_regime_resilient"}
+    core_singles = [row for row in single_rows if row.get(class_field) in core_classes]
+    core_combos = [row for row in combo_rows if row.get(class_field) in core_classes]
+    core_singles.sort(key=lambda row: finite(row.get("mean_holdout_active_cagr")) or -math.inf, reverse=True)
+    core_combos.sort(key=lambda row: finite(row.get("mean_holdout_active_cagr")) or -math.inf, reverse=True)
+    fold_field = "folds_evaluated" if is_loro else "eligible_holdout_folds"
+    joint_rate_field = "holdout_joint_positive_rate"
+    single_table = [
+        [
+            row["label"],
+            row.get("candidate_class") or "-",
+            row.get("family") or "-",
+            row.get("train_gate_passes"),
+            row.get(fold_field),
+            pct(row.get(joint_rate_field)),
+            pct(row.get("mean_holdout_active_cagr")),
+            pct(row.get("min_holdout_active_cagr")),
+            pct(row.get("mean_holdout_top_worst_cagr")),
+            row.get(class_field),
+        ]
+        for row in core_singles
+    ]
+    combo_table = [
+        [
+            row["label"],
+            row.get("candidate_type") or "-",
+            row.get("train_gate_passes"),
+            row.get(fold_field),
+            pct(row.get(joint_rate_field)),
+            pct(row.get("mean_holdout_active_cagr")),
+            pct(row.get("min_holdout_active_cagr")),
+            row.get(class_field),
+        ]
+        for row in core_combos[:40]
+    ]
+    if is_loro:
+        synergy_rows.sort(
+            key=lambda row: (
+                row.get("loro_synergy_classification") != "cross_regime_synergistic",
+                -(finite(row.get("holdout_synergy_confirmation_rate")) or 0),
+            )
+        )
+        strict_count = sum(row.get("loro_synergy_classification") == "cross_regime_synergistic" for row in synergy_rows)
+        synergy_table = [
+            [
+                row["label"],
+                row.get("candidate_type"),
+                row.get("eligible_folds"),
+                row.get("train_synergy_folds"),
+                row.get("holdout_synergy_confirmed_folds"),
+                pct(row.get("holdout_synergy_confirmation_rate")),
+                pct(row.get("mean_holdout_active_cagr")),
+                pct(row.get("min_holdout_active_cagr")),
+                row.get("loro_synergy_classification"),
+            ]
+            for row in synergy_rows[:40]
+        ]
+        synergy_columns = ["配置", "类型", "Eligible folds", "Train synergy", "Holdout confirmed", "确认率", "留出期主动 CAGR", "最差留出期", "分类"]
+    else:
+        synergy_rows.sort(
+            key=lambda row: (
+                str(row.get("cross_period_synergy_supported", "")).lower() != "true",
+                -(finite(row.get("confirmed_synergy_rate")) or 0),
+            )
+        )
+        strict_count = sum(str(row.get("cross_period_synergy_supported", "")).lower() == "true" for row in synergy_rows)
+        synergy_table = [
+            [
+                row["label"],
+                row.get("candidate_type"),
+                row.get("eligible_lopo_folds"),
+                row.get("confirmed_synergy_folds"),
+                pct(row.get("confirmed_synergy_rate")),
+                pct(row.get("mean_holdout_active_uplift")),
+                pct(row.get("mean_holdout_top_worst_uplift")),
+                "支持" if str(row.get("cross_period_synergy_supported", "")).lower() == "true" else "不支持",
+            ]
+            for row in synergy_rows[:40]
+        ]
+        synergy_columns = ["配置", "类型", "Eligible folds", "Confirmed folds", "确认率", "主动收益增量", "Top/Worst 增量", "跨期 synergy"]
+    rotation = []
+    for row in pre_post_rows:
+        pre = finite(row.get("pre_2020_active_cagr") or row.get("pre_2020_mean_active_cagr"))
+        post = finite(row.get("post_2020_active_cagr") or row.get("post_2020_mean_active_cagr"))
+        if pre is None or post is None:
+            continue
+        rotation.append([row["label"], row.get("candidate_class") or "-", row.get("family") or "-", pre, post, post - pre])
+    rotation.sort(key=lambda row: row[-1], reverse=True)
+    rotation_columns = ["变量", "类型", "Family", "2020 前主动 CAGR", "2020 后主动 CAGR", "变化"]
+    rotation_gainers = [[*row[:3], pct(row[3]), pct(row[4]), pct(row[5])] for row in rotation[:15]]
+    rotation_losers = [[*row[:3], pct(row[3]), pct(row[4]), pct(row[5])] for row in rotation[-15:][::-1]]
+    sections = [
+        evidence_section(
+            f'{config["oop_kind"]} 跨时期有效单变量',
+            ["变量", "类型", "Family", "Train gate", "Eligible folds", "留出期双正率", "留出期主动 CAGR", "最差留出期", "留出期 Top/Worst", "分类"],
+            single_table,
+            "候选库来自完整历史研究，因此属于 historical blocked validation；未来真 OOS 从最新研究截止日之后开始。",
+        ),
+        evidence_section(
+            f'{config["oop_kind"]} 跨时期有效组合',
+            ["配置", "类型", "Train gate", "Eligible folds", "留出期双正率", "留出期主动 CAGR", "最差留出期", "分类"],
+            combo_table,
+        ),
+        evidence_section(
+            "严格协同留出期证据",
+            synergy_columns,
+            synergy_table,
+            "只有组合相对最强单腿的改善在训练与被留出时期重复确认，才允许称为 synergy。",
+        ),
+        evidence_section("2020 后相对占优变量", rotation_columns, rotation_gainers),
+        evidence_section("2020 后明显衰减变量", rotation_columns, rotation_losers),
+    ]
+    return sections, {"core_singles": len(core_singles), "strict_synergy": strict_count}
+
+
+def supplemental_dsr_section(config: dict[str, Any]) -> dict[str, Any]:
+    is_loro = config["oop_kind"] == "LORO"
+    path = config["matrix"] / "full_ledger_deflated_sharpe.csv" if is_loro else config["oop"] / "deflated_sharpe_results.csv"
+    rows = csv_rows(path)
+    probability_field = "deflated_sharpe_probability" if is_loro else "dsr_probability"
+    sharpe_field = "annualized_sharpe" if is_loro else "annualized_active_sharpe"
+    trial_field = "trial_count" if is_loro else "documented_trial_count"
+    rows.sort(key=lambda row: finite(row.get(probability_field)) or -math.inf, reverse=True)
+    table = [
+        [
+            row.get("label") or row["metric"],
+            num(row.get(sharpe_field)),
+            row.get(trial_field),
+            pct(row.get(probability_field)),
+            row.get("observations") or row.get("months") or "-",
+        ]
+        for row in rows[:30]
+    ]
+    return evidence_section(
+        "Deflated Sharpe 与 trial ledger",
+        ["变量 / 配置", "年化主动 Sharpe", "Trial count", "DSR probability", "Observations"],
+        table,
+        "DSR 对已记录研究尝试施加数据挖掘惩罚，但不能替代成本、留出期和未来真 OOS。",
+    )
+
+
+def enrich_supplemental_research(report: dict[str, Any]) -> dict[str, Any]:
+    config = SUPPLEMENTAL_RESEARCH_RUNS[report["id"]]
+    lag6_gate = "official_validation_gate.csv" if report["id"] == "stoxx600" else "relative_validation_gate.csv"
+    matrix_gate = "official_validation_gate.csv" if report["id"] == "stoxx600" else "combination_validation_gate.csv"
+    lag6_candidates = gate_candidate_objects(config["lag6"], lag6_gate, "lag6 relative single")
+    matrix_candidates = gate_candidate_objects(
+        config["matrix"],
+        matrix_gate,
+        "gate-passed architecture",
+        max_candidates=12,
+        architectures_only=True,
+    )
+    merged = {candidate["id"]: candidate for candidate in report["candidates"]}
+    merged.update({candidate["id"]: candidate for candidate in [*lag6_candidates, *matrix_candidates]})
+    report["candidates"] = list(merged.values())
+    if matrix_candidates:
+        report["defaultCandidate"] = matrix_candidates[0]["id"]
+    lag6_rows = csv_rows(config["lag6"] / lag6_gate)
+    matrix_rows = csv_rows(config["matrix"] / matrix_gate)
+    oop_sections, oop_counts = supplemental_oop_sections(config)
+    manifest = json.loads((config["oop"] / "manifest.json").read_text(encoding="utf-8"))
+    valid_periods = manifest.get("signal_validation_period_count") or manifest.get("regime_count") or manifest.get("period_count")
+    report["headline"] = config["headline"]
+    report["verdict"] = config["verdict"]
+    report["method"] += f'; lag1/3/6/12; {config["oop_kind"]}; DSR trial ledger'
+    report["stats"].extend(
+        [
+            {"value": len(lag6_rows), "label": "lag6 单变量测试"},
+            {"value": sum(str(row.get("pass_gate", "")).lower() == "true" for row in lag6_rows), "label": "lag6 单变量通过"},
+            {"value": len(matrix_rows), "label": "Gate 后矩阵"},
+            {"value": valid_periods, "label": "可验证留出期"},
+            {"value": oop_counts["core_singles"], "label": "跨期有效 singles"},
+            {"value": oop_counts["strict_synergy"], "label": "严格跨期 synergy"},
+        ]
+    )
+    report["evidenceTabs"].extend(
+        [
+            evidence_tab(
+                "supplemental-lag6",
+                "Lag6 gate",
+                [
+                    evidence_section(
+                        "Same-security relative lag6",
+                        ["变量", "类型", "Family / Bucket", "结果", "Coverage", "Top/Benchmark CAGR", "Top/Worst 终值", "Robust", "Turnover", "失败原因"],
+                        supplemental_gate_rows(config["lag6"], lag6_gate),
+                        "每个 lag6 variant 都先作为新 raw variable 独立跑 official Top/Worst；coverage-blocked 是完成测试后的 construction skip，不是未执行。",
+                    )
+                ],
+            ),
+            evidence_tab(
+                "supplemental-matrix",
+                "Gate 后矩阵",
+                [
+                    evidence_section(
+                        "Lag6 × Revision / PMOM / Growth 与固定架构",
+                        ["变量 / 配置", "类型", "Family / Bucket", "结果", "Coverage", "Top/Benchmark CAGR", "Top/Worst 终值", "Robust", "Turnover", "失败原因"],
+                        supplemental_gate_rows(config["matrix"], matrix_gate),
+                        "只有单变量先通过 gate 才允许进入矩阵；页面保留全部终态，图表选择器展示通过 gate 的 lag6 singles 与 Robust 较高的固定架构。",
+                    )
+                ],
+            ),
+            evidence_tab("supplemental-oop", config["oop_kind"], oop_sections),
+            evidence_tab("supplemental-dsr", "DSR", [supplemental_dsr_section(config)]),
+        ]
+    )
+    report["provenance"] = list(
+        dict.fromkeys(
+            [
+                *report["provenance"],
+                str(config["lag6"] / lag6_gate),
+                str(config["matrix"] / matrix_gate),
+                str(config["oop"] / "manifest.json"),
+            ]
+        )
+    )
+    strict_rows: dict[str, dict[str, Any]] = {}
+    if config["oop_kind"] == "LORO":
+        strict_rows = {
+            row["metric"]: row
+            for row in csv_rows(config["oop"] / "synergy_loro_summary.csv")
+            if row.get("loro_synergy_classification") == "cross_regime_synergistic"
+        }
+    for candidate in report["candidates"]:
+        if candidate["id"] in strict_rows:
+            strict_row = strict_rows[candidate["id"]]
+            candidate["label"] = re.sub(r"\b[a-z][a-z_]+:\s*", "", strict_row["label"])
+            candidate["thesis"] = (
+                candidate["thesis"].split(" 六段 LORO 中训练协同", 1)[0].rstrip()
+                + " 六段 LORO 中训练协同在 4/6 个被留出阶段再次确认。"
+            )
+            candidate["economics"] = (
+                candidate["economics"].split("利润率改善提供经营事实", 1)[0].rstrip()
+                + " 利润率改善提供经营事实，EPS NTM 3M Growth 提供前瞻预期确认，两者跨 regime 的互补增益达到严格协同门槛。"
+            )
+            for weight in candidate.get("weights", []):
+                weight["label"] = re.sub(r"\b[a-z][a-z_]+:\s*", "", weight["label"])
     return report
 
 
@@ -1640,7 +2262,7 @@ HTML_DOCUMENT = r'''<!doctype html>
         residual_risk:["残差风险","用剔除市场共同波动后的残差波动与下行波动，过滤公司特有尾部脆弱性。"],
         accrual_quality:["应计质量","用 Net Income 与 CFO 的差额、营运资本吸收和现金支持的利润率改善，区分现金盈利与应计驱动盈利。"]
       };
-      var state={market:"sp500",candidate:null,subset:null,period:"all",mode:"evidence",evidenceTab:null,detailBack:false};
+      var state={market:"stoxx600",candidate:null,subset:null,period:"all",mode:"evidence",evidenceTab:null,detailBack:false};
       var byId=function(id){return document.getElementById(id)};
       var esc=function(value){return String(value==null?"":value).replace(/[&<>"']/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]})};
       var report=function(){return DATA.reports.find(function(row){return row.id===state.market})};
@@ -2087,18 +2709,28 @@ def validate_payload(payload: dict[str, Any]) -> None:
 
 def main() -> None:
     documents = {key: inner_document(path) for key, path in SOURCES.items()}
-    payloads = {
-        key: json_script(document, "report-data")
-        for key, document in documents.items()
-        if key != "nasdaq"
-    }
+    payloads = {}
+    for key, document in documents.items():
+        if key == "nasdaq":
+            continue
+        script_id = "research-data" if key == "stoxx600" and 'id="research-data"' in document else "report-data"
+        payloads[key] = json_script(document, script_id)
+    stoxx600 = (
+        current_stoxx600_report(payloads["stoxx600"])
+        if "charts" in payloads["stoxx600"]
+        else build_stoxx600(payloads["stoxx600"], documents["stoxx600"])
+    )
+    reports = [
+        build_eu_small(payloads["eu-small"]),
+        build_sp500(payloads["sp500"]),
+        stoxx600,
+        build_nasdaq(documents["nasdaq"]),
+    ]
     payload = {
-        "reports": [prepare_model_versions(attach_period_contexts(report)) for report in [
-            build_eu_small(payloads["eu-small"]),
-            build_sp500(payloads["sp500"]),
-            build_stoxx600(payloads["stoxx600"], documents["stoxx600"]),
-            build_nasdaq(documents["nasdaq"]),
-        ]]
+        "reports": [
+            prepare_model_versions(attach_period_contexts(enrich_supplemental_research(report)))
+            for report in reports
+        ]
     }
     validate_payload(payload)
     write_model_archive(payload)

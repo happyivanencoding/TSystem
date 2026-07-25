@@ -1,0 +1,72 @@
+{
+  "step": "refresh_supplemental_data",
+  "status": "failed",
+  "started_at": "2026-07-25T11:02:11",
+  "finished_at": "2026-07-25T11:02:11",
+  "duration_seconds": 0.108,
+  "run_type": "inspect",
+  "parameters": {
+    "source": [
+      "ecb"
+    ],
+    "from_date": "2000-01-01",
+    "to_date": null,
+    "config": "C:\\GoogleDrive\\TP\\02_pipelines\\supplemental_sources.json",
+    "security_map": "C:\\GoogleDrive\\TP\\00_screen\\supplemental\\identifiers\\security_identifiers.csv",
+    "max_jobs": 1,
+    "timeout_seconds": 30,
+    "resume": false,
+    "dry_run": true,
+    "inspect_only": false,
+    "promote_to_canonical": false,
+    "run_type": "inspect"
+  },
+  "inputs": {
+    "config": {
+      "path": "C:\\GoogleDrive\\TP\\02_pipelines\\supplemental_sources.json",
+      "exists": true,
+      "type": "file",
+      "bytes": 8721,
+      "modified_at": "2026-07-25T10:59:12"
+    },
+    "security_map": {
+      "path": "C:\\GoogleDrive\\TP\\00_screen\\supplemental\\identifiers\\security_identifiers.csv",
+      "exists": true,
+      "type": "file",
+      "bytes": 244013,
+      "modified_at": "2026-07-25T11:01:27"
+    },
+    "canonical_screen": {
+      "path": "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate.parquet",
+      "exists": true,
+      "bytes": 1142082926,
+      "modified_at": "2026-07-17T17:42:38",
+      "format": "parquet",
+      "rows": 3454342,
+      "columns": 301,
+      "row_groups": 4
+    },
+    "last_screen": {
+      "path": "C:\\GoogleDrive\\TP\\00_screen\\last_screen.parquet",
+      "exists": true,
+      "bytes": 7693726,
+      "modified_at": "2026-07-17T17:42:41",
+      "format": "parquet",
+      "rows": 11107,
+      "columns": 301,
+      "row_groups": 1
+    }
+  },
+  "outputs": {},
+  "validations": [],
+  "details": {},
+  "idempotency": {
+    "policy": "标准产物使用固定 latest 路径覆盖写入；每次运行另写时间戳 manifest 保留审计证据。",
+    "no_duplicate_rows_expected": true
+  },
+  "error": {
+    "type": "InvalidIndexError",
+    "message": "",
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\refresh_supplemental_data.py\", line 697, in run_refresh_supplemental_data\n    securities, candidate_isins, holding_isins = _load_security_map(\n                                                 ^^^^^^^^^^^^^^^^^^^\n  File \"C:\\GoogleDrive\\TP\\02_pipelines\\refresh_supplemental_data.py\", line 140, in _load_security_map\n    securities[column] = overrides[column].combine_first(securities[column])\n                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\jingx\\anaconda3\\Lib\\site-packages\\pandas\\core\\series.py\", line 3539, in combine_first\n    return this.mask(this.isna(), other)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\jingx\\anaconda3\\Lib\\site-packages\\pandas\\core\\generic.py\", line 11092, in mask\n    return self._where(\n           ^^^^^^^^^^^^\n  File \"C:\\Users\\jingx\\anaconda3\\Lib\\site-packages\\pandas\\core\\generic.py\", line 10722, in _where\n    raise InvalidIndexError\npandas.errors.InvalidIndexError\n"
+  }
+}

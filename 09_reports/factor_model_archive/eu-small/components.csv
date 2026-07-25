@@ -477,3 +477,42 @@ eu-small,new,eu_small_factor_extension_20260711:eu_small_ext_subset_6f93efffce26
 eu-small,new,eu_small_factor_extension_20260711:eu_small_ext_subset_d2bc34379630,Oper Margin improvement + country-aware quality repair,quality_improvement,0.3333333333333333
 eu-small,new,eu_small_factor_extension_20260711:eu_small_ext_subset_d2bc34379630,NetDebt / EBITDA improvement + country-aware deleveraging,deleveraging,0.3333333333333333
 eu-small,new,eu_small_factor_extension_20260711:eu_small_ext_subset_d2bc34379630,Country-aware ROE,quality_level,0.3333333333333333
+eu-small,new,eu_small_reldelta_quality_roe_avg_fy0_lag6_score,ROE avg FY0 directional_delta lag6,ROE avg FY0,1.0
+eu-small,new,eu_small_reldelta_quality_oper_margin_lag6_score,Oper Margin directional_delta lag6,Oper Margin,1.0
+eu-small,new,eu_small_relrank_quality_roe_avg_fy0_lag6_score,ROE avg FY0 score_delta lag6,ROE avg FY0,1.0
+eu-small,new,eu_small_relrank_quality_oper_margin_lag6_score,Oper Margin score_delta lag6,Oper Margin,1.0
+eu-small,new,eu_small_reldelta_quality_netdebt_to_ebitda_exfin_lag6_score,NetDebt to EBITDA exFIN directional_delta lag6,NetDebt to EBITDA exFIN,1.0
+eu-small,new,eu_small_relrank_quality_netdebt_to_ebitda_exfin_lag6_score,NetDebt to EBITDA exFIN score_delta lag6,NetDebt to EBITDA exFIN,1.0
+eu-small,new,eu_small_relrank_dividend_dvd_yield_fy1_lag6_score,DVD Yield FY1 score_delta lag6,DVD Yield FY1,1.0
+eu-small,new,eu_small_reldelta_dividend_dvd_yield_fy1_lag6_score,DVD Yield FY1 directional_delta lag6,DVD Yield FY1,1.0
+eu-small,new,eu_small_reldelta_value_pb_ltm_lag6_score,PB LTM directional_delta lag6,PB LTM,1.0
+eu-small,new,eu_small_lag6arch_e8f7b2774d41,eu_small_reldelta_quality_oper_margin_lag6_score,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_e8f7b2774d41,EPS Revision Ratio,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_e8f7b2774d41,PMOM 12M1M,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_4dc20cb72429,eu_small_reldelta_quality_roe_avg_fy0_lag6_score,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_4dc20cb72429,EPS Revision Ratio,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_4dc20cb72429,PMOM 12M1M,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_74e2b7dc9078,eu_small_relrank_dividend_dvd_yield_fy1_lag6_score,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_74e2b7dc9078,EPS Revision Ratio,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_74e2b7dc9078,PMOM 12M1M,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_9d3f50d9bcae,eu_small_relrank_quality_oper_margin_lag6_score,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_9d3f50d9bcae,EPS Revision Ratio,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_9d3f50d9bcae,PMOM 12M1M,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_b77ca0398d9f,eu_small_relrank_quality_roe_avg_fy0_lag6_score,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_b77ca0398d9f,EPS Revision Ratio,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_b77ca0398d9f,PMOM 12M1M,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_172e725446bd,eu_small_reldelta_quality_oper_margin_lag6_score,lag6_relative|pmom,0.5
+eu-small,new,eu_small_lag6arch_172e725446bd,PMOM 12M1M,lag6_relative|pmom,0.5
+eu-small,new,eu_small_lag6arch_6c9b7b1f0c55,eu_small_reldelta_quality_roe_avg_fy0_lag6_score,lag6_relative|revision,0.5
+eu-small,new,eu_small_lag6arch_6c9b7b1f0c55,EPS Revision Ratio,lag6_relative|revision,0.5
+eu-small,new,eu_small_lag6arch_6812c60096d1,eu_small_reldelta_quality_oper_margin_lag6_score,lag6_relative|revision,0.5
+eu-small,new,eu_small_lag6arch_6812c60096d1,EPS Revision Ratio,lag6_relative|revision,0.5
+eu-small,new,eu_small_lag6arch_eaba0f8ad4aa,eu_small_reldelta_dividend_dvd_yield_fy1_lag6_score,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_eaba0f8ad4aa,EPS Revision Ratio,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_eaba0f8ad4aa,PMOM 12M1M,lag6_relative|revision|pmom,0.3333333333333333
+eu-small,new,eu_small_lag6arch_6a5eb3d1e418,eu_small_relrank_quality_roe_avg_fy0_lag6_score,lag6_relative|pmom,0.5
+eu-small,new,eu_small_lag6arch_6a5eb3d1e418,PMOM 12M1M,lag6_relative|pmom,0.5
+eu-small,new,eu_small_lag6arch_f103aa36090a,eu_small_reldelta_quality_roe_avg_fy0_lag6_score,lag6_relative|pmom,0.5
+eu-small,new,eu_small_lag6arch_f103aa36090a,PMOM 12M1M,lag6_relative|pmom,0.5
+eu-small,new,eu_small_lag6arch_d7f8fe80f7c2,eu_small_relrank_quality_oper_margin_lag6_score,lag6_relative|revision,0.5
+eu-small,new,eu_small_lag6arch_d7f8fe80f7c2,EPS Revision Ratio,lag6_relative|revision,0.5

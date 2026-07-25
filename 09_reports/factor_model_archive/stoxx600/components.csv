@@ -36,7 +36,7 @@ stoxx600,old,stoxx600_syn_subset_2543debc1d,Earns Yield FY1 directional_delta la
 stoxx600,old,stoxx600_syn_pair_8dbe63d33df5,NetDebt to EBITDA exFIN directional_delta lag3,deleveraging,0.5
 stoxx600,old,stoxx600_syn_pair_8dbe63d33df5,Oper Margin directional_delta lag3,quality_improvement,0.5
 stoxx600,old,stoxx600_syn_pair_56f732432d80,Oper Margin directional_delta lag3,quality_improvement,0.5
-stoxx600,old,stoxx600_syn_pair_56f732432d80,momentum: EPS NTM 3M Growth,revision,0.5
+stoxx600,old,stoxx600_syn_pair_56f732432d80,EPS NTM 3M Growth,revision,0.5
 stoxx600,old,stoxx600_syn_pair_86df394a53f2,momentum: PMOM 12M1M,pmom,0.5
 stoxx600,old,stoxx600_syn_pair_86df394a53f2,Oper Margin directional_delta lag3,quality_improvement,0.5
 stoxx600,old,stoxx600_syn_pair_5937db8297d4,momentum: PMOM 12M1M,pmom,0.5
@@ -96,3 +96,79 @@ stoxx600,new,stoxx600_syn_loo_without_revision,Asset TO exFIN + FCF / Sales + ca
 stoxx600,new,stoxx600_syn_loo_without_revision,DPS 1Y Growth FY1 + EPS Revision Ratio + DVD Payout FY0,dividend_sustainability,0.125
 stoxx600,new,stoxx600_syn_loo_without_revision,STOXX-residual Momentum 12-1 + risk-adjusted residual momentum,residual_momentum,0.125
 stoxx600,new,stoxx600_syn_loo_without_revision,STOXX-residual Downside Volatility + downside-aware revision,residual_risk,0.125
+stoxx600,new,stoxx600_reldelta_quality_oper_margin_lag3_score,Oper Margin directional_delta lag3,quality,1.0
+stoxx600,new,stoxx600_momentum_eps_revision_ratio_score,momentum: EPS Revision Ratio,momentum,1.0
+stoxx600,new,stoxx600_reldelta_quality_netdebt_to_ebitda_exfin_lag3_score,NetDebt to EBITDA exFIN directional_delta lag3,quality,1.0
+stoxx600,new,stoxx600_reldelta_value_earns_yield_fy1_lag1_score,Earns Yield FY1 directional_delta lag1,value,1.0
+stoxx600,new,stoxx600_reldelta_quality_oper_margin_lag6_score,Oper Margin directional_delta lag6,Oper Margin,1.0
+stoxx600,new,stoxx600_momentum_pmom_12m1m_score,momentum: PMOM 12M1M,momentum,1.0
+stoxx600,new,stoxx600_growth_gross_income_growth_fy1_score,growth: Gross Income Growth FY1,growth,1.0
+stoxx600,new,stoxx600_dividend_dps_1y_growth_ntm_score,dividend: DPS 1Y Growth NTM,dividend,1.0
+stoxx600,new,stoxx600_reldelta_quality_oper_margin_lag12_score,Oper Margin directional_delta lag12,quality,1.0
+stoxx600,new,stoxx600_reldelta_quality_netdebt_to_ebitda_exfin_lag6_score,NetDebt to EBITDA exFIN directional_delta lag6,d6,1.0
+stoxx600,new,stoxx600_reldelta_quality_netdebt_to_ebitda_exfin_lag12_score,NetDebt to EBITDA exFIN directional_delta lag12,quality,1.0
+stoxx600,new,stoxx600_reldelta_value_earns_yield_fy1_lag12_score,Earns Yield FY1 directional_delta lag12,value,1.0
+stoxx600,new,stoxx600_reldelta_value_earns_yield_fy1_lag6_score,Earns Yield FY1 directional_delta lag6,e6,1.0
+stoxx600,new,stoxx600_sx_core_q3,EPS Revision Ratio,revision|pmom|q3,0.3333333333333333
+stoxx600,new,stoxx600_sx_core_q3,PMOM 12M1M,revision|pmom|q3,0.3333333333333333
+stoxx600,new,stoxx600_sx_core_q3,Oper Margin directional_delta lag3,revision|pmom|q3,0.3333333333333333
+stoxx600,new,stoxx600_sx_core_q6,EPS Revision Ratio,revision|pmom|q6,0.3333333333333333
+stoxx600,new,stoxx600_sx_core_q6,PMOM 12M1M,revision|pmom|q6,0.3333333333333333
+stoxx600,new,stoxx600_sx_core_q6,Oper Margin directional_delta lag6,revision|pmom|q6,0.3333333333333333
+stoxx600,new,stoxx600_sx_core_q12,EPS Revision Ratio,revision|pmom|q12,0.3333333333333333
+stoxx600,new,stoxx600_sx_core_q12,PMOM 12M1M,revision|pmom|q12,0.3333333333333333
+stoxx600,new,stoxx600_sx_core_q12,Oper Margin directional_delta lag12,revision|pmom|q12,0.3333333333333333
+stoxx600,new,stoxx600_sx_full_q3_e1,EPS Revision Ratio,revision|pmom|q3|e1,0.25
+stoxx600,new,stoxx600_sx_full_q3_e1,PMOM 12M1M,revision|pmom|q3|e1,0.25
+stoxx600,new,stoxx600_sx_full_q3_e1,Oper Margin directional_delta lag3,revision|pmom|q3|e1,0.25
+stoxx600,new,stoxx600_sx_full_q3_e1,Earns Yield FY1 directional_delta lag1,revision|pmom|q3|e1,0.25
+stoxx600,new,stoxx600_sx_full_q6_e1,EPS Revision Ratio,revision|pmom|q6|e1,0.25
+stoxx600,new,stoxx600_sx_full_q6_e1,PMOM 12M1M,revision|pmom|q6|e1,0.25
+stoxx600,new,stoxx600_sx_full_q6_e1,Oper Margin directional_delta lag6,revision|pmom|q6|e1,0.25
+stoxx600,new,stoxx600_sx_full_q6_e1,Earns Yield FY1 directional_delta lag1,revision|pmom|q6|e1,0.25
+stoxx600,new,stoxx600_sx_full_q12_e1,EPS Revision Ratio,revision|pmom|q12|e1,0.25
+stoxx600,new,stoxx600_sx_full_q12_e1,PMOM 12M1M,revision|pmom|q12|e1,0.25
+stoxx600,new,stoxx600_sx_full_q12_e1,Oper Margin directional_delta lag12,revision|pmom|q12|e1,0.25
+stoxx600,new,stoxx600_sx_full_q12_e1,Earns Yield FY1 directional_delta lag1,revision|pmom|q12|e1,0.25
+stoxx600,new,stoxx600_sx_full_q3_d3,momentum: EPS Revision Ratio,revision|pmom|q3|d3,0.25
+stoxx600,new,stoxx600_sx_full_q3_d3,momentum: PMOM 12M1M,revision|pmom|q3|d3,0.25
+stoxx600,new,stoxx600_sx_full_q3_d3,Oper Margin directional_delta lag3,revision|pmom|q3|d3,0.25
+stoxx600,new,stoxx600_sx_full_q3_d3,NetDebt to EBITDA exFIN directional_delta lag3,revision|pmom|q3|d3,0.25
+stoxx600,new,stoxx600_sx_full_q6_d3,momentum: EPS Revision Ratio,revision|pmom|q6|d3,0.25
+stoxx600,new,stoxx600_sx_full_q6_d3,momentum: PMOM 12M1M,revision|pmom|q6|d3,0.25
+stoxx600,new,stoxx600_sx_full_q6_d3,Oper Margin directional_delta lag6,revision|pmom|q6|d3,0.25
+stoxx600,new,stoxx600_sx_full_q6_d3,NetDebt to EBITDA exFIN directional_delta lag3,revision|pmom|q6|d3,0.25
+stoxx600,new,stoxx600_sx_full_q12_d3,momentum: EPS Revision Ratio,revision|pmom|q12|d3,0.25
+stoxx600,new,stoxx600_sx_full_q12_d3,momentum: PMOM 12M1M,revision|pmom|q12|d3,0.25
+stoxx600,new,stoxx600_sx_full_q12_d3,Oper Margin directional_delta lag12,revision|pmom|q12|d3,0.25
+stoxx600,new,stoxx600_sx_full_q12_d3,NetDebt to EBITDA exFIN directional_delta lag3,revision|pmom|q12|d3,0.25
+stoxx600,new,stoxx600_sx_full_q3_growth,EPS Revision Ratio,revision|pmom|q3|growth,0.25
+stoxx600,new,stoxx600_sx_full_q3_growth,PMOM 12M1M,revision|pmom|q3|growth,0.25
+stoxx600,new,stoxx600_sx_full_q3_growth,Oper Margin directional_delta lag3,revision|pmom|q3|growth,0.25
+stoxx600,new,stoxx600_sx_full_q3_growth,Gross Income Growth FY1,revision|pmom|q3|growth,0.25
+stoxx600,new,stoxx600_sx_full_q6_growth,EPS Revision Ratio,revision|pmom|q6|growth,0.25
+stoxx600,new,stoxx600_sx_full_q6_growth,PMOM 12M1M,revision|pmom|q6|growth,0.25
+stoxx600,new,stoxx600_sx_full_q6_growth,Oper Margin directional_delta lag6,revision|pmom|q6|growth,0.25
+stoxx600,new,stoxx600_sx_full_q6_growth,Gross Income Growth FY1,revision|pmom|q6|growth,0.25
+stoxx600,new,stoxx600_sx_full_q12_growth,EPS Revision Ratio,revision|pmom|q12|growth,0.25
+stoxx600,new,stoxx600_sx_full_q12_growth,PMOM 12M1M,revision|pmom|q12|growth,0.25
+stoxx600,new,stoxx600_sx_full_q12_growth,Oper Margin directional_delta lag12,revision|pmom|q12|growth,0.25
+stoxx600,new,stoxx600_sx_full_q12_growth,Gross Income Growth FY1,revision|pmom|q12|growth,0.25
+stoxx600,new,stoxx600_sx_full_q3_dividend,EPS Revision Ratio,revision|pmom|q3|dividend,0.25
+stoxx600,new,stoxx600_sx_full_q3_dividend,PMOM 12M1M,revision|pmom|q3|dividend,0.25
+stoxx600,new,stoxx600_sx_full_q3_dividend,Oper Margin directional_delta lag3,revision|pmom|q3|dividend,0.25
+stoxx600,new,stoxx600_sx_full_q3_dividend,DPS 1Y Growth NTM,revision|pmom|q3|dividend,0.25
+stoxx600,new,stoxx600_sx_full_q6_dividend,EPS Revision Ratio,revision|pmom|q6|dividend,0.25
+stoxx600,new,stoxx600_sx_full_q6_dividend,PMOM 12M1M,revision|pmom|q6|dividend,0.25
+stoxx600,new,stoxx600_sx_full_q6_dividend,Oper Margin directional_delta lag6,revision|pmom|q6|dividend,0.25
+stoxx600,new,stoxx600_sx_full_q6_dividend,DPS 1Y Growth NTM,revision|pmom|q6|dividend,0.25
+stoxx600,new,stoxx600_sx_full_q12_dividend,EPS Revision Ratio,revision|pmom|q12|dividend,0.25
+stoxx600,new,stoxx600_sx_full_q12_dividend,PMOM 12M1M,revision|pmom|q12|dividend,0.25
+stoxx600,new,stoxx600_sx_full_q12_dividend,Oper Margin directional_delta lag12,revision|pmom|q12|dividend,0.25
+stoxx600,new,stoxx600_sx_full_q12_dividend,DPS 1Y Growth NTM,revision|pmom|q12|dividend,0.25
+stoxx600,new,stoxx600_relrank_quality_roe_avg_fy0_lag6_score,ROE avg FY0 score_delta lag6,ROE avg FY0,1.0
+stoxx600,new,stoxx600_reldelta_quality_roe_avg_fy0_lag6_score,ROE avg FY0 directional_delta lag6,ROE avg FY0,1.0
+stoxx600,new,stoxx600_relrank_quality_oper_margin_lag6_score,Oper Margin score_delta lag6,Oper Margin,1.0
+stoxx600,new,stoxx600_reldelta_value_pb_ltm_lag6_score,PB LTM directional_delta lag6,PB LTM,1.0
+stoxx600,new,stoxx600_relrank_value_pb_ltm_lag6_score,PB LTM score_delta lag6,PB LTM,1.0
+stoxx600,new,stoxx600_reldelta_value_ev_to_ebitda_ntm_lag6_score,EV To EBITDA NTM directional_delta lag6,EV To EBITDA NTM,1.0

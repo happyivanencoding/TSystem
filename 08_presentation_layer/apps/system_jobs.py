@@ -18,6 +18,7 @@ QUEUE_NAME = "tp_dashboard_local"
 _JOB_QUEUE: queue.Queue[dict[str, Any]] = queue.Queue()
 _WORKER_LOCK = threading.Lock()
 _WORKER_THREAD: threading.Thread | None = None
+_LATEST_RECORD_LOCK = threading.RLock()
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -64,16 +65,18 @@ def _write_record(
     text = json.dumps(record, ensure_ascii=False, indent=2)
     record_path.write_text(text, encoding="utf-8")
     if update_latest:
-        latest_record_path.write_text(text, encoding="utf-8")
+        with _LATEST_RECORD_LOCK:
+            latest_record_path.write_text(text, encoding="utf-8")
 
 
 def _write_worker_record(record: dict[str, Any], record_path: Path, latest_record_path: Path) -> None:
-    _write_record(
-        record,
-        record_path,
-        latest_record_path,
-        update_latest=_should_update_latest(latest_record_path, record),
-    )
+    with _LATEST_RECORD_LOCK:
+        _write_record(
+            record,
+            record_path,
+            latest_record_path,
+            update_latest=_should_update_latest(latest_record_path, record),
+        )
 
 
 def _worker_id() -> str:

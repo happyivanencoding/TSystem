@@ -93,6 +93,41 @@ coverage-blocked/skipped，并在 gate 中明确失败。
 - `leave_one_out_results.csv`
 - `synergy_claims.csv`
 
+### 历史 out-of-period / leave-one-period-out 验证
+
+跨 regime 稳健性研究默认使用预先定义的连续经济时期做
+leave-one-period-out（LOPO/LORO），不能随机打散月份：
+
+- 每一折只用其余时期计算 gate、排序和候选选择；被留出的时期只做
+  holdout 评价，不能参与阈值、权重或变量选择。
+- 每个 holdout 必须同时有足够的历史 benchmark/signal 快照，以及候选
+  实际形成证券列表的日期。只有 NAV 连续、但证券列表沿旧持仓漂移的时期
+  不构成该 regime 的因子验证证据。
+- 时期定义、最少快照数、最少 formation 数和 coverage 门槛必须在运行前
+  固定，并写入 `regime_definitions.csv` 和 manifest。
+- 候选 registry 必须冻结 definition、来源 run、输入 fingerprint 和
+  trial ledger。用全历史发现候选后再做 LOPO 仍有 selection bias，只能称
+  “历史阻塞验证”，不能称真正未来 OOS。
+- 2020 前后比较是描述性 regime-break 诊断；不能用该比较反向挑选候选，
+  再把同一时期当独立检验。
+- DSR 的 trial count 至少覆盖该市场本轮能够恢复的所有 documented
+  candidate，不是只数最终赢家；未留档的人工尝试仍是残余数据挖掘风险。
+- 跨时期 synergy 除单腿 gate、组合 official Top/Worst 和逐变量 LOO 外，
+  还要求 training-only 选择后的组合在 holdout 相对最好单腿有可重复的
+  正改善。未通过时只能称 additive、redundant、harmful 或待验证。
+
+LOPO/LORO 运行至少保留：
+
+- `regime_definitions.csv`
+- `candidate_registry.csv`
+- `candidate_period_metrics.csv`
+- `all_leave_one_period_out_results.csv`
+- `single_lopo_results.csv` / `combination_lopo_results.csv`
+- `single_lopo_selection_summary.csv` / `combination_lopo_selection_summary.csv`
+- `single_pre_post_2020_metrics.csv`
+- `synergy_lopo_evidence.csv` / `synergy_lopo_summary.csv`
+- `deflated_sharpe_results.csv`
+
 ### 大矩阵 official 回测执行规则
 
 长矩阵 official 回测应支持恢复和并行，但不能牺牲证据口径：

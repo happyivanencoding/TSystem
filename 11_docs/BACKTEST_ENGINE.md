@@ -107,6 +107,12 @@ result = calculate_return_series_nav(
 - worker 内复用月度技术底表和 benchmark NAV；
 - 大矩阵使用可 resume 的进程级分片和 unique wave 目录。
 
+多市场研究应按内存预算调度，不能把各市场 worker 数简单相加后并发启动。
+2026-07-25 在 32 logical CPU / 64GB 主机上，三个市场同时启动 18 个
+official workers 会耗尽内存；lag6 补充研究的稳定配置为市场间串行，
+Nasdaq/S&P 500/Europe Small 市场内分别使用 4/4/3 个进程。并行度必须
+通过完整 artifact 流程实测，失败 shard 保留审计，resume 只补缺口。
+
 禁止默认启用 float downcast、近似 rank、改变复利顺序或缓存键不完整的
 优化。新优化必须先通过 official exact artifact gate。
 

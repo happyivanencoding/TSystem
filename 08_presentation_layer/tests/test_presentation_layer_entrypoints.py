@@ -98,6 +98,7 @@ def test_system_dashboard_factory_imports_without_loading_data() -> None:
     assert "/client/index.html" in routes
     assert "/client/assets/<path:filename>" in routes
     assert "/reports/factor-explorer.html" in routes
+    assert "/reports/factor-research-app.html" in routes
 
 
 def test_system_dashboard_serves_react_client_dist(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -142,6 +143,23 @@ def test_system_dashboard_serves_factor_explorer_report(tmp_path: Path, monkeypa
     response = dashboard.create_app().server.test_client().get("/reports/factor-explorer.html")
     assert response.status_code == 200
     assert "多因子表现" in response.data.decode("utf-8")
+
+
+def test_system_dashboard_serves_factor_research_app(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from presentation_layer.apps import system_dashboard as dashboard
+
+    report_path = tmp_path / "factor-research-app.html"
+    report_path.write_text("<title>TP 四市场因子研究</title>", encoding="utf-8")
+    monkeypatch.setattr(dashboard, "FACTOR_RESEARCH_APP_PATH", report_path)
+
+    response = dashboard.create_app().server.test_client().get(
+        "/reports/factor-research-app.html"
+    )
+    assert response.status_code == 200
+    assert "TP 四市场因子研究" in response.data.decode("utf-8")
 
 
 def test_latest_market_brief_candidates_include_current_briefings(

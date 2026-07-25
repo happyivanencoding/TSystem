@@ -52,7 +52,11 @@ synergy 研究按范围写：
 - Absolute level variables should get same-security relative variants before family construction:
   - `directional_delta`: direction-normalized level change, then winsorize and neutral rank.
   - `score_delta`: neutralized score change, then neutral rank.
-  - default lags: `1,3,12` screen observations.
+  - default lags: `1,3,6,12` screen observations. Preserve historical
+    `1,3,12` runs and add lag 6 in a new immutable run.
+- Different lags of the same raw field are mutually exclusive alternatives by
+  default. Sparse candidates must not stack them unless a lag-term-structure
+  interaction was explicitly preregistered.
 - Do not mechanically relative-transform growth, revision, price momentum, total return, CAGR, or other change-like fields unless researching second-order changes.
 - A relative variant is a new raw variable. It does not inherit the original level variable's pass/fail status.
 
@@ -76,11 +80,20 @@ synergy 研究按范围写：
   reimplement these semantics.
 - A requested metric with no result rows remains in the gate and fails both
   official sides; missing work must never disappear from the gate table.
+- When no month meets both minimum coverage and disjoint Top/Worst construction,
+  write coverage-blocked/skipped records for both sides and retain the failed
+  metric in the gate. Never force overlapping Top/Worst portfolios.
 - For large matrices, prefer process-level sharding, not Python threads.
 - Each worker must write an independent shard CSV and official run root.
 - Parent process must merge and dedupe shard results, then regenerate summary, gate, plots, report, and manifest.
 - Every restart must use a unique wave directory for shard CSVs; never overwrite previous shard outputs.
 - Keep official run roots short on Windows to avoid path-length failures from long metric names.
+- If a scheduled rebalance month has no real benchmark or signal snapshot,
+  do not forward-fill scores, copy target weights as a new rebalance, or
+  synthesize a portfolio. Existing holdings must remain unchanged in name and
+  drift with realized returns until the next real snapshot. Before the first
+  valid portfolio, remain uninvested. Record the missing date and policy in the
+  audit and manifest.
 - Prune Parquet inputs before materialization: load only the shard's metric columns plus official technical columns, then load only return columns whose SEDOL appears in the benchmark research screen.
 - Prepare immutable screen and returns objects once per worker. Reuse monthly technical bases and benchmark NAV only inside that worker, with cache keys that cover every portfolio-construction parameter that can change the result.
 - Disable monthly-base reuse for state-dependent recommendation frames, `Multi Avg Percentile`, financial filters, or any configuration not represented in the cache key.
@@ -114,6 +127,9 @@ synergy 研究按范围写：
   optimizer artifact must include `optimizer_id`, `optimizer_version`,
   `optimizer_objective`, solver, objective policy, and constraint policy.
 - Every official manifest must record `engine_id`, `engine_version`, and the date execution policy.
+- Missing-rebalance validation must compare security sets before and after the
+  gap, prove that weights changed through drift while remaining normalized,
+  and persist the check as an artifact. NAV continuity alone is insufficient.
 - Legacy engine modules and class names must not exist in active code or public exports. Any old import found by repository scan is a release blocker.
 
 ## Reporting Rules

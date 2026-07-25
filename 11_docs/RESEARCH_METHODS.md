@@ -50,7 +50,7 @@
 | `directional_delta` | 方向调整后的 raw level 减同一证券 lagged level，再 winsorize + neutral rank | 利润率改善、ROE 改善、杠杆下降、估值变便宜、派息压力下降、波动下降 |
 | `score_delta` | 当前 neutralized score 减同一证券 lagged score，再 neutral rank | 行业内排名改善 |
 
-默认 lag 为 `1, 3, 12` 个 screen observation。变量若本身已经是 growth、revision、momentum、return、CAGR 或 change-like 字段，不应机械再做二阶变化，除非研究问题明确需要。
+默认 lag 为 `1, 3, 6, 12` 个 screen observation。历史上预注册为 `1,3,12` 的 run 保持冻结，补测 lag6 时必须新建 run，不覆盖旧结果。同一个 raw variable 的不同 lag 默认是互斥的信号定义，稀疏组合中不得同时堆叠；只有明确预注册为期限结构或自相关交互研究时才允许例外。变量若本身已经是 growth、revision、momentum、return、CAGR 或 change-like 字段，不应机械再做二阶变化，除非研究问题明确需要。
 
 相对变量必须作为新的 raw variable 经过同一 official Top/Worst gate。运行产物至少包括：
 
@@ -60,6 +60,10 @@
 - `official_run_results.csv`
 - `performance_summary.csv`
 - 中文研究结论，说明经济含义和不能过度声明的边界。
+
+若某变量没有任何月份同时满足最低 coverage 与 Top/Worst 组合互斥条件，
+不得强行回测或把它从候选表删除。应将 Top、Worst 两侧记录为
+coverage-blocked/skipped，并在 gate 中明确失败。
 
 ### 协同证据
 
@@ -99,6 +103,10 @@
 - 每次 restart 使用唯一 wave 目录，避免覆盖上一轮 shard CSV。
 - Windows 下保持 official run root 短路径，防止长 metric name 导致 artifact path 过长。
 - 中断后先读取主结果和所有 shard/wave 结果，再只补缺口。
+- 计划调仓月缺少真实 benchmark 或 signal snapshot 时，不得前向填充
+  signal、复制上月目标权重或合成一次新调仓。若已有组合，沿用上一期证券
+  并按实际收益漂移，直到下一个真实快照；若尚未形成首期组合，则保持未
+  投资状态。缺失月份、处理方式和验证结果必须进入 audit/manifest。
 - worker 应在 Parquet 读取层只加载本 shard 的 metric 列、组合构建技术列，以及历史 benchmark 成分股实际出现过的 returns 列；不得先读全宽表再裁剪。
 - 同一 worker 内应只准备一次 screen/returns，并复用与 metric 无关的月度技术底表和 benchmark NAV。只有输入只读、缓存键覆盖 benchmark、日期、权重、中性化、分位数和推荐参数时才允许复用。
 - shard 应尽量包含多个 metric，使 Top/Worst 和后续 metric 能复用月度底表与 benchmark；worker 数量不能超过待测 metric 数。
@@ -125,6 +133,8 @@
 - sector、regime、news 等已有聚合收益序列的研究使用
   `calculate_return_series_nav()`，不得强行进入证券级引擎。
 - official manifest 必须记录 `engine_id`、`engine_version` 和日期执行口径。活动代码不得恢复 `BacktestEngine.py`、`core.backtest_engine` 或 `BacktestEngineOptimized`。
+- missing-rebalance audit 至少验证上一有效期与缺失期后的持仓证券集合相同、
+  权重因实际收益发生漂移、权重和保持 1；不能只以 NAV 连续作为证明。
 - 权重变换统一使用 `tp_core.portfolio_weights`。顺序为原始权重、日期内
   归一、行业目标匹配、行业内硬封顶并保持行业总权重；不可行的单股上限
   必须报错。

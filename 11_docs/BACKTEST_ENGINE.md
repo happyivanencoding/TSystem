@@ -75,6 +75,11 @@ official Top/Worst 默认口径：
 - 初始 NAV 为 100；
 - 缺失证券收益按 0 处理；
 - 每个交易日按收益漂移权重。
+- 计划调仓月缺少真实 benchmark 或 signal snapshot 时，不产生调仓事件，
+  不前向填充 signal，也不把上一期目标权重重新施加一次；已有持仓继续按
+  实际收益漂移到下一个真实快照。首个有效组合之前若缺快照，则保持未投资。
+- missing-rebalance artifact 必须证明缺口前后证券集合相同、权重发生漂移且
+  归一化，并把日期与执行规则写入 manifest。
 
 需要“第一个交易日开盘即生效”的研究必须显式使用
 `apply_weights_at_close=False`。low-vol 研究保留这一历史口径。

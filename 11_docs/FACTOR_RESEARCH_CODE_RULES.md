@@ -74,6 +74,13 @@ synergy 研究按范围写：
 - Parent process must merge and dedupe shard results, then regenerate summary, gate, plots, report, and manifest.
 - Every restart must use a unique wave directory for shard CSVs; never overwrite previous shard outputs.
 - Keep official run roots short on Windows to avoid path-length failures from long metric names.
+- Prune Parquet inputs before materialization: load only the shard's metric columns plus official technical columns, then load only return columns whose SEDOL appears in the benchmark research screen.
+- Prepare immutable screen and returns objects once per worker. Reuse monthly technical bases and benchmark NAV only inside that worker, with cache keys that cover every portfolio-construction parameter that can change the result.
+- Disable monthly-base reuse for state-dependent recommendation frames, `Multi Avg Percentile`, financial filters, or any configuration not represented in the cache key.
+- Keep several metrics in each shard when possible so Top/Worst and later metrics amortize input preparation and benchmark work. Never create more non-empty workers than metrics.
+- Choose process count from an end-to-end benchmark on the target workstation. STOXX600 defaults to 8 workers on the current 32-logical-CPU, 64GB host and remains CLI-overridable.
+- Before accepting an official-engine optimization, require exact DataFrame equality for representative cached and uncached `sec_list`, `perf_ptf`, and `perf_bench` artifacts, including Top and Worst. CAGR-level agreement is insufficient.
+- Record wall time, successful run count, input dimensions, and per-worker memory for the benchmark. Performance changes must preserve the official artifact schema and research gate.
 
 ## Reporting Rules
 
@@ -92,4 +99,3 @@ For synergy, reports must explicitly say when evidence is insufficient and avoid
 ## Promotion Rule
 
 Research scripts do not change production screen, signal, dashboard, model, or portfolio contracts. Promotion requires a separate user request and a production-refresh/control workflow.
-

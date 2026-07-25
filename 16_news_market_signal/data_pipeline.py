@@ -172,6 +172,11 @@ def normalize_events(raw: pd.DataFrame, *, market: str | None = None, source_era
     available = pd.to_datetime(out["available_at_utc"], utc=True, errors="coerce")
     precise_default = out["published_at_utc"]
     conservative_day_default = out["published_at_utc"].dt.normalize() + pd.Timedelta(days=1)
+    gdelt_v1_day = out["date_precision"].eq("day") & out["source_era"].astype(str).str.startswith("gdelt_v1")
+    conservative_day_default += pd.to_timedelta(
+        gdelt_v1_day.astype(int) * config.GDELT_V1_DAILY_RELEASE_UTC_HOUR,
+        unit="h",
+    )
     default_available = precise_default.where(out["date_precision"].ne("day"), conservative_day_default)
     out["available_at_utc"] = available.fillna(default_available)
 

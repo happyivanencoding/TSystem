@@ -99,6 +99,12 @@
 - 每次 restart 使用唯一 wave 目录，避免覆盖上一轮 shard CSV。
 - Windows 下保持 official run root 短路径，防止长 metric name 导致 artifact path 过长。
 - 中断后先读取主结果和所有 shard/wave 结果，再只补缺口。
+- worker 应在 Parquet 读取层只加载本 shard 的 metric 列、组合构建技术列，以及历史 benchmark 成分股实际出现过的 returns 列；不得先读全宽表再裁剪。
+- 同一 worker 内应只准备一次 screen/returns，并复用与 metric 无关的月度技术底表和 benchmark NAV。只有输入只读、缓存键覆盖 benchmark、日期、权重、中性化、分位数和推荐参数时才允许复用。
+- shard 应尽量包含多个 metric，使 Top/Worst 和后续 metric 能复用月度底表与 benchmark；worker 数量不能超过待测 metric 数。
+- 并行度必须在目标机器上用完整 official artifact 流程实测。当前 32 logical CPU / 64GB 工作站的 STOXX600 长矩阵默认使用 8 个进程，内存紧张或同时运行其他任务时应显式下调。
+- 任何性能优化进入 official 路径前，必须用既有 official 产物逐值核对 `sec_list`、`perf_ptf`、`perf_bench`，至少覆盖 Top、Worst 和跨 metric 缓存命中；只比较最终 CAGR 或图形不构成等价证明。
+- 性能记录至少包含端到端 wall time、成功运行数、screen/returns 裁剪前后维度和单 worker 内存。速度提升不能改变 gate、持仓、权重、净值或 artifact contract。
 
 ## Regime 模型
 

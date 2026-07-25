@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
+from urllib.error import HTTPError
 
 import numpy as np
 import pandas as pd
@@ -15,6 +17,32 @@ import config
 import data_pipeline
 import gdelt
 import research
+
+
+def test_direct_ingest_records_source_gaps_and_continues(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(
+        gdelt,
+        "direct_archives",
+        lambda *_: ["20240101.export.CSV.zip", "20240103.export.CSV.zip"],
+    )
+
+    def missing_archive(url: str, **_: object) -> None:
+        raise HTTPError(url, 404, "Not Found", None, None)
+
+    monkeypatch.setattr(gdelt, "urlopen", missing_archive)
+    result = gdelt.ingest_direct_archives(
+        "2024-01-01",
+        "2024-01-04",
+        ["US"],
+        entity_history_path=tmp_path / "missing.parquet",
+    )
+    manifest = json.loads((tmp_path / "direct_ingest_manifest.json").read_text(encoding="utf-8"))
+
+    assert result["processed"] == 0
+    assert result["remaining"] == 0
+    assert result["source_gaps"] == 3
+    assert {row["status"] for row in manifest} == {"source_gap"}
 
 
 def _event_frame(**overrides: object) -> pd.DataFrame:
@@ -45,7 +73,7 @@ def test_gdelt_v1_day_precision_is_lagged_one_day() -> None:
     )
     event = data_pipeline.normalize_events(raw, market="US", source_era="gdelt_v1").iloc[0]
     assert event["published_at_utc"] == pd.Timestamp("2008-09-15", tz="UTC")
-    assert event["available_at_utc"] == pd.Timestamp("2008-09-16", tz="UTC")
+    assert event["available_at_utc"] == pd.Timestamp("2008-09-16 11:00", tz="UTC")
     assert event["date_precision"] == "day"
 
 
@@ -100,7 +128,7 @@ def test_day_precision_and_weekend_never_use_unknown_intraday_time() -> None:
         event,
         {"US": pd.DatetimeIndex(["2024-01-05", "2024-01-08", "2024-01-09"])},
     )
-    assert event.iloc[0]["available_at_utc"] == pd.Timestamp("2024-01-06", tz="UTC")
+    assert event.iloc[0]["available_at_utc"] == pd.Timestamp("2024-01-06 11:00", tz="UTC")
     assert assigned.iloc[0]["trading_date"] == pd.Timestamp("2024-01-08")
 
 
@@ -133,6 +161,23 @@ def test_manifest_coverage_distinguishes_quiet_day_from_unfilled_day(tmp_path: P
     assert filled_quiet["ingestion_covered"]
     assert filled_quiet["event_count"] == 0
     assert filled_quiet["quality_score"] == 0.5
+
+
+def test_daily_archive_release_maps_asia_to_the_next_session(tmp_path: Path) -> None:
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        '[{"archive":"20240102.export.CSV.zip","status":"complete"}]', encoding="utf-8"
+    )
+    calendars = {
+        market: pd.DatetimeIndex(["2024-01-03", "2024-01-04"])
+        for market in config.MARKETS
+    }
+    covered = gdelt.direct_covered_trading_dates(calendars, config.MARKETS, manifest)
+
+    assert covered["US"] == {pd.Timestamp("2024-01-03")}
+    assert covered["EU"] == {pd.Timestamp("2024-01-03")}
+    assert covered["JP"] == {pd.Timestamp("2024-01-04")}
+    assert covered["CN_HK"] == {pd.Timestamp("2024-01-04")}
 
 
 def test_incremental_daily_merge_replaces_only_newly_covered_dates() -> None:
@@ -229,7 +274,7 @@ def test_daily_archive_date_controls_first_availability_not_event_sqldate() -> N
     observed = gdelt._apply_archive_observation_date(raw, "20200312.export.CSV.zip")
     event = data_pipeline.normalize_events(observed, market="US", source_era="gdelt_v1_direct").iloc[0]
     assert event["published_at_utc"] == pd.Timestamp("2020-03-12", tz="UTC")
-    assert event["available_at_utc"] == pd.Timestamp("2020-03-13", tz="UTC")
+    assert event["available_at_utc"] == pd.Timestamp("2020-03-13 11:00", tz="UTC")
 
     monthly = gdelt._apply_archive_observation_date(raw, "200809.zip")
     assert "published_at_utc" not in monthly.columns
@@ -499,6 +544,34 @@ def test_causal_standardization_does_not_change_when_future_changes() -> None:
     changed.iloc[-1] = 1_000_000
     revised = research._causal_z(changed, min_periods=5)
     pd.testing.assert_series_equal(baseline.iloc[:-1], revised.iloc[:-1])
+
+
+def test_market_signal_fields_preserve_raw_forecast_direction() -> None:
+    dates = pd.bdate_range("2020-01-01", periods=63)
+    forecasts = np.r_[np.linspace(0.009, 0.011, 60), 0.001, 0.0, -0.001]
+    predictions = pd.DataFrame(
+        {
+            "trading_date": dates,
+            "market": "US",
+            "universe_is_proxy": False,
+            "coverage_score": 1.0,
+            "pred_target_excess_return_1d": forecasts,
+            "actual_target_excess_return_1d": 0.0,
+            "train_end_target_excess_return_1d": dates - pd.offsets.BDay(1),
+            "train_n_target_excess_return_1d": 756,
+        }
+    )
+
+    panel = research.build_market_signal_panel(predictions)
+    low_positive, zero, negative = panel.iloc[-3:].itertuples(index=False)
+
+    assert np.isclose(low_positive.forecast_bp, 10.0)
+    assert research._causal_z(pd.Series(forecasts)).iloc[-3] < 0
+    assert (low_positive.position, zero.position, negative.position) == (1, 0, -1)
+    assert low_positive.signal_strength > 0
+    assert zero.signal_strength == 0
+    assert negative.signal_strength < 0
+    assert set(panel["position"].dropna().astype(int)) == {-1, 0, 1}
 
 
 def test_sector_signal_top_worst_uses_current_news_and_future_label_only() -> None:

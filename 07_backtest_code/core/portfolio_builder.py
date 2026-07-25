@@ -48,7 +48,9 @@ class PortfolioBuilder:
         financial_filter_config: Optional[dict] = None,
         use_factor_ranking: bool = True,
         score_pivot_esg: Optional[Union[str, float]] = None,
-        score_pivot_esg_path: Optional[str] = None
+        score_pivot_esg_path: Optional[str] = None,
+        copy_inputs: bool = True,
+        monthly_base_cache: Optional[dict] = None,
     ):
         """
         初始化投资组合构建器
@@ -124,6 +126,7 @@ class PortfolioBuilder:
         self.use_factor_ranking = use_factor_ranking
         self.score_pivot_esg_path = score_pivot_esg_path
         self.score_pivot_esg = self._resolve_score_pivot_esg(score_pivot_esg, score_pivot_esg_path)
+        self.monthly_base_cache = monthly_base_cache
         
         # 初始化结果容器
         self.sec_list_monthly = None
@@ -140,9 +143,17 @@ class PortfolioBuilder:
         if isinstance(screen, str):
             self.screen = pd.read_parquet(screen)
         elif isinstance(screen, pd.DataFrame):
-            self.screen = copy.deepcopy(screen)
+            self.screen = copy.deepcopy(screen) if copy_inputs else screen
         else:
             raise TypeError("screen必须是字符串或DataFrame")
+
+        if self.monthly_base_cache is not None:
+            if not isinstance(self.monthly_base_cache, dict):
+                raise TypeError("monthly_base_cache必须是字典或None")
+            source_id = id(self.screen)
+            if self.monthly_base_cache.get("_source_id") != source_id:
+                self.monthly_base_cache.clear()
+                self.monthly_base_cache["_source_id"] = source_id
         
         # 处理建议
         if reco_secto is None:
@@ -297,24 +308,69 @@ class PortfolioBuilder:
         Neutralize scores by sector using rank percentile.
         """
         df = df.copy()
-        df.loc[:, list_score_col] = df[list_score_col].rank(pct=True)
-        df.loc[:, list_score_col] = (df[list_score_col] - df[list_score_col].min()) / \
-                                    (df[list_score_col].max() - df[list_score_col].min())
+        scores = df[list_score_col].astype(float).rank(pct=True)
+        scores = (scores - scores.min()) / (scores.max() - scores.min())
         
         if self.score_neutral == "ICB 11":
             sector_col = COL_SECTOR_ICB11
         elif self.score_neutral == "ICB 19":
             sector_col = COL_SECTOR_ICB19
         else:
+            df.loc[:, list_score_col] = scores
             return df
-        
-        for secto in df[sector_col].unique():
-            mask = df[sector_col] == secto
-            df.loc[mask, list_score_col] = df.loc[mask, list_score_col].rank(pct=True)
-            df.loc[mask, list_score_col] = (df.loc[mask, list_score_col] - df.loc[mask, list_score_col].min()) / \
-                                           (df.loc[mask, list_score_col].max() - df.loc[mask, list_score_col].min())
-        
+
+        sector_keys = df[sector_col]
+        valid_sectors = sector_keys.notna()
+        sector_scores = scores.loc[valid_sectors].groupby(
+            sector_keys.loc[valid_sectors]
+        ).rank(pct=True)
+        sector_min = sector_scores.groupby(
+            sector_keys.loc[valid_sectors]
+        ).transform("min")
+        sector_max = sector_scores.groupby(
+            sector_keys.loc[valid_sectors]
+        ).transform("max")
+        scores.loc[valid_sectors] = (
+            sector_scores - sector_min
+        ) / (sector_max - sector_min)
+        df.loc[:, list_score_col] = scores
         return df
+
+    def _monthly_base_cache_key(self, date: pd.Timestamp) -> Optional[tuple]:
+        """Return a reusable monthly preparation key when the setup is cache-safe."""
+        if self.monthly_base_cache is None:
+            return None
+        if not isinstance(self.reco_secto, list):
+            return None
+        if self.metrics == "Multi Avg Percentile":
+            return None
+        if self.financial_filter_config is not None:
+            return None
+        return (
+            pd.Timestamp(date),
+            self.bench,
+            self.ponderation,
+            float(self.cut_mkt_cap),
+            self.weight_neutral,
+            tuple(self.reco_secto),
+            float(self.percentile),
+        )
+
+    @staticmethod
+    def _score_source_for_cache(
+        source_screen: pd.DataFrame,
+        list_score_col: List[str],
+        target_index: pd.Index,
+    ) -> pd.DataFrame:
+        """Align current signal columns to a cached monthly universe."""
+        score_source = source_screen
+        if score_source.index.name != COL_ISIN and COL_ISIN in score_source.columns:
+            score_source = score_source.set_index(COL_ISIN)
+        if score_source.index.duplicated().any():
+            score_source = score_source.loc[
+                ~score_source.index.duplicated(keep="first")
+            ]
+        return score_source.loc[:, list_score_col].reindex(target_index)
     
     def get_portfolio_name(self, style: str) -> str:
         """
@@ -861,9 +917,11 @@ class PortfolioBuilder:
         """
         # Determine which screen to use
         if isinstance(screen_agg_monthly, pd.DataFrame):
-            screen = copy.deepcopy(screen_agg_monthly)
+            source_screen = screen_agg_monthly
         else:
-            screen = self.screen[self.screen[COL_DATE] == self.screen[COL_DATE].max()]
+            source_screen = self.screen[
+                self.screen[COL_DATE] == self.screen[COL_DATE].max()
+            ]
         
         # Handle metrics input
         if isinstance(self.metrics, str):
@@ -871,73 +929,138 @@ class PortfolioBuilder:
         else:
             list_score_col = self.metrics
         
-        # Get current date
-        date = pd.to_datetime(screen[COL_DATE].max())
-        
-        # Remove duplicates
-        if screen.index.duplicated().any():
-            screen = screen[~screen.index.duplicated(keep='first')]
-        
-        # Merge secondary tickers
-        screen = merge_ticker_secondaire(screen, self.bench)
-        
-        # Filter for benchmark securities
-        df = screen[screen[f'Weight in {self.bench}'] > 0]
-        list_exclusion_bench = screen.loc[~screen.index.isin(df.index)].index.tolist()
-        
-        # Determine number of securities to select
-        if self.percentile > 1:
-            nb_securities = self.percentile
+        raw_date = pd.to_datetime(source_screen[COL_DATE].max())
+        cache_key = self._monthly_base_cache_key(raw_date)
+        cached = (
+            self.monthly_base_cache.get(cache_key)
+            if cache_key is not None
+            else None
+        )
+        if cached is not None:
+            df = cached["df"].copy(deep=True)
+            score_values = self._score_source_for_cache(
+                source_screen,
+                list_score_col,
+                df.index,
+            )
+            df.loc[:, list_score_col] = score_values.to_numpy()
+            df.loc[
+                ~cached["eligible_market_cap"],
+                list_score_col,
+            ] = np.nan
+            date = cached["date"]
+            nb_securities = cached["nb_securities"]
+            weight_secto_bench = cached["weight_secto_bench"]
+            list_exclusion_bench = list(cached["list_exclusion_bench"])
+            list_exclusion_market_cut = list(
+                cached["list_exclusion_market_cut"]
+            )
         else:
-            nb_securities = round(len(df) * self.percentile)
-        
-        # Move to first day of next month
-        date += pd.offsets.MonthBegin(1)
-        
-        # Handle Multi Avg Percentile (composite factor)
-        if self.metrics == "Multi Avg Percentile":
-            if isinstance(self.reco_facto, list):
-                reco_facto = np.array(self.reco_facto)
-            elif isinstance(self.reco_facto, pd.DataFrame):
-                try:
-                    reco_facto = self.reco_facto.loc[date]
-                except:
-                    logger.error(f"{date} not in reco_facto")
-                    raise KeyError
-            
-            if reco_facto.sum() == 0:
-                reco_facto = np.array([0.2] * 5)
+            screen = copy.deepcopy(source_screen)
+            date = raw_date
+
+            if screen.index.duplicated().any():
+                screen = screen[~screen.index.duplicated(keep="first")]
+
+            screen = merge_ticker_secondaire(screen, self.bench)
+            df = screen[screen[f"Weight in {self.bench}"] > 0]
+            list_exclusion_bench = screen.loc[
+                ~screen.index.isin(df.index)
+            ].index.tolist()
+
+            if self.percentile > 1:
+                nb_securities = self.percentile
             else:
-                reco_facto = np.array(reco_facto / reco_facto.sum())
-            
-            list_style = ['Growth Avg Percentile', 'LowVol Avg Percentile', 
-                         'Mom Avg Percentile', 'Quality Avg Percentile', 'Value Avg Percentile']
-            df.loc[:, 'Multi Avg Percentile'] = df[list_style].dot(reco_facto)
-        
-        # Market cap is a weighting input, not a ranking requirement.
-        df = self._prepare_market_cap_for_weighting(df)
-        
-        # Market cap cut filter
-        df.loc[df[COL_MKT_CAP] <= self.cut_mkt_cap, list_score_col] = np.nan
-        list_exclusion_market_cut = df[df[COL_MKT_CAP] <= self.cut_mkt_cap].index.tolist()
-        
-        df = df.copy()
-        df.loc[:, COL_DATE] = date
-        
-        # Apply weighting scheme
-        df = WeightManager.apply_weighting_scheme(df, self.ponderation, COL_MKT_CAP)
-        
-        # Get sector recommendations
-        if isinstance(self.reco_secto, list):
-            reco_secto = copy.deepcopy(self.reco_secto)
-        elif isinstance(self.reco_secto, pd.DataFrame):
-            try:
-                reco_secto = self.reco_secto.loc[date].tolist()
-            except:
-                logger.error(f"{date} not in reco_secto")
-                raise KeyError
-        
-        weight_secto_bench = self.adjust_bench_weight_with_recommandation(df, reco_secto, date)
+                nb_securities = round(len(df) * self.percentile)
+
+            date += pd.offsets.MonthBegin(1)
+
+            if self.metrics == "Multi Avg Percentile":
+                if isinstance(self.reco_facto, list):
+                    reco_facto = np.array(self.reco_facto)
+                elif isinstance(self.reco_facto, pd.DataFrame):
+                    try:
+                        reco_facto = self.reco_facto.loc[date]
+                    except KeyError:
+                        logger.error(f"{date} not in reco_facto")
+                        raise
+
+                if reco_facto.sum() == 0:
+                    reco_facto = np.array([0.2] * 5)
+                else:
+                    reco_facto = np.array(reco_facto / reco_facto.sum())
+
+                list_style = [
+                    "Growth Avg Percentile",
+                    "LowVol Avg Percentile",
+                    "Mom Avg Percentile",
+                    "Quality Avg Percentile",
+                    "Value Avg Percentile",
+                ]
+                df.loc[:, "Multi Avg Percentile"] = df[list_style].dot(
+                    reco_facto
+                )
+
+            df = self._prepare_market_cap_for_weighting(df)
+            eligible_market_cap = (
+                df[COL_MKT_CAP] > self.cut_mkt_cap
+            ).to_numpy()
+            df.loc[~eligible_market_cap, list_score_col] = np.nan
+            list_exclusion_market_cut = df.loc[
+                ~eligible_market_cap
+            ].index.tolist()
+
+            df = df.copy()
+            df.loc[:, COL_DATE] = date
+            df = WeightManager.apply_weighting_scheme(
+                df,
+                self.ponderation,
+                COL_MKT_CAP,
+            )
+
+            if isinstance(self.reco_secto, list):
+                reco_secto = copy.deepcopy(self.reco_secto)
+            elif isinstance(self.reco_secto, pd.DataFrame):
+                try:
+                    reco_secto = self.reco_secto.loc[date].tolist()
+                except KeyError:
+                    logger.error(f"{date} not in reco_secto")
+                    raise
+
+            weight_secto_bench = self.adjust_bench_weight_with_recommandation(
+                df,
+                reco_secto,
+                date,
+            )
+            if cache_key is not None:
+                technical_columns = [
+                    COL_DATE,
+                    COL_MKT_CAP,
+                    COL_SECTOR_ICB11,
+                    COL_SECTOR_ICB19,
+                    COL_ESG_SCORE,
+                    f"Weight in {self.bench}",
+                ]
+                compact_base = df.loc[
+                    :,
+                    [column for column in technical_columns if column in df.columns],
+                ].copy(deep=True)
+                if isinstance(compact_base.index, pd.CategoricalIndex):
+                    compact_base.index = pd.Index(
+                        compact_base.index.astype(object),
+                        name=compact_base.index.name,
+                    )
+                self.monthly_base_cache[cache_key] = {
+                    "df": compact_base,
+                    "date": date,
+                    "nb_securities": nb_securities,
+                    "weight_secto_bench": weight_secto_bench.copy(),
+                    "eligible_market_cap": eligible_market_cap.copy(),
+                    "list_exclusion_bench": tuple(list_exclusion_bench),
+                    "list_exclusion_market_cut": tuple(
+                        list_exclusion_market_cut
+                    ),
+                }
         
         # Initialize exclusion dataframe (必须在任何筛选之前初始化)
         titles_excluded = pd.DataFrame(columns=[COL_DATE, "Raison Exclusion"])
@@ -1158,7 +1281,7 @@ class PortfolioBuilder:
         DataFrame
             Historical security lists
         """
-        screen_agg = copy.deepcopy(self.screen)
+        screen_agg = self.screen
         if isinstance(screen_agg, str):
             screen_agg = pd.read_parquet(screen_agg)
         
@@ -1173,7 +1296,9 @@ class PortfolioBuilder:
         logger.info(f"First screen_agg date: {self.start_date}")
         
         # Filter by start_date
-        screen_agg = screen_agg[screen_agg[COL_DATE] >= self.start_date]
+        screen_agg = screen_agg.loc[
+            screen_agg[COL_DATE] >= self.start_date
+        ]
         all_dates = sorted(screen_agg[COL_DATE].unique())
         
         if not all_dates:
@@ -1187,10 +1312,7 @@ class PortfolioBuilder:
         
         dates_to_keep = sorted(dates_to_keep)
         
-        # Create subsets for each date
-        screen_list = [screen_agg.loc[screen_agg[COL_DATE] == date_] for date_ in dates_to_keep]
-        
-        total = len(screen_list)
+        total = len(dates_to_keep)
         
         # Try to use tqdm for progress bar
         try:
@@ -1200,9 +1322,9 @@ class PortfolioBuilder:
             has_tqdm = False
         
         if has_tqdm:
-            iterator = tqdm(screen_list, desc="Generating security lists")
+            iterator = tqdm(dates_to_keep, desc="Generating security lists")
         else:
-            iterator = screen_list
+            iterator = dates_to_keep
             logger.info(f"Processing {total} monthly screens...")
         
         result_sec_list = []
@@ -1214,11 +1336,12 @@ class PortfolioBuilder:
         else:
             step = None
         
-        for i, screen in enumerate(iterator):
+        for i, date_ in enumerate(iterator):
             if step is not None:
                 if i % step == 0 or i == total - 1:
                     logger.info(f"Progress: {i+1}/{total} months ({(i+1)*100/total:.0f}%)")
-            
+
+            screen = screen_agg.loc[screen_agg[COL_DATE] == date_]
             result = self.sec_list_spot(screen_agg_monthly=screen)
             result_sec_list.append(result[0])
             result_exclusion.append(result[1])

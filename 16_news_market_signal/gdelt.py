@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
 from typing import Iterable
+from urllib.error import HTTPError
 from urllib.parse import unquote, urlparse
 from urllib.request import urlopen
 
@@ -292,7 +293,10 @@ def direct_covered_trading_dates(
     for market in result:
         calendar = pd.DatetimeIndex(calendars[market]).normalize().unique().sort_values()
         for source_day in source_days:
-            available = pd.Timestamp(source_day, tz="UTC") + pd.Timedelta(days=1)
+            available = pd.Timestamp(source_day, tz="UTC") + pd.Timedelta(
+                days=1,
+                hours=config.GDELT_V1_DAILY_RELEASE_UTC_HOUR,
+            )
             trading_date = data_pipeline._next_session(available, market, calendar)
             if pd.notna(trading_date):
                 result[market].add(pd.Timestamp(trading_date))
@@ -523,7 +527,27 @@ def ingest_direct_archives(
             row["archive"]: row
             for row in json.loads(manifest_path.read_text(encoding="utf-8"))
         }
-    all_pending = [name for name in archives if not (resume and manifest.get(name, {}).get("status") == "complete")]
+    lower = max(pd.Timestamp(start).normalize(), pd.Timestamp("2013-04-01"))
+    upper = min(
+        pd.Timestamp(end).normalize(),
+        pd.Timestamp.now(tz="UTC").normalize().tz_localize(None) - pd.Timedelta(days=2),
+    )
+    indexed = set(archives)
+    if lower < upper:
+        for source_day in pd.date_range(lower, upper, inclusive="left", freq="D"):
+            filename = f"{source_day:%Y%m%d}.export.CSV.zip"
+            if filename not in indexed and manifest.get(filename, {}).get("status") != "complete":
+                manifest[filename] = {
+                    "archive": filename,
+                    "status": "source_gap",
+                    "error": "missing_from_official_index",
+                    "processed_at": pd.Timestamp.now(tz="UTC").isoformat(),
+                }
+    terminal = {"complete", "source_gap"}
+    all_pending = [
+        name for name in archives
+        if not (resume and manifest.get(name, {}).get("status") in terminal)
+    ]
     pending = all_pending
     if max_files is not None:
         pending = pending[:max_files]
@@ -531,6 +555,7 @@ def ingest_direct_archives(
     cache_dir.mkdir(parents=True, exist_ok=True)
     entity_history = pd.read_parquet(entity_history_path) if entity_history_path.exists() else pd.DataFrame()
     processed = 0
+    attempted = 0
     event_rows = 0
     for filename in pending:
         temp_path = cache_dir / filename
@@ -568,6 +593,15 @@ def ingest_direct_archives(
                 "event_rows": len(normalized),
                 "processed_at": pd.Timestamp.now(tz="UTC").isoformat(),
             }
+        except HTTPError as exc:
+            if exc.code != 404:
+                raise
+            manifest[filename] = {
+                "archive": filename,
+                "status": "source_gap",
+                "error": f"HTTPError: {exc}",
+                "processed_at": pd.Timestamp.now(tz="UTC").isoformat(),
+            }
         except Exception as exc:
             manifest[filename] = {
                 "archive": filename,
@@ -577,6 +611,7 @@ def ingest_direct_archives(
             }
             raise
         finally:
+            attempted += 1
             if temp_path.exists():
                 temp_path.unlink()
             manifest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -587,7 +622,8 @@ def ingest_direct_archives(
     return {
         "archives_in_range": len(archives),
         "processed": processed,
-        "remaining": max(0, len(all_pending) - processed),
+        "remaining": max(0, len(all_pending) - attempted),
+        "source_gaps": sum(row.get("status") == "source_gap" for row in manifest.values()),
         "event_rows": event_rows,
         "manifest": str(manifest_path),
     }

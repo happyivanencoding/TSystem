@@ -97,6 +97,12 @@ class BacktestService:
 
     def __init__(self) -> None:
         self._engine_module: ModuleType | None = None
+        self._prepared_screen_source_id: int | None = None
+        self._prepared_screen: pd.DataFrame | None = None
+        self._prepared_returns_source_id: int | None = None
+        self._prepared_returns: pd.DataFrame | None = None
+        self._monthly_base_cache: dict = {}
+        self._benchmark_cache: dict = {}
 
     def _project_root(self) -> Path:
         """Retourne la racine du projet."""
@@ -241,12 +247,39 @@ class BacktestService:
     def _prepare_screen_for_engine(self, screen_df: pd.DataFrame, engine_module: ModuleType) -> pd.DataFrame:
         """Prepare le screen avant instanciation du moteur."""
 
+        source_id = id(screen_df)
+        if (
+            self._prepared_screen_source_id == source_id
+            and self._prepared_screen is not None
+        ):
+            return self._prepared_screen
+
         frame = prepare_screen_dataframe(screen_df)
         if hasattr(engine_module, "drop_duplicates_keep_less_missing"):
             duplicate_mask = frame.reset_index().duplicated(subset=["ISIN", "Date"], keep=False)
             if duplicate_mask.any():
                 frame = engine_module.drop_duplicates_keep_less_missing(frame)
-        return normalise_screen_columns(frame)
+        prepared = normalise_screen_columns(frame)
+        self._prepared_screen_source_id = source_id
+        self._prepared_screen = prepared
+        self._monthly_base_cache.clear()
+        self._benchmark_cache.clear()
+        return prepared
+
+    def _prepare_returns_for_engine(self, returns_df: pd.DataFrame) -> pd.DataFrame:
+        """Prepare les rendements une seule fois pour un batch partage."""
+
+        source_id = id(returns_df)
+        if (
+            self._prepared_returns_source_id == source_id
+            and self._prepared_returns is not None
+        ):
+            return self._prepared_returns
+        prepared = prepare_returns_dataframe(returns_df)
+        self._prepared_returns_source_id = source_id
+        self._prepared_returns = prepared
+        self._benchmark_cache.clear()
+        return prepared
 
     def _create_artifact_container(self, run_dir: Path) -> RunArtifacts:
         """Instancie les chemins des artefacts standards."""
@@ -360,7 +393,7 @@ class BacktestService:
 
         engine_module = self._load_engine_module()
         prepared_screen = self._prepare_screen_for_engine(screen_df, engine_module)
-        prepared_returns = prepare_returns_dataframe(returns_df)
+        prepared_returns = self._prepare_returns_for_engine(returns_df)
 
         relay = _StreamRelay(
             lambda line: self._emit(
@@ -403,6 +436,9 @@ class BacktestService:
                     cap_weight_threshold=settings.run.cap_weight_threshold,
                     score_pivot_esg=self._parse_score_pivot(settings.run.score_pivot_esg),
                     score_pivot_esg_path=settings.paths.score_pivot_esg_path or None,
+                    copy_inputs=False,
+                    monthly_base_cache=self._monthly_base_cache,
+                    benchmark_cache=self._benchmark_cache,
                 )
 
                 builder.generic_histo_seclist(

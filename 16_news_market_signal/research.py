@@ -687,7 +687,10 @@ def build_market_signal_panel(predictions: pd.DataFrame) -> pd.DataFrame:
         if pred_column not in frame:
             continue
         part = frame.copy()
-        part["direction_score"] = part.groupby("market")[pred_column].transform(_causal_z)
+        part["forecast_bp"] = part[pred_column] * 10_000
+        part["position"] = np.sign(part[pred_column]).astype("Int8")
+        standardized = part.groupby("market")[pred_column].transform(_causal_z)
+        part["signal_strength"] = np.sign(part[pred_column]) * standardized.abs()
         coverage = pd.to_numeric(part.get("coverage_score", 0), errors="coerce").fillna(0).clip(0, 1)
         train_n = pd.to_numeric(part.get(f"train_n_{target}", 0), errors="coerce").fillna(0)
         part["confidence"] = ((0.25 + 0.75 * coverage) * (train_n / 756).clip(0, 1)).clip(0, 1)
@@ -706,7 +709,9 @@ def build_market_signal_panel(predictions: pd.DataFrame) -> pd.DataFrame:
                     "sector_code",
                     "signal_scope",
                     "horizon",
-                    "direction_score",
+                    "forecast_bp",
+                    "position",
+                    "signal_strength",
                     "risk_score",
                     "risk_state",
                     "sector_score",
@@ -766,7 +771,9 @@ def build_sector_signal_panel(
         part = merged.copy()
         part["signal_scope"] = "sector"
         part["horizon"] = f"{horizon}d"
-        part["direction_score"] = np.nan
+        part["forecast_bp"] = np.nan
+        part["position"] = pd.array([pd.NA] * len(part), dtype="Int8")
+        part["signal_strength"] = np.nan
         part["risk_score"] = np.nan
         part["risk_state"] = pd.NA
         part["model_version"] = "sector_news_rank_causal_v1"
@@ -779,7 +786,9 @@ def build_sector_signal_panel(
                     "sector_code",
                     "signal_scope",
                     "horizon",
-                    "direction_score",
+                    "forecast_bp",
+                    "position",
+                    "signal_strength",
                     "risk_score",
                     "risk_state",
                     "sector_score",

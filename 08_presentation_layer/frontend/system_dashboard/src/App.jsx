@@ -28,7 +28,7 @@ const MODULE_ORDER_STORAGE_KEY = 'tp-dashboard-module-order-v1'
 const DEFAULT_MODULE_ORDER = {
   market: ['brief'],
   production: ['overview', 'alerts', 'run-control', 'live-job', 'queue', 'core-database', 'project-assets', 'pipeline-status', 'data-assets'],
-  results: ['regime', 'country', 'small-cap', 'sector', 'score-ml', 'factor-explorer'],
+  results: ['regime', 'country', 'sector', 'score-ml', 'factor-explorer'],
   technical: ['latest'],
 }
 const NAV_SECTIONS = [
@@ -47,7 +47,6 @@ const NAV_SECTIONS = [
     modules: [
       ['regime', 'Regime', '市场状态识别'],
       ['country', 'Country', '国家与区域评分'],
-      ['small-cap', 'Small Cap', '欧洲小盘多因子'],
       ['sector', 'Sector', '行业推荐'],
       ['score-ml', 'Score ML', '组合成分对比'],
       ['factor-explorer', '多因子表现', '四市场新旧模型回测与解释'],
@@ -207,19 +206,6 @@ const EMPTY_DASHBOARD_STATE = {
       history: [],
       single_country_rows: [],
       single_country_history: [],
-      message: '',
-    },
-    small_cap: {
-      status: 'missing',
-      latest_date: '',
-      updated_at: '',
-      signal_path: '',
-      panel_path: '',
-      summary_path: '',
-      rows: [],
-      worst_rows: [],
-      factor_rows: [],
-      summary: {},
       message: '',
     },
     sector: {
@@ -1388,12 +1374,6 @@ function App() {
         label: 'Country model 刷新',
         pendingStep: 'signal:country_model',
       },
-      smallCap: {
-        endpoint: '/api/dashboard/jobs/signals/small-cap',
-        payload: {},
-        label: 'Small-cap model 刷新',
-        pendingStep: 'signal:small_cap_model',
-      },
     }
     const target = targets[kind]
     setSubmitting(kind)
@@ -1537,58 +1517,6 @@ function App() {
       })),
     [countrySignal],
   )
-  const smallCapSignal = dashboardState.signals?.small_cap || EMPTY_DASHBOARD_STATE.signals.small_cap
-  const smallCapTopRows = useMemo(
-    () =>
-      (smallCapSignal.rows || []).map((item) => ({
-        Name: item.Name,
-        score: item.score,
-        rank: item.rank,
-        bucket: item.bucket,
-        LowVol: item.LowVol,
-        Quality: item.Quality,
-        Value: item.Value,
-        Momentum: item.Momentum,
-        Growth: item.Growth,
-        Dividend: item.Dividend,
-        Weight: item.Weight,
-        Country: item.Country,
-        Sector: item.Sector,
-        ISIN: item.ISIN,
-      })),
-    [smallCapSignal],
-  )
-  const smallCapWorstRows = useMemo(
-    () =>
-      (smallCapSignal.worst_rows || []).map((item) => ({
-        Name: item.Name,
-        score: item.score,
-        rank: item.rank,
-        bucket: item.bucket,
-        LowVol: item.LowVol,
-        Quality: item.Quality,
-        Value: item.Value,
-        Momentum: item.Momentum,
-        Growth: item.Growth,
-        Dividend: item.Dividend,
-        Weight: item.Weight,
-        Country: item.Country,
-        Sector: item.Sector,
-        ISIN: item.ISIN,
-      })),
-    [smallCapSignal],
-  )
-  const smallCapFactorRows = useMemo(
-    () =>
-      (smallCapSignal.factor_rows || []).map((item) => ({
-        factor: item.factor,
-        avg: item.avg,
-        coverage: item.coverage,
-        'Top avg': item.top_avg,
-        'Worst avg': item.worst_avg,
-      })),
-    [smallCapSignal],
-  )
   const sectorSignal = dashboardState.signals?.sector || EMPTY_DASHBOARD_STATE.signals.sector
   const sectorMarkets = sectorSignal.markets || []
   const sectorVisualRows = sectorSignal.rows || []
@@ -1706,16 +1634,6 @@ function App() {
       )
     }
     if (column.includes('状态')) return <StatusPill value={row[column]} />
-    return cellText(row[column])
-  }
-  const renderSmallCapCell = (column, row) => {
-    if (column === 'Name' && row.ISIN) {
-      return (
-        <button className="tp-table-link" onClick={() => openCompanyDetail(row)} type="button">
-          {cellText(row.Name)}
-        </button>
-      )
-    }
     return cellText(row[column])
   }
   const activeSection = NAV_SECTIONS.find((section) => section.page === activePage) || NAV_SECTIONS[0]
@@ -2112,98 +2030,6 @@ function App() {
             </div>
             <div className="tp-panel-note">最近历史</div>
             <DataTable columns={['region', '月份', 'score', 'rank', 'recommendation']} limit={10} rows={countryHistoryRows} />
-          </div>
-
-          <div className={panelClass('results', 'small-cap', 'tp-wide-panel')} {...moduleDragProps('results', 'small-cap')}>
-            <div className="tp-panel-heading">
-              <div>
-                <p className="tp-kicker">Signals / Small Cap</p>
-                <h2 className="tp-heading-icon"><ShieldCheck size={18} />Europe small-cap defensive tilt</h2>
-              </div>
-              <button
-                aria-busy={submitting === 'smallCap' ? 'true' : 'false'}
-                className="tp-icon-button"
-                disabled={isBusy}
-                onClick={() => launchJob('smallCap')}
-                type="button"
-              >
-                <RefreshCw className={submitting === 'smallCap' ? 'tp-spin' : ''} size={18} />
-                <span>刷新 Small Cap</span>
-              </button>
-            </div>
-            <div className="tp-country-status-row">
-              <div>
-                <span>最新月份</span>
-                <strong>{smallCapSignal.latest_date || 'N/A'}</strong>
-              </div>
-              <div>
-                <span>状态</span>
-                <strong>{smallCapSignal.status || 'N/A'}</strong>
-              </div>
-              <div>
-                <span>Rows</span>
-                <strong>{smallCapSignal.summary?.latest_rows || smallCapTopRows.length || 'N/A'}</strong>
-              </div>
-              <div>
-                <span>Coverage</span>
-                <strong>{smallCapSignal.summary?.latest_coverage ? `${(smallCapSignal.summary.latest_coverage * 100).toFixed(1)}%` : 'N/A'}</strong>
-              </div>
-              <div>
-                <span>Updated</span>
-                <strong>{smallCapSignal.updated_at || 'N/A'}</strong>
-              </div>
-            </div>
-            <div className="tp-panel-note">
-              {smallCapSignal.message || 'N/A'} / {smallCapSignal.signal_path || 'N/A'} / {smallCapSignal.summary_path || 'N/A'}
-            </div>
-            <div className="tp-country-table-split">
-              <div>
-                <div className="tp-panel-note">子因子覆盖与 Top/Worst 均值</div>
-                <DataTable
-                  columns={['factor', 'avg', 'coverage', 'Top avg', 'Worst avg']}
-                  rows={smallCapFactorRows}
-                />
-              </div>
-              <div>
-                <div className="tp-panel-note">最终权重 / quality 40%, value 30%, momentum 30%；raw gate 后不含 lowvol</div>
-                <DataTable
-                  columns={['Name', 'score', 'rank', 'bucket', 'Quality', 'Value', 'Momentum', 'Weight', 'Country', 'Sector']}
-                  limit={8}
-                  renderCell={renderSmallCapCell}
-                  rows={smallCapTopRows}
-                />
-              </div>
-            </div>
-            <div className="tp-model-section">
-              <div className="tp-model-section-head">
-                <div>
-                  <p className="tp-kicker">Top / Worst evidence lens</p>
-                  <h3>Top 20 与 Worst 20 当前名单</h3>
-                </div>
-                <span>{smallCapSignal.panel_path || 'N/A'}</span>
-              </div>
-              <div className="tp-country-table-split">
-                <div>
-                  <div className="tp-panel-note">Top 20</div>
-                  <DataTable
-                    columns={['Name', 'score', 'rank', 'bucket', 'Quality', 'Value', 'Momentum', 'Weight', 'Country', 'Sector']}
-                    limit={20}
-                    renderCell={renderSmallCapCell}
-                    rows={smallCapTopRows}
-                  />
-                </div>
-                <div>
-                  <div className="tp-panel-note">Worst 20</div>
-                  <DataTable
-                    columns={['Name', 'score', 'rank', 'bucket', 'Quality', 'Value', 'Momentum', 'Weight', 'Country', 'Sector']}
-                    limit={20}
-                    renderCell={renderSmallCapCell}
-                    rows={smallCapWorstRows}
-                  />
-                </div>
-              </div>
-              {!smallCapTopRows.length && <div className="tp-empty">{smallCapSignal.message || '暂无 Small Cap 模型信号'}</div>}
-            </div>
           </div>
 
           <div className={panelClass('results', 'sector', 'tp-wide-panel')} {...moduleDragProps('results', 'sector')}>

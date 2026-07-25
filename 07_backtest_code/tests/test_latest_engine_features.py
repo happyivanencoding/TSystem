@@ -1,7 +1,9 @@
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+from pandas.testing import assert_frame_equal
 
 project_root = Path(__file__).resolve().parents[1]
 if str(project_root) not in sys.path:
@@ -9,6 +11,7 @@ if str(project_root) not in sys.path:
 
 from core.esg_pivot import resolve_esg_pivot_score
 from core.portfolio_builder import PortfolioBuilder
+from scripts.run_stoxx600_multifactor_research import load_official_worker_inputs
 from utils.constants import (
     COL_DATE,
     COL_ISIN,
@@ -191,3 +194,142 @@ def test_portfolio_builder_resolves_text_esg_pivot_threshold(tmp_path):
     )
 
     assert builder.score_pivot_esg == 55.0
+
+
+def test_vectorized_sector_neutralization_matches_legacy_algorithm():
+    sectors = np.repeat(np.arange(1, 20), 3)
+    screen = pd.DataFrame(
+        {
+            COL_ISIN: [f"ISIN{i:03d}" for i in range(len(sectors))],
+            COL_SEDOL: [f"SED{i:03d}" for i in range(len(sectors))],
+            COL_DATE: pd.Timestamp("2013-01-31"),
+            "Weight in TEST": 1.0 / len(sectors),
+            COL_MKT_CAP: np.arange(100.0, 100.0 + len(sectors)),
+            COL_SECTOR_ICB11: sectors,
+            COL_SECTOR_ICB19: sectors,
+            COL_ESG_SCORE: 75.0,
+            "score_a": np.sin(np.arange(len(sectors))) + np.arange(len(sectors)) / 100,
+            "score_b": np.cos(np.arange(len(sectors))) - np.arange(len(sectors)) / 200,
+        }
+    ).set_index(COL_ISIN)
+    builder = PortfolioBuilder(
+        screen=screen,
+        bench="TEST",
+        percentile=0.2,
+        metrics=["score_a", "score_b"],
+        copy_inputs=False,
+    )
+
+    expected = screen.copy()
+    score_columns = ["score_a", "score_b"]
+    scores = expected[score_columns].astype(float).rank(pct=True)
+    scores = (scores - scores.min()) / (scores.max() - scores.min())
+    for sector in expected[COL_SECTOR_ICB19].unique():
+        mask = expected[COL_SECTOR_ICB19] == sector
+        sector_scores = scores.loc[mask, score_columns].rank(pct=True)
+        sector_scores = (
+            sector_scores - sector_scores.min()
+        ) / (sector_scores.max() - sector_scores.min())
+        scores.loc[mask, score_columns] = sector_scores
+    expected.loc[:, score_columns] = scores
+
+    actual = builder.neutralise_score_by_secteur(screen, score_columns)
+
+    assert_frame_equal(actual, expected, check_exact=True)
+
+
+def test_monthly_base_cache_is_exact_across_scores_and_sides():
+    sectors = np.repeat(np.arange(1, 20), 3)
+    screen = pd.DataFrame(
+        {
+            COL_ISIN: [f"ISIN{i:03d}" for i in range(len(sectors))],
+            COL_SEDOL: [f"SED{i:03d}" for i in range(len(sectors))],
+            COL_DATE: pd.Timestamp("2013-01-31"),
+            "Weight in TEST": 1.0 / len(sectors),
+            COL_MKT_CAP: np.arange(100.0, 100.0 + len(sectors)),
+            COL_SECTOR_ICB11: sectors,
+            COL_SECTOR_ICB19: sectors,
+            COL_ESG_SCORE: 75.0,
+            "score_a": np.arange(len(sectors), dtype=float),
+            "score_b": np.sin(np.arange(len(sectors))) + np.arange(len(sectors)) / 100,
+        }
+    ).set_index(COL_ISIN)
+    cache = {}
+
+    warm_builder = PortfolioBuilder(
+        screen=screen,
+        bench="TEST",
+        percentile=0.2,
+        metrics="score_a",
+        ponderation="Market cap",
+        copy_inputs=False,
+        monthly_base_cache=cache,
+    )
+    warm_builder.sec_list_spot(screen)
+
+    for top, ptf_name in ((True, "TOP"), (False, "WORST")):
+        uncached_builder = PortfolioBuilder(
+            screen=screen,
+            bench="TEST",
+            percentile=0.2,
+            metrics="score_b",
+            ptf_name=ptf_name,
+            ponderation="Market cap",
+            Top=top,
+            copy_inputs=False,
+        )
+        cached_builder = PortfolioBuilder(
+            screen=screen,
+            bench="TEST",
+            percentile=0.2,
+            metrics="score_b",
+            ptf_name=ptf_name,
+            ponderation="Market cap",
+            Top=top,
+            copy_inputs=False,
+            monthly_base_cache=cache,
+        )
+
+        uncached_selection, uncached_exclusions = uncached_builder.sec_list_spot(screen)
+        cached_selection, cached_exclusions = cached_builder.sec_list_spot(screen)
+
+        assert_frame_equal(cached_selection, uncached_selection, check_exact=True)
+        assert_frame_equal(cached_exclusions, uncached_exclusions, check_exact=True)
+
+
+def test_official_worker_inputs_are_pruned_to_shard_universe(tmp_path):
+    screen_path = tmp_path / "screen.parquet"
+    returns_path = tmp_path / "returns.parquet"
+    screen = pd.DataFrame(
+        {
+            COL_DATE: [pd.Timestamp("2024-01-31")] * 2,
+            COL_ISIN: ["AAA", "BBB"],
+            COL_SEDOL: ["SED1", "SED2"],
+            COL_SECTOR_ICB19: [1, 2],
+            COL_MKT_CAP: [100.0, 200.0],
+            "Weight in STOXX EUROPE 600": [0.4, 0.6],
+            "score": [1.0, 2.0],
+            "unused_score": [3.0, 4.0],
+        }
+    )
+    returns = pd.DataFrame(
+        {
+            "SED1": [0.01, 0.02],
+            "SED2": [0.03, 0.04],
+            "UNUSED": [0.05, 0.06],
+        },
+        index=pd.to_datetime(["2024-02-01", "2024-02-02"]),
+    )
+    screen.to_parquet(screen_path, index=False)
+    returns.to_parquet(returns_path)
+
+    loaded_screen, loaded_returns = load_official_worker_inputs(
+        screen_path,
+        returns_path,
+        ["score"],
+    )
+
+    assert "score" in loaded_screen.columns
+    assert "unused_score" not in loaded_screen.columns
+    assert loaded_returns.columns.tolist() == ["SED1", "SED2"]
+    assert isinstance(loaded_returns.index, pd.DatetimeIndex)

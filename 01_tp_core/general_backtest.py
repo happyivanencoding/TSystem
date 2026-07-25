@@ -53,7 +53,7 @@ def load_returns(returns: str | Path | pd.DataFrame) -> pd.DataFrame:
     if isinstance(returns, (str, Path)):
         df_returns = pd.read_parquet(returns)
     elif isinstance(returns, pd.DataFrame):
-        df_returns = returns.copy()
+        df_returns = returns.copy(deep=False)
     else:
         raise TypeError("returns must be a parquet path or a pandas DataFrame")
 

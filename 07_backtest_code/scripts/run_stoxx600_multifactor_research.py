@@ -61,7 +61,81 @@ SEDOL_COL = "Company SEDOL"
 SECTOR_COL = " Benchmark ICB Supersector "
 MKT_CAP_COL = "Benchmark Market Value Millions in EUR"
 PERCENTILE = 0.2
+DEFAULT_PARALLEL_WORKERS = 8
 FAMILY_ORDER = ["growth", "value", "quality", "lowvol", "momentum", "dividend"]
+OFFICIAL_TECHNICAL_COLUMNS = (
+    DATE_COL,
+    ISIN_COL,
+    SEDOL_COL,
+    "Name",
+    SECTOR_COL,
+    " Benchmark ICB Industry ",
+    MKT_CAP_COL,
+    WEIGHT_COL,
+    "ESG_ANALYST_SCORE",
+)
+
+
+def load_official_worker_inputs(
+    screen_path: Path,
+    returns_path: Path,
+    metrics: Iterable[str],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load only the screen and return columns needed by one metric shard."""
+
+    metric_columns = list(dict.fromkeys(str(metric) for metric in metrics))
+    requested_screen_columns = list(
+        dict.fromkeys([*OFFICIAL_TECHNICAL_COLUMNS, *metric_columns])
+    )
+    if screen_path.suffix.lower() == ".parquet":
+        available_screen_columns = set(pq.ParquetFile(screen_path).schema.names)
+        missing_metrics = [
+            metric for metric in metric_columns if metric not in available_screen_columns
+        ]
+        if missing_metrics:
+            raise KeyError(f"Missing screen metrics: {missing_metrics}")
+        screen_columns = [
+            column
+            for column in requested_screen_columns
+            if column in available_screen_columns
+        ]
+        screen = pd.read_parquet(screen_path, columns=screen_columns)
+    else:
+        screen = load_tabular_file(screen_path)
+        missing_metrics = [
+            metric for metric in metric_columns if metric not in screen.columns
+        ]
+        if missing_metrics:
+            raise KeyError(f"Missing screen metrics: {missing_metrics}")
+        screen = screen.loc[
+            :,
+            [
+                column
+                for column in requested_screen_columns
+                if column in screen.columns
+            ],
+        ].copy()
+
+    sedols = set(
+        screen[SEDOL_COL]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .loc[lambda values: values.ne("")]
+    )
+    if returns_path.suffix.lower() == ".parquet":
+        available_returns_columns = set(pq.ParquetFile(returns_path).schema.names)
+        returns_columns = sorted(sedols.intersection(available_returns_columns))
+        returns = pd.read_parquet(returns_path, columns=returns_columns)
+    else:
+        returns = load_tabular_file(returns_path)
+        returns = returns.loc[
+            :,
+            [column for column in returns.columns if str(column) in sedols],
+        ].copy()
+    returns.index = pd.to_datetime(returns.index, errors="coerce")
+    returns = returns.sort_index()
+    return screen, returns
 
 
 @dataclass(frozen=True)
@@ -788,7 +862,7 @@ def run_single_official_engine(
         return official_record_payload("failed", message, artifacts)
 
     prepared_screen = service._prepare_screen_for_engine(screen, engine_module)  # noqa: SLF001
-    prepared_returns = prepare_returns_dataframe(returns)
+    prepared_returns = service._prepare_returns_for_engine(returns)  # noqa: SLF001
     log_buffer = io.StringIO()
     try:
         with redirect_stdout(log_buffer), redirect_stderr(log_buffer):
@@ -815,6 +889,9 @@ def run_single_official_engine(
                 cap_weight_threshold=settings.run.cap_weight_threshold,
                 score_pivot_esg=service._parse_score_pivot(settings.run.score_pivot_esg),  # noqa: SLF001
                 score_pivot_esg_path=settings.paths.score_pivot_esg_path or None,
+                copy_inputs=False,
+                monthly_base_cache=service._monthly_base_cache,  # noqa: SLF001
+                benchmark_cache=service._benchmark_cache,  # noqa: SLF001
             )
             builder.generic_histo_seclist(
                 start_date=pd.to_datetime(settings.run.start_date),

@@ -15,6 +15,7 @@
 - `daily_market_state`：交易日 × 市场，包含结构化特征和 3–7 个核心事件的确定性中文短摘要。
 - `daily_sector_state`：交易日 × 市场 × ICB19 行业。
 - `market_labels` / `sector_labels`：完全来自 TP canonical screen/returns 的点时点未来收益、波动与回撤标签。
+- `news_signal_panel`：市场信号明确输出 `forecast_bp`、`position`（-1/0/+1）和保持预测方向的因果标准化 `signal_strength`；行业信号继续使用 `sector_score`。
 
 首次真实指数权重之前的 US/EU/JP 月份使用明确标记的市值代理池；季度权重之间的月份只沿用最近一次已知真实快照，并标记 `universe_is_stale` 和 `weight_snapshot_date`。所有后续报告必须同时给出剔除代理期结果。GDELT 1.0 只有日级发布时间时，`available_at_utc` 自动滞后一整天。
 

@@ -10,7 +10,7 @@
 - Hypothesis 定义位于 `config/research/hypotheses/`；runner 只允许调用 `tp_research.workflows` 中登记的普通模块。
 - Run Card schema v3 记录 hypothesis、配置和代码版本、输入 provenance/PIT、运行环境、指标、产物、状态、父运行和晋升决定。
 - 新研究写入 `artifacts/research/runs/`；历史实验只读保存在 `artifacts/research/runs/historical/`。
-- 原 `07_backtest_code` 已无损迁移并删除。迁移清单位于 `artifacts/research/migrations/`，新运行不得写回历史库。
+- 原编号回测工作区已无损迁移并删除。迁移清单位于 `artifacts/research/migrations/`，新运行不得写回历史库。
 
 ```powershell
 tp-research validate

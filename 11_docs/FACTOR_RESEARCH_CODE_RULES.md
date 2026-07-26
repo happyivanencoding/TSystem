@@ -105,7 +105,7 @@ historical out-of-period / LOPO 研究还要写：
 - Keep Top, Worst, Benchmark, and Top/Worst ratio together.
 - Long runners must support `--metrics`, `--max-runs`, and `--resume`.
 - Batch runners must flush incrementally to CSV after each run.
-- Use `backtest_code.research.executor` for gate evaluation, same-security
+- Use `tp_research.executor` for gate evaluation, same-security
   relative construction, pair/subset/LOO candidate construction, completed-run
   dedupe, gap detection, shard allocation, and unique-wave paths. Market
   scripts may supply universe metadata and scoring callbacks, but must not
@@ -141,7 +141,7 @@ historical out-of-period / LOPO 研究还要写：
 
 ### Shared Engine Defaults
 
-- Use `backtest_code.runner.input_loader.load_pruned_backtest_inputs` instead of market-local Parquet pruning code. Restrict returns to historical positive-weight benchmark members while retaining both securities in configured dual-listing pairs.
+- Use `tp_backtest.runner.input_loader.load_pruned_backtest_inputs` instead of market-local Parquet pruning code. Restrict returns to historical positive-weight benchmark members while retaining both securities in configured dual-listing pairs.
 - `BacktestService` must plan a single run from its metric, benchmark, and start date. For a batch, it must load the metric/benchmark union once from the earliest requested start date.
 - Treat shared DataFrames as immutable. `OfficialPortfolioBacktest`,
   `SecurityListConstructor`, and `SecurityNavEngine` must not mutate
@@ -160,7 +160,7 @@ historical out-of-period / LOPO 研究还要写：
 - Use `tp_core.portfolio_weights` as the sole implementation of long-only
   normalization, hard-cap redistribution, weighting transforms, and
   sector-target matching. A cap followed by naive renormalization is forbidden.
-- Use only `optimizer.optimize_portfolio()` for portfolio optimization. Every
+- Use only `tp_portfolio.optimize_portfolio()` for portfolio optimization. Every
   optimizer artifact must include `optimizer_id`, `optimizer_version`,
   `optimizer_objective`, solver, objective policy, and constraint policy.
 - Every official manifest must record `engine_id`, `engine_version`, and the date execution policy.

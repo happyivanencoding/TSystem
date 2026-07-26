@@ -63,7 +63,7 @@ python -m tp_backtest.cli run `
    `ponderation` 决定。
 2. 优化证券列表：调用
    `OfficialPortfolioBacktest.build_optimized_monthly_security_list()`；候选
-   输入只调用 `optimizer.optimize_portfolio()`，产出 `target_weight`。
+   输入只调用 `tp_portfolio.optimize_portfolio()`，产出 `target_weight`。
 
 两条路径的结果分开保存：普通结果在 `sec_list_monthly`，优化版结果在 `sec_list_optimized_monthly`，优化器原始结果在 `optimizer_result_monthly`。普通 sec list 不会被优化器权重覆盖。
 
@@ -114,7 +114,7 @@ optimized_perf = workflow.run_optimizer_nav()
 ## 功能拆分规则
 
 - 市场脚本和 `SecurityListConstructor` 不得调用优化器内部函数；唯一入口
-  是 `optimizer.optimize_portfolio()`。
+  是 `tp_portfolio.optimize_portfolio()`。
 - `download_10_factor_pipeline_reference.py` 的 factor pipeline 不应放进回测引擎。它应迁入信号/模型层，输出统一 signal schema 或标准目标权重表。
 - `download_08_legacy_ptfbuilder.py` 只作为旧 monolithic 参考；若某段行为仍有价值，必须先拆成小函数、补测试，再接入主线。
 - 历史 builder 下载只作参考；现役入口是

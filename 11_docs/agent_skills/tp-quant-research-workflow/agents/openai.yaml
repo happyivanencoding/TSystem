@@ -1,4 +1,4 @@
 interface:
   display_name: "TP Quant Research Workflow"
-  short_description: "Research TP factors with raw gates"
-  default_prompt: "Use $tp-quant-research-workflow to validate raw factors, rebuild family composites, and test a TP factor model for a specific region, size bucket, or universe."
+  short_description: "用 Registry、Run Card 和证据门管理 TP 量化研究"
+  default_prompt: "使用 $tp-quant-research-workflow 配置一个可审计的 TP 实验，运行后分析结果，并派生有 lineage 的改进配置。"

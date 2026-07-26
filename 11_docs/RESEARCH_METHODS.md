@@ -174,10 +174,10 @@ LOPO/LORO 运行至少保留：
   归一、行业目标匹配、行业内硬封顶并保持行业总权重；不可行的单股上限
   必须报错。
 - raw、relative、pair、subset、bucket/individual leave-one-out 的 gate、resume、分片和
-  候选矩阵统一使用 `backtest_code.research.executor`。gate 必须同时有
+  候选矩阵统一使用 `tp_research.executor`。gate 必须同时有
   official Top 与 Worst 终态证据；完全缺失结果的应测变量也必须留在
   gate 表并判定失败。
-- 组合优化唯一入口是 `optimizer.optimize_portfolio()`。目标函数、线性
+- 组合优化唯一入口是 `tp_portfolio.optimize_portfolio()`。目标函数、线性
   约束、求解器和版本必须写入产物；不得从市场脚本调用优化器内部函数。
   求解后不得删除小权重再归一，必须复核所有约束后才可落盘。
 

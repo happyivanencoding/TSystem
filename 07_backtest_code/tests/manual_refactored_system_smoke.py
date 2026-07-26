@@ -1,5 +1,8 @@
-"""
-Test script for refactored backtest system.
+"""Manual smoke script for the refactored backtest system.
+
+This file intentionally does not match pytest's ``test_*.py`` collection
+pattern because it reads canonical data, runs a real backtest, and writes an
+HTML chart.
 """
 
 import sys

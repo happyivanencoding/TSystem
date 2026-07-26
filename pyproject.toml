@@ -26,7 +26,10 @@ optimizer = [
   "ecos>=2.0",
 ]
 web = [
+  "dash>=2.17",
   "fastapi>=0.110",
+  "Flask>=3.0",
+  "plotly>=5.24",
   "uvicorn>=0.27",
   "pydantic>=2",
   "streamlit>=1.30",
@@ -58,7 +61,13 @@ tp-presentation = "presentation_layer.cli:main"
 [tool.pytest.ini_options]
 pythonpath = [".", "01_tp_core", "06_optimiser", "08_presentation_layer", "07_backtest_code", "07_backtest_code/src"]
 testpaths = [
+  "02_pipelines/tests",
+  "03_regime_model/tests",
+  "06_optimiser/test_optimizer.py",
   "07_backtest_code/tests",
+  "08_presentation_layer/tests",
+  "13_sector_score_model/tests",
+  "16_news_market_signal/tests",
 ]
 
 [tool.ruff]

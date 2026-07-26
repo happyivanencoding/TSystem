@@ -14,7 +14,10 @@ from urllib.parse import urlparse
 import numpy as np
 import pandas as pd
 
-import config
+if __package__:
+    from . import config
+else:
+    import config
 
 
 EVENT_COLUMNS = [

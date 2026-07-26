@@ -17,8 +17,11 @@ from urllib.request import urlopen
 import pandas as pd
 import numpy as np
 
-import config
-import data_pipeline
+if __package__:
+    from . import config, data_pipeline
+else:
+    import config
+    import data_pipeline
 
 
 DIRECT_BASE_URL = "http://data.gdeltproject.org/events"

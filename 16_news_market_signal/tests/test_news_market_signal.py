@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import sys
+from importlib import import_module
 from pathlib import Path
 from urllib.error import HTTPError
 
@@ -9,14 +9,10 @@ import numpy as np
 import pandas as pd
 
 
-PROJECT_DIR = Path(__file__).resolve().parents[1]
-if str(PROJECT_DIR) not in sys.path:
-    sys.path.insert(0, str(PROJECT_DIR))
-
-import config
-import data_pipeline
-import gdelt
-import research
+config = import_module("16_news_market_signal.config")
+data_pipeline = import_module("16_news_market_signal.data_pipeline")
+gdelt = import_module("16_news_market_signal.gdelt")
+research = import_module("16_news_market_signal.research")
 
 
 def test_direct_ingest_records_source_gaps_and_continues(tmp_path: Path, monkeypatch) -> None:

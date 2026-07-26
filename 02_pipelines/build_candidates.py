@@ -141,7 +141,10 @@ def _sector_component(as_of: str | None) -> tuple[pd.DataFrame, pd.Timestamp | N
         if not path.exists():
             continue
         frame = pd.read_csv(path, encoding="utf-8-sig")
-        latest_date = latest_on_or_before(frame, as_of)
+        try:
+            latest_date = latest_on_or_before(frame, as_of)
+        except ValueError:
+            continue
         frame = frame[pd.to_datetime(frame["Date"], errors="coerce").eq(latest_date)].copy()
         if frame.empty:
             continue
@@ -184,22 +187,28 @@ def _sector_component(as_of: str | None) -> tuple[pd.DataFrame, pd.Timestamp | N
     return pd.concat(frames, ignore_index=True), min(dates)
 
 
-def _screen_snapshot(repo: PresentationDataRepository) -> pd.DataFrame:
+def _screen_snapshot(
+    repo: PresentationDataRepository,
+    as_of: pd.Timestamp | None,
+) -> tuple[pd.DataFrame, pd.Timestamp | None]:
+    cutoff = pd.Timestamp(as_of).normalize() if as_of is not None and pd.notna(as_of) else None
     screen = repo.screen(last_only=True).copy()
+    dates = pd.to_datetime(screen["Date"], errors="coerce") if "Date" in screen.columns else pd.Series(dtype="datetime64[ns]")
+    snapshot_date = pd.Timestamp(dates.max()).normalize() if not dates.dropna().empty else None
+    if cutoff is not None and (snapshot_date is None or snapshot_date > cutoff):
+        screen = repo.screen(last_only=False).copy()
+        dates = pd.to_datetime(screen["Date"], errors="coerce") if "Date" in screen.columns else pd.Series(dtype="datetime64[ns]")
+        eligible_dates = dates[dates <= cutoff].dropna()
+        if eligible_dates.empty:
+            raise ValueError(f"找不到 {cutoff.date().isoformat()} 当日或之前的 Screen 截面")
+        snapshot_date = pd.Timestamp(eligible_dates.max()).normalize()
+        screen = screen[dates.eq(snapshot_date)].copy()
     if "Company SEDOL" not in screen.columns and screen.index.name == "Company SEDOL":
         screen = screen.reset_index()
     keep = [column for column in SCREEN_COLUMNS if column in screen.columns]
     if "Company SEDOL" not in keep:
         keep.insert(0, "Company SEDOL")
-    return screen[keep].drop_duplicates(subset=["Company SEDOL"], keep="first")
-
-
-def _screen_latest_date(repo: PresentationDataRepository) -> pd.Timestamp | None:
-    screen = repo.screen(last_only=True)
-    if "Date" not in screen.columns:
-        return None
-    dates = pd.to_datetime(screen["Date"], errors="coerce").dropna()
-    return pd.Timestamp(dates.max()).normalize() if not dates.empty else None
+    return screen[keep].drop_duplicates(subset=["Company SEDOL"], keep="first"), snapshot_date
 
 
 def _regime_region_key(region: object) -> str | None:
@@ -276,15 +285,42 @@ def build_candidates(
     repo = PresentationDataRepository()
     security_signals = _security_signals(repo, as_of)
     region_signals = _region_signals(repo, as_of)
-    screen_latest_date = _screen_latest_date(repo)
     ml_signals, ml_date = _latest_family(security_signals, "ML", as_of)
     technical_signals, technical_date = _latest_family(security_signals, "Technical", as_of)
-
-    ml = _ml_component(ml_signals)
-    technical = _technical_component(technical_signals)
     regime, regime_date = _regime_component(region_signals, as_of)
     country, country_date = _country_component(region_signals, as_of)
     sector, sector_date = _sector_component(as_of)
+
+    component_dates = {
+        "ml": ml_date,
+        "technical": technical_date,
+        "regime": regime_date,
+        "country": country_date,
+        "sector": sector_date,
+    }
+    available_dates = [date for date in component_dates.values() if date is not None]
+    if available_dates:
+        candidate_date = min(available_dates) if candidate_date_policy == "min_component" else max(available_dates)
+    else:
+        candidate_date = pd.Timestamp(as_of) if as_of else pd.NaT
+
+    if candidate_date_policy == "min_component" and pd.notna(candidate_date):
+        cutoff = pd.Timestamp(candidate_date).date().isoformat()
+        ml_signals, ml_date = _latest_family(security_signals, "ML", cutoff)
+        technical_signals, technical_date = _latest_family(security_signals, "Technical", cutoff)
+        regime, regime_date = _regime_component(region_signals, cutoff)
+        country, country_date = _country_component(region_signals, cutoff)
+        sector, sector_date = _sector_component(cutoff)
+        component_dates = {
+            "ml": ml_date,
+            "technical": technical_date,
+            "regime": regime_date,
+            "country": country_date,
+            "sector": sector_date,
+        }
+
+    ml = _ml_component(ml_signals)
+    technical = _technical_component(technical_signals)
     candidates = pd.merge(ml, technical, on="Company SEDOL", how="outer")
     if candidates.empty:
         raise ValueError("ML 和技术信号没有生成任何候选证券")
@@ -304,7 +340,7 @@ def build_candidates(
         weights.append({"component": "technical_score_pct", "weight": technical_weight})
     candidates["security_alpha_score"] = weighted.div(denominator.replace(0.0, pd.NA))
 
-    screen = _screen_snapshot(repo)
+    screen, screen_snapshot_date = _screen_snapshot(repo, candidate_date)
     candidates = candidates.merge(screen, on="Company SEDOL", how="left")
     candidates["region"] = candidates.get("Exchange Country Region")
     candidates["regime_region_key"] = candidates["region"].map(_regime_region_key)
@@ -317,6 +353,10 @@ def build_candidates(
     candidates = candidates.merge(sector, on=["sector_region_key", "sector_code"], how="left")
     allocation_parts = [column for column in ["country_score_pct", "sector_score_pct"] if column in candidates.columns]
     candidates["allocation_score_pct"] = candidates[allocation_parts].mean(axis=1) if allocation_parts else pd.NA
+    candidates["allocation_score_pct"] = pd.to_numeric(
+        candidates["allocation_score_pct"],
+        errors="coerce",
+    )
     allocation_available = candidates["allocation_score_pct"].notna()
     weighted = weighted.add(candidates["allocation_score_pct"].fillna(0.0) * allocation_weight)
     denominator = denominator.add(allocation_available.astype(float) * allocation_weight)
@@ -324,33 +364,52 @@ def build_candidates(
     candidates["composite_score_base"] = weighted.div(denominator.replace(0.0, pd.NA))
     candidates["composite_score"] = candidates["composite_score_base"] * candidates["risk_budget_multiplier"]
     candidates = candidates[candidates["composite_score"].notna()].copy()
-    component_dates = [date for date in [ml_date, technical_date, regime_date, country_date, sector_date] if date is not None]
-    if component_dates:
-        candidate_date = min(component_dates) if candidate_date_policy == "min_component" else max(component_dates)
-    else:
-        candidate_date = pd.Timestamp(as_of) if as_of else pd.NaT
     candidates["candidate_date"] = candidate_date
+    candidates["screen_snapshot_date"] = screen_snapshot_date
     candidates["signal_date_ml"] = ml_date
     candidates["signal_date_technical"] = technical_date
     candidates["signal_date_regime"] = regime_date
     candidates["signal_date_country"] = country_date
     candidates["signal_date_sector"] = sector_date
     lag_reference = pd.Timestamp(candidate_date).normalize() if pd.notna(candidate_date) else None
-    technical_lag_days = (
-        int((lag_reference - pd.Timestamp(technical_date).normalize()).days)
-        if lag_reference is not None and technical_date is not None
+    component_lag_days = {
+        key: int((lag_reference - pd.Timestamp(date).normalize()).days)
+        if lag_reference is not None and date is not None
         else None
-    )
+        for key, date in component_dates.items()
+    }
+    future_components = [key for key, lag in component_lag_days.items() if lag is not None and lag < 0]
+    if future_components:
+        raise ValueError(f"候选池包含晚于 candidate_date 的组件：{future_components}")
+    stale_components = [
+        key
+        for key, lag in component_lag_days.items()
+        if lag is not None
+        and lag > int(max_component_lag_days)
+        and not (key == "technical" and allow_stale_technical)
+    ]
+    if stale_components:
+        raise ValueError(
+            "候选池组件过旧："
+            f"components={stale_components}, lags={component_lag_days}, "
+            f"max_component_lag_days={max_component_lag_days}"
+        )
+
+    technical_lag_days = component_lag_days["technical"]
     stale_technical = technical_lag_days is None or technical_lag_days > int(max_component_lag_days)
     candidate_lag_days = (
-        int((screen_latest_date - pd.Timestamp(candidate_date).normalize()).days)
-        if screen_latest_date is not None and pd.notna(candidate_date)
+        int((lag_reference - screen_snapshot_date).days)
+        if lag_reference is not None and screen_snapshot_date is not None
         else None
     )
-    if candidate_lag_days is None or candidate_lag_days > int(max_component_lag_days):
+    if (
+        candidate_lag_days is None
+        or candidate_lag_days < 0
+        or candidate_lag_days > int(max_component_lag_days)
+    ):
         raise ValueError(
-            "Candidate date is stale versus last_screen: "
-            f"candidate_date={candidate_date}, screen_latest_date={screen_latest_date}, "
+            "Candidate date is invalid versus Screen snapshot: "
+            f"candidate_date={candidate_date}, screen_snapshot_date={screen_snapshot_date}, "
             f"max_component_lag_days={max_component_lag_days}"
         )
     if stale_technical and not allow_stale_technical:
@@ -360,8 +419,10 @@ def build_candidates(
             f"max_component_lag_days={max_component_lag_days}"
         )
     candidates["freshness_warning"] = (
-        f"candidate_lag_days={candidate_lag_days}; technical_lag_days={technical_lag_days}; allowed={max_component_lag_days}"
-        if stale_technical or (candidate_lag_days is not None and candidate_lag_days > 0)
+        f"screen_lag_days={candidate_lag_days}; component_lag_days={component_lag_days}; allowed={max_component_lag_days}"
+        if stale_technical
+        or (candidate_lag_days is not None and candidate_lag_days > 0)
+        or any(lag is not None and lag > 0 for lag in component_lag_days.values())
         else pd.NA
     )
     candidates["candidate_model_version"] = "candidate_layered_v2"
@@ -409,31 +470,34 @@ def run_build_candidates(args: argparse.Namespace) -> Path:
             component_dates[key] = values.max() if not values.empty else None
         candidate_date = pd.to_datetime(frame["candidate_date"], errors="coerce").dropna().max()
         technical_date = pd.to_datetime(frame["signal_date_technical"], errors="coerce").dropna().max()
-        last_screen_dates = pd.to_datetime(pd.read_parquet(LAST_SCREEN_PATH, columns=["Date"])["Date"], errors="coerce").dropna()
-        screen_latest_date = last_screen_dates.max() if not last_screen_dates.empty else None
+        screen_snapshot_dates = pd.to_datetime(frame["screen_snapshot_date"], errors="coerce").dropna()
+        screen_snapshot_date = screen_snapshot_dates.max() if not screen_snapshot_dates.empty else None
         max_component_lag_days = getattr(args, "max_component_lag_days", 31)
         allow_stale_technical = getattr(args, "allow_stale_technical", False)
-        technical_lag_days = (
-            int((candidate_date.normalize() - technical_date.normalize()).days)
-            if pd.notna(candidate_date) and pd.notna(technical_date)
+        component_lag_days = {
+            key: int((candidate_date.normalize() - value.normalize()).days)
+            if pd.notna(candidate_date) and value is not None and pd.notna(value)
             else None
-        )
+            for key, value in component_dates.items()
+        }
+        technical_lag_days = component_lag_days["technical"]
         candidate_lag_days = (
-            int((screen_latest_date.normalize() - candidate_date.normalize()).days)
-            if screen_latest_date is not None and pd.notna(screen_latest_date) and pd.notna(candidate_date)
+            int((candidate_date.normalize() - screen_snapshot_date.normalize()).days)
+            if screen_snapshot_date is not None and pd.notna(screen_snapshot_date) and pd.notna(candidate_date)
             else None
         )
         manifest.details["component_freshness"] = {
             "candidate_date_policy": getattr(args, "candidate_date_policy", "max_component"),
             "candidate_date": candidate_date.date().isoformat() if pd.notna(candidate_date) else None,
-            "screen_latest_date": screen_latest_date.date().isoformat()
-            if screen_latest_date is not None and pd.notna(screen_latest_date)
+            "screen_snapshot_date": screen_snapshot_date.date().isoformat()
+            if screen_snapshot_date is not None and pd.notna(screen_snapshot_date)
             else None,
             "candidate_lag_days": candidate_lag_days,
             "component_dates": {
                 key: value.date().isoformat() if value is not None and pd.notna(value) else None
                 for key, value in component_dates.items()
             },
+            "component_lag_days": component_lag_days,
             "technical_lag_days": technical_lag_days,
             "max_component_lag_days": max_component_lag_days,
             "allow_stale_technical": allow_stale_technical,
@@ -441,18 +505,42 @@ def run_build_candidates(args: argparse.Namespace) -> Path:
         manifest.add_validation("candidate_table_non_empty", not frame.empty, "候选池非空")
         manifest.add_validation("candidate_keys_unique", duplicate_count == 0, "候选池主键无重复", {"duplicate_rows": duplicate_count})
         manifest.add_validation("selected_candidates_non_empty", selected_count > 0, "入选候选证券非空", {"selected_count": selected_count})
-        candidate_ok = candidate_lag_days is not None and candidate_lag_days <= max_component_lag_days
+        candidate_ok = (
+            candidate_lag_days is not None
+            and 0 <= candidate_lag_days <= max_component_lag_days
+        )
         manifest.add_validation(
             "candidate_date_fresh",
             candidate_ok,
-            "候选池日期相对 last_screen 在允许窗口内" if candidate_ok else "候选池日期相对 last_screen 过旧",
+            "候选池日期相对 Screen 截面在允许窗口内"
+            if candidate_ok
+            else "候选池日期相对 Screen 截面无效或过旧",
             manifest.details["component_freshness"],
         )
-        component_ok = technical_lag_days is not None and technical_lag_days <= max_component_lag_days
+        technical_ok = (
+            technical_lag_days is not None
+            and 0 <= technical_lag_days <= max_component_lag_days
+        )
         manifest.add_validation(
             "technical_component_fresh",
-            component_ok or allow_stale_technical,
-            "technical 组件日期在允许窗口内" if component_ok else "technical 组件缺失或过旧",
+            technical_ok or allow_stale_technical,
+            "technical 组件日期在允许窗口内"
+            if technical_ok
+            else "technical 组件缺失或过旧",
+            manifest.details["component_freshness"],
+        )
+        components_ok = all(
+            lag is None
+            or 0 <= lag <= max_component_lag_days
+            or (key == "technical" and allow_stale_technical and lag >= 0)
+            for key, lag in component_lag_days.items()
+        )
+        manifest.add_validation(
+            "component_dates_causal_and_fresh",
+            components_ok,
+            "全部已使用组件均不晚于候选日期且在允许窗口内"
+            if components_ok
+            else "存在未来组件或过旧组件",
             manifest.details["component_freshness"],
         )
         return manifest.write("success")

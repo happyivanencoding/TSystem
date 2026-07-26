@@ -11,7 +11,10 @@ import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
-import config
+if __package__:
+    from . import config
+else:
+    import config
 
 
 if str(config.TP_ROOT) not in sys.path:

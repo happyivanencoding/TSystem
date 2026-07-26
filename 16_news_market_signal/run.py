@@ -10,10 +10,13 @@ from typing import Iterable
 
 import pandas as pd
 
-import config
-import data_pipeline
-import gdelt
-import research
+if __package__:
+    from . import config, data_pipeline, gdelt, research
+else:
+    import config
+    import data_pipeline
+    import gdelt
+    import research
 
 
 def _markets(values: Iterable[str]) -> list[str]:

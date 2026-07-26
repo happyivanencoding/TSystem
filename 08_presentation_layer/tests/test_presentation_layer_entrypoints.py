@@ -1069,6 +1069,7 @@ def test_run_all_refresh_regime_uses_dedicated_regime_step(tmp_path: Path, monke
         SimpleNamespace(
             skip_refresh_data=True,
             skip_refresh_technical=True,
+            skip_refresh_small_cap=True,
             skip_export_signals=False,
             refresh_regime=True,
             skip_build_candidates=True,

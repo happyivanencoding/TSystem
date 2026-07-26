@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   base: '/client/',
   plugins: [react()],
+  test: {
+    environment: 'jsdom',
+  },
   server: {
     proxy: {
       '/api/dashboard': {

@@ -2,26 +2,27 @@
 
 ## 定位
 
-`06_optimiser/` 是 TP 唯一 Python 组合优化器。公开入口只有：
+规范组合优化实现位于 `src/tp_portfolio/`。`06_optimiser/` 暂时保留 README、测试和会发出弃用提示的导入兼容文件。公开入口为：
 
 ```python
-from optimizer import OptimizerConfig, OptimizerObjective, optimize_portfolio
+from tp_portfolio import OptimizerConfig, OptimizerObjective, optimize_portfolio
 ```
 
-`optimizer.py` 接收候选证券、benchmark 权重、score、协方差、当前权重、
+`tp_portfolio.optimize_portfolio()` 接收候选证券、benchmark 权重、score、协方差、当前权重、
 上下界、分组约束和任意线性暴露约束，返回 `target_weight`、求解状态、
 约束审计和完整 optimizer metadata。
 
 普通因子选股由
 `tp_core.backtesting.SecurityListConstructor` 完成；只有显式调用
 `OfficialPortfolioBacktest.build_optimized_monthly_security_list()` 或
-`02_pipelines.optimize_portfolio` 时才进入优化器。
+`tp_pipelines.optimize_portfolio` 时才进入优化器。
 
 ## 当前模块
 
 | 文件 | 作用 |
 | --- | --- |
-| `optimizer.py` | 唯一求解 API、目标函数、约束、solver fallback 和审计 |
+| `src/tp_portfolio/` | 唯一求解 API、目标函数、约束、solver fallback 和审计 |
+| `optimizer.py` | 已弃用导入兼容入口 |
 | `test_optimizer.py` | 目标函数、TE、换手、分组、线性、基数与 metadata 测试 |
 
 旧 `optimizer_engine.py`、`optimiser` package shim、`01_tp_core/optimisation.py`

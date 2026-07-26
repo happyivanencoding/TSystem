@@ -18,13 +18,13 @@
 
 - 新代码不得直接 import、读取或依赖冻结目录。
 - 新 notebook 不得从冻结目录复制路径作为输入。
-- 如需复用旧逻辑，先迁移到当前主线目录或 `01_tp_core/`，再补测试和中文说明。
+- 如需复用旧逻辑，先迁移到 `src/` 下的当前公开包，再补测试和中文说明。
 - 文档可以提到冻结目录，但必须明确其历史状态，不能把它写成当前入口。
 
 ## 检查命令
 
 ```powershell
-python -m 01_tp_core.legacy_policy
+python -m tp_core.legacy_policy
 ```
 
 或安装为脚本后运行：
@@ -32,3 +32,15 @@ python -m 01_tp_core.legacy_policy
 ```powershell
 tp-check-legacy-references
 ```
+
+## 编号 Python 入口退役规则
+
+编号目录继续承载数据、配置、Notebook、前端、测试和输出边界，但不再作为规范 Python 实现位置。规范代码和命令来自已安装的 `src/` 包。
+
+退役分三步：
+
+1. P1：仓库内部文档和调用迁移到公开包；直接执行旧脚本时发出 `FutureWarning`。
+2. P2：连续两个生产周期只使用公开包，并确认定时任务、Notebook 和控制塔没有调用旧脚本。
+3. P3：为待删除入口生成归档 manifest，然后删除兼容脚本；编号资源目录本身不因此删除。
+
+本阶段仍兼容旧入口，但新代码、文档和任务不得新增对它们的调用。

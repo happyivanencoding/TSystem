@@ -19,7 +19,6 @@ import json
 from math import sqrt
 from pathlib import Path
 import re
-import sys
 from typing import Iterable
 
 import numpy as np
@@ -29,10 +28,6 @@ import pyarrow.parquet as pq
 
 BACKTEST_ROOT = Path(__file__).resolve().parents[1]
 TP_ROOT = BACKTEST_ROOT.parent
-
-for path in (TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src"):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
 
 from backtest_code.config.loader import load_settings  # noqa: E402
 from backtest_code.runner.artifacts import (  # noqa: E402
@@ -46,7 +41,7 @@ from backtest_code.runner.artifacts import (  # noqa: E402
 from backtest_code.runner.service import BacktestService  # noqa: E402
 from backtest_code.runner.input_loader import load_pruned_backtest_inputs  # noqa: E402
 from backtest_code.runner.validators import load_tabular_file, validate_settings  # noqa: E402
-from backtest_code.research.executor import (  # noqa: E402
+from tp_research.executor import (  # noqa: E402
     GateThresholds,
     evaluate_official_top_worst_gate,
 )

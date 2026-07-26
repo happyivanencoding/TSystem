@@ -22,7 +22,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 import run_stoxx600_sparse_core_sleeve_research as official
-from backtest_code.research.executor import (
+from tp_research.executor import (
     RelativeLevelSpec,
     build_same_security_relative_variables,
     dedupe_official_results,

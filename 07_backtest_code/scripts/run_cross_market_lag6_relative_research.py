@@ -15,7 +15,6 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import sys
 import time
 from typing import Iterable, Mapping, Sequence
 
@@ -27,11 +26,7 @@ import pyarrow.parquet as pq
 SCRIPT_DIR = Path(__file__).resolve().parent
 BACKTEST_ROOT = SCRIPT_DIR.parent
 TP_ROOT = BACKTEST_ROOT.parent
-for path in (TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src"):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
-
-from backtest_code.research.executor import (  # noqa: E402
+from tp_research.executor import (  # noqa: E402
     GateThresholds,
     RelativeLevelSpec,
     build_same_security_relative_variables,

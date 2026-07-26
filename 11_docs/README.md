@@ -42,7 +42,7 @@
 
 - 不再从旧目录 `00_screen/monthly`、`00_screen/returns`、`00_screen/ciq` 读取生产输入；这些历史入口已经进入 `00_screen/_quarantine_20260629/`。
 - 不再维护多个生产版 `screen_aggregate` 或 `returns`。旧 `.pkl`、旧 parquet 和 notebook 内硬编码路径只允许作为历史参考。
-- 冻结目录统一进入 `99_archive/frozen_20260629/`；新代码引用检查见 `python -m 01_tp_core.legacy_policy`。
+- 冻结目录统一进入 `99_archive/frozen_20260629/`；新代码引用检查见 `python -m tp_core.legacy_policy`。
 - 展示/报告项目共享 `08_presentation_layer/` 数据 repository；模型信号统一进入 `04_signals/`；主流水线入口统一在 `02_pipelines/`。
 - 外部参考模板库 `08_company_analysis/Inspiration_Claude` 已归档到 `99_archive/external_references_20260705/Inspiration_Claude`，不纳入 TP 生产文档体系。
 - 文档描述默认使用中文；项目里已有英文或法文技术注释可以保留，但面向使用者的说明应逐步中文化。

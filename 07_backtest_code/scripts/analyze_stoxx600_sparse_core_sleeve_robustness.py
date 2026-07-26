@@ -8,7 +8,6 @@ from itertools import combinations
 import json
 from math import e
 from pathlib import Path
-import sys
 from typing import Iterable, Sequence
 
 import numpy as np
@@ -19,11 +18,6 @@ from scipy.stats import kurtosis, norm, skew, ttest_ind
 SCRIPT_DIR = Path(__file__).resolve().parent
 BACKTEST_ROOT = SCRIPT_DIR.parent
 TP_ROOT = BACKTEST_ROOT.parent
-for path in (TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src", SCRIPT_DIR):
-    value = str(path)
-    if value not in sys.path:
-        sys.path.insert(0, value)
-
 import run_stoxx600_sparse_core_sleeve_research as base  # noqa: E402
 
 

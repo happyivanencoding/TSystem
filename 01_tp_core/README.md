@@ -2,7 +2,7 @@
 
 ## 定位
 
-`tp_core` 是 TP 工作区的共享基础包，用来集中维护 canonical 数据路径、读取函数、数据契约、生产输入整理、returns 审计和共享回测入口。
+`tp_core` 是 TP 工作区的共享基础包，用来集中维护 canonical 数据路径、读取函数、数据契约、生产输入整理、returns 审计和共享回测入口。规范实现位于 `src/tp_core/`；本编号目录只保留项目说明和短期导入兼容层。
 
 ## 数据来源
 
@@ -31,8 +31,9 @@
 ## 常用命令
 
 ```powershell
-python -m 01_tp_core.production_inputs
-python -m 01_tp_core.returns_audit --report-path C:\GoogleDrive\TP\00_screen\qa\returns_anomaly_audit.json
+python -m tp_core.production_inputs
+python -m tp_core.returns_audit --report-path C:\GoogleDrive\TP\00_screen\qa\returns_anomaly_audit.json
+python -m tp_core.artifact_retention
 ```
 
 ## 维护状态

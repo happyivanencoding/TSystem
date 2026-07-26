@@ -9,7 +9,7 @@ production-refreshable model.
 - Source data: `00_screen/screen_aggregate.parquet`
 - Canonical signal: `04_signals/small_cap_model_signals.parquet`
 - Model output directory: `15_small_cap_model/outputs`
-- Pipeline step: `python -m 02_pipelines.refresh_small_cap`
+- Pipeline step: `python -m tp_pipelines.refresh_small_cap`
 
 ## Construction
 
@@ -37,7 +37,7 @@ the default raw validation gate.
 ## Commands
 
 ```powershell
-python 15_small_cap_model/src/small_cap_model.py
-python -m 02_pipelines.refresh_small_cap
-python -m 02_pipelines.refresh_small_cap --inspect-only
+python -m tp_models.small_cap
+python -m tp_pipelines.refresh_small_cap
+python -m tp_pipelines.refresh_small_cap --inspect-only
 ```

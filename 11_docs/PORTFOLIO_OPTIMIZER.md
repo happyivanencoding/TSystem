@@ -7,7 +7,7 @@
 活动代码只能调用：
 
 ```python
-from optimizer import OptimizerConfig, OptimizerObjective, optimize_portfolio
+from tp_portfolio import OptimizerConfig, OptimizerObjective, optimize_portfolio
 
 result = optimize_portfolio(
     candidates,
@@ -21,7 +21,7 @@ result = optimize_portfolio(
 )
 ```
 
-物理入口为 `06_optimiser/optimizer.py`。`02_pipelines` 和
+物理入口为 `src/tp_portfolio/`。`tp_pipelines` 和
 `SecurityListConstructor` 都必须调用该函数，不得调用求解器内部函数。
 `01_tp_core/optimisation.py`、`optimizer_engine.py`、`optimiser` package
 shim 和旧 `FRAIS.py` 已从活动代码删除。

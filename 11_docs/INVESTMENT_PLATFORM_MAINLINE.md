@@ -232,7 +232,7 @@ package shim 和重复求解语义已删除。详细契约见
 状态：已完成第一轮落地。
 
 1. 旧目录已冻结到 `99_archive/frozen_20260629/`：`ML/`、`ML第一版/`、`回测第一版/`、`factsetProd第一版/`、`技术分析_V1/`。
-2. 已建立冻结目录引用规则：`11_docs/LEGACY_POLICY.md` 和 `python -m 01_tp_core.legacy_policy`。
+2. 已建立冻结目录引用规则：`11_docs/LEGACY_POLICY.md` 和 `python -m tp_core.legacy_policy`。
 3. `03_ml_enhanced/Input_files/` 和 `03_technical_analysis/data/` 中的 00_screen/returns 副本已隔离；旧 ML `.pkl`、旧 EM 参考 notebook 和项目派生快照后续按 manifest 再处理。
 4. 回测主线已切到 `07_backtest_code/`；Web/API/GUI 前端入口与旧项目重复核心已隔离，`tp_core.backtesting` 暴露核心类。
 5. 已建立统一信号表 schema：`tp_core.signals`、`11_docs/SIGNAL_SCHEMA.md`、`04_signals/` 输出目录。
@@ -243,7 +243,7 @@ package shim 和重复求解语义已删除。详细契约见
 
 状态：已完成入口层收敛，模型内部生产化仍需继续。
 
-1. `03_ml_enhanced` 已固定 `python -m 03_ml_enhanced.cli export-signals`，输出 `04_signals/ml_signals.parquet`；缺失月份 Score ML 可通过 `python -m 02_pipelines.refresh_ml` 显式生产，notebook 训练/监控研究流程后续再拆。
+1. ML 主线已固定 `python -m tp_models.ml.cli export-signals`，输出 `04_signals/ml_signals.parquet`；缺失月份 Score ML 可通过 `python -m tp_pipelines.refresh_ml` 显式生产，notebook 训练/监控研究流程后续再拆。
 2. `regime_model` 已固定 `export_risk_budget.py`，输出 `04_signals/regime_risk_budget.parquet`。
 3. `03_technical_analysis` 已固定 `export_technical_signals.py`，输出 `04_signals/technical_signals.parquet`；主回测逻辑收敛到 `backtest_code`。
 4. `06_optimiser/optimizer.py::optimize_portfolio()` 是唯一 Python
@@ -255,13 +255,13 @@ package shim 和重复求解语义已删除。详细契约见
 状态：已建立第一版薄编排层。每个步骤都能单独运行、重跑和调试；标准产物使用固定 latest 路径覆盖写入，运行证据进入 `10_pipeline_runs/manifests/<step>/`。
 
 ```powershell
-python -m 02_pipelines.refresh_data --input-month YYYYMM --update-mode both
-python -m 02_pipelines.export_signals --as-of YYYY-MM-DD
-python -m 02_pipelines.build_candidates --as-of YYYY-MM-DD
-python -m 02_pipelines.optimize_portfolio --as-of YYYY-MM-DD
-python -m 02_pipelines.run_backtest --inspect-only
-python -m 02_pipelines.generate_report
-python -m 02_pipelines.run_all --input-month YYYYMM --as-of YYYY-MM-DD
+python -m tp_pipelines.refresh_data --input-month YYYYMM --update-mode both
+python -m tp_pipelines.export_signals --as-of YYYY-MM-DD
+python -m tp_pipelines.build_candidates --as-of YYYY-MM-DD
+python -m tp_pipelines.optimize_portfolio --as-of YYYY-MM-DD
+python -m tp_pipelines.run_backtest --inspect-only
+python -m tp_pipelines.generate_report
+python -m tp_pipelines.run_all --input-month YYYYMM --as-of YYYY-MM-DD
 ```
 
 当前标准产物：

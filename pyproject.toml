@@ -55,6 +55,7 @@ test = [
 tp-organize-inputs = "tp_core.production_inputs:main"
 tp-returns-audit = "tp_core.returns_audit:main"
 tp-check-legacy-references = "tp_core.legacy_policy:main"
+tp-prune-artifacts = "tp_core.artifact_retention:main"
 tp-validate-signals = "tp_core.signals:main"
 tp-pipeline-refresh-data = "tp_pipelines.refresh_data:main"
 tp-pipeline-refresh-supplemental-data = "tp_pipelines.refresh_supplemental_data:main"
@@ -66,6 +67,7 @@ tp-pipeline-generate-report = "tp_pipelines.generate_report:main"
 tp-pipeline-run-all = "tp_pipelines.run_all:main"
 tp-presentation = "presentation_layer.cli:main"
 tp-experiments = "tp_experiments.cli:main"
+tp-build-factor-research-app = "tp_reporting.factor_research_app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

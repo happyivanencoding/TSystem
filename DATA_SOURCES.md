@@ -73,7 +73,7 @@ from tp_core.data_contract import validate_screen_contract, validate_returns_con
 | 单独生成候选池 | `python -m pipelines.build_candidates --as-of YYYY-MM-DD` |
 | 单独生成目标权重 | `python -m pipelines.optimize_portfolio --as-of YYYY-MM-DD` |
 | returns 异常收益审计 | `python -m tp_core.returns_audit --report-path 00_screen/qa/returns_anomaly_audit.json` |
-| 补充数据 dry-run | `python -m 02_pipelines.refresh_supplemental_data --source ecb --dry-run` |
+| 补充数据 dry-run | `python -m tp_pipelines.refresh_supplemental_data --source ecb --dry-run` |
 
 补充数据目录不是第三张 canonical 表。默认刷新只生成不可变 raw、标准化记录、point-in-time
 月末结果和 QA，不会改写 `screen_aggregate.parquet`。

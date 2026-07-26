@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backtest_code.research.executor import (
+from tp_research.executor import (
     GateThresholds,
     RelativeLevelSpec,
     build_same_security_relative_variables,

@@ -34,20 +34,20 @@
 2. 运行输入整理：
 
 ```powershell
-python -m 01_tp_core.production_inputs
+python -m tp_core.production_inputs
 ```
 
 3. 检查 `00_screen/production_inputs/manifests/input_inventory_latest.json`，确认文件内容日期、命名不一致和重复来源。
 4. 运行月更。推荐通过 pipeline 包装入口执行，这样会额外生成统一 manifest：
 
 ```powershell
-python -m 02_pipelines.refresh_data --input-month YYYYMM --update-mode both
+python -m tp_pipelines.refresh_data --input-month YYYYMM --update-mode both
 ```
 
 底层脚本仍可直接运行，用于排错或兼容 notebook：
 
 ```powershell
-python 00_screen/monthly_update.py --input-month YYYYMM --update-mode both
+python -m tp_data.monthly_update --input-month YYYYMM --update-mode both
 ```
 
 5. 检查 QA JSON、`10_pipeline_runs/manifests/refresh_data/refresh_data_latest.json`、`*_latest.md` 摘要和最新数据概况。
@@ -83,6 +83,8 @@ python 00_screen/monthly_update.py --input-month YYYYMM --update-mode both
 | 数据概况 | `00_screen/production_inputs/profiles/latest_database_profile_latest.json` | canonical 数据集概况 |
 | 人类可读最新结论 | `00_screen/production_inputs/manifests/*_latest.md` | 只维护 latest，不再创建时间戳 Markdown |
 | 流水线 manifest | `10_pipeline_runs/manifests/<step>/*_latest.json` | 数据刷新、信号、候选池、组合、回测、报告的统一运行证据 |
+
+历史产物的保留期限和安全清理命令见 [`../10_pipeline_runs/README.md`](../10_pipeline_runs/README.md)。清理必须先运行默认 dry-run，确认清单后再显式传入 `--apply`。
 
 ## 不允许作为生产源的数据
 

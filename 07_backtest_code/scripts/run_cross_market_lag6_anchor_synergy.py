@@ -17,7 +17,6 @@ import hashlib
 import itertools
 import json
 from pathlib import Path
-import sys
 from typing import Iterable, Mapping, Sequence
 
 import numpy as np
@@ -28,11 +27,7 @@ import pyarrow.parquet as pq
 SCRIPT_DIR = Path(__file__).resolve().parent
 BACKTEST_ROOT = SCRIPT_DIR.parent
 TP_ROOT = BACKTEST_ROOT.parent
-for path in (TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src", SCRIPT_DIR):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
-
-from backtest_code.research.executor import (  # noqa: E402
+from tp_research.executor import (  # noqa: E402
     GateThresholds,
     dedupe_official_results,
     evaluate_official_top_worst_gate,

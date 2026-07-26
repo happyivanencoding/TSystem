@@ -22,7 +22,6 @@ import hashlib
 import json
 from math import sqrt
 from pathlib import Path
-import sys
 from typing import Iterable, Mapping, Sequence
 
 import numpy as np
@@ -35,12 +34,7 @@ BACKTEST_ROOT = SCRIPT_DIR.parent
 TP_ROOT = BACKTEST_ROOT.parent
 SRC_ROOT = BACKTEST_ROOT / "src"
 OPTIMIZER_ROOT = TP_ROOT / "06_optimiser"
-for path in (TP_ROOT, BACKTEST_ROOT, SRC_ROOT, OPTIMIZER_ROOT, SCRIPT_DIR):
-    value = str(path)
-    if value not in sys.path:
-        sys.path.insert(0, value)
-
-from backtest_code.research.executor import (  # noqa: E402
+from tp_research.executor import (  # noqa: E402
     GateThresholds,
     RelativeLevelSpec,
     build_same_security_relative_variables,

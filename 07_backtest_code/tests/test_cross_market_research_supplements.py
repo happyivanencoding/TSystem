@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 from pathlib import Path
 import sys
@@ -8,11 +7,11 @@ import sys
 import numpy as np
 import pandas as pd
 import pytest
+from tp_reporting import factor_research_app as report_builder
 
 
 TP_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_DIR = TP_ROOT / "07_backtest_code" / "scripts"
-REPORT_DIR = TP_ROOT / "09_reports"
 for path in (TP_ROOT, TP_ROOT / "07_backtest_code", SCRIPT_DIR):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
@@ -20,16 +19,6 @@ for path in (TP_ROOT, TP_ROOT / "07_backtest_code", SCRIPT_DIR):
 import analyze_cross_market_leave_one_period_out as lopo
 import run_cross_market_lag6_anchor_synergy as synergy
 import run_cross_market_lag6_relative_research as lag6
-
-
-def load_report_builder():
-    path = REPORT_DIR / "build_factor_research_app.py"
-    spec = importlib.util.spec_from_file_location("factor_research_app_builder", path)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
 
 def test_lag6_registry_has_two_independent_variants_per_level_field() -> None:
     for profile in lag6.PROFILES.values():
@@ -103,12 +92,11 @@ def test_anchor_subset_matrix_formula_matches_completed_runs() -> None:
 
 
 def test_four_market_app_is_embedded_and_has_static_fallback() -> None:
-    builder = load_report_builder()
     payload = {
-        key: builder.market_payload(key, config)
-        for key, config in builder.MARKETS.items()
+        key: report_builder.market_payload(key, config)
+        for key, config in report_builder.MARKETS.items()
     }
-    html = builder.build_html(payload)
+    html = report_builder.build_html(payload)
 
     assert set(payload) == {"stoxx600", "sp500", "nasdaq", "eu-small"}
     assert "STOXX Europe 600 跨时期单变量证据" in html

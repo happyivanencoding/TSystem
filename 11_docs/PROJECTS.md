@@ -1,6 +1,6 @@
 # TP 小项目地图
 
-最后更新：2026-07-07
+最后更新：2026-07-26
 
 本文档记录当前目录结构下每个小项目的角色、文档入口、数据依赖和处置状态，也承接原 `00_项目主线索引/` 的编号主线视图。具体运行细节仍放在项目自己的 `README.md` 或 `11_docs/README.md` 中。
 
@@ -20,7 +20,7 @@
 | 测试输出不污染根目录 | 已补齐 | `test_output/` 和 `06_optimiser/test_output/` 已归档到 `99_archive/test_outputs_20260630/`；pytest 优化器测试改用临时目录。 |
 | returns 极端收益治理 | 部分达成 | `tp-returns-audit` 已固定输出 `00_screen/qa/returns_anomaly_governance/` 下的摘要、完整异常明细和人工复核模板；尚未自动清洗或建立人工确认后的修正/白名单文件。 |
 | notebook 合并和执行验收 | 部分达成 | `monthly_prod`、技术分析 3 个 notebook、公司分析模板、`Monitoring.ipynb` 已逐 cell 执行通过；`Pipeline.ipynb` 用 `tp-prod` kernel 跑满 2 小时后超时，已记录失败 manifest，需拆成区域/阶段 CLI 后再作为生产验收。 |
-| `tp_core` 共享包抽取 | 部分达成 | 回测公开面已收敛到 `tp_core.backtesting`，优化器已收敛到 `06_optimiser/optimizer.py::optimize_portfolio()`。ML 训练/预测入口和展示应用仍需继续收敛。 |
+| `src/` 共享包抽取 | 已达成 P0 | 规范 Python 实现已集中到 `src/`；编号目录只继续承担资源边界、测试和短期兼容入口。 |
 | 展示/报告层合并 | 已达成 | `08_presentation_layer` 已成为统一 app/report 入口；Dash 公司展示、公司分析 FastAPI、组合 dashboard/PDF 的实现已迁入 `08_presentation_layer/legacy_apps/`，根目录不再保留三套并行展示项目。 |
 
 ## 编号主线视图
@@ -28,12 +28,12 @@
 | 序号 | 主责目录 | 代表步骤 | 处置 |
 | --- | --- | --- | --- |
 | 00 | `00_screen/` | 可信数据生产 | 保留 |
-| 01 | `01_tp_core/` | 共享规则、契约和算法入口 | 保留 |
-| 02 | `02_pipelines/` | 单环和总流水线编排 | 保留 |
+| 01 | `src/tp_core/`、`01_tp_core/` | 共享规则、契约和算法入口 | 实现位于 `src`；编号目录保留说明和短期兼容 |
+| 02 | `src/tp_pipelines/`、`02_pipelines/` | 单环和总流水线编排 | 实现位于 `src`；编号目录保留测试和短期兼容 |
 | 03 | `03_ml_enhanced/`、`03_regime_model/`、`03_technical_analysis/` | 产生标准化信号 | 保留，继续生产化 |
 | 04 | `04_signals/`、`05_candidates/` | 信号和候选池标准产物 | 保留 |
-| 05 | `06_optimiser/`、`06_portfolios/` | 组合优化和目标权重 | 保留 |
-| 06 | `07_backtest_code/` | 唯一回测主线 | 保留 |
+| 05 | `src/tp_portfolio/`、`06_portfolios/` | 组合优化和目标权重 | 实现位于 `src`；标准产物目录保留 |
+| 06 | `src/backtest_code/`、`07_backtest_code/` | 唯一回测主线 | 引擎位于 `src`；配置、研究脚本、测试和 runs 保留 |
 | 07 | `08_presentation_layer/`、apps、`09_reports/` | 展示、分析和报告 | 合并为展示/报告层 |
 | 08 | `11_docs/`、`10_pipeline_runs/` | 文档和运行证据 | 保留 |
 | 12 | `99_archive/project_cleanup_20260707/12_small_cap/` | 小盘研究片段 | 已归档 |
@@ -41,31 +41,29 @@
 | 14 | `14_country_model/` | 国家/地区打分模型和 country signal | 活跃研究 |
 | 99 | `99_archive/`、`_quarantine_20260629/` | 旧项目和旧实验 | 只作历史参考 |
 
-## 兼容层处置
+## 源码布局与兼容层处置
 
-根目录无编号兼容文件夹已经归档到 `99_archive/compat_wrappers_20260629/`，主线不再保留无编号项目文件夹。原 `00_项目主线索引/` 已并入本文档，历史目录保存在 `99_archive/project_cleanup_20260707/00_项目主线索引/`。
+规范 Python 实现统一位于 `src/`。编号目录继续保留稳定的数据、配置、Notebook、前端、测试和输出路径，不再新增业务实现。
 
-| 旧兼容入口 | 当前主线入口 | 说明 |
+| 编号工作区 | 规范实现 | P1 状态 |
 | --- | --- | --- |
-| `screen/` | `00_screen/` | 月更直接运行 `python 00_screen/monthly_update.py` 或 pipeline |
-| `tp_core/` | `01_tp_core/` | 运行命令使用 `python -m 01_tp_core...`；代码中的逻辑包 `tp_core` 由 `01_tp_core/tp_core/` 提供 |
-| `pipelines/` | `02_pipelines/` | 运行命令使用 `python -m 02_pipelines...` |
-| `backtest_code/` | `07_backtest_code/` | 运行 `python 07_backtest_code/run_backtest.py ...` |
-| `optimiser/` | `06_optimiser/` | 代码中的逻辑包 `optimiser` 由 `06_optimiser/optimiser/` 提供 |
-| `ML_Enhanced/` | `03_ml_enhanced/` | 运行 `python -m 03_ml_enhanced.cli export-signals` |
-| `regime_model/` | `03_regime_model/` | 运行 `python -m 03_regime_model.export_risk_budget` |
-| `technical_analysis_v2/` | `03_technical_analysis/` | 运行 `python -m 03_technical_analysis.export_technical_signals` |
-| `presentation_layer/` | `08_presentation_layer/` | 代码中的逻辑包 `presentation_layer` 由 `08_presentation_layer/presentation_layer/` 提供 |
+| `00_screen/` | `tp_data` | 数据边界保留；旧月更脚本执行时提示弃用 |
+| `01_tp_core/` | `tp_core` | 只保留说明和导入兼容 |
+| `02_pipelines/` | `tp_pipelines` | 测试保留；旧命令执行时提示弃用 |
+| `03_*`、`13_*`～`16_*` | `tp_models` | 模型资源保留；旧命令执行时提示弃用 |
+| `06_optimiser/` | `tp_portfolio` | 测试和导入兼容保留 |
+| `07_backtest_code/` | `backtest_code` | 配置、脚本、测试和 runs 保留；旧 CLI 提示弃用 |
+| `08_presentation_layer/` | `presentation_layer` | 前端和资源保留；旧 Python CLI 提示弃用 |
 
-新代码不得再新增根目录无编号 wrapper；新增入口应放在对应编号目录、`02_pipelines/` 或 `08_presentation_layer/`。
+新代码和文档只使用公开包或 `pyproject.toml` 中的控制台命令。旧脚本将在连续两个生产周期无调用后，按 `LEGACY_POLICY.md` 生成 manifest 并删除。
 
 ## 生产核心
 
 | 项目 | 角色 | 文档入口 | 数据依赖 | 状态 |
 | --- | --- | --- | --- | --- |
 | `00_screen/` | Screen 月度主表、returns、CIQ 补字段、QA 与备份 | [`../00_screen/README.md`](../00_screen/README.md) | canonical 数据源本身 | 生产核心 |
-| `01_tp_core/` | 共享数据路径、读取函数、数据契约、returns 审计、生产输入整理、共享回测工具 | [`../01_tp_core/README.md`](../01_tp_core/README.md) | `00_screen/` canonical parquet | 共享基础包 |
-| `02_pipelines/` | 主流水线薄编排：数据刷新、信号、候选池、组合、回测、报告 | [`../02_pipelines/README.md`](../02_pipelines/README.md) | canonical 数据和各标准产物 | 编排主线 |
+| `src/tp_core/` | 共享数据路径、读取函数、数据契约、returns 审计、生产输入整理、共享回测工具 | [`../01_tp_core/README.md`](../01_tp_core/README.md) | `00_screen/` canonical parquet | 共享基础包 |
+| `src/tp_pipelines/` | 主流水线薄编排：数据刷新、信号、候选池、组合、回测、报告 | [`../02_pipelines/README.md`](../02_pipelines/README.md) | canonical 数据和各标准产物 | 编排主线 |
 | `11_docs/` | 全工作区文档中枢 | [`README.md`](README.md) | 不直接读数据 | 文档入口 |
 | `04_signals/` | 统一信号表输出目录 | [`../04_signals/README.md`](../04_signals/README.md) | ML/技术/Regime 导出信号 | 信号底座 |
 | `05_candidates/` | 标准候选池输出目录 | [`../05_candidates/README.md`](../05_candidates/README.md) | `04_signals/`、`last_screen` | 候选池标准产物 |
@@ -97,7 +95,7 @@
 | `99_archive/frozen_20260629/ML第一版/` | 第一代 ML 目录 | [`../99_archive/frozen_20260629/README.md`](../99_archive/frozen_20260629/README.md) | 已冻结 |
 | `99_archive/frozen_20260629/factsetProd第一版/` | 旧 FactSet/Excel 生产链路 | [`../99_archive/frozen_20260629/README.md`](../99_archive/frozen_20260629/README.md) | 已冻结 |
 | `99_archive/frozen_20260629/回测第一版/` | 第一代回测目录 | [`../99_archive/frozen_20260629/README.md`](../99_archive/frozen_20260629/README.md) | 已冻结 |
-| `06_optimiser/` | Python 组合优化器主线 | [`../06_optimiser/README.md`](../06_optimiser/README.md) | 候选池、signals、旧组合、约束 | 活跃主线 |
+| `src/tp_portfolio/` | Python 组合优化器主线 | [`../06_optimiser/README.md`](../06_optimiser/README.md) | 候选池、signals、旧组合、约束 | 活跃主线 |
 | `99_archive/project_cleanup_20260707/99_backtest_gui_legacy/` | 原 PySide6 桌面回测入口 | [`../99_archive/project_cleanup_20260707/99_backtest_gui_legacy/README.md`](../99_archive/project_cleanup_20260707/99_backtest_gui_legacy/README.md) | 已归档；当前主线为 `07_backtest_code/` |
 | `99_archive/project_cleanup_20260707/99_optimiseur_legacy/` | 旧 notebook/xlsm 优化器说明 | [`../99_archive/project_cleanup_20260707/99_optimiseur_legacy/README.md`](../99_archive/project_cleanup_20260707/99_optimiseur_legacy/README.md) | 已归档；当前主线为 `06_optimiser/` |
 | `99_archive/project_cleanup_20260707/12_small_cap/` | 小盘研究片段 | [`../99_archive/project_cleanup_20260707/12_small_cap/README.md`](../99_archive/project_cleanup_20260707/12_small_cap/README.md) | 已归档；历史字段快照不是 canonical 字典 |

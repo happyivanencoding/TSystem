@@ -8,10 +8,10 @@ from typing import Iterable
 
 from tp_core.data_sources import RETURNS_PATH, SCREEN_AGGREGATE_PATH, TP_ROOT
 
-from .common import StepManifest, path_profile, run_python_script
+from .common import StepManifest, path_profile, run_python_module
 
 
-BACKTEST_SCRIPT = TP_ROOT / "07_backtest_code" / "run_backtest.py"
+BACKTEST_MODULE = "backtest_code.cli"
 BACKTEST_RUNS_DIR = TP_ROOT / "07_backtest_code" / "runs"
 
 
@@ -70,10 +70,10 @@ def run_backtest_step(args: argparse.Namespace) -> Path:
     manifest.inputs = {
         "screen": path_profile(args.screen or SCREEN_AGGREGATE_PATH, parquet=True),
         "returns": path_profile(args.returns or RETURNS_PATH, parquet=True),
-        "backtest_script": path_profile(BACKTEST_SCRIPT),
+        "backtest_module": {"module": BACKTEST_MODULE},
     }
     try:
-        inspect_result = run_python_script(BACKTEST_SCRIPT, ["inspect", *_common_args(args)])
+        inspect_result = run_python_module(BACKTEST_MODULE, ["inspect", *_common_args(args)])
         manifest.details["inspect"] = inspect_result
         manifest.add_validation(
             "inspect_passed",
@@ -90,7 +90,7 @@ def run_backtest_step(args: argparse.Namespace) -> Path:
             manifest.add_validation("run_skipped", True, "inspect-only 模式未执行回测")
             return manifest.write("success")
 
-        run_result = run_python_script(BACKTEST_SCRIPT, ["run", *_run_args(args)])
+        run_result = run_python_module(BACKTEST_MODULE, ["run", *_run_args(args)])
         manifest.details["run"] = run_result
         manifest.outputs = {"backtest_runs": path_profile(BACKTEST_RUNS_DIR)}
         manifest.add_validation(

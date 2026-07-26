@@ -333,7 +333,7 @@ def run_refresh_data(args: argparse.Namespace) -> Path:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="刷新 canonical 00_screen/returns 数据并写 pipeline manifest")
-    parser.add_argument("--base-dir", help="screen 基础目录，默认使用 00_screen/monthly_update.py 所在目录")
+    parser.add_argument("--base-dir", help="screen 基础目录，默认使用 canonical 00_screen 数据目录")
     parser.add_argument("--input-month", help="生产输入批次，格式 YYYYMM")
     parser.add_argument("--screen-excel", help="显式指定本次月更 screen Excel")
     parser.add_argument("--returns-delta", help="显式指定本次 returns 增量 parquet")

@@ -1,6 +1,6 @@
 # 02_pipelines
 
-`02_pipelines/` 是 TP 主线的薄编排层。它不重新实现各项目的业务逻辑，只负责把已有入口按统一规则串起来，并为每一步写入机器可读 manifest。
+`tp_pipelines` 是 TP 主线的薄编排包，规范实现位于 `src/tp_pipelines/`。`02_pipelines/` 暂时保留 README、测试和会发出弃用提示的旧命令兼容入口。
 
 ## 设计原则
 
@@ -67,9 +67,9 @@ manifest 记录参数、run_type、输入文件概况、输出文件概况、校
 
 ## 当前实现边界
 
-- `refresh_data` 调用 `00_screen/monthly_update.py::run_monthly_update()`。
+- `refresh_data` 调用 `tp_data.run_monthly_update()`。
 - `refresh_ml` 调用 `tp_models.ml.cli`，默认可用 `--inspect-only` 做轻量检查；写主库的 Score ML 刷新必须显式运行。
 - `export_signals` 调用 `tp_models.ml`、`tp_models.technical_signals`、`tp_models.regime` 的公开函数。
 - `build_candidates` 当前使用证券 alpha、国家/行业配置倾斜和 Regime 风险预算乘数的分层可解释组合分数。
 - `optimize_portfolio` 只调用 `tp_portfolio.optimize_portfolio()`；目标函数、持仓与换手约束、TE/score 边界、分组及一般线性约束、求解器回退和 optimizer metadata 均由这一公开 API 负责。
-- `run_backtest` 包装 `07_backtest_code/run_backtest.py`，默认可用 `--inspect-only` 做轻量校验。
+- `run_backtest` 直接调用 `backtest_code.cli`，默认可用 `--inspect-only` 做轻量校验。

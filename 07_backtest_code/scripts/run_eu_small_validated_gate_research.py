@@ -33,7 +33,7 @@ def _load_base_module() -> Any:
 
 base = _load_base_module()
 
-from backtest_code.research.executor import (  # noqa: E402
+from tp_research.executor import (  # noqa: E402
     GateThresholds,
     evaluate_official_top_worst_gate,
 )

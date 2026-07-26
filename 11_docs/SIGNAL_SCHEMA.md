@@ -37,7 +37,7 @@
 
 | 来源 | 默认输出 | 粒度 |
 | --- | --- | --- |
-| `python -m 03_ml_enhanced.cli export-signals` | `04_signals/ml_signals.parquet` | security |
+| `python -m tp_models.ml.cli export-signals` | `04_signals/ml_signals.parquet` | security |
 | `03_technical_analysis/export_technical_signals.py` | `04_signals/technical_signals.parquet` | security |
 | `03_regime_model/export_risk_budget.py` | `04_signals/regime_risk_budget.parquet` | region |
 | `14_country_model/src/country_model.py` | `04_signals/country_model_signals.parquet` | region |
@@ -46,5 +46,5 @@
 ## 校验命令
 
 ```powershell
-python -m 01_tp_core.signals C:\GoogleDrive\TP\04_signals\ml_signals.parquet
+python -m tp_core.signals C:\GoogleDrive\TP\04_signals\ml_signals.parquet
 ```

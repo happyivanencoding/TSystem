@@ -20,13 +20,13 @@
 1. 先生成查询主题和缺口报告：
 
 ```powershell
-python 13_sector_score_model/src/sector_qualitative_report.py --month auto
+python -m tp_models.sector.qualitative_report --month auto
 ```
 
 默认会生成 38 个行业包。如果只想回到旧版“只看 Positive / Negative”的口径：
 
 ```powershell
-python 13_sector_score_model/src/sector_qualitative_report.py --month auto --active-only
+python -m tp_models.sector.qualitative_report --month auto --active-only
 ```
 
 2. 查看：
@@ -44,7 +44,7 @@ python 13_sector_score_model/src/sector_qualitative_report.py --month auto --act
 4. 带 evidence 复跑并写入正式 Obsidian：
 
 ```powershell
-python 13_sector_score_model/src/sector_qualitative_report.py `
+python -m tp_models.sector.qualitative_report `
   --month auto `
   --evidence-jsonl .codex_tmp/sector_qualitative_evidence.jsonl `
   --write-vault `
@@ -56,13 +56,13 @@ python 13_sector_score_model/src/sector_qualitative_report.py `
 可以用公开 RSS 做补充输入：
 
 ```powershell
-python 13_sector_score_model/src/sector_qualitative_report.py --month auto --collect-rss
+python -m tp_models.sector.qualitative_report --month auto --collect-rss
 ```
 
 公开网页也可以用同一个配置做轻抓取：
 
 ```powershell
-python 13_sector_score_model/src/sector_qualitative_report.py --month auto --collect-rss --collect-public-pages
+python -m tp_models.sector.qualitative_report --month auto --collect-rss --collect-public-pages
 ```
 
 RSS 和公开网页配置在 `13_sector_score_model/config/qualitative_sources.yaml`。这些来源只作为补充，

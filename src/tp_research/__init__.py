@@ -1,8 +1,6 @@
-"""Deprecated compatibility facade for :mod:`tp_research.executor`."""
+"""Public API for TP factor-research execution primitives."""
 
-from tp_core.deprecation import warn_legacy_entrypoint
-from tp_research.executor import *  # noqa: F403
-from tp_research.executor import (
+from .executor import (
     GateThresholds,
     RelativeLevelSpec,
     build_same_security_relative_variables,
@@ -14,11 +12,6 @@ from tp_research.executor import (
     read_official_results,
     shard_metric_names,
     shard_result_path,
-)
-
-warn_legacy_entrypoint(
-    legacy="backtest_code.research.executor",
-    replacement="tp_research.executor",
 )
 
 __all__ = [

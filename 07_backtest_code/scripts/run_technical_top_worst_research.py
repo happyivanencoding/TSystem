@@ -9,7 +9,6 @@ import json
 from math import sqrt
 from pathlib import Path
 import re
-import sys
 from typing import Iterable
 
 import numpy as np
@@ -19,10 +18,6 @@ import pyarrow.parquet as pq
 
 BACKTEST_ROOT = Path(__file__).resolve().parents[1]
 TP_ROOT = BACKTEST_ROOT.parent
-
-for path in (TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src"):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
 
 from backtest_code.config.loader import load_settings  # noqa: E402
 from backtest_code.runner.service import BacktestService  # noqa: E402

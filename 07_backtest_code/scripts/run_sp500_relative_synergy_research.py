@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from datetime import datetime
 import json
 from pathlib import Path
-import sys
 from typing import Iterable
 
 import numpy as np
@@ -26,12 +25,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 BACKTEST_ROOT = SCRIPT_DIR.parents[0]
 TP_ROOT = BACKTEST_ROOT.parent
 
-for path in (SCRIPT_DIR, TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src"):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
-
 import run_sp500_multifactor_research as sp500  # noqa: E402
-from backtest_code.research.executor import (  # noqa: E402
+from tp_research.executor import (  # noqa: E402
     build_synergy_candidate_matrix,
     dedupe_official_results,
     incomplete_official_metrics,

@@ -42,19 +42,19 @@
 完整刷新：
 
 ```powershell
-python C:\GoogleDrive\TP\14_country_model\src\country_model.py
+python -m tp_models.country
 ```
 
 使用已生成数据库，避免重新抽取 Excel：
 
 ```powershell
-python C:\GoogleDrive\TP\14_country_model\src\country_model.py --use-existing-database
+python -m tp_models.country --use-existing-database
 ```
 
 通过统一信号导出入口只刷新国家模型信号：
 
 ```powershell
-python -m 02_pipelines.export_signals --skip-ml --skip-technical --skip-regime
+python -m tp_pipelines.export_signals --skip-ml --skip-technical --skip-regime
 ```
 
 ## 输出

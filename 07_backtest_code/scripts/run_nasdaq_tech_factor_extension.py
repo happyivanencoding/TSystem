@@ -7,7 +7,6 @@ from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
-import sys
 import warnings
 
 import numpy as np
@@ -17,10 +16,6 @@ import pandas as pd
 SCRIPT_DIR = Path(__file__).resolve().parent
 BACKTEST_ROOT = SCRIPT_DIR.parent
 TP_ROOT = BACKTEST_ROOT.parent
-for path in (SCRIPT_DIR, TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src"):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
-
 import analyze_nasdaq_extended_factor_research as ext  # noqa: E402
 import run_nasdaq_multifactor_research as base  # noqa: E402
 

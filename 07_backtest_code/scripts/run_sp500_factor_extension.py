@@ -9,7 +9,6 @@ import hashlib
 from itertools import combinations
 import json
 from pathlib import Path
-import sys
 import warnings
 
 import numpy as np
@@ -20,10 +19,6 @@ import pyarrow.parquet as pq
 SCRIPT_DIR = Path(__file__).resolve().parent
 BACKTEST_ROOT = SCRIPT_DIR.parent
 TP_ROOT = BACKTEST_ROOT.parent
-for path in (SCRIPT_DIR, TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src"):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
-
 import run_sp500_relative_synergy_research as ext  # noqa: E402
 
 

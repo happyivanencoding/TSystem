@@ -6,16 +6,9 @@ import pytest
 import pandas as pd
 import numpy as np
 from datetime import datetime
-import sys
-import os
 
-# 添加路径
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
-from core.financial_filter import FinancialFilter
-from utils.constants import COL_SECTOR_ICB19, COL_DATE, COL_ISIN
+from backtest_code.core.financial_filter import FinancialFilter
+from backtest_code.utils.constants import COL_SECTOR_ICB19, COL_DATE, COL_ISIN
 
 
 @pytest.fixture

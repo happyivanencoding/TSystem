@@ -1,15 +1,8 @@
-import sys
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import pytest
 
-OPT_ROOT = Path(__file__).resolve().parent
-if str(OPT_ROOT) not in sys.path:
-    sys.path.insert(0, str(OPT_ROOT))
-
-import optimizer
+import tp_portfolio.optimizer as optimizer
 
 
 def _candidates() -> pd.DataFrame:

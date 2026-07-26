@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from src.services.markdown_format import format_markdown_body
+from presentation_layer.company_browser.services.markdown_format import format_markdown_body
 
 
 def test_empty_none():

@@ -1,0 +1,10 @@
+99_archive/**
+**/_quarantine_*/**
+07_backtest_code/runs/**
+10_pipeline_runs/**
+**/node_modules/**
+**/dist/**
+**/build/**
+**/outputs/**
+**/output/**
+**/*.egg-info/**

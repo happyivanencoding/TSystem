@@ -1,12 +1,12 @@
 import pandas as pd
 
-from src.data.schemas_ciq import (
+from presentation_layer.company_browser.data.schemas_ciq import (
     CIQ_COL_DATE,
     CIQ_COL_ICB_SUPERSECTOR,
     CIQ_COL_ISIN,
     CIQ_COL_REGION,
 )
-from src.services.peer_fan import peer_fan_timeseries
+from presentation_layer.company_browser.services.peer_fan import peer_fan_timeseries
 
 
 def _mk_hist() -> pd.DataFrame:

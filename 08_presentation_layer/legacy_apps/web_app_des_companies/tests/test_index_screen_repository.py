@@ -4,9 +4,9 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from config import settings
-from src.data.index_screen_repository import IndexScreenRepository
-from src.data.schemas_ciq import CIQ_COL_ISIN
+from presentation_layer.company_browser import settings
+from presentation_layer.company_browser.data.index_screen_repository import IndexScreenRepository
+from presentation_layer.company_browser.data.schemas_ciq import CIQ_COL_ISIN
 
 
 pytestmark = pytest.mark.skipif(

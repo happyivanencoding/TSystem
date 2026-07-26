@@ -1,18 +1,8 @@
 from __future__ import annotations
 
-import importlib.util
-import sys
-from pathlib import Path
-
 import pandas as pd
 
-
-MODULE_PATH = Path(__file__).resolve().parents[1] / "src" / "sector_score_model.py"
-SPEC = importlib.util.spec_from_file_location("sector_score_model_under_test", MODULE_PATH)
-assert SPEC is not None and SPEC.loader is not None
-sector_score_model = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = sector_score_model
-SPEC.loader.exec_module(sector_score_model)
+from tp_models.sector import model as sector_score_model
 
 
 def test_latest_recommendations_use_current_sector_scores(tmp_path: Path) -> None:

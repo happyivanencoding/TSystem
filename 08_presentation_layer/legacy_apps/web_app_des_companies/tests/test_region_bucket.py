@@ -1,4 +1,4 @@
-from src.services.region_bucket import (
+from presentation_layer.company_browser.services.region_bucket import (
     NORTH_AMERICA,
     OTHERS,
     WEST_EUROPE,

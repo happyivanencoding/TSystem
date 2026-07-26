@@ -1,3 +1,3 @@
-"""Numbered project container; import public APIs from ``tp_core`` modules."""
+"""Compatibility package; public APIs live in :mod:`tp_core`."""
 
-__all__: list[str] = []
+from tp_core import *  # noqa: F403

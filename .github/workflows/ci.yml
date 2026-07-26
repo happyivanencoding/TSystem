@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: python -m pip install -e ".[screen,backtest,optimizer,web,test]"
+      - name: Verify installed package boundaries
+        run: >-
+          python -P -c
+          "import backtest_code,presentation_layer,tp_core,tp_data,tp_experiments,tp_models,tp_pipelines,tp_portfolio"
+      - name: Test
+        run: python -m pytest -q
+
+  dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 08_presentation_layer/frontend/system_dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: 08_presentation_layer/frontend/system_dashboard/package-lock.json
+      - run: npm ci
+      - run: npm test -- --run
+      - run: npm run build

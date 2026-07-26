@@ -4,7 +4,7 @@ from importlib import import_module
 from pathlib import Path
 
 
-refresh_data = import_module("02_pipelines.refresh_data")
+refresh_data = import_module("tp_pipelines.refresh_data")
 
 
 def test_archive_processed_input_batch_moves_batch_and_matching_loose_original(

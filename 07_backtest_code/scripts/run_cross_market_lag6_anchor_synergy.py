@@ -32,7 +32,6 @@ for path in (TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src", SCRIPT_DIR):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-import sitecustomize  # noqa: E402,F401
 from backtest_code.research.executor import (  # noqa: E402
     GateThresholds,
     dedupe_official_results,

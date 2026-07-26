@@ -27,8 +27,8 @@ from tp_core.supplemental_providers import (
 )
 
 
-refresh = import_module("02_pipelines.refresh_supplemental_data")
-run_all_module = import_module("02_pipelines.run_all")
+refresh = import_module("tp_pipelines.refresh_supplemental_data")
+run_all_module = import_module("tp_pipelines.run_all")
 
 
 def _fundamental_rows() -> pd.DataFrame:
@@ -561,6 +561,7 @@ def test_run_all_calls_supplemental_stage_only_when_enabled(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    orchestration = import_module("tp_pipelines.orchestration")
     calls: list[Namespace] = []
 
     class FakeManifest:
@@ -579,7 +580,7 @@ def test_run_all_calls_supplemental_stage_only_when_enabled(
         return tmp_path / "refresh_supplemental_manifest.json"
 
     monkeypatch.setattr(run_all_module, "StepManifest", FakeManifest)
-    monkeypatch.setattr(run_all_module, "run_refresh_supplemental_data", fake_refresh)
+    monkeypatch.setattr(orchestration, "run_refresh_supplemental_data", fake_refresh)
     args = run_all_module.build_parser().parse_args(
         [
             "--skip-refresh-data",
@@ -594,6 +595,8 @@ def test_run_all_calls_supplemental_stage_only_when_enabled(
             "--skip-optimize-portfolio",
             "--skip-backtest",
             "--skip-report",
+            "--experiment-root",
+            str(tmp_path / "experiments"),
         ]
     )
 
@@ -603,3 +606,9 @@ def test_run_all_calls_supplemental_stage_only_when_enabled(
     assert calls[0].source == ["fred"]
     assert calls[0].dry_run is True
     assert calls[0].promote_to_canonical is False
+    experiment_records = list((tmp_path / "experiments").rglob("run.json"))
+    assert len(experiment_records) == 1
+    experiment = json.loads(experiment_records[0].read_text(encoding="utf-8"))
+    assert experiment["run"]["status"] == "success"
+    assert experiment["hypothesis"]["hypothesis_id"] == "production-pipeline"
+    assert "child_manifest_001" in experiment["artifacts"]

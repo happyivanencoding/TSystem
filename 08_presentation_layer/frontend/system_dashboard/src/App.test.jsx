@@ -60,6 +60,15 @@ beforeEach(() => {
           },
         })
       }
+      if (String(url).includes('/api/dashboard/signals/')) {
+        return jsonResponse({ status: 'ok', rows: [] })
+      }
+      if (String(url).includes('/api/dashboard/backtest')) {
+        return jsonResponse([])
+      }
+      if (String(url).includes('/api/dashboard/score-ml-components')) {
+        return jsonResponse({ status: 'ok', rows: [] })
+      }
       throw new Error(`Unexpected request: ${url}`)
     }),
   )

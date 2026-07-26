@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -15,10 +14,8 @@ import pandas as pd
 
 TP_ROOT = Path("C:/GoogleDrive/TP")
 BACKTEST_ROOT = TP_ROOT / "07_backtest_code"
-sys.path.insert(0, str(TP_ROOT / "01_tp_core"))
-sys.path.insert(0, str(BACKTEST_ROOT))
 
-from utils.constants import (  # noqa: E402
+from backtest_code.utils.constants import (
     COL_DATE,
     COL_ISIN,
     COL_MKT_CAP,
@@ -26,9 +23,9 @@ from utils.constants import (  # noqa: E402
     COL_SECTOR_ICB19,
     COL_SEDOL,
 )
-from utils.plotting import PlotlyVisualizer  # noqa: E402
-from tp_core.backtesting import TargetWeightSchema, calculate_security_nav  # noqa: E402
-from tp_core.portfolio_weights import (  # noqa: E402
+from backtest_code.utils.plotting import PlotlyVisualizer
+from tp_core.backtesting import TargetWeightSchema, calculate_security_nav
+from tp_core.portfolio_weights import (
     cap_weights_preserving_group_totals,
     match_group_weight_targets,
     normalize_long_only_weights,

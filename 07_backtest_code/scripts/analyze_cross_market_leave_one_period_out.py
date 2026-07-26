@@ -30,7 +30,6 @@ for path in (TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src", SCRIPT_DIR):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-import sitecustomize  # noqa: E402,F401
 import run_cross_market_lag6_relative_research as lag6  # noqa: E402
 
 

@@ -14,29 +14,29 @@
 
 | 环节 | 命令 | 主要输入 | 标准输出 |
 | --- | --- | --- | --- |
-| 数据刷新 | `python -m 02_pipelines.refresh_data --input-month YYYYMM` | `00_screen/production_inputs/incoming/YYYYMM/` | `00_screen/screen_aggregate.parquet`、`00_screen/returns.parquet`、QA JSON |
-| 补充数据 | `python -m 02_pipelines.refresh_supplemental_data --source fred --dry-run` | 官方免费 API、字段级配置、证券标识映射 | `00_screen/supplemental/` 影子分区、覆盖率与供应商门槛 |
-| ML 刷新 | `python -m 02_pipelines.refresh_ml --inspect-only` | canonical screen、ML_Enhanced CLI | `Score ML` 覆盖检查；显式运行时更新 screen 和 `04_signals/ml_signals.parquet` |
-| 信号导出 | `python -m 02_pipelines.export_signals --as-of YYYY-MM-DD` | canonical screen、技术 patterns、regime output | `04_signals/*.parquet` |
-| 候选池 | `python -m 02_pipelines.build_candidates --as-of YYYY-MM-DD` | `04_signals/*.parquet`、`00_screen/last_screen.parquet` | `05_candidates/latest_candidates.parquet` |
-| 组合优化 | `python -m 02_pipelines.optimize_portfolio --as-of YYYY-MM-DD` | 候选池、旧组合可选 | `06_portfolios/latest_target_weights.parquet` |
-| 回测 | `python -m 02_pipelines.run_backtest --inspect-only` | canonical screen/returns、backtest profile | `07_backtest_code/runs/` |
-| 报告 | `python -m 02_pipelines.generate_report` | 最新 manifest 和标准产物 | `09_reports/latest_pipeline_report.md` |
+| 数据刷新 | `python -m tp_pipelines.refresh_data --input-month YYYYMM` | `00_screen/production_inputs/incoming/YYYYMM/` | `00_screen/screen_aggregate.parquet`、`00_screen/returns.parquet`、QA JSON |
+| 补充数据 | `python -m tp_pipelines.refresh_supplemental_data --source fred --dry-run` | 官方免费 API、字段级配置、证券标识映射 | `00_screen/supplemental/` 影子分区、覆盖率与供应商门槛 |
+| ML 刷新 | `python -m tp_pipelines.refresh_ml --inspect-only` | canonical screen、ML CLI | `Score ML` 覆盖检查；显式运行时更新 screen 和 `04_signals/ml_signals.parquet` |
+| 信号导出 | `python -m tp_pipelines.export_signals --as-of YYYY-MM-DD` | canonical screen、技术 patterns、regime output | `04_signals/*.parquet` |
+| 候选池 | `python -m tp_pipelines.build_candidates --as-of YYYY-MM-DD` | `04_signals/*.parquet`、`00_screen/last_screen.parquet` | `05_candidates/latest_candidates.parquet` |
+| 组合优化 | `python -m tp_pipelines.optimize_portfolio --as-of YYYY-MM-DD` | 候选池、旧组合可选 | `06_portfolios/latest_target_weights.parquet` |
+| 回测 | `python -m tp_pipelines.run_backtest --inspect-only` | canonical screen/returns、backtest profile | `07_backtest_code/runs/` |
+| 报告 | `python -m tp_pipelines.generate_report` | 最新 manifest 和标准产物 | `09_reports/latest_pipeline_report.md` |
 
 ## 总入口
 
 月更主线可以一键运行：
 
 ```powershell
-python -m 02_pipelines.run_all --input-month YYYYMM --as-of YYYY-MM-DD
+python -m tp_pipelines.run_all --input-month YYYYMM --as-of YYYY-MM-DD
 ```
 
 调试时可以跳过较重或有写主库风险的环节：
 
 ```powershell
-python -m 02_pipelines.run_all --skip-refresh-data --skip-backtest
-python -m 02_pipelines.run_all --dry-run-data --inspect-only-backtest
-python -m 02_pipelines.run_all --skip-refresh-data --refresh-supplemental-data --supplemental-source fred --supplemental-dry-run --skip-export-signals --skip-build-candidates --skip-optimize-portfolio --skip-backtest --skip-report
+python -m tp_pipelines.run_all --skip-refresh-data --skip-backtest
+python -m tp_pipelines.run_all --dry-run-data --inspect-only-backtest
+python -m tp_pipelines.run_all --skip-refresh-data --refresh-supplemental-data --supplemental-source fred --supplemental-dry-run --skip-export-signals --skip-build-candidates --skip-optimize-portfolio --skip-backtest --skip-report
 ```
 
 ## 补充数据影子层
@@ -68,8 +68,8 @@ manifest 记录参数、run_type、输入文件概况、输出文件概况、校
 ## 当前实现边界
 
 - `refresh_data` 调用 `00_screen/monthly_update.py::run_monthly_update()`。
-- `refresh_ml` 调用 `03_ml_enhanced.cli`，默认可用 `--inspect-only` 做轻量检查；写主库的 Score ML 刷新必须显式运行。
-- `export_signals` 调用 `03_ml_enhanced`、`03_technical_analysis`、`03_regime_model` 的现有导出函数。
+- `refresh_ml` 调用 `tp_models.ml.cli`，默认可用 `--inspect-only` 做轻量检查；写主库的 Score ML 刷新必须显式运行。
+- `export_signals` 调用 `tp_models.ml`、`tp_models.technical_signals`、`tp_models.regime` 的公开函数。
 - `build_candidates` 当前使用证券 alpha、国家/行业配置倾斜和 Regime 风险预算乘数的分层可解释组合分数。
-- `optimize_portfolio` 只调用 `06_optimiser/optimizer.py::optimize_portfolio()`；目标函数、持仓与换手约束、TE/score 边界、分组及一般线性约束、求解器回退和 optimizer metadata 均由这一公开 API 负责。
+- `optimize_portfolio` 只调用 `tp_portfolio.optimize_portfolio()`；目标函数、持仓与换手约束、TE/score 边界、分组及一般线性约束、求解器回退和 optimizer metadata 均由这一公开 API 负责。
 - `run_backtest` 包装 `07_backtest_code/run_backtest.py`，默认可用 `--inspect-only` 做轻量校验。

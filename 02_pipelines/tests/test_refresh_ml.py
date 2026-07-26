@@ -8,7 +8,7 @@ from importlib import import_module
 from pathlib import Path
 
 
-refresh_ml = import_module("02_pipelines.refresh_ml")
+refresh_ml = import_module("tp_pipelines.refresh_ml")
 
 
 def test_refresh_ml_inspect_uses_ml_cli(tmp_path: Path, monkeypatch) -> None:
@@ -52,4 +52,4 @@ def test_refresh_ml_inspect_uses_ml_cli(tmp_path: Path, monkeypatch) -> None:
     )
 
     assert manifest_path.name == "refresh_ml_manifest.json"
-    assert calls == [[sys.executable, "-m", "03_ml_enhanced.cli", "inspect", "--json"]]
+    assert calls == [[sys.executable, "-m", "tp_models.ml.cli", "inspect", "--json"]]

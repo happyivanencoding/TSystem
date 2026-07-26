@@ -1,14 +1,5 @@
-import sys
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
-
-project_root = Path(__file__).resolve().parents[1]
-opt_root = project_root.parent / "06_optimiser"
-for path in [project_root, opt_root]:
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
 
 from tp_core.backtesting import OfficialPortfolioBacktest
 

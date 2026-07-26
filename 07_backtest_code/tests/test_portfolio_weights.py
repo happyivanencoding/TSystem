@@ -1,14 +1,6 @@
-import sys
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import pytest
-
-
-TP_CORE_ROOT = Path(__file__).resolve().parents[2] / "01_tp_core"
-if str(TP_CORE_ROOT) not in sys.path:
-    sys.path.insert(0, str(TP_CORE_ROOT))
 
 from tp_core.portfolio_weights import (
     cap_and_redistribute_weights,

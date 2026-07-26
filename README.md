@@ -23,7 +23,7 @@
 - `00_screen/screen_aggregate_5Y.parquet`：近 5 年子集。
 - `00_screen/production_inputs/incoming/YYYYMM/`：月更输入唯一入口。
 
-新代码应优先使用 `tp_core`：
+项目采用 `src/` 包布局；先执行 `python -m pip install -e .`。新代码应优先使用公开包：
 
 ```python
 from tp_core.io import read_screen_aggregate, read_returns
@@ -35,7 +35,7 @@ returns = read_returns()
 
 ## 当前代码主线
 
-- 流水线主线：[`02_pipelines/`](02_pipelines/) 提供数据刷新、信号、候选池、组合、回测和报告的单环入口与总入口。
+- 流水线主线：`tp_pipelines`（源码位于 [`src/tp_pipelines/`](src/tp_pipelines/)）提供数据刷新、信号、候选池、组合、回测和报告入口。
 - 回测主线：[`07_backtest_code/`](07_backtest_code/) 是传统代码版入口，替代原 Web app 和 GUI 入口。
 - 展示/报告主线：[`08_presentation_layer/`](08_presentation_layer/) 统一承载公司展示、公司分析、组合 dashboard 和报告 wrapper。
 - Web/API/GUI 回测前端已进入 `_quarantine_20260629`，只作为可回滚历史参考。

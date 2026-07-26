@@ -33,8 +33,6 @@ for path in (TP_ROOT, BACKTEST_ROOT, BACKTEST_ROOT / "src"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-import sitecustomize  # noqa: F401,E402
-
 from backtest_code.config.loader import load_settings  # noqa: E402
 from backtest_code.research.executor import (  # noqa: E402
     GateThresholds,

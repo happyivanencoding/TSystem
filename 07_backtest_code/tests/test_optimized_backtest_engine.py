@@ -1,13 +1,6 @@
-import sys
-from pathlib import Path
-
 import pandas as pd
 
-project_root = Path(__file__).resolve().parents[1]
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
-from core.optimizer_backtest_adapter import OptimizerBacktestAdapter
+from backtest_code.core.optimizer_backtest_adapter import OptimizerBacktestAdapter
 
 
 def test_optimized_backtest_engine_runs_optimizer_result_wopt():

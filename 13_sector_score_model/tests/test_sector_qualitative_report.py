@@ -1,16 +1,8 @@
 from __future__ import annotations
 
-import importlib.util
-import sys
 from pathlib import Path
 
-
-MODULE_PATH = Path(__file__).resolve().parents[1] / "src" / "sector_qualitative_report.py"
-SPEC = importlib.util.spec_from_file_location("sector_qualitative_report_under_test", MODULE_PATH)
-assert SPEC is not None and SPEC.loader is not None
-sector_qualitative_report = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = sector_qualitative_report
-SPEC.loader.exec_module(sector_qualitative_report)
+from tp_models.sector import qualitative_report as sector_qualitative_report
 
 
 from tp_core.research_context import (  # noqa: E402

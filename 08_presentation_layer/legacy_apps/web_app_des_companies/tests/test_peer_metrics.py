@@ -5,13 +5,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.data.schemas_ciq import (
+from presentation_layer.company_browser.data.schemas_ciq import (
     CIQ_COL_DATE,
     CIQ_COL_ICB_SUPERSECTOR,
     CIQ_COL_ISIN,
     CIQ_COL_NAME,
 )
-from src.services.peer_metrics import (
+from presentation_layer.company_browser.services.peer_metrics import (
     peer_set_for_spot,
     spot_compare_metric,
     trend_series_anchor_vs_industry,

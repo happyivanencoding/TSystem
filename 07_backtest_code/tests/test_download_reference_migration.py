@@ -1,12 +1,5 @@
-import sys
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
-
-project_root = Path(__file__).resolve().parents[1]
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
 
 from tp_core.backtesting import (
     TargetWeightSchema,
@@ -14,14 +7,14 @@ from tp_core.backtesting import (
     calculate_security_nav,
     benchmark_to_weight_table,
 )
-from core.factor_pipeline import (
+from backtest_code.core.factor_pipeline import (
     build_factor_component,
     handle_missing_values,
     neutralize_score,
     run_growth_factor_pipeline,
     transform_absolute_values,
 )
-from utils.constants import (
+from backtest_code.utils.constants import (
     COL_DATE,
     COL_ISIN,
     COL_MKT_CAP,

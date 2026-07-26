@@ -4,8 +4,8 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from src.data.schemas import COL_COUNTRY, COL_ISIN, COL_NAME, COL_SECTOR
-from src.services.filters import apply_filters, paginate, total_pages
+from presentation_layer.company_browser.data.schemas import COL_COUNTRY, COL_ISIN, COL_NAME, COL_SECTOR
+from presentation_layer.company_browser.services.filters import apply_filters, paginate, total_pages
 
 
 @pytest.fixture

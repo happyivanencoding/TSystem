@@ -50,10 +50,7 @@ def test_lowvol_consumer_uses_exact_sector_targets():
 
 
 def test_technical_consumer_preserves_sector_targets_and_cap():
-    module = _load_module(
-        "test_technical_weight_consumer",
-        TP_ROOT / "03_technical_analysis" / "pattern_backtest_engine.py",
-    )
+    from tp_models.technical import pattern_backtest_engine as module
     group = pd.DataFrame(
         {
             "Company SEDOL": list("ABCDEF"),

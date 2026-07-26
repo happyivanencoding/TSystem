@@ -16,6 +16,8 @@
 10_pipeline_runs/notebook_execution/
 **/optimizer_debug/
 *.log
+*.egg-info/
+10_pipeline_runs/experiments/
 
 # Local environments and caches
 .venv_tp/

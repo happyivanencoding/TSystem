@@ -1357,666 +1357,8 @@ function DataTable({ columns, rows, limit = 8, renderCell }) {
   )
 }
 
-function App() {
-  const [job, setJob] = useState(EMPTY_JOB)
-  const [dashboardState, setDashboardState] = useState(EMPTY_DASHBOARD_STATE)
-  const [pipelinePayload, setPipelinePayload] = useState(DEFAULT_PIPELINE_PAYLOAD)
-  const [projectPayload, setProjectPayload] = useState({ project_id: '00_screen', mode: 'safe_check' })
-  const [toast, setToast] = useState({ tone: 'neutral', title: 'Ready', detail: '等待操作' })
-  const [submitting, setSubmitting] = useState('')
-  const [refreshingState, setRefreshingState] = useState(false)
-  const [connection, setConnection] = useState('api')
-  const [scoreMlComponents, setScoreMlComponents] = useState(EMPTY_DASHBOARD_STATE.signals.score_ml_components)
-  const [scoreMlSelection, setScoreMlSelection] = useState({ date: '', side: 'top' })
-  const [scoreMlLoading, setScoreMlLoading] = useState(false)
-  const [selectedSector, setSelectedSector] = useState(null)
-  const [companyDetail, setCompanyDetail] = useState(null)
-  const [companyDetailLoading, setCompanyDetailLoading] = useState(false)
-  const [companyDetailError, setCompanyDetailError] = useState('')
-  const [activePage, setActivePage] = useState(() => {
-    if (typeof window === 'undefined') return DEFAULT_PAGE
-    return parseDashboardRoute(window.location.hash).page
-  })
-  const [activeModule, setActiveModule] = useState(() => {
-    if (typeof window === 'undefined') return DEFAULT_MODULE_BY_PAGE[DEFAULT_PAGE]
-    return parseDashboardRoute(window.location.hash).moduleId
-  })
-  const [moduleOrder, setModuleOrder] = useState(loadModuleOrder)
-  const eventSourceRef = useRef(null)
-  const queueSourceRef = useRef(null)
-  const pollingRef = useRef(null)
-  const queuePollingRef = useRef(null)
-  const pollingInFlightRef = useRef(false)
-  const dragModuleRef = useRef('')
-
-  const activePhase = phaseIndex(job.phase)
-  const isBusy = submitting !== '' || ['queued', 'running'].includes(job.status)
-  const progressPercent = job.status === 'idle' ? 0 : Math.round(((activePhase + 1) / PHASES.length) * 100)
-
-  const stopPolling = () => {
-    if (pollingRef.current) {
-      window.clearInterval(pollingRef.current)
-      pollingRef.current = null
-    }
-    pollingInFlightRef.current = false
-  }
-
-  const closeSource = () => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
-    }
-  }
-
-  const mergeQueueState = (queue) => {
-    setDashboardState((current) => ({
-      ...current,
-      queue: {
-        ...EMPTY_DASHBOARD_STATE.queue,
-        ...queue,
-        counts: {
-          ...EMPTY_DASHBOARD_STATE.queue.counts,
-          ...(queue?.counts || {}),
-        },
-      },
-    }))
-  }
-
-  const stopQueuePolling = () => {
-    if (queuePollingRef.current) {
-      window.clearInterval(queuePollingRef.current)
-      queuePollingRef.current = null
-    }
-  }
-
-  const closeQueueSource = () => {
-    if (queueSourceRef.current) {
-      queueSourceRef.current.close()
-      queueSourceRef.current = null
-    }
-  }
-
-  const startQueuePolling = () => {
-    stopQueuePolling()
-    const pollQueue = async () => {
-      try {
-        mergeQueueState(await requestJson('/api/dashboard/jobs/queue'))
-      } catch (error) {
-        setToast({ tone: 'bad', title: '队列状态读取失败', detail: error.message })
-      }
-    }
-    pollQueue()
-    queuePollingRef.current = window.setInterval(pollQueue, 5000)
-  }
-
-  const subscribeToQueue = () => {
-    closeQueueSource()
-    stopQueuePolling()
-    if (typeof EventSource === 'undefined') {
-      startQueuePolling()
-      return
-    }
-    const source = new EventSource(`${API_BASE}/api/dashboard/jobs/queue/events`)
-    queueSourceRef.current = source
-    source.addEventListener('queue', (event) => {
-      mergeQueueState(JSON.parse(event.data))
-    })
-    source.onerror = () => {
-      closeQueueSource()
-      startQueuePolling()
-    }
-  }
-
-  const refreshDashboardState = async ({ quiet = false } = {}) => {
-    setRefreshingState(true)
-    if (!quiet) {
-      setToast({ tone: 'info', title: '正在刷新状态', detail: '正在读取项目、资产、核心库和 pipeline 快照。' })
-    }
-    try {
-      const nextState = await requestJson('/api/dashboard/state')
-      setDashboardState({ ...EMPTY_DASHBOARD_STATE, ...nextState })
-      const nextScoreMlComponents = nextState.signals?.score_ml_components || EMPTY_DASHBOARD_STATE.signals.score_ml_components
-      setScoreMlComponents(nextScoreMlComponents)
-      setScoreMlSelection({
-        date: nextScoreMlComponents.selected_date || nextScoreMlComponents.default_date || '',
-        side: nextScoreMlComponents.selected_side || nextScoreMlComponents.default_side || 'top',
-      })
-      if (!quiet) {
-        setToast({
-          tone: 'good',
-          title: '状态已刷新',
-          detail: `${nextState.projects?.length || 0} projects / ${nextState.assets?.length || 0} assets`,
-        })
-      }
-    } catch (error) {
-      setToast({ tone: 'bad', title: '状态刷新失败', detail: error.message })
-    } finally {
-      setRefreshingState(false)
-    }
-  }
-
-  const refreshScoreMlComponents = async (nextSelection) => {
-    const selection = {
-      date: nextSelection.date || scoreMlSelection.date || '',
-      side: nextSelection.side || scoreMlSelection.side || 'top',
-    }
-    setScoreMlSelection(selection)
-    setScoreMlLoading(true)
-    try {
-      const payload = await requestJson(
-        `/api/dashboard/score-ml-components?side=${encodeURIComponent(selection.side)}&date=${encodeURIComponent(selection.date)}`,
-      )
-      setScoreMlComponents(payload)
-      setScoreMlSelection({
-        date: payload.selected_date || selection.date,
-        side: payload.selected_side || selection.side,
-      })
-    } catch (error) {
-      setToast({ tone: 'bad', title: 'Score ML 成分读取失败', detail: error.message })
-    } finally {
-      setScoreMlLoading(false)
-    }
-  }
-
-  const openCompanyDetail = async (row) => {
-    const isin = row?.ISIN
-    if (!isin) return
-    setCompanyDetail({
-      status: 'loading',
-      isin,
-      identity: { name: row.Name, country: row.Country, sector: row.Sector },
-      description: {},
-      news: [],
-      message: '',
-    })
-    setCompanyDetailError('')
-    setCompanyDetailLoading(true)
-    try {
-      const detail = await requestJson(`/api/dashboard/company-detail/${encodeURIComponent(isin)}`)
-      setCompanyDetail(detail)
-      if (detail.status !== 'ok') {
-        setCompanyDetailError(detail.message || '未找到公司详情')
-      }
-    } catch (error) {
-      setCompanyDetailError(error.message)
-    } finally {
-      setCompanyDetailLoading(false)
-    }
-  }
-
-  const startJobPolling = (jobId) => {
-    stopPolling()
-    if (!jobId) {
-      setConnection('api')
-      return
-    }
-    setConnection('polling')
-    const pollOnce = async () => {
-      if (pollingInFlightRef.current) return
-      pollingInFlightRef.current = true
-      try {
-        const nextJob = await requestJson(`/api/dashboard/jobs/${encodeURIComponent(jobId)}`)
-        setJob(nextJob)
-        if (nextJob.status === 'completed' || nextJob.status === 'failed') {
-          stopPolling()
-          setConnection('api')
-          refreshDashboardState({ quiet: true })
-        }
-      } catch (error) {
-        setToast({ tone: 'bad', title: '任务状态轮询失败', detail: error.message })
-      } finally {
-        pollingInFlightRef.current = false
-      }
-    }
-    pollOnce()
-    pollingRef.current = window.setInterval(pollOnce, 3000)
-  }
-
-  const subscribeToJob = (jobId) => {
-    closeSource()
-    stopPolling()
-    if (!jobId || typeof EventSource === 'undefined') {
-      startJobPolling(jobId)
-      return
-    }
-    const source = new EventSource(`${API_BASE}/api/dashboard/jobs/${encodeURIComponent(jobId)}/events`)
-    eventSourceRef.current = source
-    setConnection('sse')
-    source.addEventListener('job', (event) => {
-      const nextJob = JSON.parse(event.data)
-      setJob(nextJob)
-      if (nextJob.status === 'completed' || nextJob.status === 'failed') {
-        closeSource()
-        setConnection('api')
-        refreshDashboardState({ quiet: true })
-      }
-    })
-    source.onerror = () => {
-      closeSource()
-      setToast({ tone: 'warn', title: '实时连接已切换', detail: 'SSE 暂不可用，正在用 API 轮询保持状态更新。' })
-      startJobPolling(jobId)
-    }
-  }
-
-  const refreshLatestJob = async () => {
-    const latest = await requestJson('/api/dashboard/jobs/latest')
-    setJob(latest)
-    if (latest.job_id && !eventSourceRef.current) {
-      subscribeToJob(latest.job_id)
-    }
-  }
-
-  useEffect(() => {
-    refreshLatestJob().catch((error) => {
-      setToast({ tone: 'bad', title: '状态读取失败', detail: error.message })
-    })
-    refreshDashboardState({ quiet: true })
-    subscribeToQueue()
-    return () => {
-      closeSource()
-      stopPolling()
-      closeQueueSource()
-      stopQueuePolling()
-    }
-  }, [])
-
-  useEffect(() => {
-    const onHashChange = () => {
-      const route = parseDashboardRoute(window.location.hash)
-      setActivePage(route.page)
-      setActiveModule(route.moduleId)
-    }
-    window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
-  }, [])
-
-  const changePage = (page) => {
-    const moduleId = DEFAULT_MODULE_BY_PAGE[page]
-    setActiveModule(moduleId)
-    setActivePage(page)
-    if (typeof window !== 'undefined') {
-      window.location.hash = `${page}/${moduleId}`
-    }
-  }
-
-  const changeModule = (page, moduleId) => {
-    setActivePage(page)
-    setActiveModule(moduleId)
-    if (typeof window !== 'undefined') {
-      window.location.hash = `${page}/${moduleId}`
-    }
-  }
-
-  const reorderModules = (page, fromId, toId) => {
-    setModuleOrder((current) => {
-      const next = {
-        ...current,
-        [page]: moveItem(current[page] || DEFAULT_MODULE_ORDER[page], fromId, toId),
-      }
-      saveModuleOrder(next)
-      return next
-    })
-  }
-
-  const moduleDragProps = (page, id) => ({
-    draggable: true,
-    onDragStart: (event) => {
-      dragModuleRef.current = id
-      event.dataTransfer.effectAllowed = 'move'
-      event.dataTransfer.setData('text/plain', id)
-    },
-    onDragOver: (event) => {
-      event.preventDefault()
-      event.dataTransfer.dropEffect = 'move'
-    },
-    onDrop: (event) => {
-      event.preventDefault()
-      reorderModules(page, event.dataTransfer.getData('text/plain') || dragModuleRef.current, id)
-    },
-    style: {
-      order: Math.max(0, (moduleOrder[page] || DEFAULT_MODULE_ORDER[page]).indexOf(id)),
-    },
-    title: '拖动模块排序',
-  })
-
-  const panelClass = (page, id, extra = '') => [
-    'tp-panel',
-    extra,
-    `tp-${page}-module`,
-    activePage === page && activeModule === id ? 'is-active-module' : '',
-  ].filter(Boolean).join(' ')
-
-  const launchJob = async (kind) => {
-    const targets = {
-      checks: {
-        endpoint: '/api/dashboard/jobs/system-checks',
-        payload: {},
-        label: '全部项目检查',
-        pendingStep: 'system_checks',
-      },
-      project: {
-        endpoint: '/api/dashboard/jobs/project',
-        payload: projectPayload,
-        label: '子项目启动',
-        pendingStep: `project:${projectPayload.project_id}:${projectPayload.mode}`,
-      },
-      pipeline: {
-        endpoint: '/api/dashboard/jobs/pipeline',
-        payload: pipelinePayload,
-        label: 'Pipeline 启动',
-        pendingStep: pipelinePayload.step,
-      },
-      regime: {
-        endpoint: '/api/dashboard/jobs/signals/regime',
-        payload: {},
-        label: 'Regime 刷新',
-        pendingStep: 'signal:regime_risk_budget',
-      },
-      country: {
-        endpoint: '/api/dashboard/jobs/signals/country',
-        payload: {},
-        label: 'Country model 刷新',
-        pendingStep: 'signal:country_model',
-      },
-    }
-    const target = targets[kind]
-    setSubmitting(kind)
-    setConnection('submitting')
-    setToast({ tone: 'info', title: `${target.label}已提交`, detail: '前端已立即接收点击，正在创建后台 job。' })
-    setJob({
-      ...EMPTY_JOB,
-      job_id: 'pending',
-      step: target.pendingStep,
-      status: 'running',
-      status_label: 'SUBMITTING',
-      log_tail: '正在向后端提交 job...',
-    })
-    try {
-      const result = await requestJson(target.endpoint, {
-        method: 'POST',
-        body: JSON.stringify(target.payload),
-      })
-      setJob(result.job)
-      subscribeToJob(result.job.job_id)
-      setToast({
-        tone: 'good',
-        title: `${target.label}已创建`,
-        detail: `job_id ${result.job.job_id || 'N/A'} / PID ${result.job.pid || 'N/A'}`,
-      })
-    } catch (error) {
-      setToast({ tone: 'bad', title: `${target.label}失败`, detail: error.message })
-      setJob({ ...EMPTY_JOB, log_tail: error.message })
-      setConnection('api')
-    } finally {
-      setSubmitting('')
-    }
-  }
-
-  const metrics = useMemo(
-    () => [
-      ['当前状态', statusText(job.status), job.status_label || 'IDLE'],
-      ['运行目标', job.step || 'N/A', job.job_id || 'N/A'],
-      ['状态通道', connection.toUpperCase(), job.log_path || 'log: N/A'],
-      [
-        '数据快照',
-        dashboardState.generated_at ? dashboardState.generated_at.replace('T', ' ') : 'N/A',
-        `${dashboardState.projects.length} projects / ${dashboardState.assets.length} assets`,
-      ],
-      [
-        '后台队列',
-        `${dashboardState.queue.counts.queued} queued / ${dashboardState.queue.counts.running} running`,
-        `${dashboardState.queue.thread_worker_alive ? 'worker alive' : 'worker idle'} / pending ${dashboardState.queue.in_memory_pending}`,
-      ],
-    ],
-    [connection, dashboardState, job],
-  )
-  const latestMarketBrief = dashboardState.latest_market_brief || EMPTY_DASHBOARD_STATE.latest_market_brief
-
-  const queueRows = useMemo(
-    () =>
-      (dashboardState.queue.recent || []).map((item) => ({
-        job_id: item.job_id,
-        状态: item.status,
-        step: item.step,
-        更新时间: item.updated_at,
-        backend: item.backend || item.queue_name,
-      })),
-    [dashboardState.queue.recent],
-  )
-
-  const regimeSignal = dashboardState.signals?.regime || EMPTY_DASHBOARD_STATE.signals.regime
-  const regimeRows = useMemo(
-    () =>
-      (regimeSignal.rows || []).map((item) => ({
-        region: item.region,
-        最新月份: item.最新月份,
-        regime: item.regime,
-        风险预算: item.risk_budget,
-        状态: item.state,
-        model: item.model,
-      })),
-    [regimeSignal],
-  )
-  const regimeHistoryRows = useMemo(
-    () =>
-      (regimeSignal.history || []).map((item) => ({
-        region: item.region,
-        月份: item.最新月份,
-        regime: item.regime,
-        风险预算: item.risk_budget,
-        状态: item.state,
-      })),
-    [regimeSignal],
-  )
-  const regimeModels = regimeSignal.models || EMPTY_DASHBOARD_STATE.signals.regime.models
-  const stateModelRows = regimeModels.state_models || []
-  const riskModelRows = regimeModels.risk_models || []
-  const directionModelRows = regimeModels.direction_models || []
-  const volatilityModelRows = regimeModels.volatility_models || []
-  const drawdownModelRows = regimeModels.drawdown_models || []
-  const countrySignal = dashboardState.signals?.country || EMPTY_DASHBOARD_STATE.signals.country
-  const countryVisualRows = countrySignal.rows || []
-  const singleCountrySignalRows = countrySignal.single_country_rows || []
-  const countryRows = useMemo(
-    () =>
-      (countrySignal.rows || []).map((item) => ({
-        region: item.region,
-        最新月份: item.最新月份,
-        score: item.score,
-        rank: item.rank,
-        recommendation: item.recommendation,
-        'Δ rank': item.rank_delta,
-        margin: item.margin,
-        profitability: item.profitability,
-        growth: item.growth,
-        value: item.value,
-        momentum: item.momentum,
-      })),
-    [countrySignal],
-  )
-  const countryHistoryRows = useMemo(
-    () =>
-      (countrySignal.history || []).map((item) => ({
-        region: item.region,
-        月份: item.最新月份,
-        score: item.score,
-        rank: item.rank,
-        recommendation: item.recommendation,
-      })),
-    [countrySignal],
-  )
-  const singleCountryRows = useMemo(
-    () =>
-      (countrySignal.single_country_rows || []).map((item) => ({
-        国家: item.country,
-        指数: item.country_label,
-        最新月份: item.最新月份,
-        score: item.score,
-        rank: item.rank,
-        margin: item.margin,
-        profitability: item.profitability,
-        growth: item.growth,
-        value: item.value,
-        momentum: item.momentum,
-      })),
-    [countrySignal],
-  )
-  const sectorSignal = dashboardState.signals?.sector || EMPTY_DASHBOARD_STATE.signals.sector
-  const sectorMarkets = sectorSignal.markets || []
-  const sectorVisualRows = sectorSignal.rows || []
-  const selectedSectorRow = useMemo(
-    () =>
-      sectorVisualRows.find(
-        (item) => item.market === selectedSector?.market && item.sector_name === selectedSector?.sector_name,
-      ) || selectedSector,
-    [sectorVisualRows, selectedSector],
-  )
-  const sectorRows = useMemo(
-    () =>
-      (sectorSignal.rows || []).map((item) => ({
-        market: item.market,
-        sector: item.sector_name,
-        最新月份: item.最新月份,
-        rank: item.rank,
-        recommendation: item.recommendation,
-        score: item.score,
-        leverage: item.leverage,
-        margin: item.margin,
-        valuation: item.valuation,
-        momentum: item.momentum,
-        growth: item.growth,
-        lowvol: item.lowvol,
-        weight: item.sector_weight,
-        names: item.constituents,
-      })),
-    [sectorSignal],
-  )
-  const scoreMlRows = useMemo(
-    () =>
-      (scoreMlComponents.rows || []).map((item) => ({
-        Name: item.Name,
-        Weight: item.Weight,
-        'Score ML': item['Score ML'],
-        'Score ML_IF': item['Score ML_IF'],
-        Value: item.Value,
-        Quality: item.Quality,
-        Momentum: item.Momentum,
-        Growth: item.Growth,
-        LowVol: item.LowVol,
-        Div: item.Div,
-        Size: item.Size,
-        'PE LTM': item['PE LTM'],
-        'PE FY1': item['PE FY1'],
-        'EPS Growth FY1': item['EPS Growth FY1'],
-        ROE: item.ROE,
-        'Dividend Yield': item['Dividend Yield'],
-        'Earnings Yield': item['Earnings Yield'],
-        Country: item.Country,
-        Region: item.Region,
-        Sector: item.Sector,
-        ISIN: item.ISIN,
-      })),
-    [scoreMlComponents],
-  )
-  const technicalSignal = dashboardState.signals?.technical || EMPTY_DASHBOARD_STATE.signals.technical
-  const technicalMetricRows = useMemo(
-    () =>
-      (technicalSignal.metric_rows || []).map((item) => ({
-        市场: item.市场,
-        metric: item.metric,
-        处理: item.处理,
-        证据: item.证据,
-        推荐端: item.推荐端,
-        覆盖: item.覆盖,
-        覆盖率: item.覆盖率,
-        均值: item.均值,
-        中位数: item.中位数,
-        最小: item.最小,
-        最大: item.最大,
-        并列率: item.并列率,
-        事件率: item.事件率,
-        说明: item.说明,
-      })),
-    [technicalSignal],
-  )
-  const technicalSecurityRows = useMemo(
-    () =>
-      (technicalSignal.security_rows || []).map((item) => ({
-        市场: item.市场,
-        metric: item.metric,
-        处理: item.处理,
-        推荐端: item.推荐端,
-        Name: item.Name,
-        score: item.score,
-        Weight: item.Weight,
-        Country: item.Country,
-        Region: item.Region,
-        Sector: item.Sector,
-        ISIN: item.ISIN,
-      })),
-    [technicalSignal],
-  )
-  const renderTechnicalCell = (column, row) => {
-    if (column === 'Name' && row.ISIN) {
-      return (
-        <button className="tp-table-link" onClick={() => openCompanyDetail(row)} type="button">
-          {cellText(row.Name)}
-        </button>
-      )
-    }
-    if (['处理', '证据', '推荐端'].includes(column)) {
-      return <span className={`tp-technical-tag ${technicalTone(row[column])}`}>{cellText(row[column])}</span>
-    }
-    return cellText(row[column])
-  }
-  const renderScoreMlCell = (column, row) => {
-    if (column === 'Name' && row.ISIN) {
-      return (
-        <button className="tp-table-link" onClick={() => openCompanyDetail(row)} type="button">
-          {cellText(row.Name)}
-        </button>
-      )
-    }
-    if (column.includes('状态')) return <StatusPill value={row[column]} />
-    return cellText(row[column])
-  }
-  const activeSection = NAV_SECTIONS.find((section) => section.page === activePage) || NAV_SECTIONS[0]
-  const activeModuleConfig = activeSection.modules.find(([id]) => id === activeModule) || activeSection.modules[0]
-
+function MarketBriefPanel({ latestMarketBrief, moduleDragProps, panelClass, refreshingState }) {
   return (
-    <div className="tp-shell">
-      <aside className="tp-sidebar">
-        <div className="tp-brand">
-          <p className="tp-kicker">React job control</p>
-          <h1>TP System Dashboard</h1>
-          <span>{job.status_label || 'IDLE'} / {connection}</span>
-        </div>
-        <PageTabs activePage={activePage} activeModule={activeModule} onChange={changePage} onModuleChange={changeModule} />
-      </aside>
-
-      <div className="tp-content">
-        <header className="tp-topbar">
-          <div>
-            <p className="tp-kicker">{activeSection.label}</p>
-            <h1>{activeModuleConfig[1]}</h1>
-            <span className="tp-topbar-subtitle">{activeModuleConfig[2]}</span>
-          </div>
-          <button
-            className="tp-icon-button"
-            disabled={refreshingState}
-            onClick={() => {
-              refreshLatestJob().catch((error) => setToast({ tone: 'bad', title: '状态读取失败', detail: error.message }))
-              refreshDashboardState()
-            }}
-            type="button"
-          >
-            <RefreshCw className={refreshingState ? 'tp-spin' : ''} size={18} />
-            <span>刷新状态</span>
-          </button>
-        </header>
-
-        <main className="tp-main">
-          <section className={`tp-dashboard-grid tp-page-${activePage} tp-module-${activeModule}`}>
           <div className={panelClass('market', 'brief', 'tp-market-panel')} {...moduleDragProps('market', 'brief')}>
             <div className="tp-panel-heading">
               <div>
@@ -2058,7 +1400,11 @@ function App() {
               )}
             </section>
           </div>
+  )
+}
 
+function RunControlPanel({ isBusy, job, launchJob, moduleDragProps, panelClass, pipelinePayload, projectPayload, setPipelinePayload, setProjectPayload, submitting }) {
+  return (
             <div className={panelClass('production', 'run-control', 'tp-run-panel')} {...moduleDragProps('production', 'run-control')}>
             <div className="tp-panel-heading">
               <div>
@@ -2147,7 +1493,11 @@ function App() {
               </label>
             </div>
           </div>
+  )
+}
 
+function LiveJobPanel({ activePhase, job, moduleDragProps, panelClass, progressPercent }) {
+  return (
           <div className={panelClass('production', 'live-job')} {...moduleDragProps('production', 'live-job')}>
             <div className="tp-panel-heading">
               <div>
@@ -2198,6 +1548,11 @@ function App() {
 
             <pre className="tp-log">{job.log_tail || '暂无日志摘要'}</pre>
           </div>
+  )
+}
+
+function OverviewPanel({ dashboardState, metrics, moduleDragProps, panelClass, refreshingState }) {
+  return (
           <div className={panelClass('production', 'overview')} {...moduleDragProps('production', 'overview')}>
             <div className="tp-panel-heading">
               <div>
@@ -2225,7 +1580,11 @@ function App() {
               ))}
             </div>
           </div>
+  )
+}
 
+function AlertsPanel({ dashboardState, moduleDragProps, panelClass }) {
+  return (
           <div className={panelClass('production', 'alerts')} {...moduleDragProps('production', 'alerts')}>
             <div className="tp-panel-heading">
               <div>
@@ -2246,7 +1605,11 @@ function App() {
               {!dashboardState.alerts.length && <div className="tp-empty">暂无告警</div>}
             </div>
           </div>
+  )
+}
 
+function RegimePanel({ directionModelRows, drawdownModelRows, isBusy, job, launchJob, moduleDragProps, panelClass, regimeHistoryRows, regimeModels, regimeRows, regimeSignal, riskModelRows, stateModelRows, submitting, volatilityModelRows }) {
+  return (
           <div className={panelClass('results', 'regime', 'tp-wide-panel')} {...moduleDragProps('results', 'regime')}>
             <div className="tp-panel-heading">
               <div>
@@ -2293,7 +1656,11 @@ function App() {
             <div className="tp-panel-note">最近历史</div>
             <DataTable columns={['region', '月份', 'regime', '风险预算', '状态']} limit={6} rows={regimeHistoryRows} />
           </div>
+  )
+}
 
+function CountryPanel({ countryHistoryRows, countryRows, countrySignal, countryVisualRows, isBusy, launchJob, moduleDragProps, panelClass, singleCountryRows, singleCountrySignalRows, submitting }) {
+  return (
           <div className={panelClass('results', 'country', 'tp-wide-panel')} {...moduleDragProps('results', 'country')}>
             <div className="tp-panel-heading">
               <div>
@@ -2375,7 +1742,11 @@ function App() {
             <div className="tp-panel-note">最近历史</div>
             <DataTable columns={['region', '月份', 'score', 'rank', 'recommendation']} limit={10} rows={countryHistoryRows} />
           </div>
+  )
+}
 
+function SectorPanel({ moduleDragProps, panelClass, sectorMarkets, sectorRows, sectorSignal, sectorVisualRows, selectedSectorRow, setSelectedSector }) {
+  return (
           <div className={panelClass('results', 'sector', 'tp-wide-panel')} {...moduleDragProps('results', 'sector')}>
             <div className="tp-panel-heading">
               <div>
@@ -2437,7 +1808,11 @@ function App() {
               rows={sectorRows}
             />
           </div>
+  )
+}
 
+function TechnicalPanel({ companyDetail, companyDetailError, companyDetailLoading, moduleDragProps, panelClass, renderTechnicalCell, setCompanyDetail, setCompanyDetailError, setCompanyDetailLoading, technicalMetricRows, technicalSecurityRows, technicalSignal }) {
+  return (
           <div className={panelClass('technical', 'latest', 'tp-wide-panel')} {...moduleDragProps('technical', 'latest')}>
             <div className="tp-panel-heading">
               <div>
@@ -2542,7 +1917,11 @@ function App() {
               }}
             />
           </div>
+  )
+}
 
+function ScoreMlPanel({ companyDetail, companyDetailError, companyDetailLoading, moduleDragProps, panelClass, refreshScoreMlComponents, renderScoreMlCell, scoreMlComponents, scoreMlLoading, scoreMlRows, scoreMlSelection, setCompanyDetail, setCompanyDetailError, setCompanyDetailLoading }) {
+  return (
           <div className={panelClass('results', 'score-ml', 'tp-wide-panel')} {...moduleDragProps('results', 'score-ml')}>
             <div className="tp-panel-heading tp-score-ml-heading">
               <div>
@@ -2602,7 +1981,12 @@ function App() {
               }}
             />
           </div>
+  )
+}
 
+function ProductionTables({ dashboardState, moduleDragProps, panelClass, queueRows }) {
+  return (
+<>
           <div className={panelClass('production', 'queue', 'tp-wide-panel')} {...moduleDragProps('production', 'queue')}>
             <div className="tp-panel-heading">
               <div>
@@ -2659,7 +2043,12 @@ function App() {
               rows={dashboardState.assets}
             />
           </div>
+</>
+  )
+}
 
+function FactorExplorerPanel({ panelClass }) {
+  return (
           <div className={panelClass('results', 'factor-explorer', 'tp-factor-explorer-panel')}>
             <iframe
               className="tp-factor-explorer-frame"
@@ -2667,6 +2056,859 @@ function App() {
               title="四市场因子收益、ratio 与经济含义研究"
             />
           </div>
+  )
+}
+
+function normalizeDashboardState(nextState = {}) {
+  return {
+    ...EMPTY_DASHBOARD_STATE,
+    ...nextState,
+    queue: {
+      ...EMPTY_DASHBOARD_STATE.queue,
+      ...(nextState.queue || {}),
+      counts: {
+        ...EMPTY_DASHBOARD_STATE.queue.counts,
+        ...(nextState.queue?.counts || {}),
+      },
+    },
+    signals: {
+      ...EMPTY_DASHBOARD_STATE.signals,
+      ...(nextState.signals || {}),
+    },
+  }
+}
+
+function useDashboardData(setToast) {
+  const [dashboardState, setDashboardState] = useState(EMPTY_DASHBOARD_STATE)
+  const [refreshingState, setRefreshingState] = useState(false)
+  const [scoreMlComponents, setScoreMlComponents] = useState(EMPTY_DASHBOARD_STATE.signals.score_ml_components)
+  const [scoreMlSelection, setScoreMlSelection] = useState({ date: '', side: 'top' })
+  const [scoreMlLoading, setScoreMlLoading] = useState(false)
+  const [selectedSector, setSelectedSector] = useState(null)
+  const [companyDetail, setCompanyDetail] = useState(null)
+  const [companyDetailLoading, setCompanyDetailLoading] = useState(false)
+  const [companyDetailError, setCompanyDetailError] = useState('')
+
+  const refreshDashboardState = async ({ quiet = false } = {}) => {
+    setRefreshingState(true)
+    if (!quiet) {
+      setToast({ tone: 'info', title: '正在刷新状态', detail: '正在读取项目、资产、核心库和 pipeline 快照。' })
+    }
+    try {
+      const signalEndpoints = {
+        regime: '/api/dashboard/signals/regime',
+        country: '/api/dashboard/signals/country',
+        small_cap: '/api/dashboard/signals/small-cap',
+        sector: '/api/dashboard/signals/sector',
+        technical: '/api/dashboard/signals/technical',
+        score_ml_components: '/api/dashboard/score-ml-components',
+      }
+      const [coreState, backtest, ...signalResults] = await Promise.all([
+        requestJson('/api/dashboard/state'),
+        requestJson('/api/dashboard/backtest'),
+        ...Object.values(signalEndpoints).map((endpoint) => requestJson(endpoint)),
+      ])
+      const signals = { ...(coreState.signals || {}) }
+      Object.keys(signalEndpoints).forEach((key, index) => {
+        signals[key] = signalResults[index]
+      })
+      const nextState = { ...coreState, backtest, signals }
+      setDashboardState(normalizeDashboardState(nextState))
+      const nextComponents = nextState.signals?.score_ml_components || EMPTY_DASHBOARD_STATE.signals.score_ml_components
+      setScoreMlComponents(nextComponents)
+      setScoreMlSelection({
+        date: nextComponents.selected_date || nextComponents.default_date || '',
+        side: nextComponents.selected_side || nextComponents.default_side || 'top',
+      })
+      if (!quiet) {
+        setToast({
+          tone: 'good',
+          title: '状态已刷新',
+          detail: `${nextState.projects?.length || 0} projects / ${nextState.assets?.length || 0} assets`,
+        })
+      }
+    } catch (error) {
+      setToast({ tone: 'bad', title: '状态刷新失败', detail: error.message })
+    } finally {
+      setRefreshingState(false)
+    }
+  }
+
+  const refreshScoreMlComponents = async (nextSelection) => {
+    const selection = {
+      date: nextSelection.date || scoreMlSelection.date || '',
+      side: nextSelection.side || scoreMlSelection.side || 'top',
+    }
+    setScoreMlSelection(selection)
+    setScoreMlLoading(true)
+    try {
+      const payload = await requestJson(
+        `/api/dashboard/score-ml-components?side=${encodeURIComponent(selection.side)}&date=${encodeURIComponent(selection.date)}`,
+      )
+      setScoreMlComponents(payload)
+      setScoreMlSelection({
+        date: payload.selected_date || selection.date,
+        side: payload.selected_side || selection.side,
+      })
+    } catch (error) {
+      setToast({ tone: 'bad', title: 'Score ML 成分读取失败', detail: error.message })
+    } finally {
+      setScoreMlLoading(false)
+    }
+  }
+
+  const openCompanyDetail = async (row) => {
+    const isin = row?.ISIN
+    if (!isin) return
+    setCompanyDetail({
+      status: 'loading',
+      isin,
+      identity: { name: row.Name, country: row.Country, sector: row.Sector },
+      description: {},
+      news: [],
+      message: '',
+    })
+    setCompanyDetailError('')
+    setCompanyDetailLoading(true)
+    try {
+      const detail = await requestJson(`/api/dashboard/company-detail/${encodeURIComponent(isin)}`)
+      setCompanyDetail(detail)
+      if (detail.status !== 'ok') setCompanyDetailError(detail.message || '未找到公司详情')
+    } catch (error) {
+      setCompanyDetailError(error.message)
+    } finally {
+      setCompanyDetailLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    refreshDashboardState({ quiet: true })
+  }, [])
+
+  return {
+    companyDetail,
+    companyDetailError,
+    companyDetailLoading,
+    dashboardState,
+    openCompanyDetail,
+    refreshingState,
+    refreshDashboardState,
+    refreshScoreMlComponents,
+    scoreMlComponents,
+    scoreMlLoading,
+    scoreMlSelection,
+    selectedSector,
+    setCompanyDetail,
+    setCompanyDetailError,
+    setCompanyDetailLoading,
+    setDashboardState,
+    setSelectedSector,
+  }
+}
+
+function useQueueStream(setDashboardState, setToast) {
+  const sourceRef = useRef(null)
+  const pollingRef = useRef(null)
+
+  const stopPolling = () => {
+    if (pollingRef.current) {
+      window.clearInterval(pollingRef.current)
+      pollingRef.current = null
+    }
+  }
+  const closeSource = () => {
+    if (sourceRef.current) {
+      sourceRef.current.close()
+      sourceRef.current = null
+    }
+  }
+  const mergeQueueState = (queue) => {
+    setDashboardState((current) => normalizeDashboardState({
+      ...current,
+      queue: {
+        ...current.queue,
+        ...queue,
+        counts: { ...current.queue?.counts, ...(queue?.counts || {}) },
+      },
+    }))
+  }
+  const startPolling = () => {
+    stopPolling()
+    const pollQueue = async () => {
+      try {
+        mergeQueueState(await requestJson('/api/dashboard/jobs/queue'))
+      } catch (error) {
+        setToast({ tone: 'bad', title: '队列状态读取失败', detail: error.message })
+      }
+    }
+    pollQueue()
+    pollingRef.current = window.setInterval(pollQueue, 5000)
+  }
+  const subscribe = () => {
+    closeSource()
+    stopPolling()
+    if (typeof EventSource === 'undefined') {
+      startPolling()
+      return
+    }
+    const source = new EventSource(`${API_BASE}/api/dashboard/jobs/queue/events`)
+    sourceRef.current = source
+    source.addEventListener('queue', (event) => mergeQueueState(JSON.parse(event.data)))
+    source.onerror = () => {
+      closeSource()
+      startPolling()
+    }
+  }
+
+  useEffect(() => {
+    subscribe()
+    return () => {
+      closeSource()
+      stopPolling()
+    }
+  }, [])
+}
+
+function useJobStream(refreshDashboardState, setToast) {
+  const [job, setJob] = useState(EMPTY_JOB)
+  const [connection, setConnection] = useState('api')
+  const sourceRef = useRef(null)
+  const pollingRef = useRef(null)
+  const pollingInFlightRef = useRef(false)
+
+  const stopPolling = () => {
+    if (pollingRef.current) {
+      window.clearInterval(pollingRef.current)
+      pollingRef.current = null
+    }
+    pollingInFlightRef.current = false
+  }
+  const closeSource = () => {
+    if (sourceRef.current) {
+      sourceRef.current.close()
+      sourceRef.current = null
+    }
+  }
+  const startPolling = (jobId) => {
+    stopPolling()
+    if (!jobId) {
+      setConnection('api')
+      return
+    }
+    setConnection('polling')
+    const pollOnce = async () => {
+      if (pollingInFlightRef.current) return
+      pollingInFlightRef.current = true
+      try {
+        const nextJob = await requestJson(`/api/dashboard/jobs/${encodeURIComponent(jobId)}`)
+        setJob(nextJob)
+        if (['completed', 'failed'].includes(nextJob.status)) {
+          stopPolling()
+          setConnection('api')
+          refreshDashboardState({ quiet: true })
+        }
+      } catch (error) {
+        setToast({ tone: 'bad', title: '任务状态轮询失败', detail: error.message })
+      } finally {
+        pollingInFlightRef.current = false
+      }
+    }
+    pollOnce()
+    pollingRef.current = window.setInterval(pollOnce, 3000)
+  }
+  const subscribeToJob = (jobId) => {
+    closeSource()
+    stopPolling()
+    if (!jobId || typeof EventSource === 'undefined') {
+      startPolling(jobId)
+      return
+    }
+    const source = new EventSource(`${API_BASE}/api/dashboard/jobs/${encodeURIComponent(jobId)}/events`)
+    sourceRef.current = source
+    setConnection('sse')
+    source.addEventListener('job', (event) => {
+      const nextJob = JSON.parse(event.data)
+      setJob(nextJob)
+      if (['completed', 'failed'].includes(nextJob.status)) {
+        closeSource()
+        setConnection('api')
+        refreshDashboardState({ quiet: true })
+      }
+    })
+    source.onerror = () => {
+      closeSource()
+      setToast({ tone: 'warn', title: '实时连接已切换', detail: 'SSE 暂不可用，正在用 API 轮询保持状态更新。' })
+      startPolling(jobId)
+    }
+  }
+  const refreshLatestJob = async () => {
+    const latest = await requestJson('/api/dashboard/jobs/latest')
+    setJob(latest)
+    if (latest.job_id && !sourceRef.current) subscribeToJob(latest.job_id)
+  }
+
+  useEffect(() => {
+    refreshLatestJob().catch((error) => {
+      setToast({ tone: 'bad', title: '状态读取失败', detail: error.message })
+    })
+    return () => {
+      closeSource()
+      stopPolling()
+    }
+  }, [])
+
+  return { connection, job, refreshLatestJob, setConnection, setJob, subscribeToJob }
+}
+
+function useDashboardNavigation() {
+  const [activePage, setActivePage] = useState(() => (
+    typeof window === 'undefined' ? DEFAULT_PAGE : parseDashboardRoute(window.location.hash).page
+  ))
+  const [activeModule, setActiveModule] = useState(() => (
+    typeof window === 'undefined'
+      ? DEFAULT_MODULE_BY_PAGE[DEFAULT_PAGE]
+      : parseDashboardRoute(window.location.hash).moduleId
+  ))
+  const [moduleOrder, setModuleOrder] = useState(loadModuleOrder)
+  const dragModuleRef = useRef('')
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const route = parseDashboardRoute(window.location.hash)
+      setActivePage(route.page)
+      setActiveModule(route.moduleId)
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  const changeModule = (page, moduleId) => {
+    setActivePage(page)
+    setActiveModule(moduleId)
+    if (typeof window !== 'undefined') window.location.hash = `${page}/${moduleId}`
+  }
+  const changePage = (page) => changeModule(page, DEFAULT_MODULE_BY_PAGE[page])
+  const reorderModules = (page, fromId, toId) => {
+    setModuleOrder((current) => {
+      const next = {
+        ...current,
+        [page]: moveItem(current[page] || DEFAULT_MODULE_ORDER[page], fromId, toId),
+      }
+      saveModuleOrder(next)
+      return next
+    })
+  }
+  const moduleDragProps = (page, id) => ({
+    draggable: true,
+    onDragStart: (event) => {
+      dragModuleRef.current = id
+      event.dataTransfer.effectAllowed = 'move'
+      event.dataTransfer.setData('text/plain', id)
+    },
+    onDragOver: (event) => {
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+    },
+    onDrop: (event) => {
+      event.preventDefault()
+      reorderModules(page, event.dataTransfer.getData('text/plain') || dragModuleRef.current, id)
+    },
+    style: { order: Math.max(0, (moduleOrder[page] || DEFAULT_MODULE_ORDER[page]).indexOf(id)) },
+    title: '拖动模块排序',
+  })
+  const panelClass = (page, id, extra = '') => [
+    'tp-panel',
+    extra,
+    `tp-${page}-module`,
+    activePage === page && activeModule === id ? 'is-active-module' : '',
+  ].filter(Boolean).join(' ')
+
+  return { activeModule, activePage, changeModule, changePage, moduleDragProps, panelClass }
+}
+
+function useJobLauncher({ job, setConnection, setJob, setToast, subscribeToJob }) {
+  const [pipelinePayload, setPipelinePayload] = useState(DEFAULT_PIPELINE_PAYLOAD)
+  const [projectPayload, setProjectPayload] = useState({ project_id: '00_screen', mode: 'safe_check' })
+  const [submitting, setSubmitting] = useState('')
+  const isBusy = submitting !== '' || ['queued', 'running'].includes(job.status)
+
+  const launchJob = async (kind) => {
+    const targets = {
+      checks: ['/api/dashboard/jobs/system-checks', {}, '全部项目检查', 'system_checks'],
+      project: ['/api/dashboard/jobs/project', projectPayload, '子项目启动', `project:${projectPayload.project_id}:${projectPayload.mode}`],
+      pipeline: ['/api/dashboard/jobs/pipeline', pipelinePayload, 'Pipeline 启动', pipelinePayload.step],
+      regime: ['/api/dashboard/jobs/signals/regime', {}, 'Regime 刷新', 'signal:regime_risk_budget'],
+      country: ['/api/dashboard/jobs/signals/country', {}, 'Country model 刷新', 'signal:country_model'],
+    }
+    const [endpoint, payload, label, pendingStep] = targets[kind]
+    setSubmitting(kind)
+    setConnection('submitting')
+    setToast({ tone: 'info', title: `${label}已提交`, detail: '前端已立即接收点击，正在创建后台 job。' })
+    setJob({
+      ...EMPTY_JOB,
+      job_id: 'pending',
+      step: pendingStep,
+      status: 'running',
+      status_label: 'SUBMITTING',
+      log_tail: '正在向后端提交 job...',
+    })
+    try {
+      const result = await requestJson(endpoint, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+      setJob(result.job)
+      subscribeToJob(result.job.job_id)
+      setToast({
+        tone: 'good',
+        title: `${label}已创建`,
+        detail: `job_id ${result.job.job_id || 'N/A'} / PID ${result.job.pid || 'N/A'}`,
+      })
+    } catch (error) {
+      setToast({ tone: 'bad', title: `${label}失败`, detail: error.message })
+      setJob({ ...EMPTY_JOB, log_tail: error.message })
+      setConnection('api')
+    } finally {
+      setSubmitting('')
+    }
+  }
+
+  return {
+    isBusy,
+    launchJob,
+    pipelinePayload,
+    projectPayload,
+    setPipelinePayload,
+    setProjectPayload,
+    submitting,
+  }
+}
+
+function useProductionRows(job, connection, dashboardState) {
+  const metrics = useMemo(
+    () => [
+      ['当前状态', statusText(job.status), job.status_label || 'IDLE'],
+      ['运行目标', job.step || 'N/A', job.job_id || 'N/A'],
+      ['状态通道', connection.toUpperCase(), job.log_path || 'log: N/A'],
+      [
+        '数据快照',
+        dashboardState.generated_at ? dashboardState.generated_at.replace('T', ' ') : 'N/A',
+        `${dashboardState.projects.length} projects / ${dashboardState.assets.length} assets`,
+      ],
+      [
+        '后台队列',
+        `${dashboardState.queue.counts.queued} queued / ${dashboardState.queue.counts.running} running`,
+        `${dashboardState.queue.thread_worker_alive ? 'worker alive' : 'worker idle'} / pending ${dashboardState.queue.in_memory_pending}`,
+      ],
+    ],
+    [connection, dashboardState, job],
+  )
+  const queueRows = useMemo(
+    () => (dashboardState.queue.recent || []).map((item) => ({
+      job_id: item.job_id,
+      状态: item.status,
+      step: item.step,
+      更新时间: item.updated_at,
+      backend: item.backend || item.queue_name,
+    })),
+    [dashboardState.queue.recent],
+  )
+  return {
+    latestMarketBrief: dashboardState.latest_market_brief || EMPTY_DASHBOARD_STATE.latest_market_brief,
+    metrics,
+    queueRows,
+  }
+}
+
+function useRegimeRows(dashboardState) {
+  const regimeSignal = dashboardState.signals?.regime || EMPTY_DASHBOARD_STATE.signals.regime
+  const regimeRows = useMemo(
+    () => (regimeSignal.rows || []).map((item) => ({
+      region: item.region,
+      最新月份: item.最新月份,
+      regime: item.regime,
+      风险预算: item.risk_budget,
+      状态: item.state,
+      model: item.model,
+    })),
+    [regimeSignal],
+  )
+  const regimeHistoryRows = useMemo(
+    () => (regimeSignal.history || []).map((item) => ({
+      region: item.region,
+      月份: item.最新月份,
+      regime: item.regime,
+      风险预算: item.risk_budget,
+      状态: item.state,
+    })),
+    [regimeSignal],
+  )
+  const regimeModels = regimeSignal.models || EMPTY_DASHBOARD_STATE.signals.regime.models
+  return {
+    directionModelRows: regimeModels.direction_models || [],
+    drawdownModelRows: regimeModels.drawdown_models || [],
+    regimeHistoryRows,
+    regimeModels,
+    regimeRows,
+    regimeSignal,
+    riskModelRows: regimeModels.risk_models || [],
+    stateModelRows: regimeModels.state_models || [],
+    volatilityModelRows: regimeModels.volatility_models || [],
+  }
+}
+
+function useCountryRows(dashboardState) {
+  const countrySignal = dashboardState.signals?.country || EMPTY_DASHBOARD_STATE.signals.country
+  const countryRows = useMemo(
+    () => (countrySignal.rows || []).map((item) => ({
+      region: item.region,
+      最新月份: item.最新月份,
+      score: item.score,
+      rank: item.rank,
+      recommendation: item.recommendation,
+      'Δ rank': item.rank_delta,
+      margin: item.margin,
+      profitability: item.profitability,
+      growth: item.growth,
+      value: item.value,
+      momentum: item.momentum,
+    })),
+    [countrySignal],
+  )
+  const countryHistoryRows = useMemo(
+    () => (countrySignal.history || []).map((item) => ({
+      region: item.region,
+      月份: item.最新月份,
+      score: item.score,
+      rank: item.rank,
+      recommendation: item.recommendation,
+    })),
+    [countrySignal],
+  )
+  const singleCountryRows = useMemo(
+    () => (countrySignal.single_country_rows || []).map((item) => ({
+      国家: item.country,
+      指数: item.country_label,
+      最新月份: item.最新月份,
+      score: item.score,
+      rank: item.rank,
+      margin: item.margin,
+      profitability: item.profitability,
+      growth: item.growth,
+      value: item.value,
+      momentum: item.momentum,
+    })),
+    [countrySignal],
+  )
+  return {
+    countryHistoryRows,
+    countryRows,
+    countrySignal,
+    countryVisualRows: countrySignal.rows || [],
+    singleCountryRows,
+    singleCountrySignalRows: countrySignal.single_country_rows || [],
+  }
+}
+
+function useSectorRows(dashboardState, selectedSector) {
+  const sectorSignal = dashboardState.signals?.sector || EMPTY_DASHBOARD_STATE.signals.sector
+  const sectorVisualRows = sectorSignal.rows || []
+  const selectedSectorRow = useMemo(
+    () => sectorVisualRows.find(
+      (item) => item.market === selectedSector?.market && item.sector_name === selectedSector?.sector_name,
+    ) || selectedSector,
+    [sectorVisualRows, selectedSector],
+  )
+  const sectorRows = useMemo(
+    () => (sectorSignal.rows || []).map((item) => ({
+      market: item.market,
+      sector: item.sector_name,
+      最新月份: item.最新月份,
+      rank: item.rank,
+      recommendation: item.recommendation,
+      score: item.score,
+      leverage: item.leverage,
+      margin: item.margin,
+      valuation: item.valuation,
+      momentum: item.momentum,
+      growth: item.growth,
+      lowvol: item.lowvol,
+      weight: item.sector_weight,
+      names: item.constituents,
+    })),
+    [sectorSignal],
+  )
+  return {
+    sectorMarkets: sectorSignal.markets || [],
+    sectorRows,
+    sectorSignal,
+    sectorVisualRows,
+    selectedSectorRow,
+  }
+}
+
+function useScoreMlRows(scoreMlComponents) {
+  return useMemo(
+    () => (scoreMlComponents.rows || []).map((item) => ({
+      Name: item.Name,
+      Weight: item.Weight,
+      'Score ML': item['Score ML'],
+      'Score ML_IF': item['Score ML_IF'],
+      Value: item.Value,
+      Quality: item.Quality,
+      Momentum: item.Momentum,
+      Growth: item.Growth,
+      LowVol: item.LowVol,
+      Div: item.Div,
+      Size: item.Size,
+      'PE LTM': item['PE LTM'],
+      'PE FY1': item['PE FY1'],
+      'EPS Growth FY1': item['EPS Growth FY1'],
+      ROE: item.ROE,
+      'Dividend Yield': item['Dividend Yield'],
+      'Earnings Yield': item['Earnings Yield'],
+      Country: item.Country,
+      Region: item.Region,
+      Sector: item.Sector,
+      ISIN: item.ISIN,
+    })),
+    [scoreMlComponents],
+  )
+}
+
+function useTechnicalRows(dashboardState) {
+  const technicalSignal = dashboardState.signals?.technical || EMPTY_DASHBOARD_STATE.signals.technical
+  const technicalMetricRows = useMemo(
+    () => (technicalSignal.metric_rows || []).map((item) => ({
+      市场: item.市场,
+      metric: item.metric,
+      处理: item.处理,
+      证据: item.证据,
+      推荐端: item.推荐端,
+      覆盖: item.覆盖,
+      覆盖率: item.覆盖率,
+      均值: item.均值,
+      中位数: item.中位数,
+      最小: item.最小,
+      最大: item.最大,
+      并列率: item.并列率,
+      事件率: item.事件率,
+      说明: item.说明,
+    })),
+    [technicalSignal],
+  )
+  const technicalSecurityRows = useMemo(
+    () => (technicalSignal.security_rows || []).map((item) => ({
+      市场: item.市场,
+      metric: item.metric,
+      处理: item.处理,
+      推荐端: item.推荐端,
+      Name: item.Name,
+      score: item.score,
+      Weight: item.Weight,
+      Country: item.Country,
+      Region: item.Region,
+      Sector: item.Sector,
+      ISIN: item.ISIN,
+    })),
+    [technicalSignal],
+  )
+  return { technicalMetricRows, technicalSecurityRows, technicalSignal }
+}
+
+function companyCellRenderer(openCompanyDetail, technical = false) {
+  return (column, row) => {
+    if (column === 'Name' && row.ISIN) {
+      return (
+        <button className="tp-table-link" onClick={() => openCompanyDetail(row)} type="button">
+          {cellText(row.Name)}
+        </button>
+      )
+    }
+    if (technical && ['处理', '证据', '推荐端'].includes(column)) {
+      return <span className={`tp-technical-tag ${technicalTone(row[column])}`}>{cellText(row[column])}</span>
+    }
+    if (!technical && column.includes('状态')) return <StatusPill value={row[column]} />
+    return cellText(row[column])
+  }
+}
+
+function App() {
+  const [toast, setToast] = useState({ tone: 'neutral', title: 'Ready', detail: '等待操作' })
+  const data = useDashboardData(setToast)
+  useQueueStream(data.setDashboardState, setToast)
+  const jobRuntime = useJobStream(data.refreshDashboardState, setToast)
+  const navigation = useDashboardNavigation()
+  const launcher = useJobLauncher({ ...jobRuntime, setToast })
+  const {
+    companyDetail,
+    companyDetailError,
+    companyDetailLoading,
+    dashboardState,
+    openCompanyDetail,
+    refreshingState,
+    refreshDashboardState,
+    refreshScoreMlComponents,
+    scoreMlComponents,
+    scoreMlLoading,
+    scoreMlSelection,
+    selectedSector,
+    setCompanyDetail,
+    setCompanyDetailError,
+    setCompanyDetailLoading,
+    setPipelinePayload,
+    setProjectPayload,
+    setSelectedSector,
+  } = { ...data, ...launcher }
+  const { connection, job, refreshLatestJob } = jobRuntime
+  const { activeModule, activePage, changeModule, changePage, moduleDragProps, panelClass } = navigation
+  const { isBusy, launchJob, pipelinePayload, projectPayload, submitting } = launcher
+  const activePhase = phaseIndex(job.phase)
+  const progressPercent = job.status === 'idle' ? 0 : Math.round(((activePhase + 1) / PHASES.length) * 100)
+  const {
+    latestMarketBrief,
+    metrics,
+    queueRows,
+  } = useProductionRows(job, connection, dashboardState)
+  const {
+    directionModelRows,
+    drawdownModelRows,
+    regimeHistoryRows,
+    regimeModels,
+    regimeRows,
+    regimeSignal,
+    riskModelRows,
+    stateModelRows,
+    volatilityModelRows,
+  } = useRegimeRows(dashboardState)
+  const {
+    countryHistoryRows,
+    countryRows,
+    countrySignal,
+    countryVisualRows,
+    singleCountryRows,
+    singleCountrySignalRows,
+  } = useCountryRows(dashboardState)
+  const {
+    sectorMarkets,
+    sectorRows,
+    sectorSignal,
+    sectorVisualRows,
+    selectedSectorRow,
+  } = useSectorRows(dashboardState, selectedSector)
+  const scoreMlRows = useScoreMlRows(scoreMlComponents)
+  const {
+    technicalMetricRows,
+    technicalSecurityRows,
+    technicalSignal,
+  } = useTechnicalRows(dashboardState)
+  const renderTechnicalCell = companyCellRenderer(openCompanyDetail, true)
+  const renderScoreMlCell = companyCellRenderer(openCompanyDetail)
+  const activeSection = NAV_SECTIONS.find((section) => section.page === activePage) || NAV_SECTIONS[0]
+  const activeModuleConfig = activeSection.modules.find(([id]) => id === activeModule) || activeSection.modules[0]
+  const panelProps = {
+    activePhase,
+    companyDetail,
+    companyDetailError,
+    companyDetailLoading,
+    countryHistoryRows,
+    countryRows,
+    countrySignal,
+    countryVisualRows,
+    dashboardState,
+    directionModelRows,
+    drawdownModelRows,
+    isBusy,
+    job,
+    latestMarketBrief,
+    launchJob,
+    metrics,
+    moduleDragProps,
+    panelClass,
+    pipelinePayload,
+    progressPercent,
+    projectPayload,
+    queueRows,
+    refreshScoreMlComponents,
+    refreshingState,
+    regimeHistoryRows,
+    regimeModels,
+    regimeRows,
+    regimeSignal,
+    renderScoreMlCell,
+    renderTechnicalCell,
+    riskModelRows,
+    scoreMlComponents,
+    scoreMlLoading,
+    scoreMlRows,
+    scoreMlSelection,
+    sectorMarkets,
+    sectorRows,
+    sectorSignal,
+    sectorVisualRows,
+    selectedSectorRow,
+    setCompanyDetail,
+    setCompanyDetailError,
+    setCompanyDetailLoading,
+    setPipelinePayload,
+    setProjectPayload,
+    setSelectedSector,
+    singleCountryRows,
+    singleCountrySignalRows,
+    stateModelRows,
+    submitting,
+    technicalMetricRows,
+    technicalSecurityRows,
+    technicalSignal,
+    volatilityModelRows,
+  }
+
+  return (
+    <div className="tp-shell">
+      <aside className="tp-sidebar">
+        <div className="tp-brand">
+          <p className="tp-kicker">React job control</p>
+          <h1>TP System Dashboard</h1>
+          <span>{job.status_label || 'IDLE'} / {connection}</span>
+        </div>
+        <PageTabs activePage={activePage} activeModule={activeModule} onChange={changePage} onModuleChange={changeModule} />
+      </aside>
+
+      <div className="tp-content">
+        <header className="tp-topbar">
+          <div>
+            <p className="tp-kicker">{activeSection.label}</p>
+            <h1>{activeModuleConfig[1]}</h1>
+            <span className="tp-topbar-subtitle">{activeModuleConfig[2]}</span>
+          </div>
+          <button
+            className="tp-icon-button"
+            disabled={refreshingState}
+            onClick={() => {
+              refreshLatestJob().catch((error) => setToast({ tone: 'bad', title: '状态读取失败', detail: error.message }))
+              refreshDashboardState()
+            }}
+            type="button"
+          >
+            <RefreshCw className={refreshingState ? 'tp-spin' : ''} size={18} />
+            <span>刷新状态</span>
+          </button>
+        </header>
+
+        <main className="tp-main">
+          <section className={`tp-dashboard-grid tp-page-${activePage} tp-module-${activeModule}`}>
+          <MarketBriefPanel {...panelProps} />
+          <RunControlPanel {...panelProps} />
+          <LiveJobPanel {...panelProps} />
+          <OverviewPanel {...panelProps} />
+          <AlertsPanel {...panelProps} />
+          <RegimePanel {...panelProps} />
+          <CountryPanel {...panelProps} />
+          <SectorPanel {...panelProps} />
+          <TechnicalPanel {...panelProps} />
+          <ScoreMlPanel {...panelProps} />
+          <ProductionTables {...panelProps} />
+          <FactorExplorerPanel {...panelProps} />
         </section>
 
         <section className={`tp-toast is-${toast.tone || 'neutral'}`} aria-live="polite">

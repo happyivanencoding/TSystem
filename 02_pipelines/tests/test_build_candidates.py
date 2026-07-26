@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 
-build_candidates = import_module("02_pipelines.build_candidates")
+build_candidates = import_module("tp_pipelines.build_candidates")
 
 
 class FakeRepository:

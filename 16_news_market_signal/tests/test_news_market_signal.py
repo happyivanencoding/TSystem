@@ -1,18 +1,13 @@
 from __future__ import annotations
 
 import json
-from importlib import import_module
 from pathlib import Path
 from urllib.error import HTTPError
 
 import numpy as np
 import pandas as pd
 
-
-config = import_module("16_news_market_signal.config")
-data_pipeline = import_module("16_news_market_signal.data_pipeline")
-gdelt = import_module("16_news_market_signal.gdelt")
-research = import_module("16_news_market_signal.research")
+from tp_models.news import config, data_pipeline, gdelt, research
 
 
 def test_direct_ingest_records_source_gaps_and_continues(tmp_path: Path, monkeypatch) -> None:

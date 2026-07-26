@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import pytest
 
-from config import settings
-from src.data.ptf_repository import PtfRepository
-from src.data.schemas_ptf import PTF_COL_ISIN, PTF_COL_PTF
+from presentation_layer.company_browser import settings
+from presentation_layer.company_browser.data.ptf_repository import PtfRepository
+from presentation_layer.company_browser.data.schemas_ptf import PTF_COL_ISIN, PTF_COL_PTF
 
 pytestmark = pytest.mark.skipif(
     not settings.PTF_XLSX.exists(),

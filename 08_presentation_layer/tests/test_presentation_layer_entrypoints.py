@@ -266,6 +266,10 @@ def test_system_dashboard_job_api_exposes_launch_status_and_events(
     assert "regime" in state_payload["signals"]
     assert "sector" in state_payload["signals"]
 
+    backtest_response = client.get("/api/dashboard/backtest")
+    assert backtest_response.status_code == 200
+    assert isinstance(backtest_response.get_json(), list)
+
     queue_response = client.get("/api/dashboard/jobs/queue")
     assert queue_response.status_code == 200
     queue_payload = queue_response.get_json()
@@ -304,7 +308,7 @@ def test_system_dashboard_job_api_exposes_launch_status_and_events(
     regime_launch_payload = regime_launch_response.get_json()
     assert regime_launch_payload["job"]["status"] == "queued"
     assert regime_launch_payload["record"]["step"] == "signal:regime_risk_budget"
-    assert "02_pipelines.refresh_regime" in " ".join(regime_launch_payload["record"]["command"])
+    assert "tp_pipelines.refresh_regime" in " ".join(regime_launch_payload["record"]["command"])
 
     job_id = launch_payload["job"]["job_id"]
     latest_response = client.get("/api/dashboard/jobs/latest")
@@ -688,7 +692,7 @@ def test_system_dashboard_monitoring_rows_are_structured(tmp_path: Path, monkeyp
     assert regime_payload["models"]["direction_models"][0]["model"] == "HMM状态"
     assert regime_payload["models"]["volatility_models"][0]["model"] == "持续性(rvol_ann)"
     regime_command = _build_regime_signal_command()
-    assert regime_command[:3] == [sys.executable, "-m", "02_pipelines.refresh_regime"]
+    assert regime_command[:3] == [sys.executable, "-m", "tp_pipelines.refresh_regime"]
     assert "--regime-output" in regime_command
 
     backtest = _backtest_rows()
@@ -722,7 +726,7 @@ def test_system_dashboard_monitoring_rows_are_structured(tmp_path: Path, monkeyp
       "role": "核心数据库",
       "data_kind": "database",
       "required": true,
-      "command": ["python", "-m", "02_pipelines.refresh_data", "--inspect-only"],
+      "command": ["python", "-m", "tp_pipelines.refresh_data", "--inspect-only"],
       "status": "success",
       "returncode": 0,
       "duration_seconds": 1.2,
@@ -936,7 +940,7 @@ def test_system_dashboard_monitoring_rows_are_structured(tmp_path: Path, monkeyp
     assert _build_system_checks_command() == [sys.executable, "-m", "presentation_layer.cli", "system-checks"]
 
     registered_command = _build_project_command("05_candidates", "registered_command")
-    assert registered_command[:3] == [sys.executable, "-m", "02_pipelines.build_candidates"]
+    assert registered_command[:3] == [sys.executable, "-m", "tp_pipelines.build_candidates"]
 
     with pytest.raises(ValueError):
         _build_project_command("12_small_cap", "registered_command")
@@ -958,7 +962,7 @@ def test_system_dashboard_monitoring_rows_are_structured(tmp_path: Path, monkeyp
         0.8,
         ["sector_neutral", "inspect_backtest"],
     )
-    assert sector_command[:3] == [sys.executable, "-m", "02_pipelines.run_backtest"]
+    assert sector_command[:3] == [sys.executable, "-m", "tp_pipelines.run_backtest"]
     assert "--sector-neutral" in sector_command
 
     lineage = _lineage_node_payload("候选池")
@@ -977,7 +981,7 @@ def test_system_dashboard_monitoring_rows_are_structured(tmp_path: Path, monkeyp
 
 
 def test_refresh_regime_pipeline_runs_detector_before_export(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    refresh_regime = importlib.import_module("02_pipelines.refresh_regime")
+    refresh_regime = importlib.import_module("tp_pipelines.refresh_regime")
     output = tmp_path / "regime_risk_budget.parquet"
     calls: list[tuple[str, str, list[str]]] = []
     manifests: list[object] = []
@@ -1000,10 +1004,6 @@ def test_refresh_regime_pipeline_runs_detector_before_export(tmp_path: Path, mon
             self.error = error
             return tmp_path / "refresh_regime_manifest.json"
 
-    def fake_run_python_script(script: Path, args: list[str] = []) -> dict[str, object]:
-        calls.append(("script", Path(script).name, list(args)))
-        return {"command": [sys.executable, str(script), *args], "returncode": 0, "stdout": "", "stderr": ""}
-
     def fake_run_python_module(module: str, args: list[str] = []) -> dict[str, object]:
         calls.append(("module", module, list(args)))
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -1016,26 +1016,26 @@ def test_refresh_regime_pipeline_runs_detector_before_export(tmp_path: Path, mon
         return diagnostics
 
     monkeypatch.setattr(refresh_regime, "StepManifest", FakeManifest)
-    monkeypatch.setattr(refresh_regime, "run_python_script", fake_run_python_script)
     monkeypatch.setattr(refresh_regime, "run_python_module", fake_run_python_module)
     monkeypatch.setattr(refresh_regime, "write_model_diagnostics", fake_write_model_diagnostics)
 
     manifest_path = refresh_regime.run_refresh_regime(SimpleNamespace(regime_output=str(output)))
 
     assert manifest_path.name == "refresh_regime_manifest.json"
-    assert calls[0][:2] == ("script", "build_features.py")
-    assert calls[1][:2] == ("script", "walkforward.py")
-    assert calls[2][0:2] == ("module", "02_pipelines.export_signals")
+    assert calls[0][:2] == ("module", "tp_models.regime.build_features")
+    assert calls[1][:2] == ("module", "tp_models.regime.walkforward")
+    assert calls[2][0:2] == ("module", "tp_pipelines.export_signals")
     assert "--skip-ml" in calls[2][2]
     assert "--skip-technical" in calls[2][2]
     assert "--regime-oos" in calls[2][2]
-    assert calls[3][:2] == ("script", "export_dashboard.py")
+    assert calls[3][:2] == ("module", "tp_models.regime.export_dashboard")
     assert manifests[0].status == "success"
     assert manifests[0].validations[-1]["ok"] is True
 
 
 def test_run_all_refresh_regime_uses_dedicated_regime_step(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    run_all_module = importlib.import_module("02_pipelines.run_all")
+    run_all_module = importlib.import_module("tp_pipelines.run_all")
+    orchestration = importlib.import_module("tp_pipelines.orchestration")
     calls: list[tuple[str, object]] = []
 
     class FakeManifest:
@@ -1062,8 +1062,8 @@ def test_run_all_refresh_regime_uses_dedicated_regime_step(tmp_path: Path, monke
         return tmp_path / "export_signals_manifest.json"
 
     monkeypatch.setattr(run_all_module, "StepManifest", FakeManifest)
-    monkeypatch.setattr(run_all_module, "run_refresh_regime", fake_refresh_regime)
-    monkeypatch.setattr(run_all_module, "run_export_signals", fake_export_signals)
+    monkeypatch.setattr(orchestration, "run_refresh_regime", fake_refresh_regime)
+    monkeypatch.setattr(orchestration, "run_export_signals", fake_export_signals)
 
     manifest = run_all_module.run_all(
         SimpleNamespace(
@@ -1080,6 +1080,7 @@ def test_run_all_refresh_regime_uses_dedicated_regime_step(tmp_path: Path, monke
             all_history_signals=False,
             regime_oos=True,
             regime_region=None,
+            experiment_root=str(tmp_path / "experiments"),
         )
     )
 

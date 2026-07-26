@@ -1,17 +1,8 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pandas as pd
 
-
-TP_ROOT = Path(__file__).resolve().parents[2]
-SCREEN_DIR = TP_ROOT / "00_screen"
-if str(SCREEN_DIR) not in sys.path:
-    sys.path.insert(0, str(SCREEN_DIR))
-
-from import_benchmark_weights import (  # noqa: E402
+from tp_data.import_benchmark_weights import (
     Snapshot,
     SourceRow,
     apply_benchmark_weights,

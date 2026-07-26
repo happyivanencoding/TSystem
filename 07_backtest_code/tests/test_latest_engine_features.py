@@ -1,23 +1,16 @@
-import sys
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
-project_root = Path(__file__).resolve().parents[1]
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
-from core.esg_pivot import resolve_esg_pivot_score
-from core.security_list_constructor import SecurityListConstructor
+from backtest_code.core.esg_pivot import resolve_esg_pivot_score
+from backtest_code.core.security_list_constructor import SecurityListConstructor
 from backtest_code.runner.input_loader import (
     MULTI_AVG_SOURCE_COLUMNS,
     load_pruned_backtest_inputs,
 )
 from backtest_code.config.settings import AppSettings
 from backtest_code.runner.service import BacktestService
-from utils.constants import (
+from backtest_code.utils.constants import (
     COL_DATE,
     COL_ISIN,
     COL_SEDOL,
@@ -27,8 +20,8 @@ from utils.constants import (
     COL_SECTOR_ICB19,
     ISIN_PAIRS,
 )
-from utils.data_utils import merge_ticker_secondaire
-from utils.plotting import PlotlyVisualizer
+from backtest_code.utils.data_utils import merge_ticker_secondaire
+from backtest_code.utils.plotting import PlotlyVisualizer
 
 
 def test_merge_ticker_secondaire_uses_current_benchmark_weight():

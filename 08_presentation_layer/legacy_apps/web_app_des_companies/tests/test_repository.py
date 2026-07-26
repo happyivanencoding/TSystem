@@ -4,8 +4,8 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from src.data.repository import get_repository
-from src.data.schemas import COL_ISIN, COL_NAME
+from presentation_layer.company_browser.data.repository import get_repository
+from presentation_layer.company_browser.data.schemas import COL_ISIN, COL_NAME
 
 
 @pytest.fixture(scope="module")

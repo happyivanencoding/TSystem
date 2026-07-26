@@ -40,7 +40,6 @@ for path in (TP_ROOT, BACKTEST_ROOT, SRC_ROOT, OPTIMIZER_ROOT, SCRIPT_DIR):
     if value not in sys.path:
         sys.path.insert(0, value)
 
-import sitecustomize  # noqa: E402,F401
 from backtest_code.research.executor import (  # noqa: E402
     GateThresholds,
     RelativeLevelSpec,
@@ -54,7 +53,7 @@ from backtest_code.research.executor import (  # noqa: E402
     shard_result_path,
 )
 from backtest_code.runner.input_loader import load_pruned_backtest_inputs  # noqa: E402
-from optimizer import OPTIMIZER_ID, OPTIMIZER_VERSION  # noqa: E402
+from tp_portfolio import OPTIMIZER_ID, OPTIMIZER_VERSION
 from tp_core.backtesting import OfficialPortfolioBacktest, nav_engine_metadata  # noqa: E402
 
 

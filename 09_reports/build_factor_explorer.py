@@ -1335,7 +1335,8 @@ def enrich_supplemental_research(report: dict[str, Any]) -> dict[str, Any]:
     valid_periods = manifest.get("signal_validation_period_count") or manifest.get("regime_count") or manifest.get("period_count")
     report["headline"] = config["headline"]
     report["verdict"] = config["verdict"]
-    report["method"] += f'; lag1/3/6/12; {config["oop_kind"]}; DSR trial ledger'
+    base_method = report["method"].split("; lag1/3/6/12", 1)[0].rstrip("; ")
+    report["method"] = f'{base_method}; lag1/3/6/12; {config["oop_kind"]}; DSR trial ledger'
     report["stats"].extend(
         [
             {"value": len(lag6_rows), "label": "lag6 单变量测试"},
@@ -2043,6 +2044,8 @@ HTML_DOCUMENT = r'''<!doctype html>
       --muted:#5f6f67; --border:#d7dfda; --positive:#0a7755; --positive-soft:#dcefe6;
       --negative:#b04450; --negative-soft:#f7e3e6; --warning:#a56710; --warning-soft:#f7ecd7;
       --series-top:#087f62; --series-bench:#356fba; --series-worst:#c85a63; --series-ratio:#c08721; --series-bench-ratio:#7657b1;
+      --rotation-1:#007f5f; --rotation-2:#2f6fbd; --rotation-3:#b64278; --rotation-4:#c48416;
+      --rotation-5:#7657b1; --rotation-6:#d65b45; --rotation-7:#008c99; --rotation-8:#6b8e23;
       --shadow:0 10px 28px rgba(24,45,34,.07); --radius:10px;
       font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
     }
@@ -2052,13 +2055,15 @@ HTML_DOCUMENT = r'''<!doctype html>
         --muted:#a8b7ae; --border:#314137; --positive:#79d9ae; --positive-soft:#153d2e;
         --negative:#ff9ca5; --negative-soft:#52242a; --warning:#ffc46f; --warning-soft:#4e3917;
         --series-top:#79d9ae; --series-bench:#8abcf3; --series-worst:#ff9ca5; --series-ratio:#ffc46f; --series-bench-ratio:#c6a8f4;
+        --rotation-1:#76d7b1; --rotation-2:#8abcf3; --rotation-3:#f28db7; --rotation-4:#ffc46f;
+        --rotation-5:#c6a8f4; --rotation-6:#ff947e; --rotation-7:#67d5df; --rotation-8:#b6df6c;
         --shadow:none;
       }
     }
     *{box-sizing:border-box}
     body{margin:0;background:var(--background);color:var(--foreground)}
-    button,select{font:inherit;color:inherit}
-    button:focus-visible,select:focus-visible{outline:3px solid var(--series-bench);outline-offset:2px}
+    button,select,input{font:inherit;color:inherit}
+    button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--series-bench);outline-offset:2px}
     .shell{width:100%;max-width:none;margin:0;padding:18px 20px 28px}
     .topline{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;padding-bottom:16px;border-bottom:1px solid var(--border)}
     h1,h2,h3,p{margin-top:0}
@@ -2069,7 +2074,7 @@ HTML_DOCUMENT = r'''<!doctype html>
     .meta,.muted{color:var(--muted)}
     .meta{max-width:760px;text-align:right;font-size:12px;line-height:1.55}
     .dashboard{display:grid;grid-template-columns:minmax(320px,25%) minmax(0,1fr);gap:16px;align-items:start;margin-top:16px}
-    .sidebar,.main-column{min-width:0}
+    .sidebar,.main-column,.lower-grid,.evidence-card{min-width:0}
     .market-tabs,.mode-tabs,.evidence-tabs{display:flex;flex-wrap:wrap;gap:6px}
     .market-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:0 0 12px}
     .market-tabs .tab-button{width:100%}
@@ -2096,13 +2101,13 @@ HTML_DOCUMENT = r'''<!doctype html>
     .subset-variables{font-size:10px;line-height:1.45;color:var(--foreground);overflow-wrap:anywhere}
     .controls{display:grid;grid-template-columns:1fr;gap:10px;padding:13px;margin-bottom:12px}
     label{display:grid;gap:5px;color:var(--muted);font-size:11px;font-weight:500}
-    select{width:100%;min-width:0;padding:10px 11px;border:1px solid var(--border);border-radius:7px;background:var(--card)}
+    select{width:100%;min-width:0;max-width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:7px;background:var(--card)}
     .mode-tabs{align-items:stretch}
     .mode-tabs .tab-button{flex:1}
     .workspace,.lower-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(320px,.8fr);gap:14px;align-items:start}
     .lower-grid{margin-top:14px}
     .primary-stack{display:grid;gap:14px;min-width:0}
-    .chart-card,.detail-card,.evidence-card{padding:16px}
+    .chart-card,.detail-card,.evidence-card,.rotation-card{padding:16px}
     .chart-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:8px}
     .chart-head h2{margin-bottom:3px}
     .legend{display:flex;flex-wrap:wrap;gap:12px;color:var(--muted);font-size:11px}
@@ -2110,6 +2115,27 @@ HTML_DOCUMENT = r'''<!doctype html>
     .swatch{width:18px;height:3px;border-radius:3px}
     .chart-wrap{position:relative;min-height:378px;background:var(--card-soft);border-radius:8px;overflow:hidden}
     .chart-wrap svg{display:block;width:100%;height:auto}
+    .rotation-card{margin-top:14px}
+    .rotation-head{align-items:flex-start}
+    .rotation-controls{display:grid;grid-template-columns:minmax(180px,1fr) auto;gap:10px 14px;align-items:end;min-width:min(100%,430px)}
+    .rotation-date-control{display:grid;grid-template-columns:minmax(150px,1fr) auto;gap:6px 10px;align-items:center}
+    .rotation-date-control label{grid-column:1/-1;display:flex;justify-content:space-between;gap:12px}
+    .rotation-date-control input{width:100%;accent-color:var(--positive)}
+    .rotation-asof{min-width:68px;text-align:right;color:var(--foreground);font-size:11px;font-variant-numeric:tabular-nums}
+    .rotation-trails{display:flex;gap:4px}
+    .rotation-trails .tab-button{padding:7px 9px;min-width:44px}
+    .rotation-layout{display:grid;grid-template-columns:minmax(0,3fr) minmax(260px,.9fr);gap:14px;align-items:stretch}
+    .rotation-chart{min-height:410px;background:var(--card-soft);border-radius:8px;overflow:hidden}
+    .rotation-chart svg{display:block;width:100%;height:auto}
+    .rotation-list{border-left:1px solid var(--border)}
+    .rotation-row{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;padding:9px 0 9px 12px;border-top:1px solid var(--border);align-items:start}
+    .rotation-row:first-child{border-top:0}
+    .rotation-code{font-size:11px;font-weight:700}
+    .rotation-name{font-size:11px;line-height:1.35;overflow-wrap:anywhere}
+    .rotation-meta{margin-top:3px;color:var(--muted);font-size:10px;font-variant-numeric:tabular-nums}
+    .rotation-quadrant{white-space:nowrap;text-align:right}
+    .rotation-quadrant .badge{margin-bottom:3px}
+    .rotation-empty{display:grid;place-items:center;min-height:280px;color:var(--muted);font-size:12px}
     .period-bars{display:grid;gap:8px;margin-top:14px}
     .period-bar{display:grid;grid-template-columns:minmax(110px,1fr) minmax(80px,2fr) 58px;gap:9px;align-items:center;font-size:11px}
     .period-track{height:10px;position:relative;background:var(--card-soft);border-radius:6px;overflow:hidden}
@@ -2160,7 +2186,8 @@ HTML_DOCUMENT = r'''<!doctype html>
     .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
     @media(prefers-reduced-motion:reduce){.detail-flip{transition:none}}
     @media(max-width:1200px){.dashboard,.workspace,.lower-grid,.verdict{grid-template-columns:1fr}.market-tabs{display:flex}.market-tabs .tab-button{width:auto}.stats,.metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.controls{grid-template-columns:minmax(0,1.4fr) minmax(220px,.55fr) auto}.method{padding-left:0;padding-top:12px;border-left:0;border-top:3px solid var(--positive)}}
-    @media(max-width:720px){.shell{padding:14px}.topline,.chart-head{display:block}.meta{text-align:left;margin-top:8px}.market-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.market-tabs .tab-button{width:100%}.controls{grid-template-columns:1fr}.stats,.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-wrap{min-height:252px}.period-bar{grid-template-columns:100px 1fr 52px}}
+    @media(max-width:900px){.rotation-layout{grid-template-columns:1fr}.rotation-list{border-left:0;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.rotation-row:nth-child(2){border-top:0}}
+    @media(max-width:720px){.shell{padding:14px}.topline,.chart-head{display:block}.meta{text-align:left;margin-top:8px}.market-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.market-tabs .tab-button{width:100%}.controls{grid-template-columns:1fr}.stats,.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-wrap{min-height:252px}.period-bar{grid-template-columns:100px 1fr 52px}.rotation-controls{grid-template-columns:1fr;margin-top:12px}.rotation-chart{min-height:240px}.rotation-list{grid-template-columns:1fr}.rotation-row:nth-child(2){border-top:1px solid var(--border)}}
   </style>
 </head>
 <body>
@@ -2228,6 +2255,30 @@ HTML_DOCUMENT = r'''<!doctype html>
         </div>
       </aside>
         </section>
+        <section class="card rotation-card" aria-labelledby="rotation-title">
+          <div class="chart-head rotation-head">
+            <div>
+              <div class="eyebrow">Factor rotation / trailing official NAV evidence</div>
+              <h2 id="rotation-title">因子变量轮回图</h2>
+              <p class="section-note" id="rotation-method-note"></p>
+            </div>
+            <div class="rotation-controls" aria-label="轮回图控制">
+              <div class="rotation-date-control">
+                <label for="rotation-date"><span>As of</span><span id="rotation-date-label"></span></label>
+                <input id="rotation-date" type="range" min="0" max="0" value="0" step="1">
+                <span class="rotation-asof" id="rotation-asof"></span>
+              </div>
+              <div class="rotation-trails" role="group" aria-label="轨迹长度">
+                <button type="button" class="tab-button" data-rotation-trail="6" aria-pressed="true">6M</button>
+                <button type="button" class="tab-button" data-rotation-trail="12" aria-pressed="false">12M</button>
+              </div>
+            </div>
+          </div>
+          <div class="rotation-layout">
+            <div class="rotation-chart" id="rotation-chart"></div>
+            <div class="rotation-list" id="rotation-list" aria-label="当前因子变量位置"></div>
+          </div>
+        </section>
         <section class="lower-grid">
           <section class="card evidence-card" aria-labelledby="evidence-title">
             <div class="chart-head"><div><div class="eyebrow">可审计证据</div><h2 id="evidence-title">Gate、组合与边界</h2></div></div>
@@ -2262,7 +2313,7 @@ HTML_DOCUMENT = r'''<!doctype html>
         residual_risk:["残差风险","用剔除市场共同波动后的残差波动与下行波动，过滤公司特有尾部脆弱性。"],
         accrual_quality:["应计质量","用 Net Income 与 CFO 的差额、营运资本吸收和现金支持的利润率改善，区分现金盈利与应计驱动盈利。"]
       };
-      var state={market:"stoxx600",candidate:null,subset:null,period:"all",mode:"evidence",evidenceTab:null,detailBack:false};
+      var state={market:"stoxx600",candidate:null,subset:null,period:"all",mode:"evidence",evidenceTab:null,detailBack:false,rotationTrail:6,rotationIndex:null};
       var byId=function(id){return document.getElementById(id)};
       var esc=function(value){return String(value==null?"":value).replace(/[&<>"']/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]})};
       var report=function(){return DATA.reports.find(function(row){return row.id===state.market})};
@@ -2302,7 +2353,7 @@ HTML_DOCUMENT = r'''<!doctype html>
           return '<button type="button" class="tab-button" role="tab" data-market="'+esc(row.id)+'" aria-selected="'+(row.id===state.market)+'">'+esc(row.shortName)+'</button>';
         }).join("");
         byId("market-tabs").querySelectorAll("[data-market]").forEach(function(button){
-          button.addEventListener("click",function(){state.market=button.dataset.market;state.candidate=null;state.subset=null;state.period="all";state.evidenceTab=null;render()});
+          button.addEventListener("click",function(){state.market=button.dataset.market;state.candidate=null;state.subset=null;state.period="all";state.evidenceTab=null;state.rotationIndex=null;render()});
         });
       }
       function renderHeader(){
@@ -2407,6 +2458,130 @@ HTML_DOCUMENT = r'''<!doctype html>
         byId("chart-title").textContent=item.label;
         byId("chart-subtitle").textContent=scope.label+" · "+rows[0][0]+" 至 "+rows[rows.length-1][0];
       }
+      var ROTATION_COLORS=["var(--rotation-1)","var(--rotation-2)","var(--rotation-3)","var(--rotation-4)","var(--rotation-5)","var(--rotation-6)","var(--rotation-7)","var(--rotation-8)"];
+      function rotationLabel(item){
+        return String(item.label||item.id).replace(/^[a-z][a-z_]+:\s*/,"");
+      }
+      function rotationItems(){
+        var row=report(),ids=row.rotationCandidateIds||[];
+        return ids.map(function(id){return row.candidates.find(function(item){return item.id===id})}).filter(Boolean);
+      }
+      function rotationMonthlySeries(item){
+        var byMonth={};
+        item.series.forEach(function(row){byMonth[row[0].slice(0,7)]=row});
+        return Object.keys(byMonth).sort().map(function(month){return byMonth[month]});
+      }
+      function rotationTrajectory(item,asOfMonth,trail){
+        var method=report().rotationMethod,lookback=method.strengthLookbackObservations,momentumLag=method.momentumLagObservations;
+        var rows=rotationMonthlySeries(item).filter(function(row){return row[0].slice(0,7)<=asOfMonth});
+        var points=[];
+        for(var index=lookback+momentumLag;index<rows.length;index++){
+          var current=rows[index],lagged=rows[index-lookback],prior=rows[index-momentumLag],priorLagged=rows[index-lookback-momentumLag];
+          var currentRelative=current[1]/current[3],laggedRelative=lagged[1]/lagged[3],priorRelative=prior[1]/prior[3],priorLaggedRelative=priorLagged[1]/priorLagged[3];
+          if(!(currentRelative>0&&laggedRelative>0&&priorRelative>0&&priorLaggedRelative>0)) continue;
+          var strength=Math.log(currentRelative/laggedRelative),priorStrength=Math.log(priorRelative/priorLaggedRelative);
+          points.push({
+            date:current[0],
+            x:method.center+method.scale*strength,
+            y:method.center+method.scale*(strength-priorStrength),
+            strength:strength,
+            momentum:strength-priorStrength
+          });
+        }
+        return points.slice(-trail);
+      }
+      function rotationMonths(items){
+        var monthSet={};
+        items.forEach(function(item){rotationMonthlySeries(item).forEach(function(row){monthSet[row[0].slice(0,7)]=true})});
+        return Object.keys(monthSet).sort().filter(function(month){
+          return items.filter(function(item){return rotationTrajectory(item,month,1).length}).length>=Math.min(4,items.length);
+        });
+      }
+      function rotationQuadrant(point){
+        if(point.x>=100&&point.y>=100) return {label:"Leading",css:"good"};
+        if(point.x>=100&&point.y<100) return {label:"Weakening",css:"warn"};
+        if(point.x<100&&point.y>=100) return {label:"Improving",css:"good"};
+        return {label:"Lagging",css:"bad"};
+      }
+      function rotationBounds(values){
+        var low=Math.min.apply(null,values.concat([100])),high=Math.max.apply(null,values.concat([100]));
+        var span=Math.max(high-low,1.6),padding=Math.max(span*.12,.2);
+        low=Math.floor((low-padding)*2)/2;
+        high=Math.ceil((high+padding)*2)/2;
+        if(high-low<2){low=99;high=101}
+        return [low,high];
+      }
+      function rotationTicks(bounds){
+        return [0,.25,.5,.75,1].map(function(fraction){return bounds[0]+(bounds[1]-bounds[0])*fraction});
+      }
+      function renderFactorRotation(){
+        var items=rotationItems(),months=rotationMonths(items),range=byId("rotation-date"),method=report().rotationMethod;
+        if(!items.length||!months.length){
+          byId("rotation-chart").innerHTML='<div class="rotation-empty">当前市场没有足够的单变量历史构造轮回图。</div>';
+          byId("rotation-list").innerHTML="";
+          return;
+        }
+        if(state.rotationIndex===null) state.rotationIndex=months.length-1;
+        state.rotationIndex=Math.max(0,Math.min(state.rotationIndex,months.length-1));
+        var asOfMonth=months[state.rotationIndex];
+        range.max=String(months.length-1);range.value=String(state.rotationIndex);
+        byId("rotation-date-label").textContent=months[0]+" → "+months[months.length-1];
+        byId("rotation-asof").textContent=asOfMonth;
+        byId("rotation-method-note").textContent="X > 100：Top/BM 过去 12 个观察点相对强度为正；Y > 100：该强度较 3 个观察点前改善。仅使用 As of 当月及之前的官方净值。";
+        document.querySelectorAll("[data-rotation-trail]").forEach(function(button){button.setAttribute("aria-pressed",String(Number(button.dataset.rotationTrail)===state.rotationTrail))});
+        var series=items.map(function(item,index){
+          return {item:item,index:index,code:"F"+(index+1),color:ROTATION_COLORS[index%ROTATION_COLORS.length],points:rotationTrajectory(item,asOfMonth,state.rotationTrail)};
+        }).filter(function(row){return row.points.length});
+        var allPoints=[];
+        series.forEach(function(row){row.points.forEach(function(point){allPoints.push(point)})});
+        if(!allPoints.length){
+          byId("rotation-chart").innerHTML='<div class="rotation-empty">该截至月没有足够历史构造轮回图。</div>';
+          byId("rotation-list").innerHTML="";
+          return;
+        }
+        var chartClientWidth=byId("rotation-chart").clientWidth,narrow=chartClientWidth<360,compact=chartClientWidth<700;
+        var width=narrow?460:compact?620:960,height=narrow?390:compact?430:455;
+        var left=narrow?52:compact?60:66,right=narrow?16:compact?20:24,top=30,bottom=narrow?52:compact?56:58;
+        var axisFont=narrow?13:compact?12:11,quadrantFont=narrow?16:15;
+        var xBounds=rotationBounds(allPoints.map(function(point){return point.x})),yBounds=rotationBounds(allPoints.map(function(point){return point.y}));
+        var plotWidth=width-left-right,plotHeight=height-top-bottom;
+        var x=function(value){return left+(value-xBounds[0])/(xBounds[1]-xBounds[0])*plotWidth};
+        var y=function(value){return top+(yBounds[1]-value)/(yBounds[1]-yBounds[0])*plotHeight};
+        var x100=x(100),y100=y(100);
+        var quadrants=
+          '<rect x="'+left+'" y="'+top+'" width="'+(x100-left)+'" height="'+(y100-top)+'" fill="var(--series-bench)" opacity=".08"/>'+
+          '<rect x="'+x100+'" y="'+top+'" width="'+(width-right-x100)+'" height="'+(y100-top)+'" fill="var(--positive)" opacity=".08"/>'+
+          '<rect x="'+left+'" y="'+y100+'" width="'+(x100-left)+'" height="'+(height-bottom-y100)+'" fill="var(--negative)" opacity=".07"/>'+
+          '<rect x="'+x100+'" y="'+y100+'" width="'+(width-right-x100)+'" height="'+(height-bottom-y100)+'" fill="var(--warning)" opacity=".08"/>';
+        var xGrid=rotationTicks(xBounds).map(function(value){
+          var xx=x(value);return '<line x1="'+xx+'" y1="'+top+'" x2="'+xx+'" y2="'+(height-bottom)+'" stroke="var(--border)"/><text x="'+xx+'" y="'+(height-bottom+20)+'" text-anchor="middle" fill="var(--muted)" font-size="'+axisFont+'">'+value.toFixed(1)+'</text>';
+        }).join("");
+        var yGrid=rotationTicks(yBounds).map(function(value){
+          var yy=y(value);return '<line x1="'+left+'" y1="'+yy+'" x2="'+(width-right)+'" y2="'+yy+'" stroke="var(--border)"/><text x="'+(left-8)+'" y="'+(yy+4)+'" text-anchor="end" fill="var(--muted)" font-size="'+axisFont+'">'+value.toFixed(1)+'</text>';
+        }).join("");
+        var definitions='<defs>'+series.map(function(row){return '<marker id="rotation-arrow-'+row.index+'" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="'+row.color+'"/></marker>'}).join("")+'</defs>';
+        var trails=series.map(function(row){
+          var itemLabel=rotationLabel(row.item),coordinates=row.points.map(function(point){return x(point.x).toFixed(1)+","+y(point.y).toFixed(1)}).join(" ");
+          var pointMarks=row.points.map(function(point,index){
+            var radius=index===row.points.length-1?5:2.5;
+            return '<circle cx="'+x(point.x).toFixed(1)+'" cy="'+y(point.y).toFixed(1)+'" r="'+radius+'" fill="'+row.color+'" opacity="'+(index===row.points.length-1?1:.62)+'"><title>'+esc(itemLabel+" · "+point.date.slice(0,7)+" · RS "+point.x.toFixed(2)+" · Momentum "+point.y.toFixed(2))+'</title></circle>';
+          }).join("");
+          var latest=row.points[row.points.length-1],labelX=Math.min(x(latest.x)+7,width-right-24),anchor=labelX>=width-right-24?"end":"start";
+          return '<polyline points="'+coordinates+'" fill="none" stroke="'+row.color+'" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#rotation-arrow-'+row.index+')"><title>'+esc(itemLabel+" trajectory through "+asOfMonth)+'</title></polyline>'+pointMarks+'<text x="'+labelX.toFixed(1)+'" y="'+(y(latest.y)-7).toFixed(1)+'" text-anchor="'+anchor+'" fill="'+row.color+'" font-size="'+axisFont+'" font-weight="700">'+row.code+'</text>';
+        }).join("");
+        var svg='<svg viewBox="0 0 '+width+' '+height+'" role="img" aria-labelledby="rotation-svg-title rotation-svg-desc"><title id="rotation-svg-title">'+esc(report().shortName+" factor-variable rotation map through "+asOfMonth)+'</title><desc id="rotation-svg-desc">RRG-inspired descriptive map. Horizontal axis is trailing 12-observation Top/Benchmark relative strength; vertical axis is its three-observation change. It is not the proprietary JdK formula.</desc>'+definitions+quadrants+xGrid+yGrid+
+          '<line x1="'+x100+'" y1="'+top+'" x2="'+x100+'" y2="'+(height-bottom)+'" stroke="var(--foreground)" stroke-width="1.2" stroke-dasharray="5 5"/>'+
+          '<line x1="'+left+'" y1="'+y100+'" x2="'+(width-right)+'" y2="'+y100+'" stroke="var(--foreground)" stroke-width="1.2" stroke-dasharray="5 5"/>'+
+          '<text x="'+(left+8)+'" y="'+(top+18)+'" fill="var(--muted)" font-size="'+quadrantFont+'">Improving</text><text x="'+(width-right-8)+'" y="'+(top+18)+'" text-anchor="end" fill="var(--muted)" font-size="'+quadrantFont+'">Leading</text>'+
+          '<text x="'+(left+8)+'" y="'+(height-bottom-10)+'" fill="var(--muted)" font-size="'+quadrantFont+'">Lagging</text><text x="'+(width-right-8)+'" y="'+(height-bottom-10)+'" text-anchor="end" fill="var(--muted)" font-size="'+quadrantFont+'">Weakening</text>'+
+          '<text x="'+(left+plotWidth/2)+'" y="'+(height-10)+'" text-anchor="middle" fill="var(--muted)" font-size="'+axisFont+'">'+(compact?"12-observation Top/BM strength":"12-observation Top / Benchmark relative strength (100 = neutral)")+'</text>'+
+          '<text x="'+(compact?13:15)+'" y="'+(top+plotHeight/2)+'" transform="rotate(-90 '+(compact?13:15)+' '+(top+plotHeight/2)+')" text-anchor="middle" fill="var(--muted)" font-size="'+axisFont+'">'+(compact?"3-observation Δ strength":"3-observation change in relative strength (100 = neutral)")+'</text>'+trails+'</svg>';
+        byId("rotation-chart").innerHTML=svg;
+        byId("rotation-list").innerHTML=series.map(function(row){
+          var latest=row.points[row.points.length-1],quadrant=rotationQuadrant(latest);
+          return '<div class="rotation-row"><span class="rotation-code" style="color:'+row.color+'">'+row.code+'</span><div><div class="rotation-name">'+esc(rotationLabel(row.item))+'</div><div class="rotation-meta">12M active '+fmtPct(Math.exp(latest.strength)-1)+' · ΔRS 3M '+fmtPct(Math.exp(latest.momentum)-1)+'</div></div><div class="rotation-quadrant"><span class="badge '+quadrant.css+'">'+quadrant.label+'</span><div class="rotation-meta">'+latest.x.toFixed(2)+" / "+latest.y.toFixed(2)+'</div></div></div>';
+        }).join("");
+      }
       function renderDetails(){
         var item=candidate(),scope=period();
         byId("candidate-kind").textContent=item.group+" · "+item.kind;
@@ -2474,12 +2649,14 @@ HTML_DOCUMENT = r'''<!doctype html>
         byId("provenance").innerHTML="<strong>数据来源与边界：</strong> "+report().provenance.map(esc).join(" · ")+"<br>默认配置只用于打开页面，不代表唯一最优模型；本页保留旧基线与新扩展，用于比较不同配置在不同市场和时期的表现及其经济机制。本页不生成新回测，不构成投资建议。";
       }
       function render(){
-        renderMarketTabs();renderHeader();renderControls();renderMetrics();renderSubsetGuide();renderChart();renderDetails();renderPeriodGuide();renderFlipState();renderEvidence();renderProvenance();
+        renderMarketTabs();renderHeader();renderControls();renderMetrics();renderSubsetGuide();renderChart();renderDetails();renderPeriodGuide();renderFlipState();renderFactorRotation();renderEvidence();renderProvenance();
       }
       byId("candidate-select").addEventListener("change",function(event){state.candidate=event.target.value;renderMetrics();renderSubsetGuide();renderChart();renderDetails()});
       byId("subset-guide-select").addEventListener("change",function(event){state.subset=event.target.value;renderSubsetGuide()});
       byId("period-select").addEventListener("change",function(event){state.period=event.target.value;renderMetrics();renderChart();renderDetails();renderPeriodGuide()});
       document.querySelectorAll("[data-mode]").forEach(function(button){button.addEventListener("click",function(){state.mode=button.dataset.mode;document.querySelectorAll("[data-mode]").forEach(function(row){row.setAttribute("aria-pressed",String(row===button))});renderDetails()})});
+      byId("rotation-date").addEventListener("input",function(event){state.rotationIndex=Number(event.target.value);renderFactorRotation()});
+      document.querySelectorAll("[data-rotation-trail]").forEach(function(button){button.addEventListener("click",function(){state.rotationTrail=Number(button.dataset.rotationTrail);renderFactorRotation()})});
       byId("detail-flip-button").addEventListener("click",function(){state.detailBack=!state.detailBack;renderFlipState()});
       render();
     })();
@@ -2549,6 +2726,104 @@ def prepare_model_versions(report: dict[str, Any]) -> dict[str, Any]:
             ],
         ),
     )
+    return report
+
+
+ROTATION_CANDIDATE_KINDS = {"single", "core", "eps-growth", "revision"}
+
+
+def rotation_display_label(label: str) -> str:
+    return re.sub(r"^[a-z][a-z_]+:\s*", "", label).strip()
+
+
+def rotation_variable_key(label: str) -> str:
+    return re.sub(
+        r"\s+(directional_delta|score_delta)\s+lag\d+\b",
+        "",
+        rotation_display_label(label),
+        flags=re.IGNORECASE,
+    ).lower()
+
+
+def rotation_family(label: str) -> str:
+    normalized = rotation_display_label(label).lower()
+    if "revision" in normalized:
+        return "revision"
+    if "pmom" in normalized or "momentum" in normalized:
+        return "momentum"
+    if "debt" in normalized or "delever" in normalized:
+        return "leverage"
+    if any(token in normalized for token in ("dps", "dvd", "dividend", "payout")):
+        return "dividend"
+    if (
+        "yield" in normalized
+        or re.search(r"\b(pb|pe)\b", normalized)
+        or "ev to" in normalized
+        or "price to" in normalized
+    ):
+        return "value"
+    if "growth" in normalized:
+        return "growth"
+    if any(token in normalized for token in ("margin", "roe", "fcf conversion")):
+        return "quality"
+    if any(token in normalized for token in ("risk", "vol", "drawdown")):
+        return "risk"
+    return "other"
+
+
+def attach_factor_rotation(report: dict[str, Any], limit: int = 8) -> dict[str, Any]:
+    eligible = [
+        candidate
+        for candidate in report["candidates"]
+        if candidate.get("kind") in ROTATION_CANDIDATE_KINDS
+        and len(candidate.get("series") or []) >= 18
+        and "+" not in rotation_display_label(candidate["label"])
+        and (finite(candidate["metrics"].get("robust")) or 0) > 0
+    ]
+    eligible.sort(
+        key=lambda candidate: finite(candidate["metrics"].get("robust")) or -math.inf,
+        reverse=True,
+    )
+    deduplicated = []
+    seen_variables = set()
+    for candidate in eligible:
+        key = rotation_variable_key(candidate["label"])
+        if key in seen_variables:
+            continue
+        seen_variables.add(key)
+        deduplicated.append(candidate)
+    selected = []
+    selected_ids = set()
+    selected_families = set()
+    for candidate in deduplicated:
+        family = rotation_family(candidate["label"])
+        if family in selected_families:
+            continue
+        selected.append(candidate)
+        selected_ids.add(candidate["id"])
+        selected_families.add(family)
+        if len(selected) == limit:
+            break
+    for candidate in deduplicated:
+        if len(selected) == limit:
+            break
+        if candidate["id"] not in selected_ids:
+            selected.append(candidate)
+            selected_ids.add(candidate["id"])
+    if len(selected) < 4:
+        raise RuntimeError(f'{report["id"]} has fewer than four eligible rotation variables.')
+    report["rotationCandidateIds"] = [candidate["id"] for candidate in selected]
+    report["rotationMethod"] = {
+        "id": "tp_factor_rotation_v1",
+        "strengthLookbackObservations": 12,
+        "momentumLagObservations": 3,
+        "center": 100,
+        "scale": 10,
+        "xDefinition": "100 + 10 * ln[(Top/Benchmark)t / (Top/Benchmark)t-12]",
+        "yDefinition": "100 + 10 * (strength_t - strength_t-3)",
+        "datePolicy": "Only performance observations dated on or before the selected as-of month are used.",
+        "candidatePolicy": "Positive-robust official single variables; deduplicated by raw field and diversified by economic family.",
+    }
     return report
 
 
@@ -2690,6 +2965,9 @@ def validate_payload(payload: dict[str, Any]) -> None:
         assert len(candidate_ids) == len(report["candidates"]), report["id"]
         assert report["defaultCandidate"] in candidate_ids
         assert report["periods"] and report["evidenceTabs"]
+        assert 4 <= len(report["rotationCandidateIds"]) <= 8
+        assert set(report["rotationCandidateIds"]) <= candidate_ids
+        assert report["rotationMethod"]["id"] == "tp_factor_rotation_v1"
         assert all(row["definition"] and "sources" in row for row in report["periods"])
         assert all(row["sources"] for row in report["periods"] if row["id"] != "all")
         assert len(report["subsetCatalog"]) == expected_subsets[report["id"]]
@@ -2728,7 +3006,9 @@ def main() -> None:
     ]
     payload = {
         "reports": [
-            prepare_model_versions(attach_period_contexts(enrich_supplemental_research(report)))
+            attach_factor_rotation(
+                prepare_model_versions(attach_period_contexts(enrich_supplemental_research(report)))
+            )
             for report in reports
         ]
     }
@@ -2743,6 +3023,8 @@ def main() -> None:
     assert 'class="lower-grid"' in document and 'id="period-guide"' in document
     assert 'id="detail-flip-button"' in document and "period-guide-card" not in document
     assert 'id="subset-definitions"' in document and "renderSubsetGuide" in document
+    assert 'id="rotation-chart"' in document and "renderFactorRotation" in document
+    assert "tp_factor_rotation_v1" in document and "RRG-inspired descriptive map" in document
     assert 'role="tab"' in document and "aria-selected" in document
     OUTPUT.write_text(document, encoding="utf-8")
     print(f"Wrote {OUTPUT}")

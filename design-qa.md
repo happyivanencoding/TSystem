@@ -1,41 +1,80 @@
-# Design QA
+# Design QA: Four-Market Factor Rotation Map
 
-- source visual truth path: `C:\Users\jingx\AppData\Local\Temp\codex-clipboard-a34c3f5c-79f9-4066-86cf-f270c7e69859.png`
-- focused source path: `C:\Users\jingx\AppData\Local\Temp\codex-clipboard-8dfccd30-0872-4cc5-8601-2eb366798e67.png`
+- source visual truth path: `C:\GoogleDrive\TP\.codex_tmp\factor_rotation_qa\source-rotation-reference.png`
 - implementation: `C:\GoogleDrive\TP\09_reports\factor-explorer.html`
-- implementation screenshot path: unavailable
-- viewport: source 2048 x 758; implementation target uses 25% / 75% wide-screen grid
-- state: SP500, full sample, evidence mode
+- desktop screenshot: `C:\GoogleDrive\TP\.codex_tmp\factor_rotation_qa\implementation-desktop-1265x712.png`
+- mobile screenshot: `C:\GoogleDrive\TP\.codex_tmp\factor_rotation_qa\implementation-mobile-390x844.png`
+- combined comparison: `C:\GoogleDrive\TP\.codex_tmp\factor_rotation_qa\comparison-source-vs-implementation.png`
+- viewport and density: source `755 x 557 px`; desktop `1265 x 712 CSS px`; mobile `390 x 844 CSS px`; density `1x`
+- state: STOXX 600, latest `2026-07`, 6-observation trail, dark theme
 
-## Full-view comparison evidence
+## Full-View Comparison Evidence
 
-The source screenshot was inspected. It shows unused horizontal space around a centered 1580px shell and three wide rows above the plot. The implementation now removes the maximum width, places the four market selectors and those three rows in a 25% left rail, and keeps the verdict, plot, detail rail, and evidence content in the remaining width.
+The combined comparison was inspected with both artifacts in one image. The
+implementation preserves the reference's four rotation quadrants, centered
+100 lines, multi-period colored trails, direction markers, endpoint identifiers,
+and latest-position labels. It intentionally adopts the existing TP Explorer
+tokens and adds an as-of slider plus 6M/12M trail controls.
 
-Rendered comparison is blocked because Browser Use does not expose the current `file://` tab and rejects direct `file://` capture. No implementation screenshot is available, so visual fidelity cannot be claimed.
+## Focused Region Comparison Evidence
 
-## Focused region comparison evidence
+The chart and current-position list are readable in the focused desktop crop.
+Unlike the reference's overlapping direct labels, the implementation uses
+`F1`-`F8` endpoints and a color-linked list containing the complete original
+variable names, 12M active strength, 3M strength change, coordinates, and
+quadrant. The mobile capture confirms a compact `460 x 390` viewBox followed by
+the same full-name list.
 
-The focused source crop confirms the three groups to move: research coverage stats, candidate/period/mode controls, and candidate KPI cards. Static HTML checks confirm that these groups now appear inside `.sidebar` before `#chart`, but their rendered spacing and wrapping remain unverified.
+## Required Fidelity Surfaces
+
+- Fonts and typography: existing Inter/system/Segoe UI/Microsoft YaHei stack is
+  retained; headings, controls, axes, endpoint codes, and dense list text have
+  distinct sizes and no negative letter spacing.
+- Spacing and layout: desktop uses a chart/list grid; tablet and mobile collapse
+  to one column. The chart has stable dimensions and the page has no horizontal
+  overflow at either tested viewport.
+- Colors and tokens: eight distinct trail colors remain legible in light and
+  dark token sets. Semantic quadrant fills and state badges use existing
+  positive, warning, negative, and benchmark colors.
+- Image and chart quality: the visualization is native vector data rendering,
+  appropriate for quantitative paths and axes. No raster placeholder,
+  decorative gradient, or fake illustration is used.
+- Copy and content: all factor labels in the rotation list use original source
+  variable names. The note defines the 100 thresholds and point-in-time policy.
+
+## Interactions And Runtime
+
+- Tested market switching for EU Small, SP500, STOXX 600, and Nasdaq.
+- Tested 6M to 12M trails: STOXX 600 changed from 48 to 96 path points.
+- Tested historical as-of movement from `2026-07` to `2018-09`.
+- Confirmed the legacy performance chart still renders five paths:
+  Top, Worst, Benchmark, Top/Worst ratio, and Top/Benchmark ratio.
+- Browser console errors checked: none.
 
 ## Findings
 
-- [P1] Rendered wide-screen layout cannot be verified.
-  - Location: `.dashboard`, `.sidebar`, `.main-column`.
-  - Evidence: source screenshots are available; implementation screenshot is unavailable.
-  - Impact: the 25% rail, two-column metric cards, and plot width may still need visual tuning.
-  - Fix: refresh the local report, capture the same wide viewport, and compare it with the supplied source.
+No actionable P0, P1, or P2 findings remain.
 
-## Comparison history
+Intentional differences from the reference are acceptable: this is an
+RRG-inspired, auditable factor map rather than the proprietary JdK formula; the
+TP design system replaces the reference's framed black chart and decorative
+factor regions; complete names move to the linked list to prevent occlusion.
 
-- Iteration 1: identified excessive centered max-width and three horizontal pre-plot rows. Updated the generator to a full-width 25% / 75% layout and regenerated the report. Post-fix visual evidence is blocked.
+## Comparison History
 
-## Implementation checklist
+- Iteration 1: mobile evidence grid inherited a `720 px` table minimum and caused
+  horizontal overflow. Added `min-width: 0` to the main/evidence grid boundary
+  and constrained selects. Post-fix body widths are `338 / 338 px`.
+- Iteration 2: the original `960 x 455` chart became too small on mobile and the
+  archived method suffix repeated after rebuilds. Added three responsive chart
+  geometries and idempotent method construction. Post-fix mobile viewBox is
+  `460 x 390`; method suffix count is one.
+- Iteration 3: the narrow desktop chart was too tall. Split narrow mobile from
+  compact desktop geometry. Post-fix dashboard viewBox is `620 x 430`.
 
-- [x] Remove the 1580px maximum shell width.
-- [x] Move four market selectors to the top of the left rail.
-- [x] Move research stats, controls, and KPI cards into the left rail.
-- [x] Keep the verdict, plot, explanation panel, and evidence tables in the main column.
-- [x] Restore the original stacked layout below 1200px.
-- [ ] Capture and compare the rendered wide-screen result.
+## Follow-Up Polish
 
-final result: blocked
+- P3: direct hover highlighting between a trail and its list row could improve
+  dense-path inspection, but it does not block current use.
+
+final result: passed

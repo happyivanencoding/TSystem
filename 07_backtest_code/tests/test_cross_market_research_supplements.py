@@ -150,3 +150,30 @@ def test_authoritative_explorer_preserves_return_ratio_and_economic_views() -> N
     ).read_text(encoding="utf-8")
     assert 'src="/reports/factor-explorer.html"' in dashboard_source
     assert 'src="/reports/factor-research-app.html"' not in dashboard_source
+
+
+def test_authoritative_explorer_has_auditable_rotation_map_for_every_market() -> None:
+    html = (REPORT_DIR / "factor-explorer.html").read_text(encoding="utf-8")
+    marker = '<script id="report-data" type="application/json">'
+    payload_text = html.split(marker, 1)[1].split("</script>", 1)[0]
+    payload = json.loads(payload_text)
+
+    assert 'id="rotation-chart"' in html
+    assert 'id="rotation-date"' in html
+    assert 'data-rotation-trail="6"' in html
+    assert 'data-rotation-trail="12"' in html
+    assert "renderFactorRotation" in html
+    assert "RRG-inspired descriptive map" in html
+    for report in payload["reports"]:
+        candidate_ids = {candidate["id"] for candidate in report["candidates"]}
+        rotation_ids = report["rotationCandidateIds"]
+        method = report["rotationMethod"]
+        assert report["method"].count("lag1/3/6/12") == 1
+        assert 4 <= len(rotation_ids) <= 8
+        assert len(rotation_ids) == len(set(rotation_ids))
+        assert set(rotation_ids) <= candidate_ids
+        assert method["id"] == "tp_factor_rotation_v1"
+        assert method["strengthLookbackObservations"] == 12
+        assert method["momentumLagObservations"] == 3
+        assert method["xDefinition"].startswith("100 + 10 * ln")
+        assert method["datePolicy"].startswith("Only performance observations dated on or before")

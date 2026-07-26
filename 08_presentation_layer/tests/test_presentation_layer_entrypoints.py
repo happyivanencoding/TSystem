@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 
 from presentation_layer import PresentationDataRepository
@@ -99,6 +100,63 @@ def test_system_dashboard_factory_imports_without_loading_data() -> None:
     assert "/client/assets/<path:filename>" in routes
     assert "/reports/factor-explorer.html" in routes
     assert "/reports/factor-research-app.html" in routes
+
+
+def test_sector_rotation_coordinates_are_trailing_and_use_realized_dates(tmp_path: Path) -> None:
+    from presentation_layer.apps import system_dashboard as dashboard
+
+    dates = pd.date_range("2024-01-31", periods=18, freq="ME")
+    rows = []
+    for index, date in enumerate(dates):
+        for sector_code, sector_name in enumerate(("Banks", "Technology", "Utilities", "Health Care"), start=1):
+            rows.append(
+                {
+                    "next_date": date,
+                    "sector_code": sector_code,
+                    "sector_name": sector_name,
+                    "sector_weight": 0.25,
+                    "sector_forward_return": (
+                        0.004 * (sector_code - 2.5)
+                        + 0.002 * ((index + sector_code) % 4 - 1.5)
+                    ),
+                }
+            )
+    panel_path = tmp_path / "sector_panel.parquet"
+    frame = pd.DataFrame(rows)
+    frame.to_parquet(panel_path, index=False)
+
+    original = dashboard._sector_rotation_market_payload("TEST", panel_path)
+    assert original["latest_date"] == dates[-1].strftime("%Y-%m-%d")
+    assert len(original["sectors"]) == 4
+    assert all(1 <= len(sector["points"]) <= 12 for sector in original["sectors"])
+    assert all(
+        pd.Timestamp(point["date"]) <= dates[-1]
+        for sector in original["sectors"]
+        for point in sector["points"]
+    )
+
+    earlier_coordinates = {
+        (sector["sector_code"], point["date"]): (
+            point["relative_strength"],
+            point["relative_momentum"],
+        )
+        for sector in original["sectors"]
+        for point in sector["points"]
+        if point["date"] != original["latest_date"]
+    }
+    frame.loc[frame["next_date"].eq(dates[-1]), "sector_forward_return"] += [0.12, -0.08, 0.06, -0.04]
+    frame.to_parquet(panel_path, index=False)
+    revised = dashboard._sector_rotation_market_payload("TEST", panel_path)
+    revised_earlier_coordinates = {
+        (sector["sector_code"], point["date"]): (
+            point["relative_strength"],
+            point["relative_momentum"],
+        )
+        for sector in revised["sectors"]
+        for point in sector["points"]
+        if point["date"] != revised["latest_date"]
+    }
+    assert revised_earlier_coordinates == earlier_coordinates
 
 
 def test_system_dashboard_serves_react_client_dist(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -227,7 +285,9 @@ def test_system_dashboard_job_api_exposes_launch_status_and_events(
 
     sector_response = client.get("/api/dashboard/signals/sector")
     assert sector_response.status_code == 200
-    assert "rows" in sector_response.get_json()
+    sector_payload = sector_response.get_json()
+    assert "rows" in sector_payload
+    assert {"status", "methodology", "benchmark", "markets"} <= set(sector_payload["rotation"])
 
     launch_response = client.post("/api/dashboard/jobs/system-checks")
     assert launch_response.status_code == 202

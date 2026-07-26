@@ -1000,6 +1000,242 @@ select {
   min-width: 0;
 }
 
+.tp-sector-rotation {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(245, 248, 247, 0.72)),
+    var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(24, 49, 41, 0.06);
+  margin: 12px 0 16px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 14px;
+}
+
+.tp-sector-rotation-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.tp-sector-rotation-head h3 {
+  font-size: 18px;
+  margin: 2px 0 4px;
+}
+
+.tp-sector-rotation-head > div > span {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  line-height: 1.55;
+  max-width: 700px;
+}
+
+.tp-sector-rotation-controls {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.tp-segmented-control {
+  background: rgba(28, 53, 46, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+}
+
+.tp-segmented-control button {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 6px 9px;
+}
+
+.tp-segmented-control button:hover,
+.tp-segmented-control button.is-active {
+  background: white;
+  box-shadow: 0 2px 8px rgba(24, 49, 41, 0.1);
+  color: var(--text);
+}
+
+.tp-sector-rotation-meta {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 11px;
+  gap: 8px 16px;
+  margin: 10px 0 6px;
+}
+
+.tp-sector-rotation-meta strong {
+  color: var(--rotation-color);
+  margin-left: auto;
+}
+
+.tp-sector-rotation-scroll {
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.tp-sector-rotation-chart {
+  display: block;
+  min-width: 720px;
+  width: 100%;
+}
+
+.tp-sector-rotation-chart > rect {
+  stroke: none;
+}
+
+.tp-sector-rotation-chart > rect.is-improving {
+  fill: rgba(49, 93, 159, 0.07);
+}
+
+.tp-sector-rotation-chart > rect.is-leading {
+  fill: rgba(22, 119, 104, 0.08);
+}
+
+.tp-sector-rotation-chart > rect.is-lagging {
+  fill: rgba(179, 63, 85, 0.065);
+}
+
+.tp-sector-rotation-chart > rect.is-weakening {
+  fill: rgba(154, 107, 24, 0.07);
+}
+
+.tp-rotation-grid line {
+  stroke: rgba(40, 62, 56, 0.11);
+  stroke-width: 1;
+}
+
+.tp-rotation-grid text {
+  fill: var(--muted);
+  font-size: 9px;
+  text-anchor: middle;
+}
+
+.tp-rotation-grid text:nth-of-type(2) {
+  text-anchor: end;
+}
+
+.tp-rotation-axis {
+  stroke: rgba(31, 55, 49, 0.42);
+  stroke-dasharray: 5 5;
+  stroke-width: 1.2;
+}
+
+.tp-rotation-quadrant {
+  fill: rgba(34, 55, 50, 0.52);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.tp-rotation-trail {
+  cursor: pointer;
+  outline: none;
+  transition: opacity 0.16s ease;
+}
+
+.tp-rotation-trail polyline {
+  fill: none;
+  stroke: var(--rotation-color);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.tp-rotation-trail circle {
+  fill: var(--rotation-color);
+  stroke: white;
+  stroke-width: 1.25;
+}
+
+.tp-rotation-trail:focus polyline,
+.tp-rotation-trail:hover polyline {
+  stroke-width: 2.8;
+}
+
+.tp-rotation-trail:focus circle:last-of-type,
+.tp-rotation-trail:hover circle:last-of-type {
+  stroke: var(--text);
+  stroke-width: 2;
+}
+
+.tp-rotation-label-line {
+  stroke: var(--rotation-color);
+  stroke-width: 0.8;
+}
+
+.tp-rotation-sector-label {
+  fill: var(--rotation-color);
+  font-size: 9px;
+  font-weight: 850;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-linejoin: round;
+  stroke-width: 3px;
+}
+
+.tp-rotation-axis-label {
+  fill: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.tp-sector-rotation-legend {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.tp-sector-rotation-legend span {
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 850;
+  padding: 5px 8px;
+}
+
+.tp-sector-rotation-legend span.is-improving {
+  background: rgba(49, 93, 159, 0.1);
+  color: #315d9f;
+}
+
+.tp-sector-rotation-legend span.is-leading {
+  background: rgba(22, 119, 104, 0.11);
+  color: #167768;
+}
+
+.tp-sector-rotation-legend span.is-lagging {
+  background: rgba(179, 63, 85, 0.1);
+  color: #b33f55;
+}
+
+.tp-sector-rotation-legend span.is-weakening {
+  background: rgba(154, 107, 24, 0.11);
+  color: #8d6113;
+}
+
+.tp-sector-rotation-legend em {
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+  margin-left: auto;
+}
+
 .tp-sector-market {
   min-width: 0;
 }
@@ -1852,6 +2088,20 @@ select {
 
   .tp-main {
     padding: 10px 0 24px;
+  }
+
+  .tp-sector-rotation-head {
+    flex-direction: column;
+  }
+
+  .tp-sector-rotation-controls {
+    flex-wrap: wrap;
+  }
+
+  .tp-sector-rotation-meta strong,
+  .tp-sector-rotation-legend em {
+    margin-left: 0;
+    width: 100%;
   }
 
   .tp-factor-explorer-frame {

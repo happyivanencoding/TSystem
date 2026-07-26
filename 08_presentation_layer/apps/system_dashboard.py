@@ -15,6 +15,7 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from dash import ALL, Dash, Input, Output, State, ctx, dash_table, dcc, html
@@ -3308,6 +3309,170 @@ def _sector_monthly_analysis_payload(month: str) -> tuple[dict[tuple[str, str], 
     return {}, {"status": "missing", "month": month, "path": "", "sectors": "0", "updated_at": ""}
 
 
+def _sector_rotation_market_payload(
+    market: str,
+    path: Path,
+    *,
+    strength_months: int = 12,
+    momentum_months: int = 3,
+    trail_months: int = 12,
+) -> dict[str, Any]:
+    columns = [
+        "next_date",
+        "sector_code",
+        "sector_name",
+        "sector_weight",
+        "sector_forward_return",
+    ]
+    frame = pd.read_parquet(path, columns=columns)
+    if frame.empty:
+        raise ValueError("empty sector panel")
+
+    data = frame.copy()
+    data["_date"] = pd.to_datetime(data["next_date"], errors="coerce")
+    data["_return"] = pd.to_numeric(data["sector_forward_return"], errors="coerce")
+    data["_weight"] = pd.to_numeric(data["sector_weight"], errors="coerce")
+    data = data.dropna(subset=["_date", "_return", "sector_code", "sector_name"])
+    data = data[data["_return"].gt(-1.0)].copy()
+    if data.empty:
+        raise ValueError("no valid realized sector returns")
+
+    data["_weight"] = data["_weight"].where(data["_weight"].gt(0.0), 0.0)
+    weight_total = data.groupby("_date")["_weight"].transform("sum")
+    sector_count = data.groupby("_date")["_return"].transform("count")
+    data["_normalized_weight"] = np.where(
+        weight_total.gt(0.0),
+        data["_weight"] / weight_total,
+        1.0 / sector_count,
+    )
+    benchmark = (
+        (data["_return"] * data["_normalized_weight"])
+        .groupby(data["_date"])
+        .sum()
+        .rename("_benchmark_return")
+    )
+    data = data.join(benchmark, on="_date")
+    data["_active_log_return"] = np.log1p(data["_return"]) - np.log1p(data["_benchmark_return"])
+    data = data.sort_values(["sector_code", "_date"], kind="stable")
+
+    min_strength_periods = max(6, strength_months // 2)
+    data["_strength_raw"] = (
+        data.groupby("sector_code", sort=False)["_active_log_return"]
+        .rolling(strength_months, min_periods=min_strength_periods)
+        .sum()
+        .reset_index(level=0, drop=True)
+    )
+    data["_momentum_raw"] = data["_strength_raw"] - data.groupby("sector_code", sort=False)[
+        "_strength_raw"
+    ].shift(momentum_months)
+
+    def normalized_coordinate(values: pd.Series) -> pd.Series:
+        mean = values.mean()
+        std = values.std(ddof=0)
+        if pd.isna(std) or std <= 0.0:
+            return pd.Series(100.0, index=values.index)
+        zscore = ((values - mean) / std).clip(-2.5, 2.5)
+        return 100.0 + 2.0 * zscore
+
+    data["_relative_strength"] = data.groupby("_date", group_keys=False)["_strength_raw"].transform(
+        normalized_coordinate
+    )
+    data["_relative_momentum"] = data.groupby("_date", group_keys=False)["_momentum_raw"].transform(
+        normalized_coordinate
+    )
+    data = data.dropna(subset=["_relative_strength", "_relative_momentum"])
+    if data.empty:
+        raise ValueError("insufficient history for rotation coordinates")
+
+    chart_dates = sorted(data["_date"].unique())[-trail_months:]
+    chart = data[data["_date"].isin(chart_dates)].copy()
+
+    def quadrant(strength: float, momentum: float) -> str:
+        if strength >= 100.0 and momentum >= 100.0:
+            return "Leading"
+        if strength >= 100.0:
+            return "Weakening"
+        if momentum >= 100.0:
+            return "Improving"
+        return "Lagging"
+
+    sectors: list[dict[str, Any]] = []
+    for (sector_code, sector_name), sector_data in chart.groupby(
+        ["sector_code", "sector_name"], sort=True
+    ):
+        sector_data = sector_data.sort_values("_date", kind="stable")
+        points = []
+        for _, row in sector_data.iterrows():
+            strength = round(float(row["_relative_strength"]), 3)
+            momentum = round(float(row["_relative_momentum"]), 3)
+            points.append(
+                {
+                    "date": _fmt_date(row["_date"]),
+                    "relative_strength": strength,
+                    "relative_momentum": momentum,
+                    "quadrant": quadrant(strength, momentum),
+                }
+            )
+        if points:
+            sectors.append(
+                {
+                    "sector_code": _fmt_int(sector_code),
+                    "sector_name": str(sector_name),
+                    "points": points,
+                }
+            )
+
+    return {
+        "market": market,
+        "status": "ok",
+        "latest_date": _fmt_date(max(chart_dates)),
+        "path": _rel(path),
+        "strength_months": strength_months,
+        "momentum_months": momentum_months,
+        "trail_months": trail_months,
+        "sectors": sectors,
+    }
+
+
+def _sector_rotation_payload() -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "status": "missing",
+        "latest_date": "",
+        "methodology": (
+            "横轴：过去12个月行业相对市场收益；纵轴：该相对强度过去3个月的变化。"
+            "两轴均按当月行业横截面标准化至100附近，仅使用实现日及以前数据。"
+        ),
+        "benchmark": "当月行业权重加权市场收益",
+        "markets": [],
+    }
+    markets: list[dict[str, Any]] = []
+    errors: list[str] = []
+    latest_dates: list[pd.Timestamp] = []
+    for market, path in SECTOR_SIGNAL_PATHS:
+        if not path.exists():
+            errors.append(f"{market}: missing")
+            continue
+        try:
+            market_payload = _sector_rotation_market_payload(market, path)
+        except Exception as exc:
+            errors.append(f"{market}: {exc}")
+            continue
+        markets.append(market_payload)
+        latest_dates.append(pd.Timestamp(market_payload["latest_date"]))
+
+    if markets:
+        payload.update(
+            {
+                "status": "ok",
+                "latest_date": _fmt_date(max(latest_dates)),
+                "markets": markets,
+            }
+        )
+    if errors:
+        payload["warning"] = "; ".join(errors)
+    return payload
+
+
 def _sector_signal_payload() -> dict[str, Any]:
     payload: dict[str, Any] = {
         "name": "sector_recommendation",
@@ -3317,6 +3482,7 @@ def _sector_signal_payload() -> dict[str, Any]:
         "updated_at": "",
         "paths": {market: _rel(path) for market, path in SECTOR_RECOMMENDATION_PATHS},
         "monthly_report": {"status": "missing", "month": "", "path": "", "sectors": "0", "updated_at": ""},
+        "rotation": _sector_rotation_payload(),
         "markets": [],
         "rows": [],
     }

@@ -12,7 +12,7 @@
 | `monthly_update.py` | 命令行入口与 `run_monthly_update()` 实现 |
 | `screen_func.py` | `ScreenProcessor` 等核心处理逻辑 |
 | `Technicals.py` | 技术指标与风险相关计算（含可选 `numba` / `pandarallel`） |
-| `screen_description.py` | 宽表字段的英文说明（参考） |
+| `screen_description.md` | 宽表字段的英文说明（参考） |
 | `_quarantine_20260629/` | 已隔离的旧入口、旧输入和调试文件；只作为短期回滚参考 |
 | `说明文档/` | 流程图、主表语义、字段字典等详细说明 |
 

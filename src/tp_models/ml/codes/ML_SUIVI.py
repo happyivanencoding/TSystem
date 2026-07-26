@@ -366,7 +366,7 @@ def rename_cols_3(df):
 
 
 def add_esg_list_noire(path_list_noire, df):
-    from backtest_code.utils.data_utils import read_liste_noire
+    from tp_backtest.utils.data_utils import read_liste_noire
     
     liste_noire = read_liste_noire(path_list_noire, [], [])
     df['Blacklisted'] = df['ISIN'].isin(liste_noire)

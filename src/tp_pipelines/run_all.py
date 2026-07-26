@@ -4,28 +4,43 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Iterable
 
 import pandas as pd
 
-from tp_core.security_nav_engine import NAV_ENGINE_ID, NAV_ENGINE_VERSION
 from tp_core.data_sources import LAST_SCREEN_PATH, RETURNS_PATH, SCREEN_AGGREGATE_PATH, TP_ROOT
+from tp_core.security_nav_engine import NAV_ENGINE_ID, NAV_ENGINE_VERSION
+from tp_core.workspace import PIPELINE_MANIFESTS_DIR, SIGNALS_DIR
 from tp_experiments import ExperimentRecorder, ExperimentSpec
 from tp_portfolio import OPTIMIZER_ID, OPTIMIZER_VERSION
 
 from .build_candidates import DEFAULT_OUTPUT as DEFAULT_CANDIDATES
 from .common import REPORTS_DIR, StepManifest
+from .configs import PipelineRunConfig
 from .optimize_portfolio import DEFAULT_OUTPUT as DEFAULT_PORTFOLIO
-from .orchestration import PipelineContext, execute_pipeline_steps, pipeline_steps
+from .orchestration import (
+    PipelineContext,
+    execute_pipeline_steps,
+    pipeline_dag,
+    pipeline_steps,
+)
 from .refresh_small_cap import DEFAULT_OUTPUT_DIR as DEFAULT_SMALL_CAP_OUTPUT_DIR
 from .refresh_small_cap import DEFAULT_SIGNAL_OUTPUT as DEFAULT_SMALL_CAP_SIGNAL_OUTPUT
 from .refresh_supplemental_data import (
     DEFAULT_CONFIG as DEFAULT_SUPPLEMENTAL_CONFIG,
+)
+from .refresh_supplemental_data import (
     DEFAULT_SECURITY_MAP as DEFAULT_SUPPLEMENTAL_SECURITY_MAP,
+)
+from .refresh_supplemental_data import (
     SOURCE_CHOICES as SUPPLEMENTAL_SOURCE_CHOICES,
 )
 from .refresh_technical import DEFAULT_PATTERNS as DEFAULT_TECHNICAL_PATTERNS
+
+PIPELINE_SIGNAL_ID = "tp.pipeline.composite-signal"
+PIPELINE_SIGNAL_VERSION = "1.0.0"
 
 
 def _max_parquet_date(path: Path, column: str) -> pd.Timestamp | None:
@@ -69,7 +84,7 @@ def _report_generated_date(path: Path) -> pd.Timestamp | None:
 
 def _latest_manifest_date(step: str, run_type: str) -> pd.Timestamp | None:
     suffix = "" if run_type == "production" else f"_{run_type}"
-    path = TP_ROOT / "10_pipeline_runs" / "manifests" / step / f"{step}{suffix}_latest.json"
+    path = PIPELINE_MANIFESTS_DIR / step / f"{step}{suffix}_latest.json"
     if not path.exists():
         return None
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -89,41 +104,41 @@ def _freshness_entry(name: str, date: pd.Timestamp | None, anchor: pd.Timestamp,
     }
 
 
-def _check_freshness(args: argparse.Namespace) -> dict[str, object]:
-    window_days = int(getattr(args, "freshness_window_days", 31))
+def _check_freshness(config: PipelineRunConfig) -> dict[str, object]:
+    window_days = config.freshness_window_days
     screen_date = _max_parquet_date(SCREEN_AGGREGATE_PATH, "Date")
     if screen_date is None:
         raise ValueError(f"无法读取 canonical screen 日期: {SCREEN_AGGREGATE_PATH}")
-    anchor = pd.Timestamp(args.as_of).normalize() if getattr(args, "as_of", None) else screen_date
-    run_type = getattr(args, "run_type", "production")
-    candidates_output = Path(getattr(args, "candidates_output", DEFAULT_CANDIDATES))
-    portfolio_output = Path(getattr(args, "portfolio_output", DEFAULT_PORTFOLIO))
-    report_output = Path(getattr(args, "report_output", REPORTS_DIR / "latest_pipeline_report.md"))
+    anchor = pd.Timestamp(config.as_of).normalize() if config.as_of else screen_date
+    run_type = config.run_type
+    candidates_output = Path(config.candidates_output)
+    portfolio_output = Path(config.portfolio_output)
+    report_output = Path(config.report_output)
     checks = [
         _freshness_entry("canonical_screen", screen_date, anchor, window_days),
         _freshness_entry("canonical_returns", _max_returns_date(RETURNS_PATH), anchor, window_days),
-        _freshness_entry("signal_ml", _max_parquet_date(TP_ROOT / "04_signals" / "ml_signals.parquet", "Date"), anchor, window_days),
+        _freshness_entry("signal_ml", _max_parquet_date(SIGNALS_DIR / "ml_signals.parquet", "Date"), anchor, window_days),
         _freshness_entry(
             "signal_technical",
-            _max_parquet_date(TP_ROOT / "04_signals" / "technical_signals.parquet", "Date"),
+            _max_parquet_date(SIGNALS_DIR / "technical_signals.parquet", "Date"),
             anchor,
             window_days,
         ),
         _freshness_entry(
             "signal_regime",
-            _max_parquet_date(TP_ROOT / "04_signals" / "regime_risk_budget.parquet", "Date"),
+            _max_parquet_date(SIGNALS_DIR / "regime_risk_budget.parquet", "Date"),
             anchor,
             window_days,
         ),
         _freshness_entry(
             "signal_country",
-            _max_parquet_date(TP_ROOT / "04_signals" / "country_model_signals.parquet", "Date"),
+            _max_parquet_date(SIGNALS_DIR / "country_model_signals.parquet", "Date"),
             anchor,
             window_days,
         ),
         _freshness_entry(
             "signal_small_cap",
-            _max_parquet_date(Path(getattr(args, "small_cap_signal_output", DEFAULT_SMALL_CAP_SIGNAL_OUTPUT)), "Date"),
+            _max_parquet_date(Path(config.refresh_small_cap.signal_output), "Date"),
             anchor,
             window_days,
         ),
@@ -156,24 +171,26 @@ def _check_freshness(args: argparse.Namespace) -> dict[str, object]:
     }
 
 
-def _experiment_spec(args: argparse.Namespace) -> ExperimentSpec:
+def _experiment_spec(config: PipelineRunConfig) -> ExperimentSpec:
     return ExperimentSpec(
-        hypothesis_id=getattr(args, "hypothesis_id", None) or "production-pipeline",
-        name=getattr(args, "experiment_name", None) or "TP production pipeline",
-        universe=getattr(args, "portfolio_region", None),
-        sample_start=getattr(args, "start_date", None),
-        sample_end=getattr(args, "as_of", None),
-        pit_cutoff=getattr(args, "as_of", None),
+        hypothesis_id=config.experiment.hypothesis_id,
+        name=config.experiment.name,
+        universe=config.optimize_portfolio.region,
+        sample_start=config.run_backtest.start_date,
+        sample_end=config.as_of,
+        pit_cutoff=config.as_of,
         cost_assumptions={
-            "transaction_cost": getattr(args, "transaction_cost", 0.0),
-            "max_turnover": getattr(args, "max_turnover", None),
+            "transaction_cost": config.optimize_portfolio.transaction_cost,
+            "max_turnover": config.optimize_portfolio.max_turnover,
         },
-        effective_trial_count=getattr(args, "effective_trial_count", None),
+        trial_family=config.experiment.trial_family,
+        effective_trial_count=config.experiment.effective_trial_count,
         component_versions={
             "nav_engine": f"{NAV_ENGINE_ID}:{NAV_ENGINE_VERSION}",
+            "signal": f"{PIPELINE_SIGNAL_ID}:{PIPELINE_SIGNAL_VERSION}",
             "optimizer": f"{OPTIMIZER_ID}:{OPTIMIZER_VERSION}",
         },
-        tags=("pipeline", getattr(args, "run_type", "production")),
+        tags=("pipeline", config.run_type),
     )
 
 
@@ -186,15 +203,22 @@ def _experiment_artifacts(child_manifests: list[str], run_all_manifest: Path) ->
     return artifacts
 
 
-def run_all(args: argparse.Namespace) -> Path:
-    manifest = StepManifest("run_all", vars(args).copy())
-    context = PipelineContext.from_args(args)
+def run_all(args: argparse.Namespace | PipelineRunConfig) -> Path:
+    config = (
+        args
+        if isinstance(args, PipelineRunConfig)
+        else PipelineRunConfig.from_namespace(args)
+    )
+    manifest_parameters = config.cli_parameters.copy()
+    manifest_parameters["_experiment_managed_externally"] = True
+    manifest = StepManifest("run_all", manifest_parameters)
+    context = PipelineContext.from_args(config)
     experiment = ExperimentRecorder(
-        root=getattr(args, "experiment_root", None),
+        root=config.experiment.root,
     ).start_run(
-        _experiment_spec(args),
-        parameters=vars(args),
-        parent_run_id=getattr(args, "parent_run_id", None),
+        _experiment_spec(config),
+        parameters=config.cli_parameters,
+        parent_run_id=config.experiment.parent_run_id,
     )
     experiment.log_inputs(
         {
@@ -207,17 +231,25 @@ def run_all(args: argparse.Namespace) -> Path:
     manifest.details["experiment_record"] = str(experiment.path)
 
     try:
-        child_manifests = execute_pipeline_steps(context)
+        previous_parent = os.environ.get("TP_PARENT_EXPERIMENT_RUN_ID")
+        os.environ["TP_PARENT_EXPERIMENT_RUN_ID"] = experiment.run_id
+        try:
+            child_manifests = execute_pipeline_steps(context)
+        finally:
+            if previous_parent is None:
+                os.environ.pop("TP_PARENT_EXPERIMENT_RUN_ID", None)
+            else:
+                os.environ["TP_PARENT_EXPERIMENT_RUN_ID"] = previous_parent
         should_check_freshness = not all(
             [
-                args.skip_build_candidates,
-                args.skip_optimize_portfolio,
-                args.skip_backtest,
-                args.skip_report,
+                config.controls.skip_build_candidates,
+                config.controls.skip_optimize_portfolio,
+                config.controls.skip_backtest,
+                config.controls.skip_report,
             ]
         )
         if should_check_freshness:
-            freshness = _check_freshness(args)
+            freshness = _check_freshness(config)
             manifest.details["freshness"] = freshness
             manifest.add_validation(
                 "freshness_gate",
@@ -240,6 +272,10 @@ def run_all(args: argparse.Namespace) -> Path:
             )
 
         manifest.details["pipeline_steps"] = [step.name for step in pipeline_steps()]
+        manifest.details["pipeline_dependencies"] = {
+            step.name: list(step.dependencies)
+            for step in pipeline_dag().ordered_steps()
+        }
         manifest.details["child_manifests"] = child_manifests
         manifest.add_validation(
             "child_steps_completed",
@@ -273,7 +309,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--experiment-name", default="TP production pipeline", help="实验名称")
     parser.add_argument("--parent-run-id", help="父运行 ID，用于 lineage")
     parser.add_argument("--effective-trial-count", type=int, help="本命题的有效试验次数")
-    parser.add_argument("--experiment-root", help="实验记录根目录；默认 10_pipeline_runs/experiments")
+    parser.add_argument(
+        "--trial-family",
+        default="production-pipeline",
+        help="试验族，用于多重试验审计",
+    )
+    parser.add_argument("--experiment-root", help="实验记录根目录；默认 artifacts/pipeline_runs/experiments")
     parser.add_argument("--freshness-window-days", type=int, default=31, help="全链路 freshness 允许偏离天数")
     parser.add_argument("--input-month", help="月更输入批次 YYYYMM")
     parser.add_argument("--update-mode", choices=["both", "screen_only", "returns_only"], default="both")
@@ -334,7 +375,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--refresh-regime", action="store_true", help="刷新 Regime detector、webapp 数据和诊断产物")
     parser.add_argument("--regime-oos", action="store_true", help="Regime 使用 OOS 文件")
     parser.add_argument("--regime-region", action="append", choices=["US", "EU"], help="Regime 区域")
-    parser.add_argument("--country-output", default=str(TP_ROOT / "04_signals" / "country_model_signals.parquet"))
+    parser.add_argument("--country-output", default=str(SIGNALS_DIR / "country_model_signals.parquet"))
     parser.add_argument("--country-workbook", default=str(TP_ROOT / "00_screen" / "production_inputs" / "modele_pays.xlsb"))
     parser.add_argument(
         "--country-database",

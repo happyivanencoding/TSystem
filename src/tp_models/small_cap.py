@@ -14,12 +14,13 @@ import pyarrow.parquet as pq
 
 from tp_core.data_sources import SCREEN_AGGREGATE_PATH, TP_ROOT
 from tp_core.signals import standardize_signal_frame, validate_signal_frame, write_signal_frame
+from tp_core.workspace import SIGNALS_DIR
 
 
 MODULE_ROOT = TP_ROOT / "15_small_cap_model"
 DEFAULT_CONFIG = MODULE_ROOT / "config" / "eu_small_validated_qvm.json"
 DEFAULT_OUTPUT_DIR = MODULE_ROOT / "outputs"
-DEFAULT_SIGNAL_OUTPUT = TP_ROOT / "04_signals" / "small_cap_model_signals.parquet"
+DEFAULT_SIGNAL_OUTPUT = SIGNALS_DIR / "small_cap_model_signals.parquet"
 DATE_COL = "Date"
 ISIN_COL = "ISIN"
 SEDOL_COL = "Company SEDOL"

@@ -21,6 +21,7 @@ from openpyxl import load_workbook
 
 from tp_core.data_contract import validate_screen_contract
 from tp_core.data_sources import TP_ROOT
+from tp_core.workspace import PIPELINE_MANIFESTS_DIR
 
 
 SCREEN_PATH = TP_ROOT / "00_screen" / "screen_aggregate.parquet"
@@ -28,7 +29,7 @@ LAST_SCREEN_PATH = TP_ROOT / "00_screen" / "last_screen.parquet"
 SCREEN_5Y_PATH = TP_ROOT / "00_screen" / "screen_aggregate_5Y.parquet"
 INCOMING_ROOT = TP_ROOT / "00_screen" / "production_inputs" / "incoming"
 QA_ROOT = TP_ROOT / "00_screen" / "qa"
-MANIFEST_ROOT = TP_ROOT / "10_pipeline_runs" / "manifests" / "benchmark_weight_import"
+MANIFEST_ROOT = PIPELINE_MANIFESTS_DIR / "benchmark_weight_import"
 
 BENCHMARK_COLUMNS = {
     "SP400": "Weight in SP400",

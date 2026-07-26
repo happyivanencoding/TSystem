@@ -10,6 +10,7 @@ from typing import Iterable
 import pandas as pd
 
 from tp_core.data_sources import TP_ROOT
+from tp_core.workspace import SIGNALS_DIR
 
 from .common import (
     CANDIDATES_DIR,
@@ -20,6 +21,7 @@ from .common import (
     iso_now,
     path_profile,
 )
+from .configs import GenerateReportConfig
 
 
 DEFAULT_OUTPUT = REPORTS_DIR / "latest_pipeline_report.md"
@@ -87,10 +89,10 @@ def _freshness_rows(window_days: int = FRESHNESS_WINDOW_DAYS) -> tuple[pd.Timest
     items = [
         ("canonical screen", screen_date),
         ("canonical returns", _max_returns_date(TP_ROOT / "00_screen" / "returns.parquet")),
-        ("ML 信号", _max_parquet_date(TP_ROOT / "04_signals" / "ml_signals.parquet", "Date")),
-        ("技术信号", _max_parquet_date(TP_ROOT / "04_signals" / "technical_signals.parquet", "Date")),
-        ("Regime 信号", _max_parquet_date(TP_ROOT / "04_signals" / "regime_risk_budget.parquet", "Date")),
-        ("Country 信号", _max_parquet_date(TP_ROOT / "04_signals" / "country_model_signals.parquet", "Date")),
+        ("ML 信号", _max_parquet_date(SIGNALS_DIR / "ml_signals.parquet", "Date")),
+        ("技术信号", _max_parquet_date(SIGNALS_DIR / "technical_signals.parquet", "Date")),
+        ("Regime 信号", _max_parquet_date(SIGNALS_DIR / "regime_risk_budget.parquet", "Date")),
+        ("Country 信号", _max_parquet_date(SIGNALS_DIR / "country_model_signals.parquet", "Date")),
         (
             "Sector 信号",
             _min_existing(
@@ -165,15 +167,15 @@ def generate_report(*, output: Path, steps: list[str]) -> str:
             "",
             "| 产物 | 状态 | 说明 |",
             "| --- | --- | --- |",
-            f"| `04_signals/` | {'存在' if (TP_ROOT / '04_signals').exists() else '缺失'} | 统一信号表目录 |",
-            f"| `05_candidates/latest_candidates.parquet` | {'存在' if (CANDIDATES_DIR / 'latest_candidates.parquet').exists() else '缺失'} | 最新候选池 |",
-            f"| `06_portfolios/latest_target_weights.parquet` | {'存在' if (PORTFOLIOS_DIR / 'latest_target_weights.parquet').exists() else '缺失'} | 最新目标权重 |",
+            f"| `artifacts/signals/` | {'存在' if SIGNALS_DIR.exists() else '缺失'} | 统一信号表目录 |",
+            f"| `artifacts/candidates/latest_candidates.parquet` | {'存在' if (CANDIDATES_DIR / 'latest_candidates.parquet').exists() else '缺失'} | 最新候选池 |",
+            f"| `artifacts/portfolios/latest_target_weights.parquet` | {'存在' if (PORTFOLIOS_DIR / 'latest_target_weights.parquet').exists() else '缺失'} | 最新目标权重 |",
             "",
             "## 使用原则",
             "",
             "- 每个步骤可以单独运行和重跑。",
             "- 标准产物使用固定 latest 路径覆盖写入，避免重复数据累积。",
-            "- 每次运行的证据写入 `10_pipeline_runs/manifests/<step>/`。",
+            "- 每次运行的证据写入 `artifacts/pipeline_runs/manifests/<step>/`。",
             "- 旧目录和 quarantine 内容只作为历史参考，不参与新代码引用。",
             "",
         ]
@@ -184,7 +186,7 @@ def generate_report(*, output: Path, steps: list[str]) -> str:
     return text
 
 
-def run_generate_report(args: argparse.Namespace) -> Path:
+def run_generate_report(args: GenerateReportConfig) -> Path:
     manifest = StepManifest("generate_report", vars(args).copy())
     manifest.inputs = {
         "pipeline_manifests": path_profile(PIPELINE_MANIFESTS_DIR),
@@ -214,7 +216,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    manifest_path = run_generate_report(args)
+    manifest_path = run_generate_report(
+        GenerateReportConfig.from_namespace(args)
+    )
     print(f"generate_report manifest: {manifest_path}")
     return 0
 

@@ -10,14 +10,16 @@ from pathlib import Path
 from typing import Iterable
 
 from tp_core.data_sources import LAST_SCREEN_PATH, SCREEN_AGGREGATE_PATH, TP_ROOT
+from tp_core.workspace import SIGNALS_DIR
 from tp_models.ml import cli as ml_cli
 
 from .common import StepManifest, path_profile
+from .configs import RefreshMLConfig
 
 
 ML_DIR = TP_ROOT / "03_ml_enhanced"
 ML_CLI = Path(ml_cli.__file__)
-ML_SIGNALS_PATH = TP_ROOT / "04_signals" / "ml_signals.parquet"
+ML_SIGNALS_PATH = SIGNALS_DIR / "ml_signals.parquet"
 
 
 def _json_from_stdout(stdout: str) -> dict[str, object]:
@@ -30,7 +32,7 @@ def _json_from_stdout(stdout: str) -> dict[str, object]:
         return {}
 
 
-def run_refresh_ml(args: argparse.Namespace) -> Path:
+def run_refresh_ml(args: RefreshMLConfig) -> Path:
     manifest = StepManifest("refresh_ml", vars(args).copy())
     manifest.inputs = {
         "screen_aggregate": path_profile(SCREEN_AGGREGATE_PATH, parquet=True),
@@ -121,7 +123,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    manifest_path = run_refresh_ml(args)
+    manifest_path = run_refresh_ml(RefreshMLConfig.from_namespace(args))
     print(f"refresh_ml manifest: {manifest_path}")
     return 0
 

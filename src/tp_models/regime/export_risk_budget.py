@@ -10,11 +10,12 @@ import pandas as pd
 
 from tp_core.data_sources import TP_ROOT
 from tp_core.signals import standardize_signal_frame, write_signal_frame
+from tp_core.workspace import SIGNALS_DIR
 
 from . import risk_budget_model
 
 PROJECT_DIR = TP_ROOT / "03_regime_model"
-DEFAULT_OUTPUT = TP_ROOT / "04_signals" / "regime_risk_budget.parquet"
+DEFAULT_OUTPUT = SIGNALS_DIR / "regime_risk_budget.parquet"
 MIN_CALIBRATION_STATE_MONTHS = 6
 
 

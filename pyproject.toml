@@ -65,9 +65,16 @@ tp-pipeline-optimize-portfolio = "tp_pipelines.optimize_portfolio:main"
 tp-pipeline-run-backtest = "tp_pipelines.run_backtest:main"
 tp-pipeline-generate-report = "tp_pipelines.generate_report:main"
 tp-pipeline-run-all = "tp_pipelines.run_all:main"
+tp-backtest = "tp_backtest.cli:main"
 tp-presentation = "presentation_layer.cli:main"
 tp-experiments = "tp_experiments.cli:main"
 tp-build-factor-research-app = "tp_reporting.factor_research_app:main"
+tp-build-factor-explorer = "tp_reporting.factor_explorer:main"
+tp-build-stoxx600-factor-explorer = "tp_reporting.stoxx600_factor_explorer:main"
+tp-research-cross-market-lag6 = "tp_research.workflows.run_cross_market_lag6_relative_research:main"
+tp-research-cross-market-lopo = "tp_research.workflows.analyze_cross_market_leave_one_period_out:main"
+tp-research-cross-market-synergy = "tp_research.workflows.run_cross_market_lag6_anchor_synergy:main"
+tp-research-stoxx600-sparse = "tp_research.workflows.run_stoxx600_sparse_core_sleeve_research:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -77,35 +84,54 @@ tp_pipelines = ["supplemental_sources.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
-testpaths = [
-  "tests",
-  "02_pipelines/tests",
-  "03_regime_model/tests",
-  "06_optimiser/test_optimizer.py",
-  "07_backtest_code/tests",
-  "08_presentation_layer/tests",
-  "13_sector_score_model/tests",
-  "16_news_market_signal/tests",
+norecursedirs = [
+  "99_archive",
+  "archive",
+  "archives",
+  "_quarantine_*",
+  "legacy_apps",
+  "runs",
+  "pipeline_runs",
+  "artifacts",
+  "outputs",
+  "output",
+  "generated",
+  "generated_assets",
+  "node_modules",
+  "dist",
+  "build",
+  ".cache",
+  "__pycache__",
+  "*.egg-info",
 ]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
 exclude = [
   "99_archive",
+  "artifacts",
+  "**/archive",
+  "**/archives",
   "**/_quarantine_*",
+  "08_presentation_layer/legacy_apps",
   "**/node_modules",
   "**/dist",
   "**/build",
   "**/outputs",
   "**/output",
   "**/runs",
+  "**/pipeline_runs",
+  "**/generated",
+  "**/generated_assets",
+  "**/.cache",
+  "**/__pycache__",
   "**/*.egg-info",
   "07_backtest_code/runs",
-  "10_pipeline_runs",
 ]
 
 [tool.mypy]
 mypy_path = "src"
-exclude = "(^99_archive/|/_quarantine_[^/]+/|/node_modules/|/dist/|/build/|/outputs?/|/runs/|/[^/]+\\.egg-info/|^10_pipeline_runs/)"
+exclude = "(^99_archive/|^artifacts/|(^|/)(archive|archives|outputs?|runs|pipeline_runs|generated|generated_assets|node_modules|dist|build|\\.cache|__pycache__)/|/_quarantine_[^/]+/|^08_presentation_layer/legacy_apps/|/[^/]+\\.egg-info/)"
 
 

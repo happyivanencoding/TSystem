@@ -1,0 +1,42 @@
+[
+  {
+    "original_path": "06_optimiser\\portfolio_generator.py",
+    "archived_path": "C:\\GoogleDrive\\TP\\06_optimiser\\_quarantine_20260701\\legacy_optimizer\\portfolio_generator.py",
+    "role": "旧多因子组合生成器，已被 download_09 optimizer_engine 取代",
+    "sha256": "1E64FC2038AE9B8D525AF0DDA569E9C61775BC92D4F896D18084E0A915C85C16",
+    "bytes": 23440,
+    "archived_at": "2026-07-01 11:27:35 +02:00"
+  },
+  {
+    "original_path": "06_optimiser\\turnover_optimization.py",
+    "archived_path": "C:\\GoogleDrive\\TP\\06_optimiser\\_quarantine_20260701\\legacy_optimizer\\turnover_optimization.py",
+    "role": "旧换手率优化器，已降级为历史参考",
+    "sha256": "1D2D02D25F8F2C0B1703836942A06427692E366E6A3EA79C2D985B9CAAA67BE5",
+    "bytes": 20210,
+    "archived_at": "2026-07-01 11:27:35 +02:00"
+  },
+  {
+    "original_path": "06_optimiser\\sec_list_generation.py",
+    "archived_path": "C:\\GoogleDrive\\TP\\06_optimiser\\_quarantine_20260701\\legacy_optimizer\\sec_list_generation.py",
+    "role": "旧大型候选名单/优化混合文件，功能不完善且重复",
+    "sha256": "E84589718DDD9E8FF0A88F4CE0EFEA9CFDE056799D8D9BD58FC07C5E155C25D7",
+    "bytes": 369186,
+    "archived_at": "2026-07-01 11:27:35 +02:00"
+  },
+  {
+    "original_path": "06_optimiser\\test.py",
+    "archived_path": "C:\\GoogleDrive\\TP\\06_optimiser\\_quarantine_20260701\\legacy_optimizer\\test.py",
+    "role": "旧手工测试脚本",
+    "sha256": "6784C468F3610CE6138C4CDC46479F95BEA9B9172E7133A7EFAC346D35CEEBDB",
+    "bytes": 26992,
+    "archived_at": "2026-07-01 11:27:35 +02:00"
+  },
+  {
+    "original_path": "06_optimiser\\test_portfolio_generator.py",
+    "archived_path": "C:\\GoogleDrive\\TP\\06_optimiser\\_quarantine_20260701\\legacy_optimizer\\test_portfolio_generator.py",
+    "role": "旧 optimizer 测试，随旧入口隔离",
+    "sha256": "A6B1A6B6099C45ACB725CF296CCFDF5B626ABDE1133A3BC509A49A55922B821C",
+    "bytes": 8067,
+    "archived_at": "2026-07-01 11:27:35 +02:00"
+  }
+]

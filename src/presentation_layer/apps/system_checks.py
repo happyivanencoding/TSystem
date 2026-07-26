@@ -15,9 +15,16 @@ from typing import Any
 
 from presentation_layer.apps.system_registry import project_by_id
 from tp_core.data_sources import TP_ROOT
+from tp_core.workspace import (
+    CANDIDATES_DIR,
+    DASHBOARD_WORK_DIR,
+    PIPELINE_MANIFESTS_DIR,
+    REPORTS_DIR,
+    SIGNALS_DIR,
+)
 from tp_pipelines.common import path_profile
 
-CHECK_ROOT = TP_ROOT / ".tmp_dashboard_work" / "system_checks"
+CHECK_ROOT = DASHBOARD_WORK_DIR / "system_checks"
 CHECK_LATEST = CHECK_ROOT / "system_checks_latest.json"
 
 
@@ -53,9 +60,9 @@ def project_checks() -> list[ProjectCheck]:
             data_kind="database",
         ),
         ProjectCheck(
-            entry("01_tp_core").project_id,
-            entry("01_tp_core").project_id,
-            entry("01_tp_core").role,
+            entry("tp_core").project_id,
+            entry("tp_core").project_id,
+            entry("tp_core").role,
             [
                 py,
                 "-c",
@@ -69,9 +76,9 @@ def project_checks() -> list[ProjectCheck]:
             data_kind="library",
         ),
         ProjectCheck(
-            entry("02_pipelines").project_id,
-            entry("02_pipelines").project_id,
-            entry("02_pipelines").role,
+            entry("pipelines").project_id,
+            entry("pipelines").project_id,
+            entry("pipelines").role,
             [
                 py,
                 "-m",
@@ -132,17 +139,17 @@ def project_checks() -> list[ProjectCheck]:
             data_kind="signal parquet",
         ),
         ProjectCheck(
-            entry("04_signals").project_id,
-            entry("04_signals").project_id,
-            entry("04_signals").role,
-            [py, "-m", "tp_core.signals", str(TP_ROOT / "04_signals" / "ml_signals.parquet")],
-            [TP_ROOT / "04_signals" / "ml_signals.parquet"],
+            entry("signals").project_id,
+            entry("signals").project_id,
+            entry("signals").role,
+            [py, "-m", "tp_core.signals", str(SIGNALS_DIR / "ml_signals.parquet")],
+            [SIGNALS_DIR / "ml_signals.parquet"],
             data_kind="signal parquet",
         ),
         ProjectCheck(
-            entry("05_candidates").project_id,
-            entry("05_candidates").project_id,
-            entry("05_candidates").role,
+            entry("candidates").project_id,
+            entry("candidates").project_id,
+            entry("candidates").role,
             [
                 py,
                 "-m",
@@ -158,23 +165,23 @@ def project_checks() -> list[ProjectCheck]:
             data_kind="candidate parquet",
         ),
         ProjectCheck(
-            entry("06_optimiser").project_id,
-            entry("06_optimiser").project_id,
-            entry("06_optimiser").role,
-            [py, "-m", "pytest", "06_optimiser/test_optimizer.py", "-q"],
+            entry("optimizer").project_id,
+            entry("optimizer").project_id,
+            entry("optimizer").role,
+            [py, "-m", "pytest", "tests/portfolio/test_optimizer.py", "-q"],
             timeout_seconds=180,
             data_kind="optimizer code",
         ),
         ProjectCheck(
-            entry("06_portfolios").project_id,
-            entry("06_portfolios").project_id,
-            entry("06_portfolios").role,
+            entry("portfolios").project_id,
+            entry("portfolios").project_id,
+            entry("portfolios").role,
             [
                 py,
                 "-m",
                 "tp_pipelines.optimize_portfolio",
                 "--candidates",
-                str(TP_ROOT / "05_candidates" / "latest_candidates.parquet"),
+                str(CANDIDATES_DIR / "latest_candidates.parquet"),
                 "--output",
                 str(_tmp("latest_target_weights_smoke.parquet")),
                 "--method",
@@ -186,9 +193,9 @@ def project_checks() -> list[ProjectCheck]:
             data_kind="portfolio parquet",
         ),
         ProjectCheck(
-            entry("07_backtest_code").project_id,
-            entry("07_backtest_code").project_id,
-            entry("07_backtest_code").role,
+            entry("backtests").project_id,
+            entry("backtests").project_id,
+            entry("backtests").role,
             [py, "-m", "tp_pipelines.run_backtest", "--inspect-only", "--run-type", "inspect"],
             timeout_seconds=180,
             data_kind="backtest inspect json",
@@ -197,7 +204,7 @@ def project_checks() -> list[ProjectCheck]:
             entry("08_presentation_layer").project_id,
             entry("08_presentation_layer").project_id,
             entry("08_presentation_layer").role,
-            [py, "-m", "pytest", "08_presentation_layer/tests/test_presentation_layer_entrypoints.py", "-q"],
+            [py, "-m", "pytest", "tests/presentation/test_presentation_layer_entrypoints.py", "-q"],
             timeout_seconds=180,
             data_kind="dashboard code",
         ),
@@ -237,35 +244,35 @@ def project_checks() -> list[ProjectCheck]:
             data_kind="report wrapper",
         ),
         ProjectCheck(
-            entry("09_reports").project_id,
-            entry("09_reports").project_id,
-            entry("09_reports").role,
+            entry("reports").project_id,
+            entry("reports").project_id,
+            entry("reports").role,
             [
                 py,
                 "-c",
                 (
-                    "from pathlib import Path; "
-                    "p=Path(r'C:/GoogleDrive/TP/09_reports/latest_pipeline_report.md'); "
+                    "from tp_core.workspace import REPORTS_DIR; "
+                    "p=REPORTS_DIR/'latest_pipeline_report.md'; "
                     "print(p.exists(), p.stat().st_size if p.exists() else 0)"
                 ),
             ],
-            [TP_ROOT / "09_reports" / "latest_pipeline_report.md"],
+            [REPORTS_DIR / "latest_pipeline_report.md"],
             data_kind="markdown report",
         ),
         ProjectCheck(
-            entry("10_pipeline_runs").project_id,
-            entry("10_pipeline_runs").project_id,
-            entry("10_pipeline_runs").role,
+            entry("pipeline_runs").project_id,
+            entry("pipeline_runs").project_id,
+            entry("pipeline_runs").role,
             [
                 py,
                 "-c",
                 (
-                    "import json; from pathlib import Path; "
-                    "p=Path(r'C:/GoogleDrive/TP/10_pipeline_runs/manifests/run_all/run_all_latest.json'); "
+                    "import json; from tp_core.workspace import PIPELINE_MANIFESTS_DIR; "
+                    "p=PIPELINE_MANIFESTS_DIR/'run_all'/'run_all_latest.json'; "
                     "d=json.loads(p.read_text(encoding='utf-8')); print(d['status'], d['finished_at'])"
                 ),
             ],
-            [TP_ROOT / "10_pipeline_runs" / "manifests" / "run_all" / "run_all_latest.json"],
+            [PIPELINE_MANIFESTS_DIR / "run_all" / "run_all_latest.json"],
             data_kind="manifest json",
         ),
         ProjectCheck(
@@ -344,7 +351,7 @@ def project_checks() -> list[ProjectCheck]:
                     "database=pd.read_parquet(m.COUNTRY_DATABASE_PATH); "
                     "panel=m.build_country_model_panel(database); "
                     "signal=m.make_country_signal_frame(panel); "
-                    "out=Path(r'C:/GoogleDrive/TP/.tmp_dashboard_work/system_checks/outputs/country_model_signals_smoke.parquet'); "
+                    f"out=Path({str(_tmp('country_model_signals_smoke.parquet'))!r}); "
                     "m.write_signal_frame(signal, out); "
                     "print(len(panel), len(signal), out)"
                 ),

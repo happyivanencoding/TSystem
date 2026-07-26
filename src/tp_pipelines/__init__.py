@@ -1,3 +1,15 @@
-"""TP production pipeline entrypoints."""
+"""Public orchestration contracts for TP production pipelines."""
 
-__all__: list[str] = []
+from .configs import PipelineRunConfig, StepConfig
+from .dag import PipelineDAG, PipelineExecutionContext, PipelineStep
+from .orchestration import PipelineContext, pipeline_dag
+
+__all__ = [
+    "PipelineContext",
+    "PipelineDAG",
+    "PipelineExecutionContext",
+    "PipelineRunConfig",
+    "PipelineStep",
+    "StepConfig",
+    "pipeline_dag",
+]

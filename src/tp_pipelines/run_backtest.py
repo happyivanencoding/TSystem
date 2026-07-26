@@ -6,16 +6,15 @@ import argparse
 from pathlib import Path
 from typing import Iterable
 
-from tp_core.data_sources import RETURNS_PATH, SCREEN_AGGREGATE_PATH, TP_ROOT
+from tp_core.data_sources import RETURNS_PATH, SCREEN_AGGREGATE_PATH
+from tp_core.workspace import BACKTEST_RUNS_DIR
 
 from .common import StepManifest, path_profile, run_python_module
+from .configs import RunBacktestConfig
 
 
-BACKTEST_MODULE = "backtest_code.cli"
-BACKTEST_RUNS_DIR = TP_ROOT / "07_backtest_code" / "runs"
-
-
-def _common_args(args: argparse.Namespace) -> list[str]:
+BACKTEST_MODULE = "tp_backtest.cli"
+def _common_args(args: RunBacktestConfig) -> list[str]:
     result = ["--profile", args.profile]
     if args.screen:
         result.extend(["--screen", args.screen])
@@ -26,7 +25,7 @@ def _common_args(args: argparse.Namespace) -> list[str]:
     return result
 
 
-def _run_args(args: argparse.Namespace) -> list[str]:
+def _run_args(args: RunBacktestConfig) -> list[str]:
     result = _common_args(args)
     if args.bench:
         result.extend(["--bench", args.bench])
@@ -65,7 +64,7 @@ def _run_args(args: argparse.Namespace) -> list[str]:
     return result
 
 
-def run_backtest_step(args: argparse.Namespace) -> Path:
+def run_backtest_step(args: RunBacktestConfig) -> Path:
     manifest = StepManifest("run_backtest", vars(args).copy())
     manifest.inputs = {
         "screen": path_profile(args.screen or SCREEN_AGGREGATE_PATH, parquet=True),
@@ -109,7 +108,7 @@ def run_backtest_step(args: argparse.Namespace) -> Path:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="运行传统代码版回测并写 pipeline manifest")
-    parser.add_argument("--profile", default="default", help="07_backtest_code/configs 下的 YAML profile")
+    parser.add_argument("--profile", default="default", help="config/backtest 下的 YAML profile")
     parser.add_argument("--screen", help="覆盖 screen parquet")
     parser.add_argument("--returns", help="覆盖 returns parquet")
     parser.add_argument("--user", help="运行用户/产物分组名")
@@ -138,7 +137,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    manifest_path = run_backtest_step(args)
+    manifest_path = run_backtest_step(RunBacktestConfig.from_namespace(args))
     print(f"run_backtest manifest: {manifest_path}")
     return 0
 

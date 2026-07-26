@@ -8,10 +8,11 @@ from typing import Iterable
 
 import pandas as pd
 
-from tp_core.data_sources import SCREEN_AGGREGATE_PATH, TP_ROOT
+from tp_core.data_sources import SCREEN_AGGREGATE_PATH
 from tp_core.signals import make_security_signal_frame, write_signal_frame
+from tp_core.workspace import SIGNALS_DIR
 
-DEFAULT_OUTPUT = TP_ROOT / "04_signals" / "ml_signals.parquet"
+DEFAULT_OUTPUT = SIGNALS_DIR / "ml_signals.parquet"
 DEFAULT_SCORE_COLUMN = "Score ML"
 
 

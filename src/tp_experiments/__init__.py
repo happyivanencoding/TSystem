@@ -1,6 +1,7 @@
 """Auditable TP experiment and run recording."""
 
 from .recorder import (
+    DECISION_STATUSES,
     EXPERIMENT_SCHEMA_VERSION,
     ExperimentRecorder,
     ExperimentSpec,
@@ -9,6 +10,7 @@ from .recorder import (
 )
 
 __all__ = [
+    "DECISION_STATUSES",
     "EXPERIMENT_SCHEMA_VERSION",
     "ExperimentRecorder",
     "ExperimentSpec",

@@ -6,7 +6,7 @@
 
 适用于：
 
-- `07_backtest_code/scripts/run_*_multifactor_research.py`
+- `src/tp_research/workflows/run_*_multifactor_research.py`
 - raw variable gate runner
 - relative variable research runner
 - pair synergy / family subset / leave-one-out runner

@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[3]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
-from dashboard import PortfolioDashboard
+from presentation_layer.portfolio.dashboard import PortfolioDashboard
+from tp_core.workspace import BACKTEST_RUNS_DIR
 
 
-RUN_DIR = ROOT / "07_backtest_code" / "runs" / "ad_hoc" / "min_te_score_ml_202505_140_160_20260701_120512"
+RUN_DIR = BACKTEST_RUNS_DIR / "ad_hoc" / "min_te_score_ml_202505_140_160_20260701_120512"
 SEC_LIST_PATH = RUN_DIR / "sec_list_min_te_score_ml_202505_140_160.parquet"
 OPT_RESULT_PATH = RUN_DIR / "optimizer_result_min_te_score_ml_202505_140_160.parquet"
 APP_ROOT = Path(__file__).resolve().parent

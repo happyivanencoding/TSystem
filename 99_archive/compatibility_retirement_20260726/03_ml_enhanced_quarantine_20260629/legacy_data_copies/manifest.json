@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-06-29T18:30:36.7531104+02:00",
+  "project": "C:\\GoogleDrive\\TP\\03_ml_enhanced",
+  "quarantine_dir": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\_quarantine_20260629\\legacy_data_copies",
+  "action": "move_noncanonical_screen_returns_parquet_copies",
+  "files": [
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\Input_files\\screen_aggregate.parquet",
+      "quarantine_path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\_quarantine_20260629\\legacy_data_copies\\Input_files__screen_aggregate.parquet",
+      "length_bytes": 1291810490,
+      "last_write_time": "2026-01-09T18:42:50.0977640+01:00",
+      "reason": "非 canonical 00_screen/returns 数据副本；生产应通过 tp_core.data_sources 读取 screen canonical parquet"
+    },
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\Input_files\\returns.parquet",
+      "quarantine_path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\_quarantine_20260629\\legacy_data_copies\\Input_files__returns.parquet",
+      "length_bytes": 275728811,
+      "last_write_time": "2026-01-09T18:54:06.1022638+01:00",
+      "reason": "非 canonical 00_screen/returns 数据副本；生产应通过 tp_core.data_sources 读取 screen canonical parquet"
+    }
+  ]
+}

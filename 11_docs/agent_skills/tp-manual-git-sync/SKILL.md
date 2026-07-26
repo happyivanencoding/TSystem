@@ -54,8 +54,8 @@ git diff --cached --name-only
 - `_quarantine_`
 - `07_backtest_code/runs`
 - `08_dashboard_analysis/outputs`
-- `10_pipeline_runs/notebook_execution`
-- `.codex_tmp`
+- `artifacts/pipeline_runs/notebook_execution`
+- `artifacts/scratch/codex_tmp`
 - `.git`
 
 6. Reject the sync if any staged file is larger than 50 MB.

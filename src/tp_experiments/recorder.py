@@ -14,10 +14,11 @@ from pathlib import Path
 from typing import Any
 
 from tp_core.data_sources import TP_ROOT
+from tp_core.workspace import EXPERIMENTS_DIR
 
-
-EXPERIMENT_SCHEMA_VERSION = 1
+EXPERIMENT_SCHEMA_VERSION = 2
 FINAL_STATUSES = {"success", "failed", "cancelled"}
+DECISION_STATUSES = {"promote", "reject", "review_required"}
 IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 
@@ -115,6 +116,7 @@ class ExperimentSpec:
     sample_end: str | None = None
     pit_cutoff: str | None = None
     cost_assumptions: Mapping[str, Any] = field(default_factory=dict)
+    trial_family: str = "unspecified"
     effective_trial_count: int | None = None
     component_versions: Mapping[str, str] = field(default_factory=dict)
     tags: Sequence[str] = field(default_factory=tuple)
@@ -123,6 +125,8 @@ class ExperimentSpec:
         _validate_identifier(self.hypothesis_id, field_name="hypothesis_id")
         if not self.name.strip():
             raise ValueError("name must not be empty")
+        if not self.trial_family.strip():
+            raise ValueError("trial_family must not be empty")
         if self.effective_trial_count is not None and self.effective_trial_count < 1:
             raise ValueError("effective_trial_count must be at least 1")
 
@@ -131,7 +135,7 @@ class ExperimentRecorder:
     """Create run records beneath a queryable experiment directory."""
 
     def __init__(self, root: str | Path | None = None, *, repo_root: str | Path = TP_ROOT):
-        self.root = Path(root or (TP_ROOT / "10_pipeline_runs" / "experiments"))
+        self.root = Path(root or EXPERIMENTS_DIR)
         self.repo_root = Path(repo_root)
 
     def start_run(
@@ -235,6 +239,7 @@ class RunRecorder:
             "code": _git_version(recorder.repo_root),
             "parameters": dict(parameters),
             "inputs": {},
+            "input_data_fingerprint": None,
             "metrics": {},
             "artifacts": {},
             "decision": None,
@@ -289,12 +294,39 @@ class RunRecorder:
                 for name, path in paths.items()
             }
         )
+        self._record["input_data_fingerprint"] = _canonical_digest(
+            {
+                name: payload.get("fingerprint")
+                for name, payload in sorted(self._record["inputs"].items())
+            }
+        )
         self._write()
         return self
 
     def log_metrics(self, metrics: Mapping[str, Any]) -> "RunRecorder":
         self._ensure_running()
         self._record["metrics"].update(dict(metrics))
+        self._write()
+        return self
+
+    def update_hypothesis(self, **values: Any) -> "RunRecorder":
+        """Resolve run-time scope fields while preserving the stable hypothesis ID."""
+
+        self._ensure_running()
+        allowed = {
+            "universe",
+            "sample_start",
+            "sample_end",
+            "pit_cutoff",
+            "cost_assumptions",
+            "trial_family",
+            "effective_trial_count",
+            "component_versions",
+        }
+        unknown = set(values) - allowed
+        if unknown:
+            raise ValueError(f"unsupported hypothesis fields: {sorted(unknown)}")
+        self._record["hypothesis"].update(values)
         self._write()
         return self
 
@@ -314,6 +346,10 @@ class RunRecorder:
         decided_by: str = "human",
     ) -> "RunRecorder":
         self._ensure_running()
+        if status not in DECISION_STATUSES:
+            raise ValueError(f"invalid decision status: {status}")
+        if not reason.strip():
+            raise ValueError("decision reason must not be empty")
         self._record["decision"] = {
             "status": status,
             "reason": reason,
@@ -327,6 +363,18 @@ class RunRecorder:
         if status not in FINAL_STATUSES:
             raise ValueError(f"invalid final status: {status}")
         self._ensure_running()
+        if self._record["decision"] is None:
+            successful = status == "success"
+            self._record["decision"] = {
+                "status": "review_required" if successful else "reject",
+                "reason": (
+                    "Run completed; promotion requires an explicit review decision."
+                    if successful
+                    else f"Run finished with status={status}."
+                ),
+                "decided_by": "system",
+                "decided_at": _utc_now(),
+            }
         self._record["run"].update({"status": status, "finished_at": _utc_now()})
         self._write()
         return self.path
@@ -336,6 +384,12 @@ class RunRecorder:
         self._record["error"] = {
             "type": type(error).__name__,
             "message": str(error),
+        }
+        self._record["decision"] = {
+            "status": "reject",
+            "reason": f"Run failed: {type(error).__name__}: {error}",
+            "decided_by": "system",
+            "decided_at": _utc_now(),
         }
         return self.complete(status="failed")
 

@@ -2,7 +2,47 @@ name: CI
 
 on:
   push:
+    paths-ignore:
+      - "99_archive/**"
+      - "08_presentation_layer/legacy_apps/**"
+      - "**/archive/**"
+      - "**/archives/**"
+      - "**/runs/**"
+      - "**/pipeline_runs/**"
+      - "artifacts/**"
+      - "**/outputs/**"
+      - "**/output/**"
+      - "**/generated/**"
+      - "**/generated_assets/**"
+      - "**/node_modules/**"
+      - "**/dist/**"
+      - "**/build/**"
+      - "**/.cache/**"
+      - "**/__pycache__/**"
+      - "**/*.egg-info/**"
+      - "work/**"
+      - "scratch/**"
   pull_request:
+    paths-ignore:
+      - "99_archive/**"
+      - "08_presentation_layer/legacy_apps/**"
+      - "**/archive/**"
+      - "**/archives/**"
+      - "**/runs/**"
+      - "**/pipeline_runs/**"
+      - "artifacts/**"
+      - "**/outputs/**"
+      - "**/output/**"
+      - "**/generated/**"
+      - "**/generated_assets/**"
+      - "**/node_modules/**"
+      - "**/dist/**"
+      - "**/build/**"
+      - "**/.cache/**"
+      - "**/__pycache__/**"
+      - "**/*.egg-info/**"
+      - "work/**"
+      - "scratch/**"
 
 jobs:
   python:
@@ -18,7 +58,7 @@ jobs:
       - name: Verify installed package boundaries
         run: >-
           python -P -c
-          "import backtest_code,presentation_layer,tp_core,tp_data,tp_experiments,tp_models,tp_pipelines,tp_portfolio"
+          "import presentation_layer,tp_backtest,tp_core,tp_data,tp_experiments,tp_models,tp_pipelines,tp_portfolio,tp_reporting,tp_research"
       - name: Test
         run: python -m pytest -q
 

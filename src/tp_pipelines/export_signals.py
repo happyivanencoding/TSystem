@@ -10,20 +10,19 @@ import pandas as pd
 
 from tp_core.data_sources import RETURNS_PATH, SCREEN_AGGREGATE_PATH, TP_ROOT
 from tp_core.signals import validate_signal_frame
+from tp_core.workspace import SIGNALS_DIR
 from tp_models import country, technical_signals
 from tp_models.ml import signals as ml_signals
 from tp_models.regime import export_risk_budget
 
 from .common import StepManifest, path_profile, summarize_frame
+from .configs import ExportSignalsConfig
 
 
 ML_EXPORTER = Path(ml_signals.__file__)
 TECHNICAL_EXPORTER = Path(technical_signals.__file__)
 REGIME_EXPORTER = Path(export_risk_budget.__file__)
 COUNTRY_EXPORTER = Path(country.__file__)
-SIGNALS_DIR = TP_ROOT / "04_signals"
-
-
 def _signal_details(path: Path) -> dict[str, object]:
     frame = pd.read_parquet(path)
     result = validate_signal_frame(frame)
@@ -62,7 +61,7 @@ def _signal_details(path: Path) -> dict[str, object]:
     return details
 
 
-def run_export_signals(args: argparse.Namespace) -> Path:
+def run_export_signals(args: ExportSignalsConfig) -> Path:
     manifest = StepManifest("export_signals", vars(args).copy())
     manifest.inputs = {
         "screen_aggregate": path_profile(SCREEN_AGGREGATE_PATH, parquet=True),
@@ -148,7 +147,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    manifest_path = run_export_signals(args)
+    manifest_path = run_export_signals(ExportSignalsConfig.from_namespace(args))
     print(f"export_signals manifest: {manifest_path}")
     return 0
 

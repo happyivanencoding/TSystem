@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -16,13 +17,17 @@ from typing import Any
 import pandas as pd
 
 from tp_core.data_sources import TP_ROOT
+from tp_core.security_nav_engine import NAV_ENGINE_ID, NAV_ENGINE_VERSION
+from tp_core.workspace import (
+    CANDIDATES_DIR,
+    PIPELINE_MANIFESTS_DIR,
+    PIPELINE_RUNS_DIR,
+    PORTFOLIOS_DIR,
+    REPORTS_DIR,
+)
+from tp_experiments import ExperimentRecorder, ExperimentSpec, RunRecorder
+from tp_portfolio import OPTIMIZER_ID, OPTIMIZER_VERSION
 
-
-PIPELINE_RUNS_DIR = TP_ROOT / "10_pipeline_runs"
-PIPELINE_MANIFESTS_DIR = PIPELINE_RUNS_DIR / "manifests"
-CANDIDATES_DIR = TP_ROOT / "05_candidates"
-PORTFOLIOS_DIR = TP_ROOT / "06_portfolios"
-REPORTS_DIR = TP_ROOT / "09_reports"
 RUN_TYPES = {"production", "smoke", "inspect"}
 
 
@@ -151,13 +156,72 @@ class StepManifest:
     outputs: dict[str, Any] = field(default_factory=dict)
     validations: list[dict[str, Any]] = field(default_factory=list)
     details: dict[str, Any] = field(default_factory=dict)
+    record_experiment: bool = True
     run_type: str = field(init=False)
+    experiment: RunRecorder | None = field(init=False, default=None, repr=False)
 
     def __post_init__(self) -> None:
         run_type = str(self.parameters.get("run_type") or "production")
         if run_type not in RUN_TYPES:
             raise ValueError(f"run_type 必须是 {sorted(RUN_TYPES)} 之一")
         self.run_type = run_type
+        if self.record_experiment and not self.parameters.get(
+            "_experiment_managed_externally", False
+        ):
+            cutoff = (
+                self.parameters.get("as_of")
+                or self.parameters.get("to_date")
+                or self.parameters.get("date")
+                or "latest-canonical-input"
+            )
+            hypothesis_id = str(
+                self.parameters.get("hypothesis_id") or f"pipeline-{self.step}"
+            )
+            parent_run_id = (
+                self.parameters.get("parent_run_id")
+                or os.environ.get("TP_PARENT_EXPERIMENT_RUN_ID")
+                or None
+            )
+            self.experiment = ExperimentRecorder(
+                root=self.parameters.get("experiment_root") or None
+            ).start_run(
+                ExperimentSpec(
+                    hypothesis_id=hypothesis_id,
+                    name=str(
+                        self.parameters.get("experiment_name")
+                        or f"Pipeline step: {self.step}"
+                    ),
+                    universe=str(
+                        self.parameters.get("region")
+                        or self.parameters.get("universe")
+                        or self.parameters.get("bench")
+                        or "all-supported"
+                    ),
+                    sample_start=self.parameters.get("start_date"),
+                    sample_end=str(cutoff),
+                    pit_cutoff=str(cutoff),
+                    cost_assumptions={
+                        "transaction_cost": self.parameters.get(
+                            "transaction_cost", 0.0
+                        ),
+                        "max_turnover": self.parameters.get("max_turnover"),
+                    },
+                    trial_family=str(
+                        self.parameters.get("trial_family") or self.step
+                    ),
+                    effective_trial_count=int(
+                        self.parameters.get("effective_trial_count") or 1
+                    ),
+                    component_versions={
+                        "engine": f"{NAV_ENGINE_ID}:{NAV_ENGINE_VERSION}",
+                        "signal": "tp.pipeline.signal-contract:1.0.0",
+                        "optimizer": f"{OPTIMIZER_ID}:{OPTIMIZER_VERSION}",
+                    },
+                    tags=("pipeline-step", self.step, self.run_type),
+                ),
+                parameters=self.parameters,
+                parent_run_id=str(parent_run_id) if parent_run_id else None,
+            )
 
     def add_validation(self, name: str, ok: bool, message: str = "", details: Mapping[str, Any] | None = None) -> None:
         self.validations.append(validation(name, ok, message, details))
@@ -194,7 +258,61 @@ class StepManifest:
         latest_path = manifest_dir / f"{self.step}{suffix}_latest.json"
         atomic_write_json(manifest_path, payload)
         atomic_write_json(latest_path, payload)
+        self._finalize_experiment(
+            status=status,
+            error=error,
+            manifest_path=manifest_path,
+            duration_seconds=payload["duration_seconds"],
+        )
         return manifest_path
+
+    @staticmethod
+    def _profile_paths(profiles: Mapping[str, Any]) -> dict[str, Path]:
+        paths: dict[str, Path] = {}
+        for name, profile in profiles.items():
+            if not isinstance(profile, Mapping):
+                continue
+            value = profile.get("path")
+            if value:
+                paths[str(name)] = Path(str(value))
+        return paths
+
+    def _finalize_experiment(
+        self,
+        *,
+        status: str,
+        error: BaseException | None,
+        manifest_path: Path,
+        duration_seconds: float,
+    ) -> None:
+        experiment = self.experiment
+        if experiment is None or experiment.status != "running":
+            return
+        input_paths = self._profile_paths(self.inputs)
+        if input_paths:
+            experiment.log_inputs(input_paths)
+        artifacts = self._profile_paths(self.outputs)
+        artifacts["step_manifest"] = manifest_path
+        experiment.log_artifacts(artifacts)
+        experiment.log_metrics(
+            {
+                "duration_seconds": duration_seconds,
+                "validation_count": len(self.validations),
+                "validation_failures": sum(
+                    item.get("status") == "failed" for item in self.validations
+                ),
+            }
+        )
+        if status == "success" and error is None:
+            experiment.set_decision(
+                "review_required",
+                reason="Pipeline step completed; promotion requires control review.",
+                decided_by="system",
+            )
+            experiment.complete()
+            return
+        failure = error or RuntimeError(f"pipeline step finished with status={status}")
+        experiment.fail(failure)
 
 
 def run_python_module(module: str, args: Iterable[str] = ()) -> dict[str, Any]:

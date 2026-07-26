@@ -8,11 +8,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
-import numpy as np
 import pandas as pd
 
 from tp_core.data_sources import TP_ROOT
 from tp_core.signals import validate_signal_frame, write_signal_frame
+from tp_core.workspace import SIGNALS_DIR
 
 
 PROJECT_DIR = TP_ROOT / "14_country_model"
@@ -20,7 +20,7 @@ SOURCE_WORKBOOK = TP_ROOT / "00_screen" / "production_inputs" / "modele_pays.xls
 DATA_DIR = PROJECT_DIR / "data"
 OUTPUT_DIR = PROJECT_DIR / "outputs"
 COUNTRY_DATABASE_PATH = DATA_DIR / "country_model_database.parquet"
-DEFAULT_SIGNAL_OUTPUT = TP_ROOT / "04_signals" / "country_model_signals.parquet"
+DEFAULT_SIGNAL_OUTPUT = SIGNALS_DIR / "country_model_signals.parquet"
 SINGLE_COUNTRY_SCORE_OUTPUT = OUTPUT_DIR / "country_model_single_country_scores.parquet"
 
 MODEL_VERSION = "country_model_excel_replica_v1"

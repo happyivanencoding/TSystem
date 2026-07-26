@@ -2,9 +2,9 @@
 
 ## 定位
 
-`14_country_model` 是国家/地区层面的打分模型。它把 `modele_pays.xlsb` 中的国家模型复刻为 Python 产物，并导出统一信号表，供 `04_signals/`、候选池、组合风险预算和展示层后续消费。
+`14_country_model` 是国家/地区层面的打分模型。它把 `modele_pays.xlsb` 中的国家模型复刻为 Python 产物，并导出统一信号表，供 `artifacts/signals/`、候选池、组合风险预算和展示层后续消费。
 
-当前模型不修改 `00_screen/` canonical 数据，只读取本项目下的 Excel 工作簿或已生成的 parquet 数据库，并在本项目和 `04_signals/` 下写派生产物。
+当前模型不修改 `00_screen/` canonical 数据，只读取本项目下的 Excel 工作簿或已生成的 parquet 数据库，并在本项目和 `artifacts/signals/` 下写派生产物。
 
 ## 数据来源
 
@@ -67,11 +67,11 @@ python -m tp_pipelines.export_signals --skip-ml --skip-technical --skip-regime
 | `outputs/country_model_single_country_scores.parquet` | 单国家细分因子分数 |
 | `outputs/country_model_single_country_latest.csv` | 最新一期单国家摘要 |
 | `outputs/country_model_validation.json` | 与 Excel 分数/排名的对账和信号 schema 校验 |
-| `../04_signals/country_model_signals.parquet` | 标准统一信号表输出 |
+| `../artifacts/signals/country_model_signals.parquet` | 标准统一信号表输出 |
 
 ## 统一信号表
 
-默认信号输出为 `04_signals/country_model_signals.parquet`：
+默认信号输出为 `artifacts/signals/country_model_signals.parquet`：
 
 | 字段 | 当前值 |
 | --- | --- |
@@ -92,8 +92,8 @@ python -m tp_pipelines.export_signals --skip-ml --skip-technical --skip-regime
 python -m presentation_layer.cli system-checks --project 14_country_model
 ```
 
-该检查读取已有 `country_model_database.parquet`，构建临时信号表到 `.tmp_dashboard_work/system_checks/outputs/`，不重建 Excel 数据库，也不覆盖生产信号。
+该检查读取已有 `country_model_database.parquet`，构建临时信号表到 `artifacts/dashboard_work/system_checks/outputs/`，不重建 Excel 数据库，也不覆盖生产信号。
 
 ## 维护状态
 
-活跃研究/信号项目。当前已接入 `02_pipelines.export_signals` 和 `08_presentation_layer.apps.system_registry`。后续若要进入组合决策，应在候选池或优化器层明确国家分数如何转化为国家/区域主动权重或风险预算调整。
+活跃研究/信号项目。当前已接入 `tp_pipelines.export_signals` 和 `presentation_layer.apps.system_registry`。后续若要进入组合决策，应在候选池或优化器层明确国家分数如何转化为国家/区域主动权重或风险预算调整。

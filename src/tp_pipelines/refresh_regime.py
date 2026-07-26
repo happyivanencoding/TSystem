@@ -10,13 +10,15 @@ from typing import Iterable
 import pandas as pd
 
 from tp_core.data_sources import TP_ROOT
+from tp_core.workspace import SIGNALS_DIR
 from tp_models.regime import ml_compare, vol_compare
 
 from .common import StepManifest, path_profile, run_python_module
+from .configs import RefreshRegimeConfig
 
 
 REGIME_DIR = TP_ROOT / "03_regime_model"
-DEFAULT_REGIME_OUTPUT = TP_ROOT / "04_signals" / "regime_risk_budget.parquet"
+DEFAULT_REGIME_OUTPUT = SIGNALS_DIR / "regime_risk_budget.parquet"
 MODEL_DIAGNOSTICS_OUTPUT = REGIME_DIR / "output" / "model_diagnostics.json"
 
 
@@ -67,7 +69,7 @@ def write_model_diagnostics(output: Path = MODEL_DIAGNOSTICS_OUTPUT) -> Path:
     return output
 
 
-def run_refresh_regime(args: argparse.Namespace) -> Path:
+def run_refresh_regime(args: RefreshRegimeConfig) -> Path:
     manifest = StepManifest("refresh_regime", vars(args).copy())
     build_features_module = "tp_models.regime.build_features"
     walkforward_module = "tp_models.regime.walkforward"
@@ -137,7 +139,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    manifest_path = run_refresh_regime(args)
+    manifest_path = run_refresh_regime(RefreshRegimeConfig.from_namespace(args))
     print(f"refresh_regime manifest: {manifest_path}")
     return 0
 

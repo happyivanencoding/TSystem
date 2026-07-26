@@ -13,11 +13,13 @@
 07_backtest_code/runs/
 08_presentation_layer/legacy_apps/dashboard_analysis/outputs/
 13_sector_score_model/outputs_qualitative/
-10_pipeline_runs/notebook_execution/
 **/optimizer_debug/
 *.log
 *.egg-info/
-10_pipeline_runs/experiments/
+artifacts/**
+!artifacts/
+!artifacts/**/
+!artifacts/**/README.md
 
 # Local environments and caches
 .venv_tp/

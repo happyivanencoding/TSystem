@@ -19,10 +19,27 @@ import pandas as pd
 import plotly.graph_objects as go
 from dash import ALL, Dash, Input, Output, State, ctx, dash_table, dcc, html
 from dash.exceptions import PreventUpdate
-from flask import Response, jsonify, request, send_from_directory, stream_with_context
 
 from presentation_layer.apps import system_jobs
+from presentation_layer.apps.system_api import (
+    DashboardStaticAssets,
+    register_dashboard_routes,
+)
 from presentation_layer.apps.system_checks import CHECK_LATEST, project_checks
+from presentation_layer.apps.system_domain import DashboardDomainService
+from presentation_layer.apps.system_repository import SystemDashboardRepository
+from presentation_layer.apps.system_view_models import (
+    JobViewModelContext,
+    format_bytes as _format_bytes,
+    format_date as _fmt_date,
+    format_int as _fmt_int,
+    format_number as _fmt_number,
+    format_pct as _fmt_pct,
+    job_payload_from_record,
+    relative_path,
+    status_class as _status_class,
+    status_label as _status_label,
+)
 from presentation_layer.apps.system_registry import (
     DATA_ASSET_REGISTRY,
     FLOW_EDGES,
@@ -36,20 +53,29 @@ from tp_core.data_sources import (
     PRODUCTION_INPUTS_DIR,
     TP_ROOT,
 )
-from tp_pipelines.common import PIPELINE_MANIFESTS_DIR, path_profile
+from tp_core.workspace import (
+    BACKTEST_RUNS_DIR,
+    CANDIDATES_DIR,
+    DASHBOARD_WORK_DIR,
+    PIPELINE_MANIFESTS_DIR,
+    PORTFOLIOS_DIR,
+    REPORTS_DIR,
+    SIGNALS_DIR,
+)
+from tp_pipelines.common import path_profile
 
 
 PORT = 8060
-LAUNCH_DIR = TP_ROOT / ".tmp_dashboard_work" / "launches"
-DASHBOARD_CONFIG_PATH = TP_ROOT / ".tmp_dashboard_work" / "dashboard_config.json"
+LAUNCH_DIR = DASHBOARD_WORK_DIR / "launches"
+DASHBOARD_CONFIG_PATH = DASHBOARD_WORK_DIR / "dashboard_config.json"
 CLIENT_JOB_API_ENABLED = os.environ.get("TP_DASHBOARD_CLIENT_JOB_API", "1") != "0"
 CLIENT_DIST_DIR = TP_ROOT / "08_presentation_layer" / "frontend" / "system_dashboard" / "dist"
 CLIENT_ASSETS_DIR = CLIENT_DIST_DIR / "assets"
-FACTOR_EXPLORER_PATH = TP_ROOT / "09_reports" / "factor-explorer.html"
-FACTOR_RESEARCH_APP_PATH = TP_ROOT / "09_reports" / "factor-research-app.html"
-REGIME_SIGNAL_PATH = TP_ROOT / "04_signals" / "regime_risk_budget.parquet"
-COUNTRY_SIGNAL_PATH = TP_ROOT / "04_signals" / "country_model_signals.parquet"
-SMALL_CAP_SIGNAL_PATH = TP_ROOT / "04_signals" / "small_cap_model_signals.parquet"
+FACTOR_EXPLORER_PATH = REPORTS_DIR / "factor-explorer.html"
+FACTOR_RESEARCH_APP_PATH = REPORTS_DIR / "factor-research-app.html"
+REGIME_SIGNAL_PATH = SIGNALS_DIR / "regime_risk_budget.parquet"
+COUNTRY_SIGNAL_PATH = SIGNALS_DIR / "country_model_signals.parquet"
+SMALL_CAP_SIGNAL_PATH = SIGNALS_DIR / "small_cap_model_signals.parquet"
 SMALL_CAP_MODEL_DIR = TP_ROOT / "15_small_cap_model"
 SMALL_CAP_PANEL_PATH = SMALL_CAP_MODEL_DIR / "outputs" / "eu_small_model_scores_latest.parquet"
 SMALL_CAP_SUMMARY_PATH = SMALL_CAP_MODEL_DIR / "outputs" / "eu_small_model_summary.json"
@@ -83,7 +109,7 @@ FULL_BACKTEST_VALIDATION_PATH = (
     PIPELINE_MANIFESTS_DIR / "run_backtest" / "full_backtest_validation_latest.json"
 )
 SCORE_ML_BACKTEST_RUN_ROOT = (
-    TP_ROOT / "07_backtest_code" / "runs" / "score_ml_vs_if_msci_world_top_worst_20"
+    BACKTEST_RUNS_DIR / "score_ml_vs_if_msci_world_top_worst_20"
 )
 SCORE_ML_SCREEN_PATH = TP_ROOT / "00_screen" / "screen_aggregate.parquet"
 COMPANY_DES_PATH = (
@@ -97,7 +123,7 @@ COMPANY_NEWS_PATH = (
     / "data"
     / "Last_NEWS_3months.parquet"
 )
-TECHNICAL_SIGNAL_PATH = TP_ROOT / "04_signals" / "technical_signals.parquet"
+TECHNICAL_SIGNAL_PATH = SIGNALS_DIR / "technical_signals.parquet"
 TECHNICAL_SCREEN_PATH = TP_ROOT / "00_screen" / "last_screen.parquet"
 SCORE_ML_COMPONENT_COLUMNS = [
     "Date",
@@ -243,7 +269,7 @@ IGNORED_ASSET_PARTS = {
     ".git",
     ".ipynb_checkpoints",
     ".pytest_cache",
-    ".tmp_dashboard_work",
+    "artifacts",
     ".venv",
     ".venv_tp",
     "99_archive",
@@ -300,7 +326,7 @@ CORE_SCHEMA_ASSETS = (
 CORE_DATABASE_NAMES = ("screen_aggregate", "returns", "last_screen", "screen_aggregate_5Y")
 LINEAGE_NODE_PROJECTS: dict[str, tuple[str, ...]] = {
     "生产输入": ("00_screen",),
-    "核心数据库": ("00_screen", "01_tp_core"),
+    "核心数据库": ("00_screen", "tp_core"),
     "ML / Regime / Technical": (
         "03_ml_enhanced",
         "03_regime_model",
@@ -308,11 +334,11 @@ LINEAGE_NODE_PROJECTS: dict[str, tuple[str, ...]] = {
         "14_country_model",
         "15_small_cap_model",
     ),
-    "统一信号": ("04_signals",),
-    "候选池": ("05_candidates",),
-    "组合权重": ("06_portfolios", "06_optimiser"),
-    "回测": ("07_backtest_code",),
-    "报告 / Dashboard": ("09_reports", "08_presentation_layer"),
+    "统一信号": ("signals",),
+    "候选池": ("candidates",),
+    "组合权重": ("portfolios", "optimizer"),
+    "回测": ("backtests",),
+    "报告 / Dashboard": ("reports", "08_presentation_layer"),
 }
 
 STYLE = """
@@ -1284,122 +1310,37 @@ TP_JOB_EVENT_SCRIPT = """
 """
 
 
+def _system_repository() -> SystemDashboardRepository:
+    return SystemDashboardRepository(
+        config_path=DASHBOARD_CONFIG_PATH,
+        defaults=DEFAULT_DASHBOARD_CONFIG,
+        qa_dir=QA_DIR,
+        manifest_dir=PIPELINE_MANIFESTS_DIR,
+    )
+
+
 def _read_json(path: Path) -> dict[str, Any] | None:
-    if not path.exists():
-        return None
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
+    return _system_repository().read_json(path)
 
 
 def _latest_manifest(step: str) -> dict[str, Any] | None:
-    return _read_json(PIPELINE_MANIFESTS_DIR / step / f"{step}_latest.json")
+    return _system_repository().latest_manifest(step)
 
 
 def _latest_json_by_glob(pattern: str) -> dict[str, Any] | None:
-    matches = sorted(QA_DIR.glob(pattern), key=lambda item: item.stat().st_mtime, reverse=True)
-    for path in matches:
-        payload = _read_json(path)
-        if payload is not None:
-            payload["_path"] = str(path)
-            return payload
-    return None
+    return _system_repository().latest_qa_json(pattern)
 
 
 def _read_dashboard_config() -> dict[str, Any]:
-    payload = _read_json(DASHBOARD_CONFIG_PATH) or {}
-    values = payload.get("values") if isinstance(payload.get("values"), dict) else payload
-    config = dict(DEFAULT_DASHBOARD_CONFIG)
-    if isinstance(values, dict):
-        for key in DEFAULT_DASHBOARD_CONFIG:
-            if key in values:
-                config[key] = values[key]
-    return config
+    return _system_repository().read_config()
 
 
 def _write_dashboard_config(values: dict[str, Any]) -> dict[str, Any]:
-    DASHBOARD_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    clean_values = {
-        key: values.get(key, DEFAULT_DASHBOARD_CONFIG[key])
-        for key in DEFAULT_DASHBOARD_CONFIG
-    }
-    payload = {
-        "saved_at": datetime.now().isoformat(timespec="seconds"),
-        "values": clean_values,
-    }
-    DASHBOARD_CONFIG_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    return payload
+    return _system_repository().write_config(values)
 
 
 def _rel(path: str | Path | None) -> str:
-    if not path:
-        return ""
-    target = Path(path)
-    try:
-        return str(target.relative_to(TP_ROOT))
-    except ValueError:
-        return str(target)
-
-
-def _format_bytes(value: Any) -> str:
-    if value in (None, ""):
-        return ""
-    size = float(value)
-    for unit in ["B", "KB", "MB", "GB"]:
-        if size < 1024 or unit == "GB":
-            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} B"
-        size /= 1024
-    return ""
-
-
-def _fmt_int(value: Any) -> str:
-    if value in (None, ""):
-        return ""
-    try:
-        return f"{int(value):,}"
-    except Exception:
-        return str(value)
-
-
-def _fmt_date(value: Any) -> str:
-    if value in (None, "", pd.NaT):
-        return ""
-    try:
-        return pd.Timestamp(value).date().isoformat()
-    except Exception:
-        return str(value)
-
-
-def _fmt_number(value: Any, digits: int = 4) -> str:
-    if value is None or (isinstance(value, str) and value == ""):
-        return ""
-    try:
-        if pd.isna(value):
-            return ""
-        return f"{float(value):.{digits}f}"
-    except Exception:
-        return str(value)
-
-
-def _status_label(status: str | None) -> str:
-    if status == "success":
-        return "OK"
-    if status == "failed":
-        return "FAIL"
-    if status:
-        return status.upper()
-    return "N/A"
-
-
-def _status_class(status: str | None) -> str:
-    if status == "success":
-        return "tp-chip-success"
-    if status == "failed":
-        return "tp-chip-failed"
-    if status:
-        return "tp-chip-warning"
-    return "tp-chip-muted"
+    return relative_path(path, root=TP_ROOT)
 
 
 @lru_cache(maxsize=64)
@@ -1532,15 +1473,6 @@ def _date_gap_profile(path: Path, column: str, frequency: str) -> dict[str, Any]
         return _date_gap_profile_cached(str(path), column, path.stat().st_mtime_ns, frequency)
     except Exception as exc:
         return {"error": str(exc)}
-
-
-def _fmt_pct(value: Any, digits: int = 1) -> str:
-    if value in (None, ""):
-        return ""
-    try:
-        return f"{float(value) * 100:.{digits}f}%"
-    except Exception:
-        return str(value)
 
 
 def _asset_profile(asset: DataAssetEntry, source: str) -> dict[str, Any]:
@@ -1939,19 +1871,8 @@ def _alert_rows(
     return rows[:limit]
 
 
-@lru_cache(maxsize=48)
-def _frame_cached(path_text: str, mtime_ns: int) -> pd.DataFrame:
-    del mtime_ns
-    return pd.read_parquet(path_text)
-
-
 def _read_frame(path: Path) -> pd.DataFrame | None:
-    if not path.exists() or path.suffix.lower() != ".parquet":
-        return None
-    try:
-        return _frame_cached(str(path), path.stat().st_mtime_ns)
-    except Exception:
-        return None
+    return _system_repository().read_frame(path)
 
 
 @lru_cache(maxsize=4)
@@ -2660,14 +2581,14 @@ def _sector_summary_row() -> dict[str, Any]:
 
 def _production_rows() -> list[dict[str, Any]]:
     return [
-        _signal_summary_row("ml_signals", TP_ROOT / "04_signals" / "ml_signals.parquet"),
-        _signal_summary_row("technical_signals", TP_ROOT / "04_signals" / "technical_signals.parquet"),
-        _signal_summary_row("regime_risk_budget", TP_ROOT / "04_signals" / "regime_risk_budget.parquet"),
+        _signal_summary_row("ml_signals", SIGNALS_DIR / "ml_signals.parquet"),
+        _signal_summary_row("technical_signals", SIGNALS_DIR / "technical_signals.parquet"),
+        _signal_summary_row("regime_risk_budget", SIGNALS_DIR / "regime_risk_budget.parquet"),
         _signal_summary_row("country_model_signals", COUNTRY_SIGNAL_PATH),
         _signal_summary_row("small_cap_model_signals", SMALL_CAP_SIGNAL_PATH),
         _sector_summary_row(),
-        _candidate_summary_row(TP_ROOT / "05_candidates" / "latest_candidates.parquet"),
-        _portfolio_summary_row(TP_ROOT / "06_portfolios" / "latest_target_weights.parquet"),
+        _candidate_summary_row(CANDIDATES_DIR / "latest_candidates.parquet"),
+        _portfolio_summary_row(PORTFOLIOS_DIR / "latest_target_weights.parquet"),
     ]
 
 
@@ -3609,14 +3530,14 @@ def _sector_signal_payload() -> dict[str, Any]:
 
 
 def _latest_backtest_summaries(limit: int = 4) -> list[Path]:
-    root = TP_ROOT / "07_backtest_code" / "runs"
+    root = BACKTEST_RUNS_DIR
     if not root.exists():
         return []
     return sorted(root.rglob("summary.json"), key=lambda item: item.stat().st_mtime, reverse=True)[:limit]
 
 
 def _latest_backtest_perf_dirs(limit: int = 4) -> list[Path]:
-    root = TP_ROOT / "07_backtest_code" / "runs"
+    root = BACKTEST_RUNS_DIR
     if not root.exists():
         return []
     run_dirs = {
@@ -4431,95 +4352,17 @@ def _launch_record_by_job_id(job_id: str) -> dict[str, Any] | None:
 
 
 def _job_payload_from_record(payload: dict[str, Any] | None) -> dict[str, str]:
-    if not payload:
-        return {
-            "job_id": "",
-            "step": "暂无启动任务",
-            "status": "idle",
-            "status_label": "IDLE",
-            "phase": "submitted",
-            "pid": "",
-            "started_at": "",
-            "manifest_status": "N/A",
-            "manifest": "",
-            "log_path": _rel(LAUNCH_DIR),
-            "log_tail": "",
-            "backend": "",
-            "queue_name": "",
-            "queued_at": "",
-            "status_updated_at": "",
-            "finished_at": "",
-            "returncode": "",
-            "error": "",
-        }
-    step = str(payload.get("step", ""))
-    pid = payload.get("pid", "")
-    started_at = str(payload.get("started_at", ""))
-    record_status = str(payload.get("status", ""))
-    job_meta = {
-        "backend": str(payload.get("backend") or ""),
-        "queue_name": str(payload.get("queue_name") or ""),
-        "queued_at": str(payload.get("queued_at") or ""),
-        "status_updated_at": str(payload.get("status_updated_at") or ""),
-        "finished_at": str(payload.get("finished_at") or ""),
-        "returncode": str(payload.get("returncode") if payload.get("returncode") is not None else ""),
-        "error": str(payload.get("error") or ""),
-    }
-    if record_status == "queued":
-        log_path = Path(str(payload.get("log_path", "")))
-        return {
-            "job_id": str(payload.get("job_id") or ""),
-            "step": step,
-            "status": "queued",
-            "status_label": "QUEUED",
-            "phase": "submitted",
-            "pid": "",
-            "started_at": started_at,
-            "manifest_status": "N/A",
-            "manifest": "",
-            "log_path": _rel(log_path),
-            "log_tail": _launch_log_tail(log_path, limit=360),
-            **job_meta,
-        }
-    running = _pid_is_running(pid)
-    evidence_path, evidence_payload = _launch_evidence(step)
-    manifest_status = _evidence_status(evidence_path, evidence_payload, started_at, running)
-    if record_status == "failed":
-        status, status_label = "failed", "FAILED"
-    elif running:
-        status, status_label = "running", "RUNNING"
-    elif manifest_status == "OK":
-        status, status_label = "completed", "COMPLETED"
-    elif manifest_status == "FAIL":
-        status, status_label = "failed", "FAILED"
-    else:
-        status, status_label = "evidence_waiting", "EVIDENCE WAITING"
-    if status == "running":
-        phase = "running"
-    elif status in {"completed", "failed"}:
-        phase = "done"
-    elif status == "evidence_waiting":
-        phase = "evidence"
-    else:
-        phase = "submitted"
-    record_path = payload.get("record_path") or payload.get("_record_file") or ""
-    job_id = str(payload.get("job_id") or (Path(str(record_path)).stem if record_path else ""))
-    log_path = Path(str(payload.get("log_path", "")))
-    return {
-        "job_id": job_id,
-        "step": step,
-        "status": status,
-        "status_label": status_label,
-        "phase": phase,
-        "pid": str(pid or ""),
-        "started_at": started_at,
-        "manifest_status": manifest_status,
-        "manifest": _rel(evidence_path),
-        "log_path": _rel(log_path),
-        "log_tail": _launch_log_tail(log_path, limit=360),
-        **job_meta,
-    }
-
+    return job_payload_from_record(
+        payload,
+        context=JobViewModelContext(
+            launch_dir=LAUNCH_DIR,
+            relpath=_rel,
+            log_tail=_launch_log_tail,
+            launch_evidence=_launch_evidence,
+            evidence_status=_evidence_status,
+            pid_is_running=_pid_is_running,
+        ),
+    )
 
 def _active_job_payload() -> dict[str, str]:
     return _job_payload_from_record(_latest_launch_record())
@@ -6339,210 +6182,6 @@ def _command_from_callback(
     )
 
 
-def _register_server_routes(server: Any) -> None:
-    @server.after_request
-    def preserve_dash_json_unicode(response: Response):
-        if request.path.startswith("/dash/_dash-") and response.mimetype == "application/json":
-            try:
-                payload = json.loads(response.get_data(as_text=True))
-            except Exception:
-                return response
-            response.set_data(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
-        return response
-
-    @server.route("/", methods=["GET"])
-    @server.route("/index.html", methods=["GET"])
-    @server.route("/client/", methods=["GET"])
-    @server.route("/client/index.html", methods=["GET"])
-    def api_dashboard_client_index():
-        return send_from_directory(CLIENT_DIST_DIR, "index.html")
-
-    @server.route("/client/assets/<path:filename>", methods=["GET"])
-    def api_dashboard_client_assets(filename: str):
-        return send_from_directory(CLIENT_ASSETS_DIR, filename)
-
-    @server.route("/reports/factor-explorer.html", methods=["GET"])
-    def factor_explorer_report():
-        return send_from_directory(FACTOR_EXPLORER_PATH.parent, FACTOR_EXPLORER_PATH.name)
-
-    @server.route("/reports/factor-research-app.html", methods=["GET"])
-    def factor_research_app_report():
-        return send_from_directory(
-            FACTOR_RESEARCH_APP_PATH.parent,
-            FACTOR_RESEARCH_APP_PATH.name,
-        )
-
-    @server.route("/api/dashboard/state", methods=["GET"])
-    def api_dashboard_state():
-        truthy = {"1", "true", "yes"}
-        include_details = request.args.get("include_details", "").lower() in truthy
-        include_signals = include_details or request.args.get(
-            "include_signals", ""
-        ).lower() in {
-            "1",
-            "true",
-            "yes",
-        }
-        include_backtest = include_details or request.args.get(
-            "include_backtest", ""
-        ).lower() in truthy
-        return jsonify(
-            _dashboard_state_payload(
-                include_signals=include_signals,
-                include_backtest=include_backtest,
-            )
-        )
-
-    @server.route("/api/dashboard/backtest", methods=["GET"])
-    def api_dashboard_backtest():
-        return jsonify(_backtest_rows())
-
-    @server.route("/api/dashboard/jobs/latest", methods=["GET"])
-    def api_dashboard_latest_job():
-        return jsonify(_active_job_payload())
-
-    @server.route("/api/dashboard/jobs/queue", methods=["GET"])
-    def api_dashboard_job_queue():
-        return jsonify(system_jobs.queue_status(LAUNCH_DIR))
-
-    @server.route("/api/dashboard/signals/regime", methods=["GET"])
-    def api_dashboard_regime_signal():
-        return jsonify(_regime_signal_payload())
-
-    @server.route("/api/dashboard/signals/country", methods=["GET"])
-    def api_dashboard_country_signal():
-        return jsonify(_country_signal_payload())
-
-    @server.route("/api/dashboard/signals/small-cap", methods=["GET"])
-    def api_dashboard_small_cap_signal():
-        return jsonify(_small_cap_signal_payload())
-
-    @server.route("/api/dashboard/signals/sector", methods=["GET"])
-    def api_dashboard_sector_signal():
-        return jsonify(_sector_signal_payload())
-
-    @server.route("/api/dashboard/signals/technical", methods=["GET"])
-    def api_dashboard_technical_signal():
-        return jsonify(_technical_signal_payload())
-
-    @server.route("/api/dashboard/score-ml-components", methods=["GET"])
-    def api_dashboard_score_ml_components():
-        return jsonify(
-            _score_ml_components_payload(
-                date=request.args.get("date"),
-                side=request.args.get("side", "top"),
-            )
-        )
-
-    @server.route("/api/dashboard/company-detail/<isin>", methods=["GET"])
-    def api_dashboard_company_detail(isin: str):
-        return jsonify(_company_detail_payload(isin))
-
-    @server.route("/api/dashboard/jobs/queue/events", methods=["GET"])
-    def api_dashboard_job_queue_events():
-        try:
-            limit_arg = request.args.get("limit")
-            limit = int(limit_arg) if limit_arg else None
-            interval = max(float(request.args.get("interval", "3")), 0.5)
-        except ValueError:
-            return jsonify({"error": "invalid queue events query parameters"}), 400
-        return Response(
-            stream_with_context(_queue_event_stream(interval_seconds=interval, limit=limit)),
-            mimetype="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-        )
-
-    @server.route("/api/dashboard/jobs/<job_id>", methods=["GET"])
-    def api_dashboard_job(job_id: str):
-        payload = _job_payload(job_id)
-        if payload is None:
-            return jsonify({"error": "job not found", "job_id": job_id}), 404
-        return jsonify(payload)
-
-    @server.route("/api/dashboard/jobs/<job_id>/events", methods=["GET"])
-    def api_dashboard_job_events(job_id: str):
-        if _job_payload(job_id) is None:
-            return jsonify({"error": "job not found", "job_id": job_id}), 404
-        try:
-            limit_arg = request.args.get("limit")
-            limit = int(limit_arg) if limit_arg else None
-            interval = max(float(request.args.get("interval", "2")), 0.2)
-        except ValueError:
-            return jsonify({"error": "invalid events query parameters"}), 400
-        return Response(
-            stream_with_context(_job_event_stream(job_id, interval_seconds=interval, limit=limit)),
-            mimetype="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-        )
-
-    @server.route("/api/dashboard/jobs/system-checks", methods=["POST"])
-    def api_dashboard_launch_system_checks():
-        record = _submit_job(_build_system_checks_command(), "system_checks")
-        return jsonify({"job": _job_payload_from_record(record), "record": record}), 202
-
-    @server.route("/api/dashboard/jobs/signals/regime", methods=["POST"])
-    def api_dashboard_refresh_regime_signal():
-        record = _submit_job(_build_regime_signal_command(), "signal:regime_risk_budget")
-        return jsonify({"job": _job_payload_from_record(record), "record": record}), 202
-
-    @server.route("/api/dashboard/jobs/signals/country", methods=["POST"])
-    def api_dashboard_refresh_country_signal():
-        record = _submit_job(_build_country_signal_command(), "signal:country_model")
-        return jsonify({"job": _job_payload_from_record(record), "record": record}), 202
-
-    @server.route("/api/dashboard/jobs/signals/small-cap", methods=["POST"])
-    def api_dashboard_refresh_small_cap_signal():
-        record = _submit_job(_build_small_cap_signal_command(), "signal:small_cap_model")
-        return jsonify({"job": _job_payload_from_record(record), "record": record}), 202
-
-    @server.route("/api/dashboard/jobs/project", methods=["POST"])
-    def api_dashboard_launch_project():
-        payload = request.get_json(silent=True) or {}
-        project_id = str(payload.get("project_id") or DEFAULT_DASHBOARD_CONFIG["project_id"])
-        mode = str(
-            payload.get("mode")
-            or payload.get("project_mode")
-            or DEFAULT_DASHBOARD_CONFIG["project_mode"]
-        )
-        try:
-            command = _build_project_command(project_id, mode)
-        except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
-        record = _submit_job(command, f"project:{project_id}:{mode}")
-        return jsonify({"job": _job_payload_from_record(record), "record": record}), 202
-
-    @server.route("/api/dashboard/jobs/pipeline", methods=["POST"])
-    def api_dashboard_launch_pipeline():
-        payload = request.get_json(silent=True) or {}
-        flags = payload.get("flags")
-        if not isinstance(flags, list):
-            flags = DEFAULT_DASHBOARD_CONFIG["flags"]
-        try:
-            command = _command_from_callback(
-                str(payload.get("step") or DEFAULT_DASHBOARD_CONFIG["step"]),
-                payload.get("input_month") or "",
-                payload.get("as_of") or "",
-                str(payload.get("update_mode") or DEFAULT_DASHBOARD_CONFIG["update_mode"]),
-                payload.get("top_pct", DEFAULT_DASHBOARD_CONFIG["top_pct"]),
-                payload.get("ml_weight", DEFAULT_DASHBOARD_CONFIG["ml_weight"]),
-                payload.get("technical_weight", DEFAULT_DASHBOARD_CONFIG["technical_weight"]),
-                payload.get("max_weight", DEFAULT_DASHBOARD_CONFIG["max_weight"]),
-                str(payload.get("optimizer_method") or DEFAULT_DASHBOARD_CONFIG["optimizer_method"]),
-                payload.get("portfolio_region") or "",
-                payload.get("backtest_profile") or "",
-                payload.get("bench") or "",
-                payload.get("start_date") or "",
-                payload.get("percentile"),
-                flags,
-            )
-        except Exception as exc:
-            return jsonify({"error": str(exc)}), 400
-        step = str(payload.get("step") or DEFAULT_DASHBOARD_CONFIG["step"])
-        record = _submit_job(command, step)
-        return jsonify({"job": _job_payload_from_record(record), "record": record}), 202
-
-
-
 def _register_clientside_callbacks(app: Dash) -> None:
     app.clientside_callback(
         """
@@ -6986,6 +6625,34 @@ def _register_config_project_callbacks(app: Dash) -> None:
             html.Div(_rel(record["log_path"])),
         ]
 
+def _dashboard_domain_service() -> DashboardDomainService:
+    """Bind domain providers once per app so tests and deployments can override paths."""
+
+    return DashboardDomainService(
+        defaults=DEFAULT_DASHBOARD_CONFIG,
+        state_provider=_dashboard_state_payload,
+        backtest_provider=_backtest_rows,
+        latest_job_provider=_active_job_payload,
+        queue_provider=lambda: system_jobs.queue_status(LAUNCH_DIR),
+        regime_provider=_regime_signal_payload,
+        country_provider=_country_signal_payload,
+        small_cap_provider=_small_cap_signal_payload,
+        sector_provider=_sector_signal_payload,
+        technical_provider=_technical_signal_payload,
+        score_ml_provider=_score_ml_components_payload,
+        company_provider=_company_detail_payload,
+        job_provider=_job_payload,
+        queue_event_provider=_queue_event_stream,
+        job_event_provider=_job_event_stream,
+        submit_job=_submit_job,
+        job_view_model=_job_payload_from_record,
+        system_checks_command=_build_system_checks_command,
+        regime_command=_build_regime_signal_command,
+        country_command=_build_country_signal_command,
+        small_cap_command=_build_small_cap_signal_command,
+        project_command=_build_project_command,
+        pipeline_command=_command_from_callback,
+    )
 
 
 def create_app() -> Dash:
@@ -7020,7 +6687,16 @@ def create_app() -> Dash:
     app.layout = _layout()
     server = app.server
 
-    _register_server_routes(server)
+    register_dashboard_routes(
+        server,
+        domain=_dashboard_domain_service(),
+        assets=DashboardStaticAssets(
+            client_dist_dir=CLIENT_DIST_DIR,
+            client_assets_dir=CLIENT_ASSETS_DIR,
+            factor_explorer_path=FACTOR_EXPLORER_PATH,
+            factor_research_app_path=FACTOR_RESEARCH_APP_PATH,
+        ),
+    )
     _register_clientside_callbacks(app)
     _register_monitoring_callbacks(app)
     _register_launch_callbacks(app)

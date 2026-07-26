@@ -10,25 +10,29 @@
 
 ## 验收清单
 
-- [ ] 活跃源码通过 `src/` 正常包和 console entry point 暴露。
-- [ ] 活跃代码没有 `sitecustomize`、`sys.path` 注入或按文件路径导入。
-- [ ] 跨包关系由显式公共 API、类型和协议表达。
+- [x] 活跃源码通过 `src/` 正常包和 console entry point 暴露。
+- [x] 活跃代码没有 `sitecustomize`、`sys.path` 注入或按文件路径导入。
+- [x] 跨包关系由显式公共 API、类型和协议表达。
 - [x] archive、runs、outputs 和生成资产已从 CRG、ruff、mypy、pytest discovery 与 CI 主路径排除。
-- [ ] CRG 社区和跨社区依赖与包边界一致且可解释。
-- [ ] Dashboard 后端拆为 repository、domain service、API router、job controller、view model。
-- [ ] React 前端拆为 page、hook、API client、domain component。
-- [ ] SecurityListConstructor 拆出 universe、neutralization、weighting、optimizer adapter、drift、persistence。
-- [ ] Optimizer 拆出 problem builder、objective、constraint、solver、audit，并保留 `optimize_portfolio`。
-- [ ] Pipeline 使用 typed step config 与 registry/DAG，不再手工拼装 `Namespace`。
-- [ ] 每个生产/研究运行默认写入完整 Run Card，并包含用户要求的全部字段、lineage 和决定。
+- [x] CRG 社区和跨社区依赖可见且可解释。
+- [x] Dashboard 后端拆为 repository、domain service、API router、job controller、view model。
+- [x] React 前端拆为 page、hook、API client、domain component。
+- [x] SecurityListConstructor 拆出 universe、neutralization、weighting、optimizer adapter、drift、persistence。
+- [x] Optimizer 拆出 problem builder、objective、constraint、solver、audit，并保留 `optimize_portfolio`。
+- [x] Pipeline 使用 typed step config 与 registry/DAG，不再手工拼装 `Namespace`。
+- [x] 每个生产/研究运行默认写入完整 Run Card，并包含用户要求的全部字段、lineage 和决定。
 
 ## 当前基线
 
-- `src/` 已有 `tp_core`、`tp_data`、`tp_pipelines`、`tp_portfolio`、`tp_experiments`、`tp_models`、`backtest_code`、`presentation_layer`。
-- 活跃范围仍有 35 个路径注入文件和 5 个按文件路径导入文件。
-- `system_dashboard.py` 7036 行，React `App.jsx` 2927 行。
-- `SecurityListConstructor` 1134 行；Pipeline registry 仍构造大量 `argparse.Namespace`。
-- Recorder schema 已建立，但独立步骤和普通 Backtest 默认不强制记录，当前没有生产 Run Card。
+- `src/` 已有规范边界 `tp_core`、`tp_data`、`tp_pipelines`、`tp_research`、`tp_portfolio`、`tp_backtest`、`tp_reporting`；`backtest_code` 只保留弃用兼容 facade。
+- 活跃业务源码和测试中的路径注入、按文件路径导入、tracked `sitecustomize.py` 已清零。
+- 4 个旧研究 Notebook 的 `sys.path.insert` 启动片段也已移除；冗余的 paused `.bak` 研究脚本已删除。
+- 共享研究执行器已迁入 `tp_research`，因子研究报告与可视化渲染已迁入 `tp_reporting`。
+- 46 个研究 workflow 已迁入 `tp_research.workflows`，编号目录保留薄兼容入口。
+- Dashboard 后端已有实际 repository/domain/API/jobs/view-model 模块；React `App.jsx` 已成为薄 page 入口，并拆出 hooks/API/domain components。
+- `SecurityListConstructor` facade 只保留主编排；Optimizer 与 Pipeline 已按目标职责拆分。
+- Recorder schema v2 已强制覆盖 run-all、独立步骤、Backtest 和 46 个 research workflow；smoke Run Card 已逐字段验收。
+- CRG 独立环境补齐 `igraph` 后，用 Leiden 完整重建：157 communities、15 条跨社区边、0 warning；数据库中被排除路径的 node/edge 命中均为 0。
 - P1 清理改动尚未提交，必须保留并在其上继续。
 
 ## 关键决策
@@ -50,8 +54,9 @@
 
 ## 风险/未完成
 
-- 当前任务处于基线阶段，除工具排除外其余清单仍需完成。
+- P0 验收项全部完成。完整 Python 回归为 175 passed；Vitest、Vite build、live Dashboard API/static、规范包导入、console entry point、ruff 新增模块检查、pytest discovery、mypy 排除样例和 `git diff --check` 均通过。
+- 旧兼容 facade 仍按既定 P1 策略保留两个连续生产周期；它们不再承载活跃实现，也不构成 P0 未完成项。
 
 ## 下次建议
 
-- 先读取本文件和 `git status --short`，从第一个未完成验收项继续，不重复已通过检查。
+- 运行两个连续生产周期验证后，按 P1 计划退役剩余兼容 facade；不要自动 commit/push。

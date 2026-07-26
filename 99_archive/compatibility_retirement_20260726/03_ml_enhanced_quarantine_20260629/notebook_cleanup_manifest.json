@@ -1,0 +1,33 @@
+{
+  "generated_at": "2026-06-29T22:45:11",
+  "action": "ml_enhanced_notebook_cleanup",
+  "moves": [
+    {
+      "source": "C:/GoogleDrive/TP/03_ml_enhanced/参考文件_EM",
+      "destination": "03_ml_enhanced/_quarantine_20260629/em_reference_legacy",
+      "reason": "EM 参考 notebook 和旧 backtestengine_optim，不作为当前主线",
+      "bucket": "project_quarantine",
+      "file_count": 2,
+      "size_bytes": 445052,
+      "status": "moved"
+    },
+    {
+      "source": "C:/GoogleDrive/TP/03_ml_enhanced/Monitoring.ipynb",
+      "destination": "03_ml_enhanced/_quarantine_20260629/legacy_notebooks/Monitoring_old_ptf_based.ipynb",
+      "reason": "旧监控 notebook 依赖生成 ptf；由新版替代",
+      "bucket": "project_quarantine",
+      "file_count": 1,
+      "size_bytes": 58678,
+      "status": "moved"
+    },
+    {
+      "source": "C:/GoogleDrive/TP/03_ml_enhanced/Monitoring - NEW.ipynb",
+      "destination": "03_ml_enhanced/Monitoring.ipynb",
+      "reason": "新版监控 notebook 直接结合 screen 和 shap，成为标准入口",
+      "bucket": "notebook_merge",
+      "file_count": 1,
+      "size_bytes": 14212,
+      "status": "moved"
+    }
+  ]
+}

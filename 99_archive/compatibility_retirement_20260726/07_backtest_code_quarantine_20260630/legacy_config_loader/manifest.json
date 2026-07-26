@@ -1,0 +1,31 @@
+{
+  "quarantine": "C:\\GoogleDrive\\TP\\07_backtest_code\\_quarantine_20260630\\legacy_config_loader",
+  "created_at": "2026-06-30T22:30:59",
+  "purpose": "整理 07_backtest_code 中旧配置系统，保留可回滚记录；当前主线只使用 configs/default.yaml。",
+  "records": [
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\07_backtest_code\\config",
+      "quarantine_path": "C:\\GoogleDrive\\TP\\07_backtest_code\\_quarantine_20260630\\legacy_config_loader\\config",
+      "status": "moved",
+      "reason": "旧版 config/config.yaml；当前 CLI 主线使用 configs/default.yaml。"
+    },
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\07_backtest_code\\utils\\config.py",
+      "quarantine_path": "C:\\GoogleDrive\\TP\\07_backtest_code\\_quarantine_20260630\\legacy_config_loader\\utils_config.py",
+      "status": "moved",
+      "reason": "旧版全局配置加载器；主线未引用。"
+    },
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\07_backtest_code\\configs\\user1.yaml",
+      "quarantine_path": "C:\\GoogleDrive\\TP\\07_backtest_code\\_quarantine_20260630\\legacy_config_loader\\placeholder_profiles\\user1.yaml",
+      "status": "moved",
+      "reason": "旧 GUI/示例 profile 占位文件；生产默认只保留 default.yaml。"
+    },
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\07_backtest_code\\configs\\user2.yaml",
+      "quarantine_path": "C:\\GoogleDrive\\TP\\07_backtest_code\\_quarantine_20260630\\legacy_config_loader\\placeholder_profiles\\user2.yaml",
+      "status": "moved",
+      "reason": "旧 GUI/示例 profile 占位文件；生产默认只保留 default.yaml。"
+    }
+  ]
+}

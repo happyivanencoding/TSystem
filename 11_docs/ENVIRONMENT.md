@@ -51,21 +51,13 @@ $env:JUPYTER_PATH = 'C:\GoogleDrive\TP\.jupyter'
 
 ## 项目路径规则
 
-环境内的 `tp_project_paths.pth` 会把下列目录加入 Python 搜索路径：
+项目采用标准 `src/` package layout。创建环境后只需在仓库根目录执行：
 
-```text
-C:\GoogleDrive\TP
-C:\GoogleDrive\TP\01_tp_core
-C:\GoogleDrive\TP\02_pipelines
-C:\GoogleDrive\TP\03_technical_analysis
-C:\GoogleDrive\TP\03_ml_enhanced
-C:\GoogleDrive\TP\06_optimiser
-C:\GoogleDrive\TP\07_backtest_code
-C:\GoogleDrive\TP\07_backtest_code\src
-C:\GoogleDrive\TP\08_presentation_layer
+```powershell
+python -m pip install -e .
 ```
 
-因此新代码应优先使用标准导入，例如：
+不要再通过 `.pth`、`sitecustomize` 或业务代码修改 `sys.path`。新代码使用标准导入，例如：
 
 ```python
 from tp_core.io import read_screen_aggregate, read_returns
@@ -76,7 +68,7 @@ from tp_core.io import read_screen_aggregate, read_returns
 - `pandas`、`numpy`、`pyarrow`、`scipy`、`sklearn`、`xgboost`、`shap`、`numba`、`nbclient`、`ipykernel` 等由 Anaconda base 提供，当前通过 `.venv_tp` 可见。
 - `fastapi`、`uvicorn` 已安装在 `.venv_tp` 中，用于 `presentation_layer` 的统一公司分析 API 入口。
 - `xbbg` 已安装在 `.venv_tp` 中；导入可用，但真实 Bloomberg 数据拉取仍依赖本机 Bloomberg Terminal/API 会话。
-- `pandas_ta` 当前使用 `03_technical_analysis/pandas_ta.py` 的本地兼容层，覆盖现有 notebook 需要的指标。历史 tar 包因为缺少离线 build dependency `hatchling`，没有作为正式 pip 包安装。
+- 技术分析 Notebook 的额外依赖应安装到项目环境，不再通过工作区路径注入本地包。
 
 ## 验收记录
 
@@ -85,13 +77,13 @@ from tp_core.io import read_screen_aggregate, read_returns
 最新执行记录位于：
 
 ```text
-C:\GoogleDrive\TP\10_pipeline_runs\notebook_execution\20260630_065823\manifest.json
+C:\GoogleDrive\TP\artifacts\pipeline_runs\notebook_execution\20260630_065823\manifest.json
 ```
 
 后续若更新环境，应重新运行：
 
 ```powershell
-C:\GoogleDrive\TP\.venv_tp\Scripts\python.exe -m pytest 06_optimiser/test_optimizer.py 07_backtest_code/tests/test_security_nav_engine.py 08_presentation_layer/legacy_apps/web_app_des_companies/tests/test_region_bucket.py 08_presentation_layer/legacy_apps/web_app_des_companies/tests/test_filters.py 08_presentation_layer/legacy_apps/web_app_des_companies/tests/test_markdown_format.py
+C:\GoogleDrive\TP\.venv_tp\Scripts\python.exe -m pytest
 ```
 
 并至少执行一个 `tp-prod` kernel smoke notebook。
@@ -103,6 +95,3 @@ C:\GoogleDrive\TP\.venv_tp\Scripts\python.exe -m pytest 06_optimiser/test_optimi
 - 如果依赖很大且 Anaconda base 已有稳定版本，可以继续通过 `--system-site-packages` 复用，但必须在本文档说明。
 - 生产 notebook 的 kernel 应逐步切到 `tp-prod`，避免在不同 notebook 中混用环境。
 - 如果未来需要完全隔离环境，可以新建不带 `--system-site-packages` 的 `.venv_tp_strict`，但需要重新安装科学计算依赖，成本更高。
-
-
-

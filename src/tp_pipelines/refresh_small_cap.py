@@ -8,18 +8,20 @@ from typing import Iterable
 
 from tp_core.data_sources import SCREEN_AGGREGATE_PATH, TP_ROOT
 from tp_core.signals import validate_signal_frame
+from tp_core.workspace import SIGNALS_DIR
 from tp_models import small_cap
 
 from .common import StepManifest, path_profile
+from .configs import RefreshSmallCapConfig
 
 
 MODEL_SCRIPT = Path(small_cap.__file__)
 DEFAULT_CONFIG = TP_ROOT / "15_small_cap_model" / "config" / "eu_small_validated_qvm.json"
 DEFAULT_OUTPUT_DIR = TP_ROOT / "15_small_cap_model" / "outputs"
-DEFAULT_SIGNAL_OUTPUT = TP_ROOT / "04_signals" / "small_cap_model_signals.parquet"
+DEFAULT_SIGNAL_OUTPUT = SIGNALS_DIR / "small_cap_model_signals.parquet"
 
 
-def run_refresh_small_cap(args: argparse.Namespace) -> Path:
+def run_refresh_small_cap(args: RefreshSmallCapConfig) -> Path:
     manifest = StepManifest("refresh_small_cap", vars(args).copy())
     screen_path = Path(getattr(args, "screen", SCREEN_AGGREGATE_PATH))
     config_path = Path(getattr(args, "config", DEFAULT_CONFIG))
@@ -100,7 +102,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    manifest_path = run_refresh_small_cap(args)
+    manifest_path = run_refresh_small_cap(
+        RefreshSmallCapConfig.from_namespace(args)
+    )
     print(f"refresh_small_cap manifest: {manifest_path}")
     return 0
 

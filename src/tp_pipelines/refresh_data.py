@@ -19,6 +19,7 @@ from tp_core.data_sources import validate_data_sources
 from tp_core.returns_audit import audit_returns_file
 
 from .common import StepManifest, path_profile, timestamp
+from .configs import RefreshDataConfig
 
 
 RETURNS_AUDIT_DIR = TP_ROOT / "00_screen" / "qa" / "returns_anomaly_governance"
@@ -208,7 +209,7 @@ def _returns_index_max_date() -> str | None:
     return dates.max().date().isoformat() if len(dates) else None
 
 
-def run_refresh_data(args: argparse.Namespace) -> Path:
+def run_refresh_data(args: RefreshDataConfig) -> Path:
     parameters = vars(args).copy()
     manifest = StepManifest("refresh_data", parameters)
     manifest.inputs = {
@@ -355,7 +356,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    manifest_path = run_refresh_data(args)
+    manifest_path = run_refresh_data(RefreshDataConfig.from_namespace(args))
     print(f"refresh_data manifest: {manifest_path}")
     return 0
 

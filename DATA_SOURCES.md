@@ -110,7 +110,7 @@ from tp_core.data_contract import validate_screen_contract, validate_returns_con
 - `99_archive/frozen_20260629/回测第一版/`
 - `99_archive/frozen_20260629/ML/`
 - `99_archive/frozen_20260629/技术分析和深度学习__技术分析_V1/`
-- `06_optimiser/sec_list_generation.py`
+- `src/tp_portfolio/sec_list_generation.py`
 - 含历史硬编码路径的 notebook
 - `FINAL_IMPLEMENTATION_SUMMARY.md` 等历史实现记录
 

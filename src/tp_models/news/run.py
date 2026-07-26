@@ -300,7 +300,7 @@ def command_publish_report(args: argparse.Namespace) -> dict[str, object]:
         "- 当前回测只覆盖真实归档日，仍属于 `screening_walk_forward`，不可与完整现有模型 OOS 结果下最终结论。",
         "- 行业映射在旧 GDELT 1.0 时代很稀疏；必须依靠 2015+ GKG 组织字段和公开公司新闻补足后再评价。",
         "- 现有模型对齐文件已生成，但新闻单独 / 现有模型单独 / 组合的共同 OOS 增量矩阵仍待完整覆盖后正式运行。",
-        "- 研究通过前不写入 `04_signals`，也不进入组合或仪表盘。",
+        "- 研究通过前不写入 `artifacts/signals`，也不进入组合或仪表盘。",
         "- Bloomberg 只用于人工抽样验证，不执行批量抓取。",
         "",
         "## 关键产物",

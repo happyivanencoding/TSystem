@@ -37,17 +37,24 @@ class RetentionItem:
 RETENTION_RULES = (
     RetentionRule(
         "notebook-executions",
-        "10_pipeline_runs/notebook_execution",
+        "artifacts/pipeline_runs/notebook_execution",
         max_age_days=14,
         keep_newest=3,
         candidate_type="directories",
     ),
     RetentionRule(
         "pipeline-manifests",
-        "10_pipeline_runs/manifests/*",
+        "artifacts/pipeline_runs/manifests/*",
         max_age_days=365,
         keep_newest=50,
         candidate_type="files",
+    ),
+    RetentionRule(
+        "experiment-run-cards",
+        "artifacts/pipeline_runs/experiments/*",
+        max_age_days=730,
+        keep_newest=100,
+        candidate_type="directories",
     ),
     RetentionRule(
         "screen-backups",
@@ -68,6 +75,26 @@ RETENTION_RULES = (
         "16_news_market_signal/runs",
         max_age_days=90,
         keep_newest=10,
+    ),
+    RetentionRule(
+        "dashboard-check-outputs",
+        "artifacts/dashboard_work/system_checks/outputs",
+        max_age_days=30,
+        keep_newest=10,
+    ),
+    RetentionRule(
+        "dashboard-launch-records",
+        "artifacts/dashboard_work/launches",
+        max_age_days=30,
+        keep_newest=20,
+        candidate_type="files",
+    ),
+    RetentionRule(
+        "scratch-workspaces",
+        "artifacts/scratch/codex_tmp",
+        max_age_days=90,
+        keep_newest=30,
+        candidate_type="directories",
     ),
 )
 

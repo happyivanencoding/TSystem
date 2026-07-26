@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-06-29T18:30:36.7886956+02:00",
+  "project": "C:\\GoogleDrive\\TP\\技术分析和深度学习\\技术分析_V2",
+  "quarantine_dir": "C:\\GoogleDrive\\TP\\技术分析和深度学习\\技术分析_V2\\_quarantine_20260629\\legacy_data_copies",
+  "action": "move_noncanonical_screen_returns_parquet_copies",
+  "files": [
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\技术分析和深度学习\\技术分析_V2\\data\\screen_aggregate.parquet",
+      "quarantine_path": "C:\\GoogleDrive\\TP\\技术分析和深度学习\\技术分析_V2\\_quarantine_20260629\\legacy_data_copies\\data__screen_aggregate.parquet",
+      "length_bytes": 925742046,
+      "last_write_time": "2026-04-03T14:27:32.2403786+02:00",
+      "reason": "非 canonical 00_screen/returns 数据副本；生产应通过 tp_core.data_sources 读取 screen canonical parquet"
+    },
+    {
+      "original_path": "C:\\GoogleDrive\\TP\\技术分析和深度学习\\技术分析_V2\\data\\returns.parquet",
+      "quarantine_path": "C:\\GoogleDrive\\TP\\技术分析和深度学习\\技术分析_V2\\_quarantine_20260629\\legacy_data_copies\\data__returns.parquet",
+      "length_bytes": 281353501,
+      "last_write_time": "2026-04-02T16:36:01.7182454+02:00",
+      "reason": "非 canonical 00_screen/returns 数据副本；生产应通过 tp_core.data_sources 读取 screen canonical parquet"
+    }
+  ]
+}

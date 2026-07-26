@@ -1,7 +1,7 @@
 """Cross-market raw, relative and synergy research execution rules.
 
 This module is owned by the canonical :mod:`tp_research` package.  The old
-``backtest_code.research`` namespace remains only as a deprecation facade.
+Former ``backtest_code.research`` callers must import this public module.
 """
 
 from __future__ import annotations

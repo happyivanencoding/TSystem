@@ -35,7 +35,7 @@ tp-check-legacy-references
 
 ## 编号 Python 入口退役规则
 
-编号目录继续承载数据、配置、Notebook、前端、测试和输出边界，但不再作为规范 Python 实现位置。规范代码和命令来自已安装的 `src/` 包。
+编号目录只在确有数据、配置、Notebook、前端或模型专属资源时保留，不再作为规范 Python 实现或测试位置。规范代码和命令来自已安装的 `src/` 包。
 
 退役分三步：
 
@@ -43,4 +43,4 @@ tp-check-legacy-references
 2. P2：连续两个生产周期只使用公开包，并确认定时任务、Notebook 和控制塔没有调用旧脚本。
 3. P3：为待删除入口生成归档 manifest，然后删除兼容脚本；编号资源目录本身不因此删除。
 
-本阶段仍兼容旧入口，但新代码、文档和任务不得新增对它们的调用。
+2026-07-26 已完成首批退役：原 `01_tp_core/`、`02_pipelines/`、`06_optimiser/`、`src/backtest_code/` 以及各模型资源目录中的薄 Python wrapper 已移除。旧研究脚本与 quarantine 归档在 `99_archive/compatibility_retirement_20260726/`。新代码、文档和任务不得恢复对它们的调用。

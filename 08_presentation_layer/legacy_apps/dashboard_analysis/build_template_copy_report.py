@@ -11,10 +11,12 @@ import numpy as np
 import pandas as pd
 from openpyxl import load_workbook
 
+from tp_core.workspace import BACKTEST_RUNS_DIR
+
 ROOT = Path(__file__).resolve().parents[3]
 APP_ROOT = Path(__file__).resolve().parent
 TEMPLATE = APP_ROOT / "analyse.xlsx"
-RUN_DIR = ROOT / "07_backtest_code" / "runs" / "ad_hoc" / "min_te_score_ml_202505_140_160_20260701_120512"
+RUN_DIR = BACKTEST_RUNS_DIR / "ad_hoc" / "min_te_score_ml_202505_140_160_20260701_120512"
 SEC_LIST_PATH = RUN_DIR / "sec_list_min_te_score_ml_202505_140_160.parquet"
 OPT_RESULT_PATH = RUN_DIR / "optimizer_result_min_te_score_ml_202505_140_160.parquet"
 SUMMARY_PATH = RUN_DIR / "summary.json"

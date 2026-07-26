@@ -1,0 +1,17 @@
+{
+  "quarantine_date": "2026-06-29",
+  "reason": "隔离旧实验 notebook；其中包含写回 00_screen/returns 主库或项目内旧 screen 副本的单元，不作为生产入口。",
+  "canonical_inputs": [
+    "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate.parquet",
+    "C:\\GoogleDrive\\TP\\00_screen\\returns.parquet"
+  ],
+  "items": [
+    {
+      "source": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\test_bench.ipynb",
+      "destination": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\_quarantine_20260629\\legacy_notebooks\\test_bench.ipynb",
+      "size_bytes": 26246883,
+      "last_write_time": "2025-12-09T16:42:40",
+      "action": "move"
+    }
+  ]
+}

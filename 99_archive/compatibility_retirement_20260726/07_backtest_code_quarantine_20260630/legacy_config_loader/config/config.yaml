@@ -1,0 +1,48 @@
+# Backtest System Configuration
+
+# Data paths
+data:
+  screen_path: "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate.parquet"
+  returns_path: "C:\\GoogleDrive\\TP\\00_screen\\returns.parquet"
+  blacklist_path: null  # Optional path to blacklist Excel file
+
+# Default parameters
+portfolio:
+  percentile: 0.25
+  ponderation: "Racine cube"  # Options: "Racine cube", "Racine carrée", "Market cap", "Log", "Equalweight"
+  score_neutral: "ICB 19"  # Options: "ICB 11", "ICB 19"
+  weight_neutral: "ICB 19"  # Options: "ICB 11", "ICB 19"
+  esg_exclusion: 0.0
+  cut_mkt_cap: 0
+  top: true
+  top_mandatory: null
+  cap_weight_threshold: null
+  max_weight: 1.0
+
+# Sector recommendations (19 sectors)
+sector_reco:
+  default: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+# Factor recommendations (5 factors: Growth, Low Vol, Momentum, Quality, Value)
+factor_reco:
+  default: [0, 0, 0, 0, 0]
+
+# Backtest parameters
+backtest:
+  risk_free_rate: 0.0
+  periods_per_year: 252  # 252 for daily, 12 for monthly
+  sector_neutral: false
+  
+# Output settings
+output:
+  mode_monthly_prod: false
+  output_dir: null
+  save_plots: true
+  plot_format: "html"  # Options: "html", "png", "both"
+
+# Performance settings
+performance:
+  use_multiprocessing: false
+  cache_intermediate_results: true
+  log_level: "INFO"  # Options: "DEBUG", "INFO", "WARNING", "ERROR"
+

@@ -20,7 +20,6 @@
 | 路径 | 说明 |
 | --- | --- |
 | `src/tp_models/ml/` | 规范 ML 生产实现 |
-| `Config/` | 分区域配置 |
 | `Input_files/` | 项目派生输入；不存放 canonical screen/returns 副本 |
 | `Output_files/` | 模型输出和中间结果 |
 | `Portfolio_BT/` | 组合回测相关产物 |
@@ -38,7 +37,7 @@ python -m tp_models.ml.cli inspect
 python -m tp_models.ml.cli export-signals
 ```
 
-默认输出 `C:\GoogleDrive\TP\04_signals\ml_signals.parquet`。导出命令读取 canonical `screen_aggregate.parquet` 中最新有 `Score ML` 覆盖的日期，并导出 `signal_family=ML`、`signal_name=score_ml` 的标准信号表。
+默认输出 `C:\GoogleDrive\TP\artifacts/signals\ml_signals.parquet`。导出命令读取 canonical `screen_aggregate.parquet` 中最新有 `Score ML` 覆盖的日期，并导出 `signal_family=ML`、`signal_name=score_ml` 的标准信号表。
 
 缺失月份的 Score ML 生产会写回 canonical screen，必须显式执行：
 

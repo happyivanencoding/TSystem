@@ -15,6 +15,7 @@ from tp_core.data_sources import RETURNS_PATH, SCREEN_AGGREGATE_PATH, TP_ROOT
 from tp_models.technical import Main as technical_main
 
 from .common import StepManifest, path_profile
+from .configs import RefreshTechnicalConfig
 
 
 TECHNICAL_DIR = TP_ROOT / "03_technical_analysis"
@@ -127,7 +128,7 @@ def _pattern_details(path: Path, *, returns_path: Path, anchor_date: pd.Timestam
     }
 
 
-def run_refresh_technical(args: argparse.Namespace) -> Path:
+def run_refresh_technical(args: RefreshTechnicalConfig) -> Path:
     manifest = StepManifest("refresh_technical", vars(args).copy())
     output = Path(args.output)
     max_lag_days = int(args.max_lag_days)
@@ -195,7 +196,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    manifest_path = run_refresh_technical(args)
+    manifest_path = run_refresh_technical(
+        RefreshTechnicalConfig.from_namespace(args)
+    )
     print(f"refresh_technical manifest: {manifest_path}")
     return 0
 

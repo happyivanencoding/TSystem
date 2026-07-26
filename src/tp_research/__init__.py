@@ -13,6 +13,7 @@ from .executor import (
     shard_metric_names,
     shard_result_path,
 )
+from .runtime import recorded_workflow
 
 __all__ = [
     "GateThresholds",
@@ -26,4 +27,5 @@ __all__ = [
     "read_official_results",
     "shard_metric_names",
     "shard_result_path",
+    "recorded_workflow",
 ]

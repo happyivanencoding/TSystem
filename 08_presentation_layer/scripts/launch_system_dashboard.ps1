@@ -10,7 +10,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $pythonPath = Join-Path $repoRoot ".venv_tp\Scripts\python.exe"
 $dashboardUrl = "http://127.0.0.1:$Port/"
 $healthUrl = $dashboardUrl
-$logDir = Join-Path $repoRoot ".tmp_dashboard_work\launcher"
+$logDir = Join-Path $repoRoot "artifacts\dashboard_work\launcher"
 $stdoutLog = Join-Path $logDir "system_dashboard.stdout.log"
 $stderrLog = Join-Path $logDir "system_dashboard.stderr.log"
 

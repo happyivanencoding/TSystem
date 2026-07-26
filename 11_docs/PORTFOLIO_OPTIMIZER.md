@@ -23,7 +23,7 @@ result = optimize_portfolio(
 
 物理入口为 `src/tp_portfolio/`。`tp_pipelines` 和
 `SecurityListConstructor` 都必须调用该函数，不得调用求解器内部函数。
-`01_tp_core/optimisation.py`、`optimizer_engine.py`、`optimiser` package
+`src/tp_core/optimisation.py`、`optimizer_engine.py`、`optimiser` package
 shim 和旧 `FRAIS.py` 已从活动代码删除。
 
 ## 目标函数

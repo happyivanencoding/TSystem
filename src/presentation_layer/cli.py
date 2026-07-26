@@ -83,8 +83,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "system-worker":
         from presentation_layer.apps import system_jobs
         from tp_core.data_sources import TP_ROOT
+        from tp_core.workspace import DASHBOARD_WORK_DIR
 
-        launch_dir = Path(args.launch_dir) if args.launch_dir else TP_ROOT / ".tmp_dashboard_work" / "launches"
+        launch_dir = Path(args.launch_dir) if args.launch_dir else DASHBOARD_WORK_DIR / "launches"
         processed = system_jobs.run_worker(
             launch_dir,
             TP_ROOT,

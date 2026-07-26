@@ -6,15 +6,15 @@ from pathlib import Path
 
 import yaml
 
-from backtest_code.config.settings import AppSettings
-from backtest_code.runner.service import BacktestService
+from tp_backtest.config.settings import AppSettings
+from tp_backtest.runner.service import BacktestService
 
 
 def test_failed_backtest_writes_linked_failed_run_card(tmp_path, monkeypatch) -> None:
     run_dir = tmp_path / "backtest-run"
     run_dir.mkdir()
     monkeypatch.setattr(
-        "backtest_code.runner.service.create_run_directory",
+        "tp_backtest.runner.service.create_run_directory",
         lambda _user, _label: run_dir,
     )
     settings = AppSettings()

@@ -46,7 +46,7 @@ python -m tp_models.sector.qualitative_report --month auto --active-only
 ```powershell
 python -m tp_models.sector.qualitative_report `
   --month auto `
-  --evidence-jsonl .codex_tmp/sector_qualitative_evidence.jsonl `
+  --evidence-jsonl artifacts/scratch/codex_tmp/sector_qualitative_evidence.jsonl `
   --write-vault `
   --overwrite-vault
 ```

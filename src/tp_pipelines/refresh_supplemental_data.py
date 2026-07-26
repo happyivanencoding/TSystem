@@ -7,7 +7,6 @@ import hashlib
 import json
 import os
 import re
-from argparse import Namespace
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -23,7 +22,6 @@ from tp_core.data_sources import (
     SUPPLEMENTAL_QA_DIR,
     SUPPLEMENTAL_RAW_DIR,
     SUPPLEMENTAL_RESOLVED_DIR,
-    TP_ROOT,
 )
 from tp_core.supplemental_data import (
     FAMILY_REQUIRED_COLUMNS,
@@ -46,14 +44,16 @@ from tp_core.supplemental_providers import (
     SecCompanyFactsProvider,
     WorldBankProvider,
 )
+from tp_core.workspace import CANDIDATES_DIR, PORTFOLIOS_DIR
 
 from .common import StepManifest, atomic_write_json, path_profile
+from .configs import RefreshSupplementalConfig
 
 
 DEFAULT_CONFIG = Path(__file__).with_name("supplemental_sources.json")
 DEFAULT_SECURITY_MAP = SUPPLEMENTAL_DIR / "identifiers" / "security_identifiers.csv"
-DEFAULT_CANDIDATES = TP_ROOT / "05_candidates" / "latest_candidates.parquet"
-DEFAULT_HOLDINGS = TP_ROOT / "06_portfolios" / "latest_target_weights.parquet"
+DEFAULT_CANDIDATES = CANDIDATES_DIR / "latest_candidates.parquet"
+DEFAULT_HOLDINGS = PORTFOLIOS_DIR / "latest_target_weights.parquet"
 SOURCE_CHOICES = (
     "fred",
     "ecb",
@@ -698,7 +698,7 @@ def _inspect_existing() -> dict[str, Any]:
     }
 
 
-def run_refresh_supplemental_data(args: argparse.Namespace) -> Path:
+def run_refresh_supplemental_data(args: RefreshSupplementalConfig) -> Path:
     parameters = vars(args).copy()
     manifest = StepManifest("refresh_supplemental_data", parameters)
     config_path = Path(getattr(args, "config", DEFAULT_CONFIG))
@@ -863,7 +863,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Iterable[str] | None = None) -> int:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    manifest_path = run_refresh_supplemental_data(args)
+    manifest_path = run_refresh_supplemental_data(
+        RefreshSupplementalConfig.from_namespace(args)
+    )
     print(f"refresh_supplemental_data manifest: {manifest_path}")
     return 0
 

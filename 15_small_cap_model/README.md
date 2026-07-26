@@ -7,7 +7,7 @@ production-refreshable model.
 
 - Universe: `Weight in MSCI EUR SMALL > 0`
 - Source data: `00_screen/screen_aggregate.parquet`
-- Canonical signal: `04_signals/small_cap_model_signals.parquet`
+- Canonical signal: `artifacts/signals/small_cap_model_signals.parquet`
 - Model output directory: `15_small_cap_model/outputs`
 - Pipeline step: `python -m tp_pipelines.refresh_small_cap`
 

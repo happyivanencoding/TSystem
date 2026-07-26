@@ -50,7 +50,7 @@ python -m tp_pipelines.refresh_data --input-month YYYYMM --update-mode both
 python -m tp_data.monthly_update --input-month YYYYMM --update-mode both
 ```
 
-5. 检查 QA JSON、`10_pipeline_runs/manifests/refresh_data/refresh_data_latest.json`、`*_latest.md` 摘要和最新数据概况。
+5. 检查 QA JSON、`artifacts/pipeline_runs/manifests/refresh_data/refresh_data_latest.json`、`*_latest.md` 摘要和最新数据概况。
 
 ## 幂等规则
 
@@ -82,9 +82,9 @@ python -m tp_data.monthly_update --input-month YYYYMM --update-mode both
 | 输入清单 | `00_screen/production_inputs/manifests/input_inventory_latest.json` | 最新输入识别和归档记录 |
 | 数据概况 | `00_screen/production_inputs/profiles/latest_database_profile_latest.json` | canonical 数据集概况 |
 | 人类可读最新结论 | `00_screen/production_inputs/manifests/*_latest.md` | 只维护 latest，不再创建时间戳 Markdown |
-| 流水线 manifest | `10_pipeline_runs/manifests/<step>/*_latest.json` | 数据刷新、信号、候选池、组合、回测、报告的统一运行证据 |
+| 流水线 manifest | `artifacts/pipeline_runs/manifests/<step>/*_latest.json` | 数据刷新、信号、候选池、组合、回测、报告的统一运行证据 |
 
-历史产物的保留期限和安全清理命令见 [`../10_pipeline_runs/README.md`](../10_pipeline_runs/README.md)。清理必须先运行默认 dry-run，确认清单后再显式传入 `--apply`。
+历史产物的保留期限和安全清理命令见 [`../artifacts/pipeline_runs/README.md`](../artifacts/pipeline_runs/README.md)。清理必须先运行默认 dry-run，确认清单后再显式传入 `--apply`。
 
 ## 不允许作为生产源的数据
 

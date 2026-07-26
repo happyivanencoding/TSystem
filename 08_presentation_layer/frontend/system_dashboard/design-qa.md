@@ -1,8 +1,8 @@
 # Sector Rotation Map Design QA
 
 - Source visual truth: `C:\Users\jingx\AppData\Local\Temp\codex-clipboard-830c5411-7eb3-4053-a9cb-6d63fdda6e10.png`
-- Implementation screenshot: `C:\GoogleDrive\TP\.tmp_dashboard_work\design_qa\sector-rotation-final-focused.png`
-- Side-by-side comparison: `C:\GoogleDrive\TP\.tmp_dashboard_work\design_qa\sector-rotation-side-by-side.png`
+- Implementation screenshot: `C:\GoogleDrive\TP\artifacts/dashboard_work\design_qa\sector-rotation-final-focused.png`
+- Side-by-side comparison: `C:\GoogleDrive\TP\artifacts/dashboard_work\design_qa\sector-rotation-side-by-side.png`
 - Viewport: 1440 × 1000 CSS px; browser capture 1425 × 990 px after scrollbar/chrome exclusion
 - Source pixels: 753 × 557
 - Focused implementation pixels: 1069 × 778

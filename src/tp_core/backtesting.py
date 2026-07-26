@@ -17,44 +17,44 @@ from .security_nav_engine import (
 )
 
 _LAZY_EXPORTS = {
-    "AttributionAnalysis": ("backtest_code.core.attribution", "AttributionAnalysis"),
-    "FactorAnalyzer": ("backtest_code.core.factor_analysis", "FactorAnalyzer"),
-    "FinancialFilter": ("backtest_code.core.financial_filter", "FinancialFilter"),
-    "PerformanceMetrics": ("backtest_code.core.metrics", "PerformanceMetrics"),
+    "AttributionAnalysis": ("tp_backtest.core.attribution", "AttributionAnalysis"),
+    "FactorAnalyzer": ("tp_backtest.core.factor_analysis", "FactorAnalyzer"),
+    "FinancialFilter": ("tp_backtest.core.financial_filter", "FinancialFilter"),
+    "PerformanceMetrics": ("tp_backtest.core.metrics", "PerformanceMetrics"),
     "OptimizerBacktestAdapter": (
-        "backtest_code.core.optimizer_backtest_adapter",
+        "tp_backtest.core.optimizer_backtest_adapter",
         "OptimizerBacktestAdapter",
     ),
     "OfficialPortfolioBacktest": (
-        "backtest_code.core.official_portfolio_backtest",
+        "tp_backtest.core.official_portfolio_backtest",
         "OfficialPortfolioBacktest",
     ),
     "SecurityListConstructor": (
-        "backtest_code.core.security_list_constructor",
+        "tp_backtest.core.security_list_constructor",
         "SecurityListConstructor",
     ),
     "benchmark_reference_list": (
-        "backtest_code.core.weight_table_adapter",
+        "tp_backtest.core.weight_table_adapter",
         "benchmark_reference_list",
     ),
     "benchmark_to_weight_table": (
-        "backtest_code.core.weight_table_adapter",
+        "tp_backtest.core.weight_table_adapter",
         "benchmark_to_weight_table",
     ),
     "optimizer_result_to_weight_table": (
-        "backtest_code.core.weight_table_adapter",
+        "tp_backtest.core.weight_table_adapter",
         "optimizer_result_to_weight_table",
     ),
     "plot_tracking_error": (
-        "backtest_code.core.weight_table_adapter",
+        "tp_backtest.core.weight_table_adapter",
         "plot_tracking_error",
     ),
     "rolling_tracking_error": (
-        "backtest_code.core.weight_table_adapter",
+        "tp_backtest.core.weight_table_adapter",
         "rolling_tracking_error",
     ),
     "security_list_to_weight_table": (
-        "backtest_code.core.weight_table_adapter",
+        "tp_backtest.core.weight_table_adapter",
         "security_list_to_weight_table",
     ),
 }

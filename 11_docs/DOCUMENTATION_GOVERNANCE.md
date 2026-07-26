@@ -35,7 +35,7 @@
 | 单项目说明 | 项目自己的 `README.md` | `08_presentation_layer/README.md` |
 | 项目内部多文档 | 项目内 `说明文档/` 或 `docs/` | `00_screen/说明文档/` |
 | 历史审计/旧计划 | `11_docs/archive/` 或 `99_archive/` | 根目录旧 cartographie、旧月更审计 |
-| 机器运行证据 | `10_pipeline_runs/`、`qa/`、`manifests/` | JSON/CSV/Parquet 优先，固定 `*_latest.md` 可作为摘要 |
+| 机器运行证据 | `artifacts/pipeline_runs/`、`qa/`、`manifests/` | JSON/CSV/Parquet 优先，固定 `*_latest.md` 可作为摘要 |
 
 ## `_context` 接手层规则
 
@@ -56,7 +56,7 @@
 1. 面向使用者的描述性文档统一使用中文。
 2. 不再创建 `xxx_YYYYMMDD_HHMMSS.md` 这类一次性 Markdown。
 3. 最新审计结论如需 Markdown 摘要，使用固定文件名，例如 `*_latest.md`，并放在项目 `manifests/` 或 `qa/` 下，不放根目录。
-4. 每次运行的详细证据使用 JSON/CSV/Parquet，放在 `qa/`、`manifests/`、`10_pipeline_runs/` 或项目自己的 `output/`。
+4. 每次运行的详细证据使用 JSON/CSV/Parquet，放在 `qa/`、`manifests/`、`artifacts/pipeline_runs/` 或项目自己的 `output/`。
 5. 历史文档可以保留，但必须进入 archive，并在中枢文档中标明“历史审计/历史实现记录/冻结参考”。
 6. 新项目必须有最小 `README.md`：项目用途、运行入口、数据来源、输出位置、维护状态。
 7. 新文档优先更新已有权威文档；只有出现新的长期职责边界时，才新增 Markdown 文件。
@@ -163,7 +163,7 @@ review 后先把小问题记录到 `_context/skill_review.md`。如果需要真�
 
 ## 当前根目录整理状态
 
-- 根目录保留：`README.md`、`DATA_SOURCES.md`、`DATA_CONTRACT.md`、`pyproject.toml`、`environment.yml`、`sitecustomize.py`。
+- 根目录保留：`README.md`、`DATA_SOURCES.md`、`DATA_CONTRACT.md`、`pyproject.toml`、`environment.yml`；禁止恢复 `sitecustomize.py` 或其他隐式 path 注入。
 - 已归档到 `11_docs/archive/`：`DOCUMENTATION_UPDATE_PLAN.md`、`TP_Projet_Cartographie.md`、`screen_monthly_update_audit.md`。
 - 2026-07-05 已归档根目录 planning 文件、`12_small_cap/cols.md`、旧 ML GUI 规格文档；manifest 见 `11_docs/archive/documentation_cleanup_20260705/manifest.json`。
 - 2026-07-05 已将外部参考模板库 `08_company_analysis/Inspiration_Claude` 归档到 `99_archive/external_references_20260705/`。

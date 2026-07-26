@@ -16,16 +16,16 @@
 7. 对组合进行模拟、回测、归因和压力测试。
 8. 生成 dashboard、PDF/HTML 报告和最终投资建议材料。
 
-核心原则：`00_screen/` 与 `01_tp_core/` 是底座；其他项目都应围绕同一套 canonical 数据和同一条生产主线组织。
+核心原则：`00_screen/` 与 `src/tp_core/` 是底座；其他项目都应围绕同一套 canonical 数据和同一条生产主线组织。
 
 ## 2. 当前项目角色判断
 
 | 层级 | 当前目录 | 建议角色 | 判断 |
 | --- | --- | --- | --- |
 | 数据底座 | `00_screen/` | canonical 数据生产层 | 保留并继续强化，是所有下游唯一数据源 |
-| 共享库 | `01_tp_core/` | 数据路径、契约、IO、回测/优化共享逻辑 | 保留并扩展，应吸收重复工具函数 |
+| 共享库 | `src/tp_core/` | 数据路径、契约、IO、回测/优化共享逻辑 | 保留并扩展，应吸收重复工具函数 |
 | 文档中枢 | `11_docs/` | 全局架构、数据规则、研究方法、治理 | 保留 |
-| 回测主线 | `07_backtest_code/` | 传统代码版回测引擎、YAML 配置、批量运行和产物保存 | 保留为主线，不再维护独立 Web/GUI 前端 |
+| 回测主线 | `src/tp_backtest/` | 传统代码版回测引擎、YAML 配置、批量运行和产物保存 | 保留为主线，不再维护独立 Web/GUI 前端 |
 | 回测 Web/GUI 旧入口 | `99_archive/project_cleanup_20260707/99_backtest_web_app_legacy/`、`99_archive/project_cleanup_20260707/99_backtest_gui_legacy/` | 原 Streamlit/FastAPI/PySide6 入口和重复核心 | 已归档，只保留历史参考 |
 | ML 主线 | `03_ml_enhanced/` | 当前主要 ML 信号生产候选 | 保留为主线，清理内部数据副本 |
 | Regime | `03_regime_model/` | 市场状态、风险预算、配置建议 | 保留并接入信号层 |
@@ -33,10 +33,10 @@
 | 公司展示 | `08_presentation_layer/legacy_apps/web_app_des_companies/` | 公司/行业/指数成分展示 | 已并入展示/报告层 |
 | 公司分析 | `08_presentation_layer/legacy_apps/company_analysis/` | 公司研究、估值、模板 | 已并入展示/报告层；保留业务价值 |
 | 报告脚本 | `08_presentation_layer/legacy_apps/dashboard_analysis/` | PDF/报告生成和组合分析脚本 | 已并入展示/报告层，不单独做数据源 |
-| 组合优化 | `06_optimiser/` | Python 优化器候选 | 保留核心算法，合并 Excel/旧版 |
+| 组合优化 | `src/tp_portfolio/` | Python 优化器候选 | 保留核心算法，合并 Excel/旧版 |
 | 组合优化旧版 | `99_archive/project_cleanup_20260707/99_optimiseur_legacy/` | notebook/xlsm 旧界面 | 已归档，不做主线代码 |
 | 旧 FactSet/Excel | `99_archive/frozen_20260629/factsetProd第一版/` | 历史生产链路参考 | 已冻结，不作为当前入口 |
-| 旧回测 | `99_archive/frozen_20260629/backtest/`、`99_archive/frozen_20260629/回测第一版/` | 历史回测实现 | 已冻结；当前主线为 `07_backtest_code/` |
+| 旧回测 | `99_archive/frozen_20260629/backtest/`、`99_archive/frozen_20260629/回测第一版/` | 历史回测实现 | 已冻结；当前主线为 `src/tp_backtest/` |
 | 旧 ML | `99_archive/frozen_20260629/ML/`、`99_archive/frozen_20260629/ML第一版/` | 历史 ML 实现 | 已冻结，保留可追溯，不再作为生产 |
 | 周期研究 | `99_archive/frozen_20260629/cyc/` | 周期/宏观早期研究 | 已冻结；有价值逻辑后续并入 `03_regime_model` |
 | 小盘研究 | `99_archive/project_cleanup_20260707/12_small_cap/` | 小盘 universe/研究片段 | 已归档；后续如恢复，应并入候选池规则或正式研究文档 |
@@ -79,10 +79,10 @@
 
 | 目录 | 问题 | 建议 |
 | --- | --- | --- |
-| `06_optimiser/` | Python 版组合优化主线 | 唯一入口为 `optimizer.py::optimize_portfolio()`，旧入口已删除 |
+| `src/tp_portfolio/` | Python 版组合优化主线 | 唯一入口为 `optimizer.py::optimize_portfolio()`，旧入口已删除 |
 | `99_archive/project_cleanup_20260707/99_optimiseur_legacy/` | notebook + xlsm 版本 | 已归档，不作为生产 |
 | `factsetProd第一版/func_optim_MAI.py` 与 `回测第一版/func_optim_MAI.py` | 内容完全重复 | 归档，不再维护两份 |
-| `06_optimiser/sec_list_generation.py` 与 `回测第一版/sec_list_generation.py` | 内容完全重复 | 旧文件已归档；生产优化器入口为 `06_optimiser/optimizer.py` |
+| `src/tp_portfolio/sec_list_generation.py` 与 `回测第一版/sec_list_generation.py` | 内容完全重复 | 旧文件已归档；生产优化器入口为 `src/tp_portfolio/optimizer.py` |
 
 ### 3.5 展示和报告重复
 
@@ -117,7 +117,7 @@ TP/
 └── archive/                        # 冻结旧版本：ML、ML第一版、回测第一版、factsetProd第一版 等
 ```
 
-如果暂时不想大规模改目录，至少要在现有结构中执行同样的职责边界：生产只读 `00_screen/`，共享逻辑只进 `01_tp_core/`，旧版本不再被新代码引用。
+如果暂时不想大规模改目录，至少要在现有结构中执行同样的职责边界：生产只读 `00_screen/`，共享逻辑只进 `src/tp_core/`，旧版本不再被新代码引用。
 
 ## 5. 投资理财主线流水线
 
@@ -138,7 +138,7 @@ flowchart LR
 
 ### 5.1 数据层
 
-主责目录：`00_screen/`、`01_tp_core/`。
+主责目录：`00_screen/`、`src/tp_core/`。
 
 产物：
 
@@ -187,7 +187,7 @@ flowchart LR
 
 ### 5.5 组合优化层
 
-主责已经收敛到 `06_optimiser/optimizer.py::optimize_portfolio()`；旧
+主责已经收敛到 `src/tp_portfolio/optimizer.py::optimize_portfolio()`；旧
 Excel/notebook 优化器保留在 archive 作为历史证据，活动 Python 入口、
 package shim 和重复求解语义已删除。详细契约见
 [`PORTFOLIO_OPTIMIZER.md`](PORTFOLIO_OPTIMIZER.md)。
@@ -200,7 +200,7 @@ package shim 和重复求解语义已删除。详细契约见
 
 ### 5.6 回测与归因层
 
-主责目录：`07_backtest_code/` + `tp_core.backtesting`。统一回测引擎细节见 [`BACKTEST_ENGINE.md`](BACKTEST_ENGINE.md)。
+主责目录：`src/tp_backtest/` + `tp_core.backtesting`。统一回测引擎细节见 [`BACKTEST_ENGINE.md`](BACKTEST_ENGINE.md)。
 
 目标能力：
 
@@ -234,8 +234,8 @@ package shim 和重复求解语义已删除。详细契约见
 1. 旧目录已冻结到 `99_archive/frozen_20260629/`：`ML/`、`ML第一版/`、`回测第一版/`、`factsetProd第一版/`、`技术分析_V1/`。
 2. 已建立冻结目录引用规则：`11_docs/LEGACY_POLICY.md` 和 `python -m tp_core.legacy_policy`。
 3. `03_ml_enhanced/Input_files/` 和 `03_technical_analysis/data/` 中的 00_screen/returns 副本已隔离；旧 ML `.pkl`、旧 EM 参考 notebook 和项目派生快照后续按 manifest 再处理。
-4. 回测主线已切到 `07_backtest_code/`；Web/API/GUI 前端入口与旧项目重复核心已隔离，`tp_core.backtesting` 暴露核心类。
-5. 已建立统一信号表 schema：`tp_core.signals`、`11_docs/SIGNAL_SCHEMA.md`、`04_signals/` 输出目录。
+4. 回测主线已切到 `src/tp_backtest/`；Web/API/GUI 前端入口与旧项目重复核心已隔离，`tp_core.backtesting` 暴露核心类。
+5. 已建立统一信号表 schema：`tp_core.signals`、`11_docs/SIGNAL_SCHEMA.md`、`artifacts/signals/` 输出目录。
 6. 已建立编号索引并在 2026-07-07 并入 `11_docs/PROJECTS.md`，历史目录归档到 `99_archive/project_cleanup_20260707/00_项目主线索引/`。
 7. 已完成 notebook 清理第一轮：根目录测试 notebook、早期 `backtest/`、早期 `cyc/`、旧深度学习 pipeline 已归档或冻结。
 
@@ -243,16 +243,16 @@ package shim 和重复求解语义已删除。详细契约见
 
 状态：已完成入口层收敛，模型内部生产化仍需继续。
 
-1. ML 主线已固定 `python -m tp_models.ml.cli export-signals`，输出 `04_signals/ml_signals.parquet`；缺失月份 Score ML 可通过 `python -m tp_pipelines.refresh_ml` 显式生产，notebook 训练/监控研究流程后续再拆。
-2. `regime_model` 已固定 `export_risk_budget.py`，输出 `04_signals/regime_risk_budget.parquet`。
-3. `03_technical_analysis` 已固定 `export_technical_signals.py`，输出 `04_signals/technical_signals.parquet`；主回测逻辑收敛到 `backtest_code`。
-4. `06_optimiser/optimizer.py::optimize_portfolio()` 是唯一 Python
+1. ML 主线已固定 `python -m tp_models.ml.cli export-signals`，输出 `artifacts/signals/ml_signals.parquet`；缺失月份 Score ML 可通过 `python -m tp_pipelines.refresh_ml` 显式生产，notebook 训练/监控研究流程后续再拆。
+2. `regime_model` 已固定 `export_risk_budget.py`，输出 `artifacts/signals/regime_risk_budget.parquet`。
+3. `03_technical_analysis` 已固定 `export_technical_signals.py`，输出 `artifacts/signals/technical_signals.parquet`；主回测逻辑收敛到 `backtest_code`。
+4. `src/tp_portfolio/optimizer.py::optimize_portfolio()` 是唯一 Python
    优化器标准；archive 中 notebook/xlsm 只留历史说明。
 5. 已建立 `08_presentation_layer/` 共享数据 repository，并承载 `web_app_des_companies`、`Company_Analysis`、`dashboard_analysis` 的内部实现。
 
 ### P2：形成一键生产链路
 
-状态：已建立第一版薄编排层。每个步骤都能单独运行、重跑和调试；标准产物使用固定 latest 路径覆盖写入，运行证据进入 `10_pipeline_runs/manifests/<step>/`。
+状态：已建立第一版薄编排层。每个步骤都能单独运行、重跑和调试；标准产物使用固定 latest 路径覆盖写入，运行证据进入 `artifacts/pipeline_runs/manifests/<step>/`。
 
 ```powershell
 python -m tp_pipelines.refresh_data --input-month YYYYMM --update-mode both
@@ -268,11 +268,11 @@ python -m tp_pipelines.run_all --input-month YYYYMM --as-of YYYY-MM-DD
 
 | 产物 | 路径 | 说明 |
 | --- | --- | --- |
-| 信号表 | `04_signals/*.parquet` | ML、Technical、Regime 统一 schema |
-| 候选池 | `05_candidates/latest_candidates.parquet` | 由信号表生成的入选公司名单 |
-| 目标权重 | `06_portfolios/latest_target_weights.parquet` | baseline 组合权重 |
-| 流水线报告 | `09_reports/latest_pipeline_report.md` | 最新运行状态摘要 |
-| 运行证据 | `10_pipeline_runs/manifests/` | 每步 latest 和时间戳 JSON manifest |
+| 信号表 | `artifacts/signals/*.parquet` | ML、Technical、Regime 统一 schema |
+| 候选池 | `artifacts/candidates/latest_candidates.parquet` | 由信号表生成的入选公司名单 |
+| 目标权重 | `artifacts/portfolios/latest_target_weights.parquet` | baseline 组合权重 |
+| 流水线报告 | `artifacts/reports/latest_pipeline_report.md` | 最新运行状态摘要 |
+| 运行证据 | `artifacts/pipeline_runs/manifests/` | 每步 latest 和时间戳 JSON manifest |
 
 ## 7. 建议的归档优先级
 
@@ -287,7 +287,7 @@ python -m tp_pipelines.run_all --input-month YYYYMM --as-of YYYY-MM-DD
 | 中 | `ML/`、`ML第一版/` | 已冻结到 `99_archive/frozen_20260629/` |
 | 中 | `回测第一版/`、`factsetProd第一版/` | 已冻结到 `99_archive/frozen_20260629/` |
 | 已处理 | `08_company_analysis/`、`08_dashboard_analysis/`、`08_web_app_des_companies/` 根目录并行展示项目 | 已迁入 `08_presentation_layer/legacy_apps/`，根目录不再保留三套展示/报告入口 |
-| 已处理 | `06_optimiser/sec_list_generation.py` 与旧回测重复文件 | 旧文件已归档；现役入口为 `06_optimiser/optimizer.py` |
+| 已处理 | `src/tp_portfolio/sec_list_generation.py` 与旧回测重复文件 | 旧文件已归档；现役入口为 `src/tp_portfolio/optimizer.py` |
 | 已处理 | `12_small_cap/`、`99_optimiseur_legacy/`、`99_backtest_gui_legacy/` | 已归档到 `99_archive/project_cleanup_20260707/` |
 | 已完成 | `99_archive/frozen_20260629/cyc/` | 早期周期研究已冻结；有价值逻辑后续并入 `03_regime_model` |
 

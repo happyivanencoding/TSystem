@@ -11,10 +11,10 @@ from typing import Mapping, Sequence
 import numpy as np
 import pandas as pd
 
-from tp_core.data_sources import TP_ROOT
+from tp_core.workspace import BACKTEST_RUNS_DIR, REPORTS_DIR
 
-RUN_ROOT = TP_ROOT / "07_backtest_code" / "runs" / "ad_hoc"
-DEFAULT_OUTPUT = TP_ROOT / "09_reports" / "factor-research-app.html"
+RUN_ROOT = BACKTEST_RUNS_DIR / "ad_hoc"
+DEFAULT_OUTPUT = REPORTS_DIR / "factor-research-app.html"
 
 
 MARKETS = {

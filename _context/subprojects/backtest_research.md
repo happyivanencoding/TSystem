@@ -6,7 +6,7 @@ TP 因子研究、候选信号筛选、正式回测、中文研究报告和 Plot
 
 ## 关键入口
 
-- 回测目录：`07_backtest_code/`
+- 回测目录：`src/tp_backtest/`
 - 正式文档：[`../../11_docs/BACKTEST_ENGINE.md`](../../11_docs/BACKTEST_ENGINE.md)
 - 研究方法：[`../../11_docs/RESEARCH_METHODS.md`](../../11_docs/RESEARCH_METHODS.md)
 

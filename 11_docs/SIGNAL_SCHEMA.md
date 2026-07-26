@@ -37,14 +37,14 @@
 
 | 来源 | 默认输出 | 粒度 |
 | --- | --- | --- |
-| `python -m tp_models.ml.cli export-signals` | `04_signals/ml_signals.parquet` | security |
-| `03_technical_analysis/export_technical_signals.py` | `04_signals/technical_signals.parquet` | security |
-| `03_regime_model/export_risk_budget.py` | `04_signals/regime_risk_budget.parquet` | region |
-| `14_country_model/src/country_model.py` | `04_signals/country_model_signals.parquet` | region |
-| `13_sector_score_model/src/sector_score_model.py` | `13_sector_score_model/outputs_*/sector_scores_panel.parquet` | sector |
+| `python -m tp_models.ml.cli export-signals` | `artifacts/signals/ml_signals.parquet` | security |
+| `python -m tp_models.technical_signals` | `artifacts/signals/technical_signals.parquet` | security |
+| `python -m tp_models.regime.export_risk_budget` | `artifacts/signals/regime_risk_budget.parquet` | region |
+| `python -m tp_models.country` | `artifacts/signals/country_model_signals.parquet` | region |
+| `python -m tp_models.sector.model` | `13_sector_score_model/outputs_*/sector_scores_panel.parquet` | sector |
 
 ## 校验命令
 
 ```powershell
-python -m tp_core.signals C:\GoogleDrive\TP\04_signals\ml_signals.parquet
+python -m tp_core.signals C:\GoogleDrive\TP\artifacts/signals\ml_signals.parquet
 ```

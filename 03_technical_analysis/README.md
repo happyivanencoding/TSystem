@@ -54,7 +54,7 @@ technical_analysis 的标准信号导出入口：
 python C:\GoogleDrive\TP\03_technical_analysis\export_technical_signals.py
 ```
 
-默认读取 `output/patterns.parquet`，用 `returns.parquet` 推断 weekly pattern 的 `technical_available_date`，并以最新 `screen_aggregate.parquet` 日期作为上限，只导出已经可见的最新 Technical 信号到 `C:\GoogleDrive\TP\04_signals\technical_signals.parquet`。统一信号表中的 `Date` / `effective_date` 是可用日，`as_of_date` / `technical_pattern_date` 保留原始周初 pattern 标签，避免把尚未完整形成的当周形态用于 production。
+默认读取 `output/patterns.parquet`，用 `returns.parquet` 推断 weekly pattern 的 `technical_available_date`，并以最新 `screen_aggregate.parquet` 日期作为上限，只导出已经可见的最新 Technical 信号到 `C:\GoogleDrive\TP\artifacts/signals\technical_signals.parquet`。统一信号表中的 `Date` / `effective_date` 是可用日，`as_of_date` / `technical_pattern_date` 保留原始周初 pattern 标签，避免把尚未完整形成的当周形态用于 production。
 
 
 ## 迁移记录

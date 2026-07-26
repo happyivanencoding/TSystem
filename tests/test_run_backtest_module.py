@@ -19,5 +19,5 @@ def test_pipeline_calls_canonical_backtest_module(monkeypatch, tmp_path: Path) -
 
     manifest_path = run_backtest.run_backtest_step(args)
 
-    assert calls == [("backtest_code.cli", ["inspect", "--profile", "default"])]
+    assert calls == [("tp_backtest.cli", ["inspect", "--profile", "default"])]
     assert manifest_path.parent == tmp_path / "run_backtest"

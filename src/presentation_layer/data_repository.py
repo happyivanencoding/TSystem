@@ -24,7 +24,7 @@ class PresentationDataRepository:
 
     @property
     def signals_dir(self) -> Path:
-        return self.root / "04_signals"
+        return self.root / "artifacts" / "signals"
 
     def screen(self, *, last_only: bool = False) -> pd.DataFrame:
         """读取 screen 主表或最新截面。"""

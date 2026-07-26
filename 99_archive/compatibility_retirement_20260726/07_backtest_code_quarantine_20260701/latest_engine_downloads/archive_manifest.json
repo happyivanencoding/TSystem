@@ -1,0 +1,38 @@
+[
+  {
+    "original_name": "download (8)",
+    "archived_name": "download_08_legacy_ptfbuilder.py",
+    "archived_path": "C:\\GoogleDrive\\TP\\07_backtest_code\\_quarantine_20260701\\latest_engine_downloads\\download_08_legacy_ptfbuilder.py",
+    "role": "旧版 monolithic PtfBuilder 与回测参考",
+    "sha256": "DE5451F23FC64CF4156411EE6E3A74E25B98B2C938BC1B04813767330D27F446",
+    "bytes": 71669,
+    "archived_at": "2026-07-01 11:19:33 +02:00"
+  },
+  {
+    "original_name": "download (9)",
+    "archived_name": "download_09_optimizer_reference.py",
+    "archived_path": "C:\\GoogleDrive\\TP\\07_backtest_code\\_quarantine_20260701\\latest_engine_downloads\\download_09_optimizer_reference.py",
+    "role": "优化器、约束、repechage 与暴露报告参考",
+    "sha256": "23FEF06ED20EFF1F238ECC06857868A2C92DF5F10B13EC5B63C260BC33C24165",
+    "bytes": 83728,
+    "archived_at": "2026-07-01 11:19:33 +02:00"
+  },
+  {
+    "original_name": "download (10)",
+    "archived_name": "download_10_factor_pipeline_reference.py",
+    "archived_path": "C:\\GoogleDrive\\TP\\07_backtest_code\\_quarantine_20260701\\latest_engine_downloads\\download_10_factor_pipeline_reference.py",
+    "role": "因子流水线与 growth factor 参考",
+    "sha256": "6F319A174BAFFBE34F77B9011CB3FBC6C27047D94F7BDEAF148CB0B9B4824A5F",
+    "bytes": 15914,
+    "archived_at": "2026-07-01 11:19:33 +02:00"
+  },
+  {
+    "original_name": "download (11)",
+    "archived_name": "download_11_latest_ptfbuilder_reference.py",
+    "archived_path": "C:\\GoogleDrive\\TP\\07_backtest_code\\_quarantine_20260701\\latest_engine_downloads\\download_11_latest_ptfbuilder_reference.py",
+    "role": "最新 monolithic PtfBuilder 参考版本",
+    "sha256": "98497DEB8B9C33C07872C50ECD0B084ACFA8C0F369BCF580BEC97D2F703EE11A",
+    "bytes": 95150,
+    "archived_at": "2026-07-01 11:19:33 +02:00"
+  }
+]

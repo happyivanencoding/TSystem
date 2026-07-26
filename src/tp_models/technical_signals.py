@@ -12,10 +12,11 @@ from tp_core.data_sources import RETURNS_PATH as DEFAULT_RETURNS
 from tp_core.data_sources import SCREEN_AGGREGATE_PATH as DEFAULT_SCREEN
 from tp_core.data_sources import TP_ROOT
 from tp_core.signals import make_security_signal_frame, standardize_signal_frame, write_signal_frame
+from tp_core.workspace import SIGNALS_DIR
 
 PROJECT_DIR = TP_ROOT / "03_technical_analysis"
 DEFAULT_PATTERNS = PROJECT_DIR / "output" / "patterns.parquet"
-DEFAULT_OUTPUT = TP_ROOT / "04_signals" / "technical_signals.parquet"
+DEFAULT_OUTPUT = SIGNALS_DIR / "technical_signals.parquet"
 STRUCTURE_SCORE = {"HH": 1.0, "HL": 0.5, "LH": -0.5, "LL": -1.0}
 BASE_PATTERN_COLUMNS = [
     "Date",

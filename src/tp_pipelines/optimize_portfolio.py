@@ -23,6 +23,7 @@ from tp_core.portfolio_weights import (
 )
 
 from .common import CANDIDATES_DIR, PORTFOLIOS_DIR, StepManifest, path_profile, summarize_frame
+from .configs import OptimizePortfolioConfig
 
 
 DEFAULT_CANDIDATES = CANDIDATES_DIR / "latest_candidates.parquet"
@@ -382,7 +383,7 @@ def optimize_portfolio(
     return output_frame
 
 
-def run_optimize_portfolio(args: argparse.Namespace) -> Path:
+def run_optimize_portfolio(args: OptimizePortfolioConfig) -> Path:
     manifest = StepManifest("optimize_portfolio", vars(args).copy())
     manifest.inputs = {
         "candidates": path_profile(args.candidates, parquet=True),
@@ -453,7 +454,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    manifest_path = run_optimize_portfolio(args)
+    manifest_path = run_optimize_portfolio(
+        OptimizePortfolioConfig.from_namespace(args)
+    )
     print(f"optimize_portfolio manifest: {manifest_path}")
     return 0
 

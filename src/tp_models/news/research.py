@@ -13,6 +13,7 @@ import pyarrow.parquet as pq
 from . import config
 from tp_core.data_sources import RETURNS_PATH, SCREEN_AGGREGATE_PATH
 from tp_core.backtesting import calculate_return_series_nav
+from tp_core.workspace import SIGNALS_DIR
 
 
 ID_COL = "Company SEDOL"
@@ -888,7 +889,7 @@ def existing_model_alignment(predictions: pd.DataFrame) -> pd.DataFrame:
             pieces.append(part)
         monthly = monthly.merge(pd.concat(pieces, ignore_index=True), on=["Date", "market"], how="left")
 
-    regime_path = config.TP_ROOT / "04_signals" / "regime_risk_budget.parquet"
+    regime_path = SIGNALS_DIR / "regime_risk_budget.parquet"
     if regime_path.exists():
         regime = pd.read_parquet(regime_path)[["Date", "region", "score", "model_version"]]
         regime = regime.rename(

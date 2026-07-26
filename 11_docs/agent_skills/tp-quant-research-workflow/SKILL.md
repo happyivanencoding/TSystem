@@ -12,8 +12,8 @@ Use this skill when the task is research, not production refresh. Research means
 Primary locations:
 - `00_screen/screen_aggregate.parquet`
 - `03_regime_model/` for regime-feature research
-- `07_backtest_code/run_backtest.py`
-- `07_backtest_code/scripts/`
+- `src/tp_backtest/`
+- `src/tp_research/workflows/`
 - `07_backtest_code/runs/`
 - `07_backtest_code/runs/ad_hoc/`
 - `C:\GoogleDrive\笔记\卡片盒子\60_Papers` for research inspiration
@@ -95,7 +95,7 @@ Use this protocol after raw and relative raw variables pass their individual gat
 
 Implementation pattern:
 
-- Put one-off research scripts under `07_backtest_code/scripts/` and outputs under `07_backtest_code/runs/ad_hoc/`.
+- Put one-off research scripts under `src/tp_research/workflows/` and outputs under `07_backtest_code/runs/ad_hoc/`.
 - Import the public workflow only from `tp_core.backtesting`. Use
   `SecurityNavEngine` / `calculate_security_nav()` for security-level NAV,
   `SecurityListConstructor` for security lists, and
@@ -107,7 +107,7 @@ Implementation pattern:
   constraint policy in artifacts.
 - Never prune small optimizer weights and renormalize after solving. Validate
   every configured constraint on the final weights before writing artifacts.
-- Use `backtest_code.research.executor` for raw/relative gates,
+- Use `tp_research.executor` for raw/relative gates,
   same-security relative variants, pair/subset/bucket and individual
   leave-one-out candidates,
   completed Top/Worst detection, dedupe, sharding, and unique-wave paths.
@@ -174,7 +174,7 @@ Rules:
 - Treat K4 production HMM, K3 regime-break research, direction diagnostics, volatility diagnostics, and drawdown diagnostics as separate models.
 - Use `03_regime_model.data_loader.get_region_panel` for point-in-time stock panels.
 - Interpolate sparse macro series only inside the observed range; do not extrapolate unless asked.
-- Write temporary research artifacts under `.codex_tmp/regime_feature_research/<yyyymmdd_slug>/`.
+- Write temporary research artifacts under `artifacts/scratch/codex_tmp/regime_feature_research/<yyyymmdd_slug>/`.
 
 ## Reporting Contract
 

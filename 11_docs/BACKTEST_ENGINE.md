@@ -16,15 +16,15 @@
 | sector/regime/news 聚合收益 | `calculate_return_series_nav()` |
 | 权重归一、硬封顶、行业目标 | `tp_core.portfolio_weights` |
 
-`tp_core.backtesting` 对 `07_backtest_code` 的应用级对象使用惰性加载。
+`tp_core.backtesting` 对 `src/tp_backtest` 的应用级对象使用惰性加载。
 仅导入 NAV 类型或聚合收益 helper 时不会提前加载选股、绘图或 optimizer
 依赖，避免不同项目中的同名 `utils` 模块污染公共 API。
 
 活动目录不再提供：
 
-- `07_backtest_code/BacktestEngine.py`
-- `07_backtest_code/core/backtest_engine.py`
-- `07_backtest_code/core/backtest_engine_optimized.py`
+- `src/tp_backtest/BacktestEngine.py`
+- `src/tp_backtest/core/backtest_engine.py`
+- `src/tp_backtest/core/backtest_engine_optimized.py`
 - `03_ml_enhanced/Codes/BacktestEngine.py`
 - `BacktestEngineOptimized` 旧类名
 

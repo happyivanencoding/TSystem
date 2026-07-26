@@ -10,7 +10,7 @@
 | 编号主线索引与小项目 cartographie | [`11_docs/PROJECTS.md`](11_docs/PROJECTS.md) |
 | 项目 Python 环境 | [`11_docs/ENVIRONMENT.md`](11_docs/ENVIRONMENT.md) |
 | 核心数据与月更生产流程 | [`11_docs/DATA_AND_PRODUCTION.md`](11_docs/DATA_AND_PRODUCTION.md) |
-| 主流水线入口 | [`02_pipelines/README.md`](02_pipelines/README.md) |
+| 主流水线入口 | [`11_docs/PIPELINE_OPERATIONS.md`](11_docs/PIPELINE_OPERATIONS.md) |
 | 数据源统一规则 | [`DATA_SOURCES.md`](DATA_SOURCES.md) |
 | 数据契约 | [`DATA_CONTRACT.md`](DATA_CONTRACT.md) |
 | 文档维护和根目录文件规则 | [`11_docs/DOCUMENTATION_GOVERNANCE.md`](11_docs/DOCUMENTATION_GOVERNANCE.md) |
@@ -36,9 +36,10 @@ returns = read_returns()
 ## 当前代码主线
 
 - 流水线主线：`tp_pipelines`（源码位于 [`src/tp_pipelines/`](src/tp_pipelines/)）提供数据刷新、信号、候选池、组合、回测和报告入口。
-- 回测主线：[`07_backtest_code/`](07_backtest_code/) 是传统代码版入口，替代原 Web app 和 GUI 入口。
+- 回测主线：[`src/tp_backtest/`](src/tp_backtest/) 是传统代码版入口，替代原 Web app 和 GUI 入口。
 - 展示/报告主线：[`08_presentation_layer/`](08_presentation_layer/) 统一承载公司展示、公司分析、组合 dashboard 和报告 wrapper。
-- Web/API/GUI 回测前端已进入 `_quarantine_20260629`，只作为可回滚历史参考。
+- 标准生成产物统一位于 [`artifacts/`](artifacts/)；`07_backtest_code/runs/` 暂作为待迁移的历史大体积回测库。
+- 已退役兼容入口集中到 `99_archive/compatibility_retirement_20260726/`，不参与测试、CI 或图谱分析。
 
 ## 根目录文件规则
 
@@ -47,5 +48,3 @@ returns = read_returns()
 ## 历史材料
 
 历史 cartographie、月更审计和旧 documentation 更新计划已经归档到 [`11_docs/archive/`](11_docs/archive/)，不再作为当前运行手册。当前入口以 `11_docs/`、`DATA_SOURCES.md`、`DATA_CONTRACT.md` 和 `00_screen/README.md` 为准。
-
-

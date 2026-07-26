@@ -49,7 +49,7 @@ python -m http.server 49231 --directory webapp   # 浏览器访问 http://localh
 - `ml_compare.py`：预测下月涨跌(方向) OOS 对比 基准/HMM/Logistic+ML_IF/GBM+ML_IF；`Score ML_IF` 接入测试有增量的监督模型。
 - `vol_compare.py`：预测下月波动/回撤 OOS 对比 持续性/HMM/Ridge+ScreenVol/GBM+ML_IF+ScreenVol；`Score ML_IF` 与单股波动衍生变量按地区/目标选择性接入。
 - 结论：方向几乎不可预测、ML 不优于买入持有；波动可预测但点预测用 Ridge/持续性更佳，HMM 强在离散状态识别与危机预警。
-- `.codex_tmp/regime_macro_research/bottom_up_period_hmm_research.py`：post-2020 K3 regime-break 研究配置额外加入 `regime_break_mlif_selected` 与 `regime_break_screen_vol_selected`。
+- `artifacts/scratch/codex_tmp/regime_macro_research/bottom_up_period_hmm_research.py`：post-2020 K3 regime-break 研究配置额外加入 `regime_break_mlif_selected` 与 `regime_break_screen_vol_selected`。
 
 ## 用法
 ```bash
@@ -79,6 +79,6 @@ Regime 模型接入组合层的标准出口是风险预算乘数：
 python C:\GoogleDrive\TP\03_regime_model\export_risk_budget.py
 ```
 
-默认输出 `C:\GoogleDrive\TP\04_signals\regime_risk_budget.parquet`，其中 `signal_family=Regime`、`signal_name=risk_budget_multiplier`、`scope=region`。默认 `hybrid` 模型按区域处理：US 保留 walk-forward K4 HMM 标签映射；EU 使用当前已实现波动相对历史已知目标波动的连续缩放，并限制在 `0.70-1.30`。该 EU 路径只使用当时已经实现的数据；`--risk-model hmm` 可回退到旧版统一 HMM。
+默认输出 `C:\GoogleDrive\TP\artifacts/signals\regime_risk_budget.parquet`，其中 `signal_family=Regime`、`signal_name=risk_budget_multiplier`、`scope=region`。默认 `hybrid` 模型按区域处理：US 保留 walk-forward K4 HMM 标签映射；EU 使用当前已实现波动相对历史已知目标波动的连续缩放，并限制在 `0.70-1.30`。该 EU 路径只使用当时已经实现的数据；`--risk-model hmm` 可回退到旧版统一 HMM。
 
 可用 `--oos` 导出 walk-forward 状态版本；`--calibrated` 会用历史同状态前瞻收益校准风险预算乘数，目前作为研究开关保留，未作为默认生产映射。

@@ -10,8 +10,10 @@ import pandas as pd
 
 from presentation_layer import PresentationDataRepository
 from tp_core.data_sources import LAST_SCREEN_PATH, TP_ROOT
+from tp_core.workspace import SIGNALS_DIR
 
 from .common import CANDIDATES_DIR, StepManifest, latest_on_or_before, path_profile, summarize_frame
+from .configs import BuildCandidatesConfig
 
 
 DEFAULT_OUTPUT = CANDIDATES_DIR / "latest_candidates.parquet"
@@ -434,7 +436,7 @@ def build_candidates(
     return candidates
 
 
-def run_build_candidates(args: argparse.Namespace) -> Path:
+def run_build_candidates(args: BuildCandidatesConfig) -> Path:
     manifest = StepManifest("build_candidates", vars(args).copy())
     manifest.inputs = {
         "signals_dir": path_profile(Path(args.signals_dir)),
@@ -469,7 +471,6 @@ def run_build_candidates(args: argparse.Namespace) -> Path:
             values = pd.to_datetime(frame[column], errors="coerce").dropna() if column in frame else pd.Series(dtype="datetime64[ns]")
             component_dates[key] = values.max() if not values.empty else None
         candidate_date = pd.to_datetime(frame["candidate_date"], errors="coerce").dropna().max()
-        technical_date = pd.to_datetime(frame["signal_date_technical"], errors="coerce").dropna().max()
         screen_snapshot_dates = pd.to_datetime(frame["screen_snapshot_date"], errors="coerce").dropna()
         screen_snapshot_date = screen_snapshot_dates.max() if not screen_snapshot_dates.empty else None
         max_component_lag_days = getattr(args, "max_component_lag_days", 31)
@@ -563,7 +564,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-component-lag-days", type=int, default=31, help="technical 相对候选日期允许滞后天数")
     parser.add_argument("--allow-stale-technical", action="store_true", help="允许 technical 缺失或过旧时仍生成候选池")
     parser.add_argument("--by-region", action="store_true", help="按 region 分组选择候选")
-    parser.add_argument("--signals-dir", default=str(TP_ROOT / "04_signals"), help="仅用于 manifest 记录")
+    parser.add_argument("--signals-dir", default=str(SIGNALS_DIR), help="仅用于 manifest 记录")
     parser.add_argument("--last-screen", default=str(LAST_SCREEN_PATH), help="仅用于 manifest 记录")
     return parser
 
@@ -571,7 +572,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    manifest_path = run_build_candidates(args)
+    manifest_path = run_build_candidates(
+        BuildCandidatesConfig.from_namespace(args)
+    )
     print(f"build_candidates manifest: {manifest_path}")
     return 0
 

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "hypothesis_id": "cross-market-lopo",
+  "name": "Cross-market leave-one-period-out validation",
+  "statement": "Selected cross-market factor effects survive leave-one-period-out validation.",
+  "owner": "TP Research",
+  "status": "research",
+  "universe": "cross-market",
+  "pit_policy": "available_at_or_before_decision_time",
+  "cost_assumptions": {
+    "transaction_cost": 0.0,
+    "slippage": 0.0
+  },
+  "trial_family": "cross-market-lopo",
+  "effective_trial_count": 1,
+  "tags": ["research", "factor", "robustness", "configured"],
+  "runner": {
+    "module": "tp_research.workflows.analyze_cross_market_leave_one_period_out",
+    "callable": "main",
+    "default_args": [],
+    "required_options": ["--market"]
+  }
+}

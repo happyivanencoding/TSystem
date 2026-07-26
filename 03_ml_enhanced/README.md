@@ -19,18 +19,17 @@
 
 | 路径 | 说明 |
 | --- | --- |
-| `src/tp_models/ml/` | 规范 ML 生产实现 |
+| `../src/tp_models/ml/` | 规范 ML 生产实现 |
 | `Input_files/` | 项目派生输入；不存放 canonical screen/returns 副本 |
 | `Output_files/` | 模型输出和中间结果 |
 | `Portfolio_BT/` | 组合回测相关产物 |
 | `SUIVI/` | 监控和跟踪材料 |
-| `cli.py` | 已弃用兼容入口；规范入口为 `tp_models.ml.cli` |
 | `Monitoring.ipynb` | 当前监控 notebook；由原 `Monitoring - NEW.ipynb` 合并替换 |
-| `.trae/documents/` | 历史优化计划和速度优化说明 |
+| `../11_docs/archive/documentation_cleanup_20260726/ml_enhanced/` | 已归档的 2025 优化计划 |
 
 ## 运行入口
 
-当前训练和预测仍以 notebook 和 `Codes/` 脚本为主。稳定生产动作已经有 CLI 入口：
+当前研究训练仍以 notebook 为主；稳定生产动作只通过已安装包入口：
 
 ```powershell
 python -m tp_models.ml.cli inspect

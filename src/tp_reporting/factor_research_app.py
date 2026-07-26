@@ -11,9 +11,9 @@ from typing import Mapping, Sequence
 import numpy as np
 import pandas as pd
 
-from tp_core.workspace import BACKTEST_RUNS_DIR, REPORTS_DIR
+from tp_core.workspace import HISTORICAL_RESEARCH_RUNS_DIR, REPORTS_DIR
 
-RUN_ROOT = BACKTEST_RUNS_DIR / "ad_hoc"
+RUN_ROOT = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc"
 DEFAULT_OUTPUT = REPORTS_DIR / "factor-research-app.html"
 
 

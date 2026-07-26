@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "feature_set_id": "glm51_news_sentiment_event_v1",
+  "model": "glm-5.1",
+  "prompt_version": "news_feature_extraction_v1",
+  "okf": {
+    "manifest_path": "C:/GoogleDrive/笔记/_okf_work/export_manifest.json",
+    "notes_root": "C:/GoogleDrive/笔记"
+  },
+  "privacy": {
+    "allowed": ["public_internal"],
+    "strip_local_paths": true,
+    "strip_private_research_fields": true
+  },
+  "pit": {
+    "observed_at": "source_date_or_published",
+    "available_at": "captured_or_created",
+    "missing_available_at": "exclude"
+  },
+  "research_role": {
+    "report_evidence": true,
+    "view_stance_as_evaluation_labels": true,
+    "predictor_default": false,
+    "reason": "curated source selection creates selection bias"
+  },
+  "repeat_stability_gate": {
+    "sample_rate": 0.1,
+    "minimum_label_agreement": 0.9,
+    "maximum_score_mae": 0.15
+  },
+  "promotion": {
+    "default_status": "research_only",
+    "required_comparisons": ["gdelt_baseline", "glm51_only", "gdelt_plus_glm51"],
+    "required_robustness": ["identical_covered_dates", "identical_folds", "placebo", "market", "year", "sector"],
+    "independent_decision_required": true
+  }
+}

@@ -22,8 +22,8 @@ Key files:
 - `artifacts/signals/`
 - `artifacts/pipeline_runs/manifests/`
 - `src/tp_models/country.py`
-- `08_presentation_layer/apps/system_registry.py`
-- `08_presentation_layer/apps/system_checks.py`
+- `src/presentation_layer/apps/system_registry.py`
+- `src/presentation_layer/apps/system_checks.py`
 - `11_docs/INVESTMENT_PLATFORM_MAINLINE.md`
 
 ## Workflow

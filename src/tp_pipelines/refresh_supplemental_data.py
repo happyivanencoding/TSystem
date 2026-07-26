@@ -32,17 +32,15 @@ from tp_core.supplemental_data import (
     provider_acceptance_gate,
     validate_resolved_values,
 )
-from tp_core.supplemental_providers import (
-    AlphaVantageEstimatesProvider,
-    DbnomicsSeriesProvider,
-    EsefFilingsProvider,
-    FredProvider,
+from tp_data.providers import (
     HttpClient,
-    ImfDataMapperProvider,
+    ProviderContext,
     ProviderBatch,
-    SdmxCsvProvider,
+    ProviderQuery,
     SecCompanyFactsProvider,
-    WorldBankProvider,
+    build_supplemental_registry,
+    environment_credentials,
+    result_to_batch,
 )
 from tp_core.workspace import CANDIDATES_DIR, PORTFOLIOS_DIR
 
@@ -335,70 +333,20 @@ def _fetch_batch(
     end: pd.Timestamp,
     retrieved_at: pd.Timestamp,
 ) -> ProviderBatch:
-    if source == "fred":
-        return FredProvider(client).fetch(
-            job,
-            start=start,
-            end=end,
-            retrieved_at=retrieved_at,
-            api_key=os.environ.get("FRED_API_KEY", ""),
-        )
-    if source in {"ecb", "oecd"}:
-        return SdmxCsvProvider(source, client).fetch(
-            job, start=start, end=end, retrieved_at=retrieved_at
-        )
-    if source == "imf":
-        try:
-            return ImfDataMapperProvider(client).fetch(
-                job, start=start, end=end, retrieved_at=retrieved_at
-            )
-        except RuntimeError:
-            fallback = job.get("fallback")
-            if not fallback or fallback.get("provider") != "dbnomics":
-                raise
-            fallback_job = {
-                **dict(fallback),
-                "indicator": job["indicator"],
-                "countries": job.get("countries") or [],
-                "field_prefix": job.get("field_prefix"),
-                "unit": job.get("unit"),
-                "currency": job.get("currency"),
-            }
-            return DbnomicsSeriesProvider(client).fetch(
-                fallback_job,
-                start=start,
-                end=end,
-                retrieved_at=retrieved_at,
-                original_provider="IMF",
-            )
-    if source == "world_bank":
-        return WorldBankProvider(client).fetch(
-            job, start=start, end=end, retrieved_at=retrieved_at
-        )
-    if source == "sec":
-        return SecCompanyFactsProvider(client).fetch(
-            job,
-            start=start,
-            end=end,
-            retrieved_at=retrieved_at,
-            concepts=list(config.get("sec_concepts") or []),
-        )
-    if source == "esef":
-        return EsefFilingsProvider(client).fetch(
-            job,
-            start=start,
-            end=end,
-            retrieved_at=retrieved_at,
-            concepts=list(config.get("esef_concepts") or []),
-        )
-    if source == "alpha_vantage":
-        return AlphaVantageEstimatesProvider(client).fetch(
-            job,
-            retrieved_at=retrieved_at,
-            api_key=os.environ.get("ALPHA_VANTAGE_API_KEY", ""),
-            field_map=dict(config.get("alpha_vantage_field_map") or {}),
-        )
-    raise ValueError(f"未实现 supplemental source：{source}")
+    result = build_supplemental_registry(config).fetch(
+        ProviderQuery(
+            source=source,
+            job=job,
+            start=start.to_pydatetime(),
+            end=end.to_pydatetime(),
+        ),
+        ProviderContext(
+            retrieved_at=retrieved_at.to_pydatetime(),
+            credentials=environment_credentials(),
+            transport=client,
+        ),
+    )
+    return result_to_batch(result)
 
 
 def _resolve_sec_ciks(

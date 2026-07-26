@@ -1,62 +1,65 @@
-# 03_technical_analysis
+# Technical Analysis
 
-## 项目说明
-本项目用于从 `returns.parquet` 和 `screen_aggregate.parquet` 计算技术形态与技术指标，并输出 `patterns.parquet`。
+## 定位
 
-主运行入口是 `Main.py`，`Tradin_patterns.ipynb` 仅用于分步查看和本地分析，不是主运行入口。
+从 TP Canonical returns 和 Screen 计算证券技术形态、指标及可交易 Technical 信号。活跃实现位于 `src/tp_models/technical/` 和 `src/tp_models/technical_signals.py`；本目录只保存 notebook、方法文档、模型资源和专项输出。
 
-## 本地启动
-推荐使用 Python 3.12。
-不支持 Python 3.14，因为 `pandas-ta` / `numba` 依赖链目前只支持 `< 3.14`。
+## 输入
 
-1. 创建虚拟环境并安装依赖：
+- `00_screen/returns.parquet`
+- `00_screen/screen_aggregate.parquet`
+- 当期 PIT universe 与证券标识映射
 
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
+项目私有旧数据副本只在 quarantine 中保留，不是默认输入。统一规则见根目录 `DATA_SOURCES.md`、`DATA_CONTRACT.md`。
 
-2. 准备输入数据：
+## 运行入口
 
-默认情况下，`Main.py` 和 notebook 应读取 TP canonical parquet；路径规则见 [`../DATA_SOURCES.md`](../DATA_SOURCES.md)。项目内旧 `data/returns.parquet` 与 `data/screen_aggregate.parquet` 已移动到 `_quarantine_20260629/legacy_data_copies/`，不再作为默认输入。
-如果你要在本地运行其他数据或复现实验快照，请先用环境变量覆盖输入输出路径：
+生成完整 patterns 面板：
 
 ```powershell
-$env:TA_RETURNS_PATH="D:\data\returns.parquet"
-$env:TA_SCREEN_PATH="D:\data\screen_aggregate.parquet"
-$env:TA_OUTPUT_PATH="D:\data\patterns.parquet"
+python -m tp_models.technical.Main
 ```
 
-3. 在项目根目录执行：
+导出标准 Technical 信号：
 
 ```powershell
-python Main.py
+python -m tp_models.technical_signals
 ```
 
-运行完成后，会生成 `patterns.parquet`。
-
-## Notebook
-- `Tradin_patterns.ipynb` 适合分步查看中间结果和验证流程。
-- `Pattern_backtest.ipynb` 适合对 `patterns.parquet` 做信号回测。
-- notebook 默认应与 `Main.py` 使用同一套 parquet 输入。
-
-## 数据文档
-- screen/returns 的 canonical 语义以 [`../00_screen/说明文档/screen_returns_context.md`](../00_screen/说明文档/screen_returns_context.md)、[`../DATA_SOURCES.md`](../DATA_SOURCES.md) 和 [`../DATA_CONTRACT.md`](../DATA_CONTRACT.md) 为准。
-- `data/screen_returns_context.md` 保留 technical_analysis 项目的扩展上下文，尤其是 `patterns.parquet` 的结构和使用注意事项。
-- `docs/pattern_backtest_score_guide.md` 说明了 `Pattern_backtest.ipynb` 中 `score_columns`、`score_weights`、`higher_is_better` 的含义，以及当前可用的常见 score 选项。
-
-## 统一信号表导出
-
-technical_analysis 的标准信号导出入口：
+生产流水线应使用：
 
 ```powershell
-python C:\GoogleDrive\TP\03_technical_analysis\export_technical_signals.py
+.\.venv_tp\Scripts\tp-pipeline-export-signals.exe
 ```
 
-默认读取 `output/patterns.parquet`，用 `returns.parquet` 推断 weekly pattern 的 `technical_available_date`，并以最新 `screen_aggregate.parquet` 日期作为上限，只导出已经可见的最新 Technical 信号到 `C:\GoogleDrive\TP\artifacts/signals\technical_signals.parquet`。统一信号表中的 `Date` / `effective_date` 是可用日，`as_of_date` / `technical_pattern_date` 保留原始周初 pattern 标签，避免把尚未完整形成的当周形态用于 production。
+不得执行 `03_technical_analysis` 资源目录中的旧 Python 文件。
 
+## 时间口径
 
-## 迁移记录
+- Pattern 标签日期与可交易日期分开保存。
+- Weekly pattern 只有在完整周数据形成后才可用。
+- 标准信号 `effective_date` 使用可用日；`as_of_date`、`technical_pattern_date` 保留原始标签日期。
+- 最新导出日期不得超过 Canonical Screen 的已知上限。
 
-本项目已从 `C:\GoogleDrive\TP\技术分析和深度学习\技术分析_V2` 提升到根目录 `C:\GoogleDrive\TP\03_technical_analysis`。迁移证据见 `relocation_manifest.json`。旧父目录已移除，后续新引用统一使用 `03_technical_analysis/`。
+## 输出
+
+| 输出 | 路径 |
+| --- | --- |
+| 完整专项面板 | `03_technical_analysis/output/patterns.parquet` |
+| 标准信号 | `artifacts/signals/technical_signals.parquet` |
+| Pipeline manifest | `artifacts/pipeline_runs/manifests/export_signals/` |
+| Run Card | `artifacts/pipeline_runs/experiments/` |
+
+## Notebook 与文档
+
+- `Tradin_patterns.ipynb`：分步查看 patterns 生成。
+- `Pattern_backtest.ipynb`：Technical 信号研究回测。
+- `Pattern_visual_guide.ipynb`：形态可视化说明。
+- `data/screen_returns_context.md`：patterns 专项契约和 PIT 对齐。
+- `docs/pattern_backtest_score_guide.md`：score、方向和权重配置。
+
+Notebook 应导入 `tp_models`、`tp_core` 公共包，不导入资源目录脚本。
+
+## 维护状态
+
+活跃技术信号模型。专项 outputs 从 pytest、ruff、mypy、CRG 和 CI discovery 排除。

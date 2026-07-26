@@ -5,19 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .build_candidates import run_build_candidates
 from .configs import PipelineRunConfig
 from .dag import PipelineDAG, PipelineStep
-from .export_signals import run_export_signals
-from .generate_report import run_generate_report
-from .optimize_portfolio import run_optimize_portfolio
-from .refresh_data import run_refresh_data
-from .refresh_ml import run_refresh_ml
-from .refresh_regime import run_refresh_regime
-from .refresh_small_cap import run_refresh_small_cap
-from .refresh_supplemental_data import run_refresh_supplemental_data
-from .refresh_technical import run_refresh_technical
-from .run_backtest import run_backtest_step
 
 
 @dataclass
@@ -61,7 +50,35 @@ class PipelineContext:
         self.child_manifests.append(str(manifest))
 
 
+def run_refresh_supplemental_data(config):
+    """Lazy seam retained for orchestration tests and injected implementations."""
+
+    from .refresh_supplemental_data import run_refresh_supplemental_data as implementation
+
+    return implementation(config)
+
+
+def run_refresh_regime(config):
+    from .refresh_regime import run_refresh_regime as implementation
+
+    return implementation(config)
+
+
+def run_export_signals(config):
+    from .export_signals import run_export_signals as implementation
+
+    return implementation(config)
+
+
+def run_backtest_step(config):
+    from .run_backtest import run_backtest_step as implementation
+
+    return implementation(config)
+
+
 def _refresh_data(context: PipelineContext) -> Path:
+    from .refresh_data import run_refresh_data
+
     return run_refresh_data(context.config.refresh_data)
 
 
@@ -76,10 +93,14 @@ def _refresh_regime(context: PipelineContext) -> Path:
 
 
 def _refresh_ml(context: PipelineContext) -> Path:
+    from .refresh_ml import run_refresh_ml
+
     return run_refresh_ml(context.config.refresh_ml)
 
 
 def _refresh_technical(context: PipelineContext) -> Path:
+    from .refresh_technical import run_refresh_technical
+
     return run_refresh_technical(context.config.refresh_technical)
 
 
@@ -89,14 +110,20 @@ def _export_signals(context: PipelineContext) -> Path:
 
 
 def _refresh_small_cap(context: PipelineContext) -> Path:
+    from .refresh_small_cap import run_refresh_small_cap
+
     return run_refresh_small_cap(context.config.refresh_small_cap)
 
 
 def _build_candidates(context: PipelineContext) -> Path:
+    from .build_candidates import run_build_candidates
+
     return run_build_candidates(context.config.build_candidates)
 
 
 def _optimize_portfolio(context: PipelineContext) -> Path:
+    from .optimize_portfolio import run_optimize_portfolio
+
     return run_optimize_portfolio(context.config.optimize_portfolio)
 
 
@@ -107,6 +134,8 @@ def _run_backtest(context: PipelineContext) -> Path:
 
 
 def _generate_report(context: PipelineContext) -> Path:
+    from .generate_report import run_generate_report
+
     return run_generate_report(context.config.generate_report)
 
 

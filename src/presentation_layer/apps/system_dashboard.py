@@ -21,9 +21,19 @@ from dash import ALL, Dash, Input, Output, State, ctx, dash_table, dcc, html
 from dash.exceptions import PreventUpdate
 
 from presentation_layer.apps import system_jobs
+from presentation_layer.company_browser.settings import (
+    DES_PARQUET as COMPANY_DES_PATH,
+    NEWS_PARQUET as COMPANY_NEWS_PATH,
+)
 from presentation_layer.apps.system_api import (
     DashboardStaticAssets,
     register_dashboard_routes,
+)
+from presentation_layer.apps.system_backtests import (
+    BacktestDashboardContext,
+    backtest_rows as build_backtest_rows,
+    outputs_summary as _outputs_summary,
+    validation_summary as _validation_summary,
 )
 from presentation_layer.apps.system_checks import CHECK_LATEST, project_checks
 from presentation_layer.apps.system_domain import DashboardDomainService
@@ -54,9 +64,10 @@ from tp_core.data_sources import (
     TP_ROOT,
 )
 from tp_core.workspace import (
-    BACKTEST_RUNS_DIR,
+    BACKTEST_OUTPUT_RUNS_DIR,
     CANDIDATES_DIR,
     DASHBOARD_WORK_DIR,
+    HISTORICAL_RESEARCH_RUNS_DIR,
     PIPELINE_MANIFESTS_DIR,
     PORTFOLIOS_DIR,
     REPORTS_DIR,
@@ -109,20 +120,9 @@ FULL_BACKTEST_VALIDATION_PATH = (
     PIPELINE_MANIFESTS_DIR / "run_backtest" / "full_backtest_validation_latest.json"
 )
 SCORE_ML_BACKTEST_RUN_ROOT = (
-    BACKTEST_RUNS_DIR / "score_ml_vs_if_msci_world_top_worst_20"
+    HISTORICAL_RESEARCH_RUNS_DIR / "score_ml_vs_if_msci_world_top_worst_20"
 )
 SCORE_ML_SCREEN_PATH = TP_ROOT / "00_screen" / "screen_aggregate.parquet"
-COMPANY_DES_PATH = (
-    TP_ROOT / "08_presentation_layer" / "legacy_apps" / "web_app_des_companies" / "data" / "last_DES.parquet"
-)
-COMPANY_NEWS_PATH = (
-    TP_ROOT
-    / "08_presentation_layer"
-    / "legacy_apps"
-    / "web_app_des_companies"
-    / "data"
-    / "Last_NEWS_3months.parquet"
-)
 TECHNICAL_SIGNAL_PATH = SIGNALS_DIR / "technical_signals.parquet"
 TECHNICAL_SCREEN_PATH = TP_ROOT / "00_screen" / "last_screen.parquet"
 SCORE_ML_COMPONENT_COLUMNS = [
@@ -3529,315 +3529,24 @@ def _sector_signal_payload() -> dict[str, Any]:
     return payload
 
 
-def _latest_backtest_summaries(limit: int = 4) -> list[Path]:
-    root = BACKTEST_RUNS_DIR
-    if not root.exists():
-        return []
-    return sorted(root.rglob("summary.json"), key=lambda item: item.stat().st_mtime, reverse=True)[:limit]
-
-
-def _latest_backtest_perf_dirs(limit: int = 4) -> list[Path]:
-    root = BACKTEST_RUNS_DIR
-    if not root.exists():
-        return []
-    run_dirs = {
-        path.parent
-        for path in root.rglob("perf_ptf.parquet")
-        if (path.parent / "perf_bench.parquet").exists()
-    }
-    return sorted(
-        run_dirs,
-        key=lambda item: max(
-            (item / "perf_ptf.parquet").stat().st_mtime,
-            (item / "perf_bench.parquet").stat().st_mtime,
-        ),
-        reverse=True,
-    )[:limit]
-
-
-def _backtest_nav_series(path: Path) -> pd.Series:
-    frame = _read_frame(path)
-    if frame is None or frame.empty:
-        return pd.Series(dtype="float64")
-    value_column = "Contrib" if "Contrib" in frame.columns else ""
-    if not value_column:
-        numeric_columns = list(frame.select_dtypes(include="number").columns)
-        value_column = numeric_columns[0] if numeric_columns else ""
-    if not value_column:
-        return pd.Series(dtype="float64")
-    values = pd.to_numeric(frame[value_column], errors="coerce")
-    if "Date" in frame.columns:
-        dates = pd.to_datetime(frame["Date"], errors="coerce")
-        series = pd.Series(values.to_numpy(), index=dates)
-        series = series[~series.index.isna()]
-        return series.sort_index().dropna()
-    return pd.Series(values.to_numpy()).dropna()
-
-
-def _clean_float(value: Any) -> float | None:
-    try:
-        number = float(value)
-    except Exception:
-        return None
-    if pd.isna(number) or number in (float("inf"), float("-inf")):
-        return None
-    return number
-
-
-def _backtest_years(series: pd.Series, periods: int) -> float:
-    if isinstance(series.index, pd.DatetimeIndex) and len(series.index) > 1:
-        days = (series.index.max() - series.index.min()).days
-        if days > 0:
-            return days / 365.25
-    return max(periods / 252, 1 / 252)
-
-
-def _backtest_nav_metrics(series: pd.Series) -> dict[str, Any]:
-    if series.empty:
-        return {}
-    returns = series.pct_change().replace([float("inf"), float("-inf")], pd.NA).dropna()
-    periods = len(returns)
-    first = _clean_float(series.iloc[0])
-    last = _clean_float(series.iloc[-1])
-    total_return = (last / first - 1) if first and last else None
-    years = _backtest_years(series, periods) if periods else 0
-    annual_return = ((last / first) ** (1 / years) - 1) if first and last and years > 0 else None
-    drawdown = _clean_float((series / series.cummax() - 1).min())
-    annual_volatility = _clean_float(returns.std() * (252 ** 0.5)) if periods > 1 else None
-    if isinstance(series.index, pd.DatetimeIndex):
-        date_min = series.index.min().date().isoformat()
-        date_max = series.index.max().date().isoformat()
-    else:
-        date_min = ""
-        date_max = ""
-    return {
-        "rows": int(len(series)),
-        "date_min": date_min,
-        "date_max": date_max,
-        "final_value": last,
-        "total_return": total_return,
-        "annual_return": annual_return,
-        "annual_volatility": annual_volatility,
-        "max_drawdown": drawdown,
-        "returns": returns,
-    }
-
-
-def _backtest_perf_metrics(run_dir: str | Path | None) -> dict[str, Any]:
-    if not run_dir:
-        return {}
-    root = Path(run_dir)
-    portfolio = _backtest_nav_metrics(_backtest_nav_series(root / "perf_ptf.parquet"))
-    benchmark = _backtest_nav_metrics(_backtest_nav_series(root / "perf_bench.parquet"))
-    if not portfolio and not benchmark:
-        return {}
-    active_return = None
-    if portfolio.get("annual_return") is not None and benchmark.get("annual_return") is not None:
-        active_return = portfolio["annual_return"] - benchmark["annual_return"]
-    tracking_error = None
-    information_ratio = None
-    ptf_returns = portfolio.get("returns")
-    bench_returns = benchmark.get("returns")
-    if isinstance(ptf_returns, pd.Series) and isinstance(bench_returns, pd.Series):
-        aligned_ptf, aligned_bench = ptf_returns.align(bench_returns, join="inner")
-        active_daily = (aligned_ptf - aligned_bench).dropna()
-        if len(active_daily) > 1:
-            tracking_error = _clean_float(active_daily.std() * (252 ** 0.5))
-            if tracking_error and active_return is not None:
-                information_ratio = active_return / tracking_error
-    portfolio.pop("returns", None)
-    benchmark.pop("returns", None)
-    return {
-        "portfolio": portfolio,
-        "benchmark": benchmark,
-        "active_return": active_return,
-        "tracking_error": tracking_error,
-        "information_ratio": information_ratio,
-    }
-
-
-def _backtest_date_text(metrics: dict[str, Any], fallback: str = "") -> str:
-    portfolio = metrics.get("portfolio") or {}
-    if portfolio.get("date_min") or portfolio.get("date_max"):
-        return f"{portfolio.get('date_min', '')} -> {portfolio.get('date_max', '')}"
-    return fallback
-
-
-def _backtest_return_text(metrics: dict[str, Any], fallback_ptf: dict[str, Any] | None = None) -> str:
-    portfolio = metrics.get("portfolio") or {}
-    benchmark = metrics.get("benchmark") or {}
-    if portfolio:
-        return (
-            f"ptf {_fmt_pct(portfolio.get('total_return'))} total / {_fmt_pct(portfolio.get('annual_return'))} ann; "
-            f"bench {_fmt_pct(benchmark.get('annual_return'))} ann; active {_fmt_pct(metrics.get('active_return'))}"
-        )
-    if fallback_ptf:
-        return f"ptf final {_fmt_float(fallback_ptf.get('final_value'))}"
-    return ""
-
-
-def _backtest_active_text(metrics: dict[str, Any]) -> str:
-    if not metrics:
-        return ""
-    return f"TE {_fmt_pct(metrics.get('tracking_error'))}; IR {_fmt_float(metrics.get('information_ratio'))}"
-
-
-def _backtest_drawdown_text(
-    metrics: dict[str, Any],
-    fallback_ptf: dict[str, Any] | None = None,
-    fallback_bench: dict[str, Any] | None = None,
-) -> str:
-    portfolio = metrics.get("portfolio") or fallback_ptf or {}
-    benchmark = metrics.get("benchmark") or fallback_bench or {}
-    return f"ptf DD {_fmt_pct(portfolio.get('max_drawdown'))}; bench DD {_fmt_pct(benchmark.get('max_drawdown'))}"
-
-
-def _backtest_report_status(run_dir: str | Path | None, report_manifest: dict[str, Any] | None = None) -> str:
-    parts: list[str] = []
-    if run_dir:
-        root = Path(run_dir)
-        if (root / "plot.html").exists():
-            parts.append("plot OK")
-        if (root / "summary.json").exists():
-            parts.append("summary OK")
-    if report_manifest:
-        outputs = report_manifest.get("outputs") or {}
-        report = outputs.get("report") if isinstance(outputs.get("report"), dict) else {}
-        if report.get("exists"):
-            parts.append(f"generate_report {_status_label(report_manifest.get('status'))}")
-    return "; ".join(parts) or "N/A"
+def _backtest_context() -> BacktestDashboardContext:
+    return BacktestDashboardContext(
+        run_roots=(BACKTEST_OUTPUT_RUNS_DIR, HISTORICAL_RESEARCH_RUNS_DIR),
+        validation_path=FULL_BACKTEST_VALIDATION_PATH,
+        manifest_dir=PIPELINE_MANIFESTS_DIR,
+        read_json=_read_json,
+        latest_manifest=_latest_manifest,
+        read_frame=_read_frame,
+        relative_path=_rel,
+        status_label=_status_label,
+        format_int=_fmt_int,
+        format_float=_fmt_float,
+        format_pct=_fmt_pct,
+    )
 
 
 def _backtest_rows() -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    run_manifest = _latest_manifest("run_backtest") or {}
-    report_manifest = _latest_manifest("generate_report") or {}
-    validation = _read_json(FULL_BACKTEST_VALIDATION_PATH) or {}
-    perf = validation.get("performance") or {}
-    portfolio_perf = perf.get("portfolio") or {}
-    bench_perf = perf.get("benchmark") or {}
-    validation_run_dir = validation.get("run_dir")
-    validation_metrics = _backtest_perf_metrics(validation_run_dir)
-    seen_run_dirs: set[str] = set()
-    if validation_run_dir:
-        seen_run_dirs.add(str(Path(validation_run_dir).resolve(strict=False)))
-    if run_manifest:
-        params = run_manifest.get("parameters") or {}
-        rows.append(
-            {
-                "来源": "run_backtest_latest",
-                "状态": _status_label(run_manifest.get("status")),
-                "区间/日期": _backtest_date_text(
-                    validation_metrics,
-                    f"{portfolio_perf.get('date_min', '')} -> {portfolio_perf.get('date_max', '')}",
-                ),
-                "Benchmark": params.get("bench") or "default",
-                "组合/结果": f"profile {params.get('profile', '')} / {params.get('ptf_name', '')}",
-                "收益/Alpha": _backtest_return_text(validation_metrics, portfolio_perf),
-                "TE/IR": _backtest_active_text(validation_metrics),
-                "风险/回撤": _backtest_drawdown_text(validation_metrics, portfolio_perf, bench_perf),
-                "报告状态": _backtest_report_status(validation_run_dir, report_manifest),
-                "报告/路径": _rel(PIPELINE_MANIFESTS_DIR / "run_backtest" / "run_backtest_latest.json"),
-            }
-        )
-    if validation:
-        rows.append(
-            {
-                "来源": "full_backtest_validation",
-                "状态": validation.get("status", ""),
-                "区间/日期": validation.get("generated_at", ""),
-                "Benchmark": validation.get("profile", ""),
-                "组合/结果": f"ptf {_fmt_float(portfolio_perf.get('final_value'))}; bench {_fmt_float(bench_perf.get('final_value'))}",
-                "收益/Alpha": _backtest_return_text(validation_metrics, portfolio_perf),
-                "TE/IR": _backtest_active_text(validation_metrics),
-                "风险/回撤": f"{_backtest_drawdown_text(validation_metrics, portfolio_perf, bench_perf)}; checks {sum(1 for value in (validation.get('acceptance_checks') or {}).values() if value)}/{len(validation.get('acceptance_checks') or {})}",
-                "报告状态": _backtest_report_status(validation_run_dir),
-                "报告/路径": _rel(validation.get("run_dir")),
-            }
-        )
-    if report_manifest:
-        outputs = report_manifest.get("outputs") or {}
-        report = outputs.get("report") if isinstance(outputs.get("report"), dict) else {}
-        rows.append(
-            {
-                "来源": "generate_report_latest",
-                "状态": _status_label(report_manifest.get("status")),
-                "区间/日期": report_manifest.get("finished_at", ""),
-                "Benchmark": "",
-                "组合/结果": _outputs_summary(report_manifest),
-                "收益/Alpha": "",
-                "TE/IR": "",
-                "风险/回撤": _validation_summary(report_manifest),
-                "报告状态": "report OK" if report.get("exists") else _status_label(report_manifest.get("status")),
-                "报告/路径": _rel(report.get("path") or PIPELINE_MANIFESTS_DIR / "generate_report" / "generate_report_latest.json"),
-            }
-        )
-    for path in _latest_backtest_summaries():
-        payload = _read_json(path) or {}
-        top_holdings = payload.get("top_holdings") or []
-        top_names = ", ".join(str(item.get("Name", "")) for item in top_holdings[:3] if item.get("Name"))
-        summary_metrics = _backtest_perf_metrics(path.parent)
-        seen_run_dirs.add(str(path.parent.resolve(strict=False)))
-        rows.append(
-            {
-                "来源": "summary.json",
-                "状态": "OK",
-                "区间/日期": _backtest_date_text(
-                    summary_metrics,
-                    payload.get("input_screen_date") or payload.get("output_sec_list_date", ""),
-                ),
-                "Benchmark": payload.get("benchmark", ""),
-                "组合/结果": f"{payload.get('objective', '')} / {_fmt_int(payload.get('selected_names_sec_list'))} names / weight {_fmt_float(payload.get('selected_weight_sum'), 4)}",
-                "收益/Alpha": _backtest_return_text(summary_metrics),
-                "TE/IR": _backtest_active_text(summary_metrics) or f"te_max {_fmt_pct((payload.get('constraints') or {}).get('te_max'))}",
-                "风险/回撤": _backtest_drawdown_text(summary_metrics) if summary_metrics else f"score avg {_fmt_float(payload.get('selected_score_ml_weighted_avg'))}",
-                "报告状态": _backtest_report_status(path.parent),
-                "报告/路径": f"{_rel(path.parent)} / {top_names}",
-            }
-        )
-    for run_dir in _latest_backtest_perf_dirs():
-        run_dir_key = str(run_dir.resolve(strict=False))
-        if run_dir_key in seen_run_dirs:
-            continue
-        metrics = _backtest_perf_metrics(run_dir)
-        rows.append(
-            {
-                "来源": "perf_pair",
-                "状态": "OK" if metrics else "N/A",
-                "区间/日期": _backtest_date_text(metrics),
-                "Benchmark": "",
-                "组合/结果": run_dir.name,
-                "收益/Alpha": _backtest_return_text(metrics),
-                "TE/IR": _backtest_active_text(metrics),
-                "风险/回撤": _backtest_drawdown_text(metrics),
-                "报告状态": _backtest_report_status(run_dir),
-                "报告/路径": _rel(run_dir),
-            }
-        )
-    return rows
-
-
-def _validation_summary(payload: dict[str, Any]) -> str:
-    validations = payload.get("validations")
-    if isinstance(validations, list):
-        failed = [item.get("name", "") for item in validations if item.get("status") != "passed"]
-        return f"{len(validations) - len(failed)}/{len(validations)} passed" + (f"; failed: {', '.join(failed[:3])}" if failed else "")
-    checks = payload.get("acceptance_checks")
-    if isinstance(checks, dict):
-        passed = sum(1 for value in checks.values() if value)
-        return f"{passed}/{len(checks)} checks"
-    return ""
-
-
-def _outputs_summary(payload: dict[str, Any]) -> str:
-    outputs = payload.get("outputs")
-    if isinstance(outputs, dict):
-        names = list(outputs.keys())
-        return ", ".join(names[:5])
-    artifacts = payload.get("artifacts")
-    if isinstance(artifacts, dict):
-        return ", ".join(list(artifacts.keys())[:5])
-    return ""
+    return build_backtest_rows(_backtest_context())
 
 
 def _audit_filter_options() -> tuple[list[dict[str, str]], list[dict[str, str]]]:

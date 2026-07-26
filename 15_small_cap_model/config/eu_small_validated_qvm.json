@@ -43,8 +43,8 @@
   },
   "final_min_count": 2,
   "raw_gate": {
-    "source_run_dir": "07_backtest_code/runs/ad_hoc/eu_small_multifactor_20260707_085611",
-    "supplemental_run_dir": "07_backtest_code/runs/ad_hoc/eu_small_validated_gate_20260708_official",
+    "source_run_dir": "artifacts/research/runs/historical/ad_hoc/eu_small_multifactor_20260707_085611",
+    "supplemental_run_dir": "artifacts/research/runs/historical/ad_hoc/eu_small_validated_gate_20260708_official",
     "coverage_min": 0.75,
     "ratio_cagr_min": 0.0,
     "top_worst_ratio_return_min": 0.0,

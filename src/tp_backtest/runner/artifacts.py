@@ -13,6 +13,7 @@ import yaml
 
 from tp_backtest.config.settings import AppSettings
 from tp_core.security_nav_engine import nav_engine_metadata
+from tp_core.workspace import BACKTEST_OUTPUT_RUNS_DIR
 
 
 def get_project_root() -> Path:
@@ -24,7 +25,7 @@ def get_project_root() -> Path:
 def get_runs_dir() -> Path:
     """Retourne le dossier de stockage des runs."""
 
-    return get_project_root() / "runs"
+    return BACKTEST_OUTPUT_RUNS_DIR
 
 
 def slugify(text: str) -> str:

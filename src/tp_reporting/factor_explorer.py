@@ -15,17 +15,17 @@ from typing import Any
 
 import pandas as pd
 
-from tp_core.workspace import BACKTEST_RUNS_DIR, REPORTS_DIR
+from tp_core.workspace import HISTORICAL_RESEARCH_RUNS_DIR, REPORTS_DIR
 
 REPORT_DIR = REPORTS_DIR
 OUTPUT = REPORT_DIR / "factor-explorer.html"
 MODEL_ARCHIVE_DIR = REPORT_DIR / "factor_model_archive"
 FACTOR_EXPLORER_SOURCE_DIR = REPORT_DIR / "factor_explorer_sources"
-NASDAQ_EXTENSION_RUN = BACKTEST_RUNS_DIR / "ad_hoc" / "nasdaq_tech_factor_extension_20260710"
-EU_SMALL_EXTENSION_RUN = BACKTEST_RUNS_DIR / "ad_hoc" / "eu_small_factor_extension_20260711"
-STOXX600_EXTENSION_RUN = BACKTEST_RUNS_DIR / "ad_hoc" / "stoxx600_factor_extension_20260711"
-SP500_EXTENSION_RUN = BACKTEST_RUNS_DIR / "ad_hoc" / "sp500_factor_extension_20260711"
-AD_HOC_RUN_DIR = BACKTEST_RUNS_DIR / "ad_hoc"
+NASDAQ_EXTENSION_RUN = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc" / "nasdaq_tech_factor_extension_20260710"
+EU_SMALL_EXTENSION_RUN = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc" / "eu_small_factor_extension_20260711"
+STOXX600_EXTENSION_RUN = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc" / "stoxx600_factor_extension_20260711"
+SP500_EXTENSION_RUN = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc" / "sp500_factor_extension_20260711"
+AD_HOC_RUN_DIR = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc"
 SUPPLEMENTAL_RESEARCH_RUNS = {
     "eu-small": {
         "lag6": AD_HOC_RUN_DIR / "eu_small_relative_lag6_20260725",

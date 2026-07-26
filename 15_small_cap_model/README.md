@@ -30,7 +30,7 @@ Every raw variable is transformed so that a higher score is better:
 
 The current production default is `eu_small_validated_qvm_v1`. It comes from
 the supplemental raw-gate official Top/Worst package completed on 2026-07-08:
-`07_backtest_code/runs/ad_hoc/eu_small_validated_gate_20260708_official`.
+`artifacts/research/runs/historical/ad_hoc/eu_small_validated_gate_20260708_official`.
 LowVol is intentionally excluded because no low-volatility raw variable passed
 the default raw validation gate.
 

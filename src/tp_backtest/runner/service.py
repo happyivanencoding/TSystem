@@ -15,6 +15,7 @@ import pandas as pd
 
 from tp_backtest.app_logging import get_logger
 from tp_backtest.config.settings import AppSettings
+from tp_backtest.execution import EXECUTION_ENGINE_ID, EXECUTION_ENGINE_VERSION
 from tp_core.security_nav_engine import NAV_ENGINE_ID, NAV_ENGINE_VERSION
 from tp_experiments import ExperimentRecorder, ExperimentSpec, RunRecorder
 from tp_portfolio import OPTIMIZER_ID, OPTIMIZER_VERSION
@@ -338,13 +339,25 @@ class BacktestService:
             name=config.name or run_label,
             universe=settings.run.bench or None,
             sample_start=settings.run.start_date or None,
-            cost_assumptions=config.cost_assumptions,
+            cost_assumptions={
+                **config.cost_assumptions,
+                "commission_bps": settings.execution.commission_bps,
+                "slippage_bps": settings.execution.slippage_bps,
+                "max_one_way_turnover_per_day": (
+                    settings.execution.max_one_way_turnover_per_day
+                ),
+            },
             trial_family=config.trial_family or "backtest",
             effective_trial_count=config.effective_trial_count,
             component_versions={
                 "nav_engine": f"{NAV_ENGINE_ID}:{NAV_ENGINE_VERSION}",
                 "signal": f"{BACKTEST_SIGNAL_ID}:{BACKTEST_SIGNAL_VERSION}",
                 "optimizer": f"{OPTIMIZER_ID}:{OPTIMIZER_VERSION}",
+                "execution": (
+                    f"{EXECUTION_ENGINE_ID}:{EXECUTION_ENGINE_VERSION}"
+                    if settings.execution.mode == "weight_simulated"
+                    else f"{NAV_ENGINE_ID}:{NAV_ENGINE_VERSION}"
+                ),
             },
             tags=tuple(dict.fromkeys([*config.tags, settings.run.mode])),
         )
@@ -627,6 +640,7 @@ class BacktestService:
                     copy_inputs=False,
                     monthly_base_cache=self._monthly_base_cache,
                     benchmark_cache=self._benchmark_cache,
+                    execution_config=settings.execution.__dict__,
                 )
 
                 builder.build_historical_security_lists(
@@ -650,6 +664,20 @@ class BacktestService:
             artifacts.exclusions = save_dataframe(builder.list_exclusion_histo, artifacts.exclusions)
             artifacts.perf_ptf = save_series(builder.perf_ptf, artifacts.perf_ptf)
             artifacts.perf_bench = save_series(builder.perf_bench, artifacts.perf_bench)
+            execution_result = getattr(builder, "last_result", None)
+            if execution_result is not None and hasattr(execution_result, "orders"):
+                artifacts.extra["orders"] = save_dataframe(
+                    execution_result.orders,
+                    run_dir / "orders.parquet",
+                )
+                artifacts.extra["fills"] = save_dataframe(
+                    execution_result.fills,
+                    run_dir / "fills.parquet",
+                )
+                artifacts.extra["execution_residuals"] = save_dataframe(
+                    execution_result.residuals,
+                    run_dir / "execution_residuals.parquet",
+                )
             if getattr(builder, "buy_list", None) is not None and not builder.buy_list.empty:
                 artifacts.extra["buy_list"] = save_dataframe(builder.buy_list, run_dir / "buy_list.xlsx")  # type: ignore[arg-type]
 
@@ -663,6 +691,10 @@ class BacktestService:
                     "bench": settings.run.bench,
                     "metrics": settings.run.metrics,
                     "start_date": settings.run.start_date,
+                    "execution": (
+                        getattr(execution_result, "manifest", None)
+                        or {"mode": settings.execution.mode}
+                    ),
                     **self._experiment_manifest_fields(experiment),
                 },
             )

@@ -10,12 +10,12 @@ description: Use this skill for TP system dashboard work in 08_presentation_laye
 Use this skill for dashboard changes, whether the request is visual/layout, data integration, route/default-entry behavior, or verification of what is actually served.
 
 Primary files:
-- `08_presentation_layer/apps/system_dashboard.py`
-- `08_presentation_layer/apps/system_registry.py`
-- `08_presentation_layer/apps/system_jobs.py`
+- `src/presentation_layer/apps/system_dashboard.py`
+- `src/presentation_layer/apps/system_registry.py`
+- `src/presentation_layer/apps/system_jobs.py`
 - `08_presentation_layer/frontend/system_dashboard/src/App.jsx`
 - `08_presentation_layer/frontend/system_dashboard/src/styles.css`
-- `08_presentation_layer/tests/test_presentation_layer_entrypoints.py`
+- `tests/presentation/test_presentation_layer_entrypoints.py`
 
 ## Choose The Path
 
@@ -53,8 +53,8 @@ Use this path when the task is to prove that a dashboard change is actually visi
 Use the smallest set that proves the requested behavior:
 
 ```powershell
-python -m py_compile 08_presentation_layer\apps\system_dashboard.py
-python -m pytest 08_presentation_layer\tests\test_presentation_layer_entrypoints.py -q
+python -m py_compile src\presentation_layer\apps\system_dashboard.py
+python -m pytest tests\presentation\test_presentation_layer_entrypoints.py -q
 npm run build --prefix 08_presentation_layer\frontend\system_dashboard
 Invoke-RestMethod "http://127.0.0.1:8060/api/dashboard/state"
 ```

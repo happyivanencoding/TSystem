@@ -1,0 +1,653 @@
+/* Active company-browser light theme on top of dash-mantine-components */
+
+:root {
+  --app-bg: #FAFAFA;
+  --surface: #FFFFFF;
+  --primary: #1E40AF;
+  --accent: #0F766E;
+  --text: #111827;
+  --muted: #6B7280;
+  --border: #E5E7EB;
+}
+
+html, body {
+  background: var(--app-bg);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+               'Helvetica Neue', Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  /* Interdire la barre de défilement horizontale au bas du viewport (overflow-x par bloc ; la zone main AppShell gère x/y séparément) */
+  overflow-x: hidden;
+  /* Chaîne de hauteur jusqu’au nœud racine Dash pour remplir l’écran dans la zone main AppShell */
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Racine Dash : min-height seulement ; ne pas forcer display sur #_dash-app-content > * (conflit React/Mantine, écran blanc) */
+#_dash-app-content {
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Largeur pleine sur le viewport, marges latérales réduites */
+.app-root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Zone principale : pleine largeur, padding léger pour éviter le rognage ; suit la colonne parent scrollable */
+.app-main {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  /* L’espace sous le header est surtout géré par --app-main-pad-top sur .app-shell-main-outer ; léger rehausse ici pour l’espace titre / premier bloc */
+  padding: 12px 12px 24px 12px;
+  box-sizing: border-box;
+}
+
+/* Company card hover feedback */
+.company-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+  border: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  height: 100%;
+}
+.company-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
+  border-color: var(--primary) !important;
+}
+
+/* Remove underline on card links */
+a.card-link, a.card-link:hover, a.card-link:visited {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  height: 100%;
+}
+
+/* AppShell : en-tête fixe + contenu principal */
+.app-shell-root {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--app-bg);
+  width: 100%;
+  max-width: 100%;
+}
+
+/* En-tête : ombre légère et flou pour séparer visuellement du contenu */
+.app-shell-header-bar,
+.app-shell-header-bar.mantine-AppShell-header {
+  background: color-mix(in srgb, var(--surface) 88%, rgba(15, 23, 42, 0.04));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04), 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+/* Zone main : marge sous l’en-tête ; remplit le viewport sous le header ; défilement ici, pas rogné par le parent */
+.app-shell-main-outer,
+.app-shell-root .mantine-AppShell-main {
+  --app-header-h: 80px;
+  --app-main-pad-top: 20px; /* Marge en-tête / première ligne (aligné sur header 80px dans layout) */
+  flex: 1 1 auto !important;
+  min-width: 0;
+  min-height: 0 !important;
+  max-height: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box;
+  padding-top: var(--app-main-pad-top);
+  /* Défilement vertical auto ; pas de barre horizontale sur la coquille (tables en interne) pour éviter une barre en bas de page */
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+/* Enveloppe de page : pages courtes = au moins hauteur sous l’en-tête ; longues = scroll sur le main parent */
+#app-page-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Variables héritées de .app-shell-main-outer, alignées en-tête / marge haute */
+  min-height: calc(100dvh - var(--app-header-h, 80px) - var(--app-main-pad-top, 10px));
+  box-sizing: border-box;
+}
+
+/* Pilule de nav centrée : hauteur égale, surbrillance, bords arrondis, fond vitré */
+.app-nav-pill {
+  max-width: min(52rem, 100%);
+  margin-inline: auto;
+  border-radius: 999px;
+  padding: 4px 6px;
+  background: color-mix(in srgb, #ffffff 72%, rgba(15, 23, 42, 0.03));
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-nav-pill__link.mantine-NavLink-root {
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #4b5563;
+  text-decoration: none;
+  background: transparent;
+  box-shadow: none;
+  border: 1px solid transparent;
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+  text-align: center;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.18s ease, border-color 0.2s ease;
+}
+.app-nav-pill__link.mantine-NavLink-root:hover {
+  color: #111827;
+  background: rgba(255, 255, 255, 0.6);
+  transform: translateY(-0.5px);
+}
+/* Mantine 7 NavLink : état actif via data-active */
+.app-nav-pill__link.mantine-NavLink-root[data-active] {
+  color: #fff;
+  background: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 80%, #1e3a8a);
+  box-shadow: 0 2px 8px rgba(30, 64, 175, 0.28);
+}
+
+/* Liens du tiroir mobile : actif aussi lisible qu’en desktop */
+.app-nav-mobile__link.mantine-NavLink-root[data-active] {
+  background: color-mix(in srgb, var(--primary) 10%, #fff);
+  color: #1e3a8a;
+  font-weight: 600;
+  border-left: 3px solid var(--primary);
+  padding-left: 10px;
+}
+
+/* Transition de vue : léger glissement + fondu 220 ms (voir transitionDuration AppShell) */
+.app-page-wrap {
+  will-change: opacity, transform;
+}
+.app-page-flip-0,
+.app-page-flip-1 {
+  animation: appPageIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes appPageIn {
+  from {
+    opacity: 0;
+    transform: translate3d(8px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Petit écran : éviter que le titre et la pilule se tassent sur la même ligne */
+@media (max-width: 39.99em) {
+  .app-brand-title {
+    font-size: 0.95rem !important;
+  }
+  .app-brand-subtitle {
+    display: none;
+  }
+}
+
+/* Readable measure for long-form Markdown (DES + NEWS) */
+.markdown-prose {
+  max-width: 72ch;
+}
+
+/* Pages composition indice / ICB : min-width 0 sur la chaîne flex pour ne pas forcer de scroll horizontal sur tout le main */
+.page-ptf-index,
+.page-industry-icb {
+  min-width: 0;
+  max-width: 100%;
+}
+/* Contour du tableau : scroll horizontal ici si trop large, même « boîte » que le maxHeight vertical */
+.page-ptf-index .ptf-table-outer,
+.page-industry-icb .ptf-table-outer {
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+/* PTF : enveloppe + racine DataTable + conteneur : largeur plafonnée ; scroll réel dans .dash-table-container */
+.page-ptf-index .ptf-table-outer,
+.page-ptf-index [id="ptf-table"],
+.page-ptf-index [id="ptf-table"] .dash-table-container,
+.page-industry-icb .ptf-table-outer,
+.page-industry-icb [id="ind-ptf-table"],
+.page-industry-icb [id="ind-ptf-table"] .dash-table-container {
+  max-width: 100% !important;
+  min-width: 0;
+  box-sizing: border-box;
+}
+/* Ne pas mettre max-width:100% sur .dash-spreadsheet (incompatible grands tableaux, pas de barre horizontale) */
+.page-ptf-index [id="ptf-table"] .dash-spreadsheet,
+.page-ptf-index [id="ptf-table"] .dash-spreadsheet-container,
+.page-ptf-index [id="ptf-table"] .dash-spreadsheet .dash-spreadsheet-container,
+.page-industry-icb [id="ind-ptf-table"] .dash-spreadsheet,
+.page-industry-icb [id="ind-ptf-table"] .dash-spreadsheet-container,
+.page-industry-icb [id="ind-ptf-table"] .dash-spreadsheet .dash-spreadsheet-container {
+  max-width: none !important;
+  box-sizing: border-box;
+}
+.page-ptf-index [id="ptf-table"] .dash-table-container,
+.page-industry-icb [id="ind-ptf-table"] .dash-table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/*
+ * DataTable : largeur de colonnes au contenu (fill_width=false + table width:max-content) ;
+ * en-têtes ~2 lignes max ; cellules sans retour à la ligne.
+ */
+.page-ptf-index [id="ptf-table"] table,
+.page-industry-icb [id="ind-ptf-table"] table {
+  table-layout: auto;
+  width: max-content;
+}
+.page-ptf-index [id="ptf-table"] th.dash-header-cell,
+.page-industry-icb [id="ind-ptf-table"] th.dash-header-cell {
+  /* pre-line : \n injectés par Python = retours à la ligne ; blancs sinon repliés ; mots longs avec break-word */
+  white-space: pre-line !important;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.25;
+  max-height: 2.5em;
+  overflow: hidden;
+  vertical-align: bottom;
+  box-sizing: border-box;
+}
+.page-ptf-index [id="ptf-table"] td.dash-cell,
+.page-industry-icb [id="ind-ptf-table"] td.dash-cell {
+  white-space: nowrap !important;
+  box-sizing: border-box;
+}
+.page-ptf-index .mantine-Paper-root,
+.page-industry-icb .mantine-Paper-root {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Pages avec panneau Description (entreprise, composition indice, analyse ICB) */
+.page-company-detail .markdown-prose,
+.page-ptf-index .markdown-prose,
+.page-industry-icb .markdown-prose {
+  max-width: none;
+  width: 100%;
+}
+
+/*
+  Long-form scroll: use native overflow. Mantine ScrollArea often needs an
+  explicit viewport height; maxHeight-only can clip Markdown without enabling scroll.
+*/
+.markdown-scroll-region {
+  box-sizing: border-box;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 8px;
+  overscroll-behavior: contain;
+}
+.markdown-scroll-region--des {
+  max-height: min(70vh, 780px);
+}
+.markdown-scroll-region--news {
+  max-height: min(55vh, 520px);
+}
+
+/* Accordion body may use overflow:hidden; inner region must own the scroll + height cap. */
+.news-item [class*="ccordion-panel"] {
+  overflow: visible !important;
+}
+
+/* Markdown content readability */
+.markdown-body {
+  line-height: 1.72;
+  color: var(--text);
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+.markdown-body :first-child {
+  margin-top: 0;
+}
+.markdown-body h1,
+.markdown-body h2 {
+  color: var(--primary);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  margin-top: 1.35em;
+  margin-bottom: 0.45em;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--border);
+}
+.markdown-body h3 {
+  color: #1f2937;
+  font-weight: 650;
+  margin-top: 1.15em;
+  margin-bottom: 0.4em;
+  font-size: 1.05rem;
+  border-left: 3px solid var(--border);
+  padding-left: 0.5rem;
+}
+.markdown-body h4:not(.md-subhead) {
+  color: var(--text);
+  font-weight: 650;
+  margin-top: 1.1em;
+  margin-bottom: 0.35em;
+}
+/* Letter rubrics a)–e) from DES / structured NEWS */
+.markdown-body h4.md-subhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  margin: 1.2em 0 0.6em 0;
+  padding: 0.5rem 0.7rem 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: #f9fafb;
+  font-size: 0.95rem;
+  color: #1f2937;
+  line-height: 1.3;
+  border-bottom: none;
+  padding-bottom: 0.55rem;
+}
+.markdown-body h4.md-subhead--a { border-left-color: #1d4ed8; }
+.markdown-body h4.md-subhead--b { border-left-color: #0f766e; }
+.markdown-body h4.md-subhead--c { border-left-color: #b45309; }
+.markdown-body h4.md-subhead--d { border-left-color: #6d28d9; }
+.markdown-body h4.md-subhead--e { border-left-color: #be123c; }
+.markdown-body h4 .md-subhead__index {
+  display: inline-block;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.8rem;
+  color: #6b7280;
+  min-width: 1.3rem;
+}
+.markdown-body h4 .md-subhead__label {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.markdown-body p {
+  margin: 0.7em 0;
+}
+.markdown-body p + p {
+  margin-top: 0.9em;
+}
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0.6em 0 0.6em 1.1em;
+  padding-left: 1.1em;
+}
+.markdown-body li {
+  margin: 0.28em 0;
+}
+.markdown-body li::marker {
+  color: var(--accent);
+}
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.25em 0;
+}
+.markdown-body blockquote {
+  margin: 1em 0;
+  padding: 0.65em 0.85em;
+  border-left: 3px solid var(--accent);
+  background: rgba(15, 118, 110, 0.06);
+  border-radius: 0 8px 8px 0;
+  color: var(--text);
+}
+.markdown-body blockquote p {
+  margin: 0.35em 0;
+}
+.markdown-body strong {
+  color: var(--text);
+  font-weight: 650;
+}
+.markdown-body em {
+  color: #1f2937;
+}
+.markdown-body .md-sentiment-card {
+  margin: 1.5rem 0 0.25rem 0;
+  padding: 0.9rem 1rem 0.85rem 1rem;
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f8faff 0%, #f1f5f9 100%);
+  box-shadow: 0 1px 0 rgba(17, 24, 39, 0.04);
+}
+.markdown-body .md-sentiment__title {
+  margin: 0 0 0.35rem 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #3730a3;
+  font-weight: 700;
+}
+.markdown-body .md-sentiment__hint {
+  margin: 0 0 0.55rem 0;
+  font-size: 0.8rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+.markdown-body .md-sentiment__list {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.markdown-body .md-sentiment__item {
+  margin: 0.3em 0;
+  color: #111827;
+  font-size: 0.9rem;
+}
+.markdown-body .md-sentiment__value {
+  font-weight: 700;
+  font-family: ui-monospace, Consolas, monospace;
+  color: #1e3a8a;
+}
+.markdown-body .md-sentiment__meta {
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+/* News timeline item */
+.news-item {
+  border-left: 3px solid var(--primary);
+  background: var(--surface);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  border-radius: 0 8px 8px 0;
+}
+.news-item .news-date {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.news-item .news-title {
+  color: var(--text);
+  font-weight: 600;
+  margin: 4px 0 8px 0;
+}
+
+/* Filter panel sticky on desktop */
+.filter-panel {
+  position: sticky;
+  top: 80px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+/* Section heading */
+.section-heading {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+/* Analyse ICB : onglets multiligne, pas de chevauchement entre libellés */
+.ind-icb-tabs-bar .tab-row,
+.ind-icb-tabs-bar .tab-row-container {
+  flex-wrap: wrap !important;
+  row-gap: 6px;
+  column-gap: 4px;
+  align-items: flex-start;
+}
+.ind-icb-tabs-bar .tab {
+  box-sizing: border-box;
+  max-width: 11.5rem;
+  white-space: normal !important;
+  word-break: break-word;
+  hyphens: auto;
+  text-align: center;
+  line-height: 1.2;
+  font-size: 12px;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+.ind-icb-tabs-bar {
+  width: 100%;
+}
+
+/* Tiroir entreprise (Composition indice + Analyse ICB) */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.22s cubic-bezier(0.4, 0, 1, 1), visibility 0.22s step-end;
+}
+.drawer-overlay.drawer-overlay--open {
+  pointer-events: auto;
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s;
+}
+.drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  background: rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.drawer-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  /* Largeur du panneau tiroir (aligné sur Mantine Drawer size=85%) */
+  width: 85%;
+  max-width: 100%;
+  background: var(--surface);
+  box-shadow: -8px 0 32px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.drawer-overlay.drawer-overlay--open .drawer-panel {
+  transform: translateX(0);
+}
+.drawer-overlay:not(.drawer-overlay--open) .drawer-panel {
+  transition: transform 0.22s cubic-bezier(0.4, 0, 1, 1);
+}
+.drawer-panel-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.drawer-panel-header .drawer-close {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.drawer-panel-header .drawer-close:hover {
+  background: var(--border);
+  color: var(--text);
+}
+.drawer-panel .drawer-seg-wrap {
+  flex-shrink: 0;
+  padding: 12px 20px 0;
+}
+.drawer-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px 24px;
+}
+.drawer-tab-panel {
+  display: none;
+}
+.drawer-tab-panel.drawer-tab-panel--active {
+  display: block;
+}
+.drawer-fab-wrap {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1999;
+}
+.drawer-fab-wrap .mantine-Button-root {
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.15);
+}
+@media (max-width: 640px) {
+  .drawer-panel {
+    width: 100%;
+  }
+  .drawer-fab-wrap {
+    right: 16px;
+    bottom: 16px;
+  }
+}

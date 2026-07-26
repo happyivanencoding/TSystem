@@ -49,7 +49,7 @@ def test_system_worker_cli_once_on_empty_queue(tmp_path: Path, capsys: pytest.Ca
 def test_report_wrapper_exposes_lazy_entrypoints() -> None:
     from presentation_layer.reports import portfolio_dashboard
 
-    assert portfolio_dashboard.DASHBOARD_ROOT.name == "dashboard_analysis"
+    assert not hasattr(portfolio_dashboard, "DASHBOARD_ROOT")
     assert callable(portfolio_dashboard.get_dashboard_class)
 
 
@@ -498,13 +498,9 @@ def test_system_registry_declares_control_tower_projects() -> None:
         "portfolios",
         "backtests",
         "08_presentation_layer",
-        "08_web_app_des_companies",
-        "08_company_analysis",
-        "08_dashboard_analysis",
         "reports",
         "pipeline_runs",
         "11_docs",
-        "12_small_cap",
     } <= project_ids
     asset_names = {entry.name for entry in DATA_ASSET_REGISTRY}
     assert {"screen_aggregate", "returns", "last_screen", "screen_aggregate_5Y"} <= asset_names
@@ -829,7 +825,7 @@ def test_system_dashboard_monitoring_rows_are_structured(tmp_path: Path, monkeyp
     sample_assets = [
         {"项目": "00_screen", "来源": "registry", "状态": "存在"},
         {"项目": "signals", "来源": "discovered", "状态": "存在"},
-        {"项目": "12_small_cap", "来源": "registry", "状态": "缺失"},
+        {"项目": "missing_project", "来源": "registry", "状态": "缺失"},
     ]
     assert _filter_asset_rows(sample_assets, project_id="00_screen") == [sample_assets[0]]
     assert _filter_asset_rows(sample_assets, source="discovered") == [sample_assets[1]]
@@ -920,7 +916,7 @@ def test_system_dashboard_monitoring_rows_are_structured(tmp_path: Path, monkeyp
         "safe_check",
     )
     assert _project_has_registered_command(projects["candidates"])
-    assert not _project_has_registered_command(projects["12_small_cap"])
+    assert _project_has_registered_command(projects["08_presentation_layer"])
     project_context = _project_context_payload("candidates")
     assert project_context["title"].startswith("candidates")
     assert "latest_candidates" in project_context["assets"]
@@ -943,7 +939,7 @@ def test_system_dashboard_monitoring_rows_are_structured(tmp_path: Path, monkeyp
     assert registered_command[:3] == [sys.executable, "-m", "tp_pipelines.build_candidates"]
 
     with pytest.raises(ValueError):
-        _build_project_command("12_small_cap", "registered_command")
+        _build_project_command("missing_project", "registered_command")
 
     sector_command = _command_from_callback(
         "run_backtest",

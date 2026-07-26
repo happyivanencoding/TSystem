@@ -27,33 +27,33 @@
 
 ```powershell
 # 1. 只生成按月、按市场的 GDELT BigQuery 查询和断点清单（不联网执行）
-python C:\GoogleDrive\TP\16_news_market_signal\run.py ingest `
+python -m tp_models.news.run ingest `
   --start 2007-01-01 --end 2026-07-12 --markets US EU JP CN_HK
 
 # 2. 安装可选依赖后执行 BigQuery；已有分片自动跳过
 pip install -e "C:\GoogleDrive\TP[news]"
-python C:\GoogleDrive\TP\16_news_market_signal\run.py ingest `
+python -m tp_models.news.run ingest `
   --project YOUR_GCP_PROJECT --resume
 
 # 无 Google Cloud 凭据时，直接流式处理官方 GDELT 1.0 历史归档
-python C:\GoogleDrive\TP\16_news_market_signal\run.py ingest `
+python -m tp_models.news.run ingest `
   --direct-download --start 2007-01-01 --end 2026-07-12 --resume --max-files 100
 
 # 3. 构建四市场点时点价格标签
-python C:\GoogleDrive\TP\16_news_market_signal\run.py build-labels
+python -m tp_models.news.run build-labels
 
 # 4. 构建每日新闻状态；需要 source_events 分区和 market_labels
-python C:\GoogleDrive\TP\16_news_market_signal\run.py build-daily
+python -m tp_models.news.run build-daily
 
 # 日归档分批下载后，只合并本批新增覆盖日并重算滚动特征
-python C:\GoogleDrive\TP\16_news_market_signal\run.py build-daily `
+python -m tp_models.news.run build-daily `
   --incremental --start 2013-04-01 --end 2013-07-11
 
 # 5. 扩展窗口 Ridge 筛选证据，并按月对齐现有 Country/Regime 输出
-python C:\GoogleDrive\TP\16_news_market_signal\run.py backtest --compare-existing
+python -m tp_models.news.run backtest --compare-existing
 
 # 现有 13 天公司新闻只做市场/行业映射审计，不写入历史事件主表
-python C:\GoogleDrive\TP\16_news_market_signal\run.py audit-existing-news
+python -m tp_models.news.run audit-existing-news
 ```
 
 长任务输出写入本项目 `data/`、`outputs/`、`runs/`，均由本地 `.gitignore` 排除。历史 run 目录不会被覆盖。
@@ -61,7 +61,7 @@ python C:\GoogleDrive\TP\16_news_market_signal\run.py audit-existing-news
 ## 验证
 
 ```powershell
-python -m pytest C:\GoogleDrive\TP\16_news_market_signal\tests -q
+python -m pytest tests\models\news -q
 ```
 
-测试覆盖旧数据保守滞后、各市场收盘前 30 分钟截断、安静日与未回填日区分、增量 daily 合并、GDELT 新旧归档格式、四市场 universe 与代理标记、未来收益/回撤标签、因果标准化和行业 Top/Worst。
+测试覆盖旧数据保守滞后、各市场收盘前 30 分钟截断、安静日与未回填日区分、增量 daily 合并、GDELT 新旧归档格式、四市场 universe 与代理标记、未来收益/回撤标签、因果标准化和行业 Top/Worst。活跃实现只位于 `src/tp_models/news/`，不得恢复资源目录脚本入口。

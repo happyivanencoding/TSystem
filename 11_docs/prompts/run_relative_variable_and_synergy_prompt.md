@@ -14,7 +14,7 @@
 - Universe / Benchmark: [MARKET_OR_BENCHMARK]
 - Universe rule: 优先用 `Weight in [MARKET_OR_BENCHMARK] > 0`；若该列不存在，先审计 screen columns 后提出最接近口径。
 - 数据源: `C:\GoogleDrive\TP\00_screen\screen_aggregate.parquet` 和 `C:\GoogleDrive\TP\00_screen\returns.parquet`
-- 输出目录: `C:\GoogleDrive\TP\07_backtest_code\runs\ad_hoc\`
+- 输出目录: `C:\GoogleDrive\TP\artifacts\backtests\runs\ad_hoc\`
 
 执行要求：
 1. 先审计可用字段、benchmark 权重列、起止日期、月度样本数、returns SEDOL 覆盖率。

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "hypothesis_id": "cross-market-lag6-relative",
+  "name": "Cross-market lag-6 relative factor research",
+  "statement": "Lag-6 relative factor evidence remains robust across supported markets after PIT and cost controls.",
+  "owner": "TP Research",
+  "status": "research",
+  "universe": "cross-market",
+  "pit_policy": "available_at_or_before_decision_time",
+  "cost_assumptions": {
+    "transaction_cost": 0.0,
+    "slippage": 0.0
+  },
+  "trial_family": "cross-market-lag6",
+  "effective_trial_count": 1,
+  "tags": ["research", "factor", "cross-market", "configured"],
+  "runner": {
+    "module": "tp_research.workflows.run_cross_market_lag6_relative_research",
+    "callable": "main",
+    "default_args": [],
+    "required_options": ["--market"]
+  }
+}

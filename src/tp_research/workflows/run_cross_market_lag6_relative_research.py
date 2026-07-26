@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
-from tp_research.paths import BACKTEST_ROOT, TP_ROOT
+from tp_research.paths import AD_HOC_ROOT, HISTORICAL_AD_HOC_ROOT, TP_ROOT
 
 from tp_research.executor import (  # noqa: E402
     GateThresholds,
@@ -55,7 +55,6 @@ LAG = 6
 TRANSFORMS = ("directional_delta", "score_delta")
 DEFAULT_SCREEN = TP_ROOT / "00_screen" / "screen_aggregate.parquet"
 DEFAULT_RETURNS = TP_ROOT / "00_screen" / "returns.parquet"
-AD_HOC_ROOT = BACKTEST_ROOT / "runs" / "ad_hoc"
 
 
 @dataclass(frozen=True)
@@ -182,7 +181,7 @@ def slugify(value: str) -> str:
 
 def frozen_definition_path(profile: MarketProfile) -> Path:
     return (
-        AD_HOC_ROOT
+        HISTORICAL_AD_HOC_ROOT
         / profile.frozen_relative_run
         / "relative_variable_definitions.csv"
     )

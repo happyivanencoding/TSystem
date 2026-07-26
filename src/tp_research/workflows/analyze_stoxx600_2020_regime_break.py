@@ -8,11 +8,11 @@ import numpy as np
 import pandas as pd
 
 
-from tp_core.workspace import BACKTEST_RUNS_DIR
+from tp_core.workspace import HISTORICAL_RESEARCH_RUNS_DIR, RESEARCH_RUNS_DIR
 
-RAW_RUN = BACKTEST_RUNS_DIR / "ad_hoc" / "stoxx600_raw_gated_20260708_0100"
-PAIR_RUN = BACKTEST_RUNS_DIR / "ad_hoc" / "stoxx600_raw_pair_synergy_20260708_1400"
-OUT_DIR = BACKTEST_RUNS_DIR / "ad_hoc" / "stoxx600_2020_regime_break_20260709"
+RAW_RUN = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc" / "stoxx600_raw_gated_20260708_0100"
+PAIR_RUN = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc" / "stoxx600_raw_pair_synergy_20260708_1400"
+OUT_DIR = RESEARCH_RUNS_DIR / "ad_hoc" / "stoxx600_2020_regime_break_20260709"
 
 PERIODS = {
     "pre_2020": ("2009-07-02", "2019-12-31"),

@@ -11,10 +11,10 @@ from pathlib import Path
 import pandas as pd
 
 
-from tp_core.workspace import BACKTEST_RUNS_DIR
+from tp_core.workspace import RESEARCH_RUNS_DIR
 
 RUNNER_MODULE = "tp_research.workflows.run_stoxx600_relative_synergy_research"
-OUT_DIR = BACKTEST_RUNS_DIR / "ad_hoc" / "stoxx600_relative_synergy_20260709"
+OUT_DIR = RESEARCH_RUNS_DIR / "ad_hoc" / "stoxx600_relative_synergy_20260709"
 
 
 def deduped_status(output_dir: Path) -> tuple[pd.DataFrame, list[str]]:

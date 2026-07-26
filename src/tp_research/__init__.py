@@ -29,3 +29,8 @@ __all__ = [
     "shard_result_path",
     "recorded_workflow",
 ]
+"""Configuration-driven, auditable TP research."""
+
+from .registry import HypothesisRegistry, ResearchDefinition, run_definition
+
+__all__ = ["HypothesisRegistry", "ResearchDefinition", "run_definition"]

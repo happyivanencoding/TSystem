@@ -6,18 +6,13 @@ from typing import Any
 
 import pandas as pd
 
-from tp_core.data_sources import TP_ROOT
 from presentation_layer import company_analysis as analysis
-
-
-BACKEND_ROOT = TP_ROOT / "08_presentation_layer" / "legacy_apps" / "company_analysis" / "backend"
 
 
 def create_app() -> Any:
     """创建公司分析 FastAPI app。
 
-    路由定义集中在 presentation layer；业务函数暂时复用
-    `08_presentation_layer/legacy_apps/company_analysis/backend/analysis.py`，其中数据读取已接入
+    路由和业务函数均位于已安装的 presentation layer，数据读取统一接入
     `PresentationDataRepository`。
     """
 
@@ -32,6 +27,9 @@ def create_app() -> Any:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    from presentation_layer.apps.company_research_api import register_routes
+
+    register_routes(app)
 
     @app.get("/api/health")
     def health_check():
@@ -112,4 +110,4 @@ def run(host: str = "0.0.0.0", port: int = 8000, reload: bool = False) -> None:
     uvicorn.run(create_app(), host=host, port=port, reload=reload)
 
 
-__all__ = ["BACKEND_ROOT", "create_app", "run"]
+__all__ = ["create_app", "run"]

@@ -6,17 +6,24 @@ from pathlib import Path
 
 import pytest
 
+from tp_backtest.runner.artifacts import get_runs_dir
 from tp_core.artifact_retention import (
     RetentionItem,
     RetentionRule,
     apply_retention_plan,
     build_retention_plan,
 )
+from tp_core.workspace import BACKTEST_OUTPUT_RUNS_DIR, HISTORICAL_RESEARCH_RUNS_DIR
 
 
 def _set_age(path: Path, days: int, now: datetime) -> None:
     timestamp = now.timestamp() - days * 86400
     os.utime(path, (timestamp, timestamp))
+
+
+def test_new_backtests_do_not_write_to_historical_store() -> None:
+    assert get_runs_dir() == BACKTEST_OUTPUT_RUNS_DIR
+    assert get_runs_dir() != HISTORICAL_RESEARCH_RUNS_DIR
 
 
 def test_retention_keeps_newest_and_protects_tracked_paths(tmp_path: Path) -> None:

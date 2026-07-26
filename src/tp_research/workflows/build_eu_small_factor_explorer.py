@@ -12,9 +12,9 @@ from tp_reporting import render_inline_fragment
 
 
 from tp_research.paths import TP_ROOT as ROOT
-from tp_core.workspace import BACKTEST_RUNS_DIR, REPORTS_DIR
+from tp_core.workspace import HISTORICAL_RESEARCH_RUNS_DIR, REPORTS_DIR
 
-RUNS = BACKTEST_RUNS_DIR / "ad_hoc"
+RUNS = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc"
 SYNERGY_DIR = RUNS / "eu_small_relative_synergy_20260709"
 RELATIVE_DIR = RUNS / "eu_small_relative_variables_20260709"
 RAW_DIR = RUNS / "eu_small_multifactor_20260707_085611"

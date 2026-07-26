@@ -6,11 +6,11 @@ import json
 
 import pandas as pd
 
-from tp_core.workspace import BACKTEST_RUNS_DIR, REPORTS_DIR
+from tp_core.workspace import HISTORICAL_RESEARCH_RUNS_DIR, REPORTS_DIR
 
-RUN = BACKTEST_RUNS_DIR / "ad_hoc" / "stoxx600_relative_synergy_20260709"
-RAW_GATE = BACKTEST_RUNS_DIR / "ad_hoc" / "stoxx600_raw_gated_20260708_0100" / "raw_validation_gate.csv"
-REL_GATE = BACKTEST_RUNS_DIR / "ad_hoc" / "stoxx600_relative_variables_20260709" / "relative_validation_gate.csv"
+RUN = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc" / "stoxx600_relative_synergy_20260709"
+RAW_GATE = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc" / "stoxx600_raw_gated_20260708_0100" / "raw_validation_gate.csv"
+REL_GATE = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc" / "stoxx600_relative_variables_20260709" / "relative_validation_gate.csv"
 OUTPUT = REPORTS_DIR / "stoxx600-factor-explorer.html"
 
 BUCKET_NAMES = {

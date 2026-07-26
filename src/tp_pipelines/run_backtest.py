@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Iterable
 
 from tp_core.data_sources import RETURNS_PATH, SCREEN_AGGREGATE_PATH
-from tp_core.workspace import BACKTEST_RUNS_DIR
+from tp_core.workspace import BACKTEST_OUTPUT_RUNS_DIR
 
 from .common import StepManifest, path_profile, run_python_module
 from .configs import RunBacktestConfig
@@ -80,18 +80,18 @@ def run_backtest_step(args: RunBacktestConfig) -> Path:
             "回测输入 inspect 通过" if inspect_result["returncode"] == 0 else "回测输入 inspect 失败",
         )
         if inspect_result["returncode"] != 0:
-            manifest.outputs = {"backtest_runs": path_profile(BACKTEST_RUNS_DIR)}
+            manifest.outputs = {"backtest_runs": path_profile(BACKTEST_OUTPUT_RUNS_DIR)}
             manifest_path = manifest.write("failed")
             raise RuntimeError(f"回测 inspect 失败，manifest: {manifest_path}")
 
         if args.inspect_only:
-            manifest.outputs = {"backtest_runs": path_profile(BACKTEST_RUNS_DIR)}
+            manifest.outputs = {"backtest_runs": path_profile(BACKTEST_OUTPUT_RUNS_DIR)}
             manifest.add_validation("run_skipped", True, "inspect-only 模式未执行回测")
             return manifest.write("success")
 
         run_result = run_python_module(BACKTEST_MODULE, ["run", *_run_args(args)])
         manifest.details["run"] = run_result
-        manifest.outputs = {"backtest_runs": path_profile(BACKTEST_RUNS_DIR)}
+        manifest.outputs = {"backtest_runs": path_profile(BACKTEST_OUTPUT_RUNS_DIR)}
         manifest.add_validation(
             "backtest_run_passed",
             run_result["returncode"] == 0,

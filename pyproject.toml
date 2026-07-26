@@ -13,6 +13,8 @@ dependencies = [
   "python-dateutil>=2.8",
   "pyarrow>=14",
   "openpyxl>=3.1",
+  "pydantic>=2",
+  "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -23,7 +25,6 @@ screen = [
 backtest = [
   "scipy>=1.10",
   "plotly>=5",
-  "PyYAML>=6.0",
 ]
 optimizer = [
   "cvxpy>=1.7,<1.8",
@@ -35,7 +36,6 @@ web = [
   "Flask>=3.0",
   "plotly>=5.24",
   "uvicorn>=0.27",
-  "pydantic>=2",
   "streamlit>=1.30",
 ]
 ml = [
@@ -55,6 +55,7 @@ test = [
 tp-organize-inputs = "tp_core.production_inputs:main"
 tp-returns-audit = "tp_core.returns_audit:main"
 tp-check-legacy-references = "tp_core.legacy_policy:main"
+tp-migrate-directory = "tp_core.directory_migration:main"
 tp-prune-artifacts = "tp_core.artifact_retention:main"
 tp-validate-signals = "tp_core.signals:main"
 tp-pipeline-refresh-data = "tp_pipelines.refresh_data:main"
@@ -64,17 +65,16 @@ tp-pipeline-build-candidates = "tp_pipelines.build_candidates:main"
 tp-pipeline-optimize-portfolio = "tp_pipelines.optimize_portfolio:main"
 tp-pipeline-run-backtest = "tp_pipelines.run_backtest:main"
 tp-pipeline-generate-report = "tp_pipelines.generate_report:main"
+tp-news-shadow = "tp_models.news.shadow:main"
 tp-pipeline-run-all = "tp_pipelines.run_all:main"
 tp-backtest = "tp_backtest.cli:main"
 tp-presentation = "presentation_layer.cli:main"
 tp-experiments = "tp_experiments.cli:main"
+tp-research = "tp_research.cli:main"
 tp-build-factor-research-app = "tp_reporting.factor_research_app:main"
 tp-build-factor-explorer = "tp_reporting.factor_explorer:main"
 tp-build-stoxx600-factor-explorer = "tp_reporting.stoxx600_factor_explorer:main"
-tp-research-cross-market-lag6 = "tp_research.workflows.run_cross_market_lag6_relative_research:main"
-tp-research-cross-market-lopo = "tp_research.workflows.analyze_cross_market_leave_one_period_out:main"
-tp-research-cross-market-synergy = "tp_research.workflows.run_cross_market_lag6_anchor_synergy:main"
-tp-research-stoxx600-sparse = "tp_research.workflows.run_stoxx600_sparse_core_sleeve_research:main"
+tp-company-report = "tp_reporting.company_research.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -127,7 +127,6 @@ exclude = [
   "**/.cache",
   "**/__pycache__",
   "**/*.egg-info",
-  "07_backtest_code/runs",
 ]
 
 [tool.mypy]

@@ -13,7 +13,10 @@ import pandas as pd
 def relative_path(path: str | Path | None, *, root: Path) -> str:
     if not path:
         return ""
-    resolved = Path(path)
+    path_text = str(path)
+    if path_text.startswith("\\\\?\\"):
+        path_text = path_text[4:]
+    resolved = Path(path_text)
     try:
         return str(resolved.relative_to(root))
     except ValueError:

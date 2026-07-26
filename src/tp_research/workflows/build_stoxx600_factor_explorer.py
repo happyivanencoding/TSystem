@@ -9,21 +9,21 @@ import numpy as np
 import pandas as pd
 
 
-from tp_core.workspace import BACKTEST_RUNS_DIR, REPORTS_DIR
+from tp_core.workspace import HISTORICAL_RESEARCH_RUNS_DIR, REPORTS_DIR
 
 LORO_RUN = (
-    BACKTEST_RUNS_DIR
+    HISTORICAL_RESEARCH_RUNS_DIR
     / "ad_hoc"
     / "stoxx600_leave_one_regime_out_20260723"
 )
-RAW_RUN = BACKTEST_RUNS_DIR / "ad_hoc" / "stoxx600_raw_gated_20260708_0100"
+RAW_RUN = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc" / "stoxx600_raw_gated_20260708_0100"
 RELATIVE_RUN = (
-    BACKTEST_RUNS_DIR
+    HISTORICAL_RESEARCH_RUNS_DIR
     / "ad_hoc"
     / "stoxx600_relative_variables_20260709"
 )
 SYNERGY_RUN = (
-    BACKTEST_RUNS_DIR
+    HISTORICAL_RESEARCH_RUNS_DIR
     / "ad_hoc"
     / "stoxx600_relative_synergy_20260709"
 )

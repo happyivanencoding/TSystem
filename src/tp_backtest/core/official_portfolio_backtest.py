@@ -19,6 +19,7 @@ from tp_core.security_nav_engine import (
     TargetWeightSchema,
     SecurityNavEngine,
 )
+from tp_backtest.execution import ExecutionAssumptions, simulate_weight_execution
 from tp_backtest.utils.plotting import PlotlyVisualizer
 from tp_backtest.utils.constants import *
 
@@ -63,6 +64,7 @@ class OfficialPortfolioBacktest:
         copy_inputs: bool = False,
         monthly_base_cache: Optional[dict] = None,
         benchmark_cache: Optional[dict] = None,
+        execution_config: Optional[dict] = None,
     ):
         self.security_list_constructor = SecurityListConstructor(
             screen=screen,
@@ -92,6 +94,7 @@ class OfficialPortfolioBacktest:
         )
         
         self.nav_engine = SecurityNavEngine(returns=returns)
+        self.execution_assumptions = ExecutionAssumptions(**(execution_config or {}))
         self._optimizer_nav_adapter = None
         self.security_list_constructor.returns = self.nav_engine.returns
         self.optimizer_config = optimizer_config or {}
@@ -129,12 +132,23 @@ class OfficialPortfolioBacktest:
         self.last_result = None
         self.last_benchmark_result = None
 
+    def _run_weight_nav(self, weights, schema):
+        if self.execution_assumptions.mode == "fast_nav":
+            return self.nav_engine.run_weights(weights, schema=schema)
+        return simulate_weight_execution(
+            weights,
+            self.returns,
+            assumptions=self.execution_assumptions,
+            schema=schema,
+        )
+
     @property
     def optimizer_nav_adapter(self):
         """Lazily initialize the optimizer-to-weight adapter."""
         if self._optimizer_nav_adapter is None:
             self._optimizer_nav_adapter = OptimizerBacktestAdapter(
-                returns=self.returns
+                returns=self.returns,
+                execution_assumptions=self.execution_assumptions,
             )
         return self._optimizer_nav_adapter
     
@@ -238,9 +252,9 @@ class OfficialPortfolioBacktest:
                 col_date=col_date,
                 col_mkt_cap=col_mkt_cap,
             )
-            result = self.nav_engine.run_weights(
+            result = self._run_weight_nav(
                 weights.reset_index(),
-                schema=TargetWeightSchema(
+                TargetWeightSchema(
                     date_col=col_date,
                     id_col=col_sedol,
                     weight_col=COL_PORTFOLIO_WEIGHT,
@@ -267,9 +281,9 @@ class OfficialPortfolioBacktest:
                 col_sedol=col_sedol,
                 col_isin=col_isin,
             )
-            result = self.nav_engine.run_weights(
+            result = self._run_weight_nav(
                 weights.reset_index(),
-                schema=TargetWeightSchema(
+                TargetWeightSchema(
                     date_col=col_date,
                     id_col=col_sedol,
                     weight_col=COL_PORTFOLIO_WEIGHT,

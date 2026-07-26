@@ -37,7 +37,7 @@ python -m tp_backtest.cli run `
   --percentile 0.05
 ```
 
-运行产物当前默认写入 `07_backtest_code/runs/<user>/<timestamp>_<run_label>/`，包含配置快照、manifest、组合成分、排除清单、组合表现、benchmark 表现、HTML 图和日志。该约 74 GB 历史库暂缓物理迁移，代码只能通过 `tp_core.workspace.BACKTEST_RUNS_DIR` 访问。
+新运行产物默认写入 `artifacts/backtests/runs/<user>/<timestamp>_<run_label>/`，包含配置快照、manifest、组合成分、排除清单、组合表现、benchmark 表现、HTML 图和日志。`artifacts/research/runs/historical/` 仅作为显式历史输入保留，不得写入。
 
 ## 当前已接入的新引擎功能
 
@@ -103,7 +103,8 @@ optimized_perf = workflow.run_optimizer_nav()
 | `src/tp_backtest/runner/` | CLI service、校验、运行与产物保存 |
 | `config/backtest/` | YAML profile；`default.yaml` 是默认配置 |
 | `tests/backtest/` | 回测回归测试 |
-| `07_backtest_code/runs/` | 暂缓迁移的历史大体积回测产物 |
+| `artifacts/backtests/runs/` | 当前回测运行产物 |
+| `artifacts/research/runs/historical/` | 历史只读研究证据库 |
 | `artifacts/logs/` | 运行日志 |
 
 ## 前端状态

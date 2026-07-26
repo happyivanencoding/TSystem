@@ -27,9 +27,11 @@ def test_recorder_persists_inputs_metrics_artifacts_and_lineage(tmp_path) -> Non
         parameters={"top_pct": 0.1},
         parent_run_id="parent-1",
         run_id="run-1",
+        config={"metric": "value"},
     ) as run:
         run.log_inputs({"screen": source}, hash_content=True)
         run.log_metrics({"robust_score": 0.75})
+        run.log_provenance({"provider": "canonical"})
         run.log_artifacts({"summary": artifact})
         run.set_decision("promote", reason="all gates passed")
 
@@ -40,6 +42,9 @@ def test_recorder_persists_inputs_metrics_artifacts_and_lineage(tmp_path) -> Non
     assert payload["metrics"]["robust_score"] == pytest.approx(0.75)
     assert payload["artifacts"]["summary"]["exists"] is True
     assert payload["decision"]["status"] == "promote"
+    assert payload["schema_version"] == 3
+    assert payload["config"]["fingerprint"]
+    assert payload["provenance"]["provider"] == "canonical"
     assert payload["record_fingerprint"]
     assert not run.path.with_suffix(".json.tmp").exists()
 

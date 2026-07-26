@@ -12,14 +12,14 @@ import numpy as np
 import pandas as pd
 
 
-from tp_core.workspace import BACKTEST_RUNS_DIR
+from tp_core.workspace import HISTORICAL_RESEARCH_RUNS_DIR, RESEARCH_RUNS_DIR
 
-AD_HOC_ROOT = BACKTEST_RUNS_DIR / "ad_hoc"
+AD_HOC_ROOT = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc"
 DEFAULT_RAW_DIR = AD_HOC_ROOT / "eu_small_validated_gate_20260708_official"
 DEFAULT_ROTATION_DIR = AD_HOC_ROOT / "eu_small_variable_rotation_20260708_official"
 DEFAULT_RELATIVE_DIR = AD_HOC_ROOT / "eu_small_relative_variables_20260709"
 DEFAULT_SYNERGY_DIR = AD_HOC_ROOT / "eu_small_relative_synergy_20260709"
-DEFAULT_OUT_DIR = AD_HOC_ROOT / "eu_small_extended_factor_report_20260709"
+DEFAULT_OUT_DIR = RESEARCH_RUNS_DIR / "ad_hoc" / "eu_small_extended_factor_report_20260709"
 DEFAULT_OBSIDIAN_DIR = Path(r"C:\GoogleDrive\笔记\卡片盒子\10_Investment\03_Factor_Research")
 
 

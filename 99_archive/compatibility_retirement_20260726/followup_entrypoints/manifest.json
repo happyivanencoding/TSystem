@@ -1,0 +1,28 @@
+{
+  "retired_at": "2026-07-26",
+  "reason": "Only installed package and console entrypoints may remain active after the new architecture deployment.",
+  "items": [
+    "00_screen/monthly_update.py",
+    "08_presentation_layer/legacy_apps/web_app_des_companies/app.py",
+    "08_presentation_layer/legacy_apps/web_app_des_companies/wsgi.py",
+    "08_presentation_layer/legacy_apps/company_analysis/backend/main.py",
+    "08_presentation_layer/legacy_apps/company_analysis/start_app.ps1",
+    "08_presentation_layer/legacy_apps/company_analysis/update_icon.ps1",
+    "08_presentation_layer/legacy_apps/company_analysis/backend/convert_icon.py",
+    "08_presentation_layer/legacy_apps/company_analysis/backend/requirements.txt",
+    "08_presentation_layer/legacy_apps/dashboard_analysis/run_generated_sec_list_dashboard.py",
+    "08_presentation_layer/legacy_apps/dashboard_analysis/build_template_copy_report.py"
+  ],
+  "replacement": [
+    "tp_data.monthly_update",
+    "presentation_layer.apps.des_companies",
+    "presentation_layer.apps.company_analysis_api",
+    "presentation_layer.portfolio",
+    "tp-* console scripts"
+  ],
+  "removed_regenerable_content": [
+    "08_presentation_layer/legacy_apps/company_analysis/backend/venv",
+    "08_presentation_layer/legacy_apps/web_app_des_companies/src/ui (empty)",
+    "08_presentation_layer/legacy_apps/web_app_des_companies/config (empty package shell)"
+  ]
+}

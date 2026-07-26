@@ -17,13 +17,13 @@ US 模型使用 `Weight in SP500 > 0` 定义 S&P 500 universe；EU 模型使用 
 ## 运行入口
 
 ```powershell
-python C:\GoogleDrive\TP\13_sector_score_model\src\sector_score_model.py
+python -m tp_models.sector.model
 ```
 
 主要参数：
 
 ```powershell
-python C:\GoogleDrive\TP\13_sector_score_model\src\sector_score_model.py `
+python -m tp_models.sector.model `
   --market US `
   --start-date 2010-01-01 `
   --top-n 3 `
@@ -33,19 +33,19 @@ python C:\GoogleDrive\TP\13_sector_score_model\src\sector_score_model.py `
 EU 版本：
 
 ```powershell
-python C:\GoogleDrive\TP\13_sector_score_model\src\sector_score_model.py --market EU
+python -m tp_models.sector.model --market EU
 ```
 
 EU 变量研究复跑：
 
 ```powershell
-python C:\GoogleDrive\TP\13_sector_score_model\src\eu_variable_research.py
+python -m tp_models.sector.eu_variable_research
 ```
 
 无前视改进研究（固定集成、成分股改善扩散与 factor-momentum rotation）：
 
 ```powershell
-python C:\GoogleDrive\TP\13_sector_score_model\src\sector_model_improvement_research.py
+python -m tp_models.sector.improvement_research
 ```
 
 ## 输出
@@ -108,4 +108,4 @@ EU 没有直接复用 US 的质量/估值默认组合。`eu_variable_research.py
 
 ## 维护状态
 
-活跃研究。当前模型不修改 canonical 数据，只读取 `00_screen` 的 parquet 并在本项目目录生成派生结果。
+活跃研究。当前模型不修改 Canonical 数据，只读取 `00_screen` 的 parquet 并在本项目目录生成派生结果。活跃实现只位于 `src/tp_models/sector/`，不得恢复资源目录脚本入口。

@@ -227,15 +227,14 @@ LOPO/LORO 运行至少保留：
 
 推荐文档位置：
 
-- [`../08_presentation_layer/legacy_apps/company_analysis/README.md`](../08_presentation_layer/legacy_apps/company_analysis/README.md)
-- [`../08_presentation_layer/legacy_apps/web_app_des_companies/README.md`](../08_presentation_layer/legacy_apps/web_app_des_companies/README.md)
-- [`../08_presentation_layer/legacy_apps/dashboard_analysis/README.md`](../08_presentation_layer/legacy_apps/dashboard_analysis/README.md)
+- [`../08_presentation_layer/README.md`](../08_presentation_layer/README.md)
+- [`../08_presentation_layer/legacy_apps/README.md`](../08_presentation_layer/legacy_apps/README.md)（仅说明保留的数据与模板资源）
 
 研究记录应说明：
 
 - 输入数据来自 canonical `last_screen` 还是项目派生 parquet。
 - 公司筛选、新闻窗口、行业分类和指数成分口径。
-- 输出报告、网页或 PDF 的生成命令。
+- 通过 `tp-presentation` 或 `presentation_layer` 公共 API 生成报告、网页或 PDF 的命令。
 
 ## 研究结论的保存方式
 

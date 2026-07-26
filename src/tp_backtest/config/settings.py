@@ -92,6 +92,17 @@ class ExperimentSettings:
 
 
 @dataclass
+class ExecutionSettings:
+    """Optional weight-space execution simulation; fast NAV stays the default."""
+
+    mode: str = "fast_nav"
+    commission_bps: float = 0.0
+    slippage_bps: float = 0.0
+    max_one_way_turnover_per_day: float | None = None
+    missing_return_policy: str = "zero_with_audit"
+
+
+@dataclass
 class AppSettings:
     """Objet racine de configuration."""
 
@@ -101,6 +112,7 @@ class AppSettings:
     run: RunSettings = field(default_factory=RunSettings)
     batch: BatchSettings = field(default_factory=BatchSettings)
     experiment: ExperimentSettings = field(default_factory=ExperimentSettings)
+    execution: ExecutionSettings = field(default_factory=ExecutionSettings)
 
     def to_dict(self) -> dict[str, Any]:
         """Retourne une representation serialisable."""
@@ -124,4 +136,5 @@ class AppSettings:
             run=RunSettings(**raw_data.get("run", {})),
             batch=BatchSettings(**raw_data.get("batch", {})),
             experiment=ExperimentSettings(**raw_data.get("experiment", {})),
+            execution=ExecutionSettings(**raw_data.get("execution", {})),
         )

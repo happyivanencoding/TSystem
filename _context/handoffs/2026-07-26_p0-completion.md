@@ -1,5 +1,7 @@
 # P0 基础边界完成任务
 
+> 后续状态：本 handoff 是 P0 验收时快照。兼容 facade 已在同日后续工作区整理中退役；当前事实以 `11_docs/INVESTMENT_PLATFORM_MAINLINE.md` 和 `2026-07-26_workspace-cleanup.md` 为准。
+
 ## 日期
 
 2026-07-26

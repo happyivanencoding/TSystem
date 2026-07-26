@@ -52,7 +52,8 @@ git diff --cached --name-only
 - `production_inputs`
 - `backups`
 - `_quarantine_`
-- `07_backtest_code/runs`
+- `artifacts/research/runs/historical` (historical read-only)
+- `artifacts/backtests/runs`
 - `08_dashboard_analysis/outputs`
 - `artifacts/pipeline_runs/notebook_execution`
 - `artifacts/scratch/codex_tmp`

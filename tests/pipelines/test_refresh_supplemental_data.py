@@ -15,7 +15,7 @@ from tp_core.supplemental_data import (
     provider_acceptance_gate,
     validate_resolved_values,
 )
-from tp_core.supplemental_providers import (
+from tp_data.providers import (
     AlphaVantageEstimatesProvider,
     DbnomicsSeriesProvider,
     EsefFilingsProvider,

@@ -14,8 +14,8 @@ Primary locations:
 - `03_regime_model/` for regime-feature research
 - `src/tp_backtest/`
 - `src/tp_research/workflows/`
-- `07_backtest_code/runs/`
-- `07_backtest_code/runs/ad_hoc/`
+- `artifacts/backtests/runs/`
+- `artifacts/backtests/runs/ad_hoc/`
 - `C:\GoogleDrive\笔记\卡片盒子\60_Papers` for research inspiration
 
 ## Research Workflow
@@ -95,7 +95,7 @@ Use this protocol after raw and relative raw variables pass their individual gat
 
 Implementation pattern:
 
-- Put one-off research scripts under `src/tp_research/workflows/` and outputs under `07_backtest_code/runs/ad_hoc/`.
+- Put one-off research scripts under `src/tp_research/workflows/` and outputs under `artifacts/backtests/runs/ad_hoc/`.
 - Import the public workflow only from `tp_core.backtesting`. Use
   `SecurityNavEngine` / `calculate_security_nav()` for security-level NAV,
   `SecurityListConstructor` for security lists, and

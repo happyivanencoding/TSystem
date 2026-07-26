@@ -57,6 +57,21 @@ RETENTION_RULES = (
         candidate_type="directories",
     ),
     RetentionRule(
+        "research-run-cards",
+        "artifacts/research/runs",
+        max_age_days=730,
+        keep_newest=100,
+        candidate_type="directories",
+        protected_patterns=("historical", "README*", "*_latest.*", "latest_*", ".gitkeep"),
+    ),
+    RetentionRule(
+        "research-feature-cache",
+        "artifacts/research/features",
+        max_age_days=365,
+        keep_newest=20,
+        candidate_type="directories",
+    ),
+    RetentionRule(
         "screen-backups",
         "00_screen/backups/*",
         max_age_days=365,
@@ -65,7 +80,7 @@ RETENTION_RULES = (
     ),
     RetentionRule(
         "ad-hoc-backtests",
-        "07_backtest_code/runs/ad_hoc",
+        "artifacts/backtests/runs/ad_hoc",
         max_age_days=180,
         keep_newest=10,
         candidate_type="directories",
@@ -91,7 +106,7 @@ RETENTION_RULES = (
     ),
     RetentionRule(
         "scratch-workspaces",
-        "artifacts/scratch/codex_tmp",
+        "artifacts/scratch",
         max_age_days=90,
         keep_newest=30,
         candidate_type="directories",

@@ -5,11 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from tp_core.data_sources import TP_ROOT
 from presentation_layer.company_browser import settings
 
 
-APP_ROOT = TP_ROOT / "08_presentation_layer" / "legacy_apps" / "web_app_des_companies"
+APP_ROOT = settings.ROOT_DIR
 
 
 def _validate_assets() -> None:
@@ -20,8 +19,8 @@ def _validate_assets() -> None:
 def create_app() -> Any:
     """创建 Dash 公司展示应用。
 
-    入口位于统一 presentation layer；UI、callbacks 和资源文件暂时复用
-    `08_presentation_layer/legacy_apps/web_app_des_companies/src`，以避免一次性重写前端。
+    入口、UI、callbacks 和 CSS 均位于统一 presentation layer；
+    DES/NEWS 直接读取源文件，screen 数据只读取 canonical contract。
     """
 
     _validate_assets()
@@ -32,7 +31,7 @@ def create_app() -> Any:
         __name__,
         use_pages=True,
         pages_folder=str(Path(__file__).resolve().parents[1] / "company_browser" / "ui" / "pages"),
-        assets_folder=str(APP_ROOT / "src" / "assets"),
+        assets_folder=str(settings.ASSETS_DIR),
         title=settings.APP_TITLE,
         update_title=None,
         suppress_callback_exceptions=True,

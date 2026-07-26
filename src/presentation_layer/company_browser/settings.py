@@ -8,20 +8,21 @@ from __future__ import annotations
 from pathlib import Path
 
 from tp_core.data_sources import SCREEN_AGGREGATE_PATH, TP_ROOT
+from tp_core.workspace import CONFIG_ROOT, PORTFOLIOS_DIR
 
 # --- Paths ---
-ROOT_DIR: Path = TP_ROOT / "08_presentation_layer" / "legacy_apps" / "web_app_des_companies"
-DATA_DIR: Path = ROOT_DIR / "data"
+ROOT_DIR: Path = TP_ROOT / "08_presentation_layer" / "frontend" / "company_browser"
+ASSETS_DIR: Path = ROOT_DIR / "assets"
 
-DES_PARQUET: Path = DATA_DIR / "last_DES.parquet"
-NEWS_PARQUET: Path = DATA_DIR / "Last_NEWS_3months.parquet"
+DES_PARQUET: Path = TP_ROOT.parent / "笔记" / "last_DES.parquet"
+NEWS_PARQUET: Path = TP_ROOT.parent / "笔记" / "Last_NEWS_3months.parquet"
 SCREEN_AGGREGATE_PARQUET: Path = SCREEN_AGGREGATE_PATH
 # Historical name kept for app compatibility; the canonical screen aggregate now
 # contains the CIQ columns and must be the only source used by the app.
 SCREEN_AGG_CIQ_PARQUET: Path = SCREEN_AGGREGATE_PARQUET
-ICB_MAPPING_CSV: Path = DATA_DIR / "ICB_mapping.csv"
+ICB_MAPPING_CSV: Path = CONFIG_ROOT / "reference" / "company_browser" / "ICB_mapping.csv"
 # Feuille : colonnes PTF, Date, Weight, ISIN
-PTF_XLSX: Path = DATA_DIR / "PTF_IA_WORLD.xlsx"
+PTF_XLSX: Path = PORTFOLIOS_DIR / "PTF_IA_WORLD.xlsx"
 
 # --- UI ---
 APP_TITLE: str = "Panorama des Entreprises"

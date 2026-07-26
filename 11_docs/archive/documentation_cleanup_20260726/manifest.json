@@ -1,0 +1,35 @@
+{
+  "archived_at": "2026-07-26",
+  "reason": "New src-package architecture is deployed; remove stale plans, duplicated live statistics, and one-off QA from active documentation.",
+  "items": [
+    {
+      "source": "00_screen/说明文档/monthly_update_workflow.md",
+      "target": "11_docs/archive/documentation_cleanup_20260726/screen_monthly_workflow_legacy.md"
+    },
+    {
+      "source": "00_screen/screen_description.md",
+      "target": "11_docs/archive/documentation_cleanup_20260726/screen_description_legacy.md"
+    },
+    {
+      "source": "03_ml_enhanced/.trae/documents/速度优化方案（ML_Enhanced）.md",
+      "target": "11_docs/archive/documentation_cleanup_20260726/ml_enhanced/速度优化方案（ML_Enhanced）.md"
+    },
+    {
+      "source": "03_ml_enhanced/.trae/documents/ML_Enhanced 项目优化计划.md",
+      "target": "11_docs/archive/documentation_cleanup_20260726/ml_enhanced/ML_Enhanced 项目优化计划.md"
+    },
+    {
+      "source": "08_presentation_layer/frontend/system_dashboard/design-qa.md",
+      "target": "11_docs/archive/documentation_cleanup_20260726/design-qa-factor-rotation-final-20260726.md"
+    }
+  ],
+  "merged_current_docs": [
+    "11_docs/INVESTMENT_PLATFORM_MAINLINE.md",
+    "11_docs/PIPELINE_OPERATIONS.md"
+  ],
+  "removed_redundant_docs": [
+    "11_docs/PROJECTS.md",
+    "11_docs/CORE_LIBRARY.md",
+    "11_docs/DATA_AND_PRODUCTION.md"
+  ]
+}

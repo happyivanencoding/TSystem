@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import platform
 import re
 import subprocess
+import sys
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
@@ -16,7 +18,7 @@ from typing import Any
 from tp_core.data_sources import TP_ROOT
 from tp_core.workspace import EXPERIMENTS_DIR
 
-EXPERIMENT_SCHEMA_VERSION = 2
+EXPERIMENT_SCHEMA_VERSION = 3
 FINAL_STATUSES = {"success", "failed", "cancelled"}
 DECISION_STATUSES = {"promote", "reject", "review_required"}
 IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
@@ -145,6 +147,8 @@ class ExperimentRecorder:
         parameters: Mapping[str, Any] | None = None,
         parent_run_id: str | None = None,
         run_id: str | None = None,
+        config: Mapping[str, Any] | None = None,
+        config_path: str | Path | None = None,
     ) -> "RunRecorder":
         if parent_run_id is not None:
             _validate_identifier(parent_run_id, field_name="parent_run_id")
@@ -156,6 +160,8 @@ class ExperimentRecorder:
             parameters=dict(parameters or {}),
             parent_run_id=parent_run_id,
             run_id=run_id,
+            config=dict(config or {}),
+            config_path=Path(config_path).resolve() if config_path is not None else None,
         )
 
     def query_runs(
@@ -218,6 +224,8 @@ class RunRecorder:
         parameters: Mapping[str, Any],
         parent_run_id: str | None,
         run_id: str | None,
+        config: Mapping[str, Any],
+        config_path: Path | None,
     ):
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         self.recorder = recorder
@@ -237,12 +245,22 @@ class RunRecorder:
                 "finished_at": None,
             },
             "code": _git_version(recorder.repo_root),
+            "runtime": {
+                "python": sys.version.split()[0],
+                "platform": platform.platform(),
+            },
+            "config": {
+                "path": str(config_path) if config_path is not None else None,
+                "value": dict(config),
+                "fingerprint": _canonical_digest(config),
+            },
             "parameters": dict(parameters),
             "inputs": {},
             "input_data_fingerprint": None,
             "metrics": {},
             "artifacts": {},
             "decision": None,
+            "provenance": {},
             "error": None,
         }
         self._write()
@@ -306,6 +324,14 @@ class RunRecorder:
     def log_metrics(self, metrics: Mapping[str, Any]) -> "RunRecorder":
         self._ensure_running()
         self._record["metrics"].update(dict(metrics))
+        self._write()
+        return self
+
+    def log_provenance(self, values: Mapping[str, Any]) -> "RunRecorder":
+        """Record versioned engines, providers, prompts, or evaluation lineage."""
+
+        self._ensure_running()
+        self._record["provenance"].update(dict(values))
         self._write()
         return self
 

@@ -12,15 +12,15 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
-from tp_core.workspace import BACKTEST_RUNS_DIR, REPORTS_DIR
+from tp_core.workspace import HISTORICAL_RESEARCH_RUNS_DIR, REPORTS_DIR
 
 RUN_DIR = (
-    BACKTEST_RUNS_DIR
+    HISTORICAL_RESEARCH_RUNS_DIR
     / "ad_hoc"
     / "stoxx600_sparse_lag_extension_20260723"
 )
 LAG6_RUN_DIR = (
-    BACKTEST_RUNS_DIR
+    HISTORICAL_RESEARCH_RUNS_DIR
     / "ad_hoc"
     / "stoxx600_relative_lag6_20260723"
 )

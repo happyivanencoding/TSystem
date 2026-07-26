@@ -7,10 +7,10 @@
 | 目的 | 文档 |
 | --- | --- |
 | 全目录文档地图 | [`11_docs/README.md`](11_docs/README.md) |
-| 编号主线索引与小项目 cartographie | [`11_docs/PROJECTS.md`](11_docs/PROJECTS.md) |
+| 已部署架构与项目职责 | [`11_docs/INVESTMENT_PLATFORM_MAINLINE.md`](11_docs/INVESTMENT_PLATFORM_MAINLINE.md) |
 | 项目 Python 环境 | [`11_docs/ENVIRONMENT.md`](11_docs/ENVIRONMENT.md) |
-| 核心数据与月更生产流程 | [`11_docs/DATA_AND_PRODUCTION.md`](11_docs/DATA_AND_PRODUCTION.md) |
-| 主流水线入口 | [`11_docs/PIPELINE_OPERATIONS.md`](11_docs/PIPELINE_OPERATIONS.md) |
+| 月更、主流水线与标准产物 | [`11_docs/PIPELINE_OPERATIONS.md`](11_docs/PIPELINE_OPERATIONS.md) |
+| Provider、研究治理、执行模拟、News 与 Copilot | [`11_docs/PLATFORM_CAPABILITIES.md`](11_docs/PLATFORM_CAPABILITIES.md) |
 | 数据源统一规则 | [`DATA_SOURCES.md`](DATA_SOURCES.md) |
 | 数据契约 | [`DATA_CONTRACT.md`](DATA_CONTRACT.md) |
 | 文档维护和根目录文件规则 | [`11_docs/DOCUMENTATION_GOVERNANCE.md`](11_docs/DOCUMENTATION_GOVERNANCE.md) |
@@ -36,9 +36,9 @@ returns = read_returns()
 ## 当前代码主线
 
 - 流水线主线：`tp_pipelines`（源码位于 [`src/tp_pipelines/`](src/tp_pipelines/)）提供数据刷新、信号、候选池、组合、回测和报告入口。
-- 回测主线：[`src/tp_backtest/`](src/tp_backtest/) 是传统代码版入口，替代原 Web app 和 GUI 入口。
-- 展示/报告主线：[`08_presentation_layer/`](08_presentation_layer/) 统一承载公司展示、公司分析、组合 dashboard 和报告 wrapper。
-- 标准生成产物统一位于 [`artifacts/`](artifacts/)；`07_backtest_code/runs/` 暂作为待迁移的历史大体积回测库。
+- 回测主线：[`src/tp_backtest/`](src/tp_backtest/) 是唯一代码版入口；新产物写入 `artifacts/backtests/runs/`。
+- 展示/报告主线：`presentation_layer` 是唯一应用入口；`08_presentation_layer/` 只保留前端和应用资源。
+- 标准生成产物统一位于 [`artifacts/`](artifacts/)；历史研究证据只读保存在 `artifacts/research/runs/historical/`。
 - 已退役兼容入口集中到 `99_archive/compatibility_retirement_20260726/`，不参与测试、CI 或图谱分析。
 
 ## 根目录文件规则

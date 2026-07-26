@@ -209,41 +209,6 @@ def project_checks() -> list[ProjectCheck]:
             data_kind="dashboard code",
         ),
         ProjectCheck(
-            entry("08_web_app_des_companies").project_id,
-            entry("08_web_app_des_companies").project_id,
-            entry("08_web_app_des_companies").role,
-            [
-                py,
-                "-c",
-                (
-                    "from presentation_layer.apps.des_companies import create_app; "
-                    "app=create_app(); print(app.title)"
-                ),
-            ],
-            data_kind="dash app",
-        ),
-        ProjectCheck(
-            entry("08_company_analysis").project_id,
-            entry("08_company_analysis").project_id,
-            entry("08_company_analysis").role,
-            [
-                py,
-                "-c",
-                (
-                    "from presentation_layer.apps.company_analysis_api import create_app; "
-                    "app=create_app(); print(len(app.routes))"
-                ),
-            ],
-            data_kind="fastapi app",
-        ),
-        ProjectCheck(
-            entry("08_dashboard_analysis").project_id,
-            entry("08_dashboard_analysis").project_id,
-            entry("08_dashboard_analysis").role,
-            [py, "-m", "presentation_layer.cli", "dashboard-smoke"],
-            data_kind="report wrapper",
-        ),
-        ProjectCheck(
             entry("reports").project_id,
             entry("reports").project_id,
             entry("reports").role,
@@ -290,23 +255,6 @@ def project_checks() -> list[ProjectCheck]:
             ],
             [TP_ROOT / "11_docs" / "README.md"],
             data_kind="docs",
-        ),
-        ProjectCheck(
-            entry("12_small_cap").project_id,
-            entry("12_small_cap").project_id,
-            entry("12_small_cap").role,
-            [
-                py,
-                "-c",
-                (
-                    "from pathlib import Path; "
-                    "p=Path(r'C:/GoogleDrive/TP/99_archive/project_cleanup_20260707/12_small_cap/README.md'); "
-                    "print(p.exists(), p.stat().st_size if p.exists() else 0)"
-                ),
-            ],
-            [TP_ROOT / "99_archive" / "project_cleanup_20260707" / "12_small_cap" / "README.md"],
-            data_kind="research docs",
-            required=False,
         ),
         ProjectCheck(
             entry("13_sector_score_model").project_id,

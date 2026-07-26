@@ -28,11 +28,12 @@
 | --- | --- | --- | --- | --- |
 | `tp-senior-engineer-task-execution` | TP 代码和文档任务的执行纪律 | senior engineer、生产安全、先确认范围、最小改动、中文总结 | 执行纪律，不替代具体业务 skill | 2026-07-05 初始登记 |
 | `tp-dashboard-workflow` | Dashboard、presentation layer、前端可视化验证 | dashboard、页面、看板、结果页、生产页、Score ML 面板 | 仅限 `08_presentation_layer` 及相关 API/静态资源验证 | 2026-07-05 初始登记 |
-| `tp-production-refresh-control` | 生产刷新、pipeline、manifest、incoming 归档和健康检查 | 刷新生产、跑生产、月更、incoming、control tower、system-checks | 生产刷新和产物验证，不用于研究性回测 | 2026-07-05 初始登记 |
+| `tp-production-refresh-control` | 生产刷新、pipeline、manifest、incoming 归档和健康检查 | 刷新生产、跑生产、月更、incoming、control tower、system-checks | 生产刷新和产物验证，不用于研究性回测 | 2026-07-26 路径审视 |
 | `tp-quant-research-workflow` | 因子研究、回测、中文研究报告和 Plotly 对比 | 回测、因子、策略、研究报告、中文报告、plotly 对比 | 研究和 evidence 生成，不直接改生产信号 contract | 2026-07-05 初始登记 |
 | `tp-manual-git-sync` | 手动 Git 同步和严格 artifact gate | 同步、同步 git、push、提交代码、小文件同步 | 只在用户明确要求同步时使用，不恢复自动同步 | 2026-07-05 初始登记 |
 
 ## 待观察问题
 
+- Repository 内 skill 文档已切换为 `src/`、`tests/`、`artifacts/` 和当前包入口；安装到用户目录的 skill 应在单独 skill 发布任务中同步，普通业务任务继续以代码和正式文档优先。
 - 未来 review 时重点检查中文触发说法是否足够宽，例如“同步”“刷新生产”“dashboard 页面”“回测报告”“中文报告”。
 - 如果某个 skill 连续两次未触发或误触发，单独开 skill 更新任务。

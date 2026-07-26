@@ -153,8 +153,8 @@ Nasdaq/S&P 500/Europe Small 市场内分别使用 4/4/3 个进程。并行度必
 
 全部最大绝对差异为 `0.0`。证据位于：
 
-- `07_backtest_code/runs/ad_hoc/engine_consolidation_exact_20260723/exact_equality.csv`
-- `07_backtest_code/runs/ad_hoc/engine_consolidation_exact_20260723/kernel_benchmark.json`
+- `artifacts/research/runs/historical/ad_hoc/engine_consolidation_exact_20260723/exact_equality.csv`
+- `artifacts/research/runs/historical/ad_hoc/engine_consolidation_exact_20260723/kernel_benchmark.json`
 - `99_archive/backtest_engine_consolidation_20260723/manifest.json`
 
 以后修改内核时，至少重复比较 Top、Worst 的持仓、标准权重、NAV 和

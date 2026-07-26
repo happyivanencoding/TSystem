@@ -8,8 +8,7 @@ TP 生产刷新、月更输入、pipeline 运行、manifest、incoming 归档、
 
 - Screen 生产目录：`00_screen/`
 - Pipeline 目录：`src/tp_pipelines/`
-- 正式文档：[`../../11_docs/DATA_AND_PRODUCTION.md`](../../11_docs/DATA_AND_PRODUCTION.md)
-- Pipeline 文档：`11_docs/PIPELINE_OPERATIONS.md`
+- 唯一运行手册：[`../../11_docs/PIPELINE_OPERATIONS.md`](../../11_docs/PIPELINE_OPERATIONS.md)
 
 ## 当前状态
 

@@ -13,16 +13,22 @@
 
 ## 暂缓事项
 
-- `07_backtest_code/runs/` 约 74 GB、约 9.3 万文件。为避免 Google Drive 大规模重同步，未做物理迁移。活跃代码只能通过 `tp_core.workspace.BACKTEST_RUNS_DIR` 访问。
-- 当前 Dashboard 进程仍占用 `.tmp_dashboard_work/launcher/` 下两个旧日志，因此旧目录暂未完全删除。下次重启 Dashboard 后可清除；新进程会写入 `artifacts/dashboard_work/`。
+- `07_backtest_code/runs/` 约 74 GB、约 9.3 万文件。为避免 Google Drive 大规模重同步，未做物理迁移；历史读取必须通过 `tp_core.workspace.HISTORICAL_BACKTEST_RUNS_DIR` 显式声明。
+
+## 后续状态
+
+- Dashboard 主/子进程已停止，8060 端口已释放，`.tmp_dashboard_work/` 已清除。
+- 新回测产物写入 `artifacts/backtests/runs/`；74GB 旧库只作为显式历史输入。
+- 重复架构/生产文档已合并，资源目录兼容入口已完成后续退役。
 
 ## 验证
 
-- Python：175 passed。
+- Python：226 passed、2 skipped。
 - Dashboard frontend：Vitest 通过，Vite production build 通过。
-- `tp_backtest.cli inspect --profile default`：canonical screen/returns 验证通过。
-- 定向 Ruff `F,E9`：通过。
+- `tp-backtest inspect`：canonical screen/returns 验证通过。
+- `tp-check-legacy-references`：活跃代码、配置和文档 0 命中。
+- `git diff --check`：通过。
 - 活跃 Markdown 相对链接：0 个断链。
-- CRG：219 files、1910 nodes、21888 edges、139 communities、0 architecture warnings。
+- CRG 最终最小上下文：355 files、3617 nodes、47130 edges，风险 `low (0.40)`。
 - CRG 排除检查：artifacts、旧空壳和历史 runs 的节点/边命中均为 0。
 - 未 commit、未 push。

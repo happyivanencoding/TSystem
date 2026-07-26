@@ -9,7 +9,7 @@ from typing import Sequence
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m presentation_layer.cli",
+        prog="tp-presentation",
         description="TP 展示/报告层统一入口",
     )
     sub = parser.add_subparsers(dest="command", required=True)

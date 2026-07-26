@@ -11,11 +11,11 @@ import sys
 import pandas as pd
 
 
-from tp_core.workspace import BACKTEST_RUNS_DIR
+from tp_core.workspace import HISTORICAL_RESEARCH_RUNS_DIR
 
-RUN_ROOT = BACKTEST_RUNS_DIR / "ad_hoc" / "sp500_relative_synergy_20260710"
-RAW_DIR = BACKTEST_RUNS_DIR / "ad_hoc" / "sp500_raw_validation_20260708"
-REL_DIR = BACKTEST_RUNS_DIR / "ad_hoc" / "sp500_relative_variables_20260709"
+RUN_ROOT = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc" / "sp500_relative_synergy_20260710"
+RAW_DIR = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc" / "sp500_raw_validation_20260708"
+REL_DIR = HISTORICAL_RESEARCH_RUNS_DIR / "ad_hoc" / "sp500_relative_variables_20260709"
 VAULT_REPORT = Path(
     r"C:\GoogleDrive\笔记\卡片盒子\10_Investment\03_Factor_Research"
     r"\2026-07-10 SP500 raw-relative 因子有效性与协同研究.md"

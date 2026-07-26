@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "hypothesis_id": "stoxx600-sparse-core-sleeve",
+  "name": "STOXX 600 sparse core-sleeve research",
+  "statement": "A sparse core-sleeve specification preserves robust factor evidence with lower model complexity.",
+  "owner": "TP Research",
+  "status": "research",
+  "universe": "STOXX600",
+  "pit_policy": "available_at_or_before_decision_time",
+  "cost_assumptions": {
+    "transaction_cost": 0.0,
+    "slippage": 0.0
+  },
+  "trial_family": "stoxx600-sparse-core-sleeve",
+  "effective_trial_count": 1,
+  "tags": ["research", "factor", "sparse", "configured"],
+  "runner": {
+    "module": "tp_research.workflows.run_stoxx600_sparse_core_sleeve_research",
+    "callable": "main",
+    "default_args": [],
+    "required_options": []
+  }
+}

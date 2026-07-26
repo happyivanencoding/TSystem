@@ -46,3 +46,10 @@ batch:
   percentiles: []
   start_dates: []
   top_values: []
+
+execution:
+  mode: "fast_nav"
+  commission_bps: 0.0
+  slippage_bps: 0.0
+  max_one_way_turnover_per_day: null
+  missing_return_policy: "zero_with_audit"

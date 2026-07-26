@@ -108,6 +108,8 @@ def recorded_workflow(function: Callable[P, R]) -> Callable[P, R]:
 
     @functools.wraps(function)
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        if os.environ.get("TP_RESEARCH_RECORDER_DISABLED") == "1":
+            return function(*args, **kwargs)
         argv = _argument_vector(args, kwargs)
         if "-h" in argv or "--help" in argv:
             return function(*args, **kwargs)

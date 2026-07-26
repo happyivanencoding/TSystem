@@ -1,4 +1,5 @@
 from __future__ import annotations
+from tp_experiments.artifacts import experiment_plots_enabled
 from tp_research.runtime import recorded_workflow
 
 import argparse
@@ -320,14 +321,15 @@ def evaluate(candidate: Candidate, screen: pd.DataFrame, returns: pd.DataFrame, 
     ratios["Worst / Benchmark"] = perf["Worst"] / perf["Benchmark"]
     ratios["Top / Worst"] = perf["Top"] / perf["Worst"]
     ratios.to_csv(cdir / "performance_ratios_fast.csv")
-    PlotlyVisualizer.plot_top_bottom_vs_benchmark(
-        perf["Top"],
-        perf["Worst"],
-        perf["Benchmark"],
-        title=f"{candidate.name} Top/Worst vs {BENCH}",
-        save_path=str(cdir / "top_worst_benchmark_fast.html"),
-        show_plot=False,
-    )
+    if experiment_plots_enabled():
+        PlotlyVisualizer.plot_top_bottom_vs_benchmark(
+            perf["Top"],
+            perf["Worst"],
+            perf["Benchmark"],
+            title=f"{candidate.name} Top/Worst vs {BENCH}",
+            save_path=str(cdir / "top_worst_benchmark_fast.html"),
+            show_plot=False,
+        )
     row: dict[str, object] = {
         "candidate": candidate.name,
         "family": candidate.family,

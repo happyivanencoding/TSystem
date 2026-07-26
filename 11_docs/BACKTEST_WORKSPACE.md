@@ -37,7 +37,7 @@ python -m tp_backtest.cli run `
   --percentile 0.05
 ```
 
-新运行产物默认写入 `artifacts/backtests/runs/<user>/<timestamp>_<run_label>/`，包含配置快照、manifest、组合成分、排除清单、组合表现、benchmark 表现、HTML 图和日志。`artifacts/research/runs/historical/` 仅作为显式历史输入保留，不得写入。
+新运行产物默认写入 `artifacts/backtests/runs/<user>/<timestamp>_<run_label>/`，包含配置快照、manifest、精简组合成分、排除清单、组合表现、benchmark 表现和日志。默认不保存 HTML 图，且 holdings 只保存 `Date`、`Weight`、`ISIN`；只有 profile 显式设置 `experiment.save_plots=true` 或 `experiment.holdings_mode=full` 才扩大产物。`artifacts/research/runs/historical/` 仅作为显式历史输入保留，不得写入。
 
 ## 当前已接入的新引擎功能
 

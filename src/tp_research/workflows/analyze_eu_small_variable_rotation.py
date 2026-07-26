@@ -1,6 +1,7 @@
 """Analyze EU Small raw-variable efficacy, pair synergy, and period rotations."""
 
 from __future__ import annotations
+from tp_experiments.artifacts import experiment_plots_enabled
 from tp_research.runtime import recorded_workflow
 
 import argparse
@@ -281,6 +282,8 @@ def _short_metric_label(row: pd.Series) -> str:
 
 
 def write_plotly(period_stats: pd.DataFrame, pair_summary: pd.DataFrame, output_dir: Path) -> list[str]:
+    if not experiment_plots_enabled():
+        return []
     try:
         import plotly.express as px
     except Exception:

@@ -24,8 +24,12 @@
 - `metric_diagnostics.csv`
 - `official_run_results.csv`
 - `performance_summary.csv`
-- `plots/*.html`
 - Chinese markdown report
+
+Plot artifacts are disabled by default. Generate `plots/*.html` only when the
+Hypothesis explicitly sets `artifact_policy.save_plots=true`.
+Stored holdings default to exactly `Date`, `Weight`, and `ISIN`; use
+`artifact_policy.holdings_mode=full` only for an independently justified audit.
 
 raw gate 研究还要写：
 
@@ -117,7 +121,7 @@ historical out-of-period / LOPO 研究还要写：
   metric in the gate. Never force overlapping Top/Worst portfolios.
 - For large matrices, prefer process-level sharding, not Python threads.
 - Each worker must write an independent shard CSV and official run root.
-- Parent process must merge and dedupe shard results, then regenerate summary, gate, plots, report, and manifest.
+- Parent process must merge and dedupe shard results, then regenerate summary, gate, report, and manifest. Regenerate plots only when the effective artifact policy enables them.
 - Every restart must use a unique wave directory for shard CSVs; never overwrite previous shard outputs.
 - Keep official run roots short on Windows to avoid path-length failures from long metric names.
 - If a scheduled rebalance month has no real benchmark or signal snapshot,

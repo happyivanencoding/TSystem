@@ -7,6 +7,7 @@ service.
 """
 
 from __future__ import annotations
+from tp_experiments.artifacts import experiment_plots_enabled, holdings_for_storage
 from tp_research.runtime import recorded_workflow
 
 import argparse
@@ -825,9 +826,17 @@ def run_single_official_engine(
             )
             builder.run_portfolio_nav(max_weight=settings.run.max_weight, sector_neutral=settings.run.sector_neutral)
             builder.run_benchmark_nav(prepared_screen, builder.start_date, settings.run.bench)
-            builder.plot_portfolio_vs_benchmark(title=run_label, save_path=str(artifacts["plot"]), show_plot=False)
+            if experiment_plots_enabled():
+                builder.plot_portfolio_vs_benchmark(
+                    title=run_label,
+                    save_path=str(artifacts["plot"]),
+                    show_plot=False,
+                )
 
-        save_dataframe(builder.sec_list_historical, artifacts["sec_list"])
+        save_dataframe(
+            holdings_for_storage(builder.sec_list_historical),
+            artifacts["sec_list"],
+        )
         save_dataframe(builder.list_exclusion_histo, artifacts["exclusions"])
         save_series(builder.perf_ptf, artifacts["perf_ptf"])
         save_series(builder.perf_bench, artifacts["perf_bench"])
@@ -1062,6 +1071,8 @@ def summarize_runs(run_results: pd.DataFrame, metric_diag: pd.DataFrame) -> pd.D
 
 
 def write_plotly_outputs(summary: pd.DataFrame, run_results: pd.DataFrame, output_dir: Path) -> list[str]:
+    if not experiment_plots_enabled():
+        return []
     try:
         import plotly.graph_objects as go
     except Exception as exc:  # pragma: no cover

@@ -9,6 +9,8 @@
 - 回测研究必须说明信号形成时间、收益持有区间、交易成本、rebalance 规则和 benchmark。
 - 任何 forward return、未来收益标签或验证集都要明确标注，避免与实时可用特征混淆。
 - 方法文档使用固定文件名；运行证据优先用 JSON/CSV，不生成新的时间戳 Markdown。
+- 配置化实验默认不保存 Plot；只有 Hypothesis 显式设置 `artifact_policy.save_plots=true` 才生成。
+- 实验 holdings 默认只保存 `Date`、`Weight`、`ISIN`，其余元数据按 PIT 日期从 screen 还原；独立审计需要完整快照时才设置 `artifact_policy.holdings_mode=full`。
 
 ## 回测与组合构建
 
@@ -195,6 +197,25 @@ LOPO/LORO 运行至少保留：
 - HMM 或其他模型的训练窗口、状态数和状态命名。
 - OOS walk-forward 是否严格只用当时可见数据。
 - 状态解释是否依赖未来收益验证。
+
+四市场公司底层变化、factor rotation 与行业扩散的联合影子研究使用：
+
+```powershell
+.\.venv_tp\Scripts\python.exe -m tp_research.cli run `
+  regime-sector-factor-rotation-v1
+```
+
+- Hypothesis：`config/research/hypotheses/regime-sector-factor-rotation-v1.json`
+- workflow：`tp_research.workflows.run_regime_sector_factor_rotation_research`
+- shadow 候选：`config/research/model_candidates/regime-sector-factor-rotation-shadow-v1.json`
+- 结果重点读取 `regime_model_comparison.csv`、`sector_model_comparison.csv`、
+  `sector_holdout_bootstrap.csv`、`factor_regime_diagnostics.csv` 与
+  `selection_audit.csv`。
+
+该研究只允许使用 exact same-security lag、当期 screen 和滞后因子排序。
+历史 LOPO/LORO 赢家只能定义候选特征，不能充当本次绩效标签。通过研究门
+也不能直接写入生产模型；必须在 PIT cutoff 之后累计真正未来 shadow
+证据，再执行独立晋升。
 
 ## 技术分析与形态识别
 

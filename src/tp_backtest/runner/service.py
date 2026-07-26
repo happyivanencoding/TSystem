@@ -18,6 +18,7 @@ from tp_backtest.config.settings import AppSettings
 from tp_backtest.execution import EXECUTION_ENGINE_ID, EXECUTION_ENGINE_VERSION
 from tp_core.security_nav_engine import NAV_ENGINE_ID, NAV_ENGINE_VERSION
 from tp_experiments import ExperimentRecorder, ExperimentSpec, RunRecorder
+from tp_experiments.artifacts import holdings_for_storage
 from tp_portfolio import OPTIMIZER_ID, OPTIMIZER_VERSION
 from .artifacts import (
     RunArtifacts,
@@ -301,7 +302,12 @@ class BacktestService:
             include_esg=include_esg,
         )
 
-    def _create_artifact_container(self, run_dir: Path) -> RunArtifacts:
+    def _create_artifact_container(
+        self,
+        run_dir: Path,
+        *,
+        save_plots: bool = False,
+    ) -> RunArtifacts:
         """Instancie les chemins des artefacts standards."""
 
         return RunArtifacts(
@@ -312,7 +318,7 @@ class BacktestService:
             exclusions=run_dir / "exclusions.parquet",
             perf_ptf=run_dir / "perf_ptf.parquet",
             perf_bench=run_dir / "perf_bench.parquet",
-            plot=run_dir / "plot.html",
+            plot=run_dir / "plot.html" if save_plots else None,
             run_log=run_dir / "run.log",
         )
 
@@ -370,6 +376,14 @@ class BacktestService:
             {
                 "screen": settings.paths.screen,
                 "returns": settings.paths.returns,
+            }
+        )
+        run.log_provenance(
+            {
+                "artifact_policy": {
+                    "save_plots": config.save_plots,
+                    "holdings_mode": config.holdings_mode,
+                }
             }
         )
         run.log_artifacts(
@@ -486,7 +500,10 @@ class BacktestService:
         log_lines: list[str] = []
         run_label = self._build_run_label(settings)
         run_dir = create_run_directory(user_name, run_label)
-        artifacts = self._create_artifact_container(run_dir)
+        artifacts = self._create_artifact_container(
+            run_dir,
+            save_plots=settings.experiment.save_plots,
+        )
         save_config_snapshot(settings, run_dir)
         experiment = self._start_experiment(
             settings,
@@ -654,13 +671,20 @@ class BacktestService:
                     sector_neutral=settings.run.sector_neutral,
                 )
                 builder.run_benchmark_nav(prepared_screen, builder.start_date, settings.run.bench)
-                builder.plot_portfolio_vs_benchmark(
-                    title=run_label,
-                    save_path=str(artifacts.plot),
-                    show_plot=False,
-                )
+                if artifacts.plot is not None:
+                    builder.plot_portfolio_vs_benchmark(
+                        title=run_label,
+                        save_path=str(artifacts.plot),
+                        show_plot=False,
+                    )
 
-            artifacts.sec_list = save_dataframe(builder.sec_list_historical, artifacts.sec_list)
+            artifacts.sec_list = save_dataframe(
+                holdings_for_storage(
+                    builder.sec_list_historical,
+                    mode=settings.experiment.holdings_mode,
+                ),
+                artifacts.sec_list,
+            )
             artifacts.exclusions = save_dataframe(builder.list_exclusion_histo, artifacts.exclusions)
             artifacts.perf_ptf = save_series(builder.perf_ptf, artifacts.perf_ptf)
             artifacts.perf_bench = save_series(builder.perf_bench, artifacts.perf_bench)

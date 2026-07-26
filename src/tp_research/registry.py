@@ -16,6 +16,11 @@ from tp_core.security_nav_engine import NAV_ENGINE_ID, NAV_ENGINE_VERSION
 from tp_core.workspace import CONFIG_ROOT, RESEARCH_RUNS_DIR
 from tp_experiments import ExperimentRecorder, ExperimentSpec
 from tp_portfolio import OPTIMIZER_ID, OPTIMIZER_VERSION
+from tp_experiments.artifacts import (
+    ExperimentArtifactPolicy,
+    compact_experiment_holdings,
+    experiment_artifact_environment,
+)
 from tp_research.runtime import RESEARCH_SIGNAL_ID, RESEARCH_SIGNAL_VERSION
 
 REGISTRY_SCHEMA_VERSION = 1
@@ -102,6 +107,7 @@ class HypothesisRegistry:
             raise ValueError(f"{path} runner.module 必须位于 tp_research.workflows")
         if str(runner.get("callable") or "main") != "main":
             raise ValueError(f"{path} 只允许公共 main 入口")
+        ExperimentArtifactPolicy.from_definition(payload)
 
 
 def _has_option(arguments: list[str], option: str) -> bool:
@@ -132,10 +138,14 @@ def run_definition(
     if missing:
         raise ValueError(f"缺少研究参数：{missing}")
 
+    artifact_policy = ExperimentArtifactPolicy.from_definition(definition.payload)
     recorder = ExperimentRecorder(root=root)
     run = recorder.start_run(
         definition.to_spec(),
-        parameters={"arguments": combined},
+        parameters={
+            "arguments": combined,
+            "artifact_policy": artifact_policy.to_dict(),
+        },
         parent_run_id=parent_run_id,
         config=definition.payload,
         config_path=definition.path,
@@ -154,12 +164,26 @@ def run_definition(
     os.environ["TP_RESEARCH_RECORDER_DISABLED"] = "1"
     started = time.perf_counter()
     try:
-        result = function([*combined, "--output-dir", str(results_dir)])
+        with experiment_artifact_environment(artifact_policy):
+            result = function([*combined, "--output-dir", str(results_dir)])
         exit_code = result if isinstance(result, int) else 0
+        compacted_holdings = compact_experiment_holdings(
+            results_dir,
+            policy=artifact_policy,
+        )
         run.log_metrics(
             {
                 "duration_seconds": round(time.perf_counter() - started, 3),
                 "exit_code": exit_code,
+                "holdings_files_compacted": len(compacted_holdings),
+            }
+        )
+        run.log_provenance(
+            {
+                "artifact_policy": artifact_policy.to_dict(),
+                "compacted_holdings": [
+                    str(path.resolve()) for path in compacted_holdings
+                ],
             }
         )
         run.log_artifacts({"results": results_dir})

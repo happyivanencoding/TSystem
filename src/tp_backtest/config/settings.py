@@ -89,6 +89,8 @@ class ExperimentSettings:
         default_factory=lambda: {"transaction_cost": 0.0, "slippage": 0.0}
     )
     tags: list[str] = field(default_factory=lambda: ["backtest"])
+    save_plots: bool = False
+    holdings_mode: str = "minimal"
 
 
 @dataclass

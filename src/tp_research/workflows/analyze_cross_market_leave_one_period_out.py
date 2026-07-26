@@ -7,6 +7,7 @@ gap is retained for audit but is never treated as regime evidence.
 """
 
 from __future__ import annotations
+from tp_experiments.artifacts import experiment_plots_enabled
 from tp_research.runtime import recorded_workflow
 
 import argparse
@@ -1237,6 +1238,8 @@ def write_plots(
     pre_post: pd.DataFrame,
     dsr: pd.DataFrame,
 ) -> list[str]:
+    if not experiment_plots_enabled():
+        return []
     try:
         import plotly.graph_objects as go
     except Exception as exc:  # pragma: no cover

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from tp_experiments.artifacts import experiment_plots_enabled
 from tp_research.runtime import recorded_workflow
 
 import argparse
@@ -915,6 +916,8 @@ def create_plots(
     combo_summary: pd.DataFrame,
     all_loro: pd.DataFrame,
 ) -> list[str]:
+    if not experiment_plots_enabled():
+        return []
     plot_dir = output_dir / "plots"
     plot_dir.mkdir(exist_ok=True)
     paths: list[str] = []

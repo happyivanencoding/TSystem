@@ -398,6 +398,14 @@ def validate_settings(
     if settings.run.weight_neutral not in {"ICB 11", "ICB 19"}:
         report.add_error("weight_neutral doit valoir 'ICB 11' ou 'ICB 19'.")
 
+    if not isinstance(settings.experiment.save_plots, bool):
+        report.add_error("experiment.save_plots doit etre un booleen.")
+
+    if settings.experiment.holdings_mode not in {"minimal", "full"}:
+        report.add_error(
+            "experiment.holdings_mode doit valoir 'minimal' ou 'full'."
+        )
+
     if settings.run.mode_monthly_prod and not settings.paths.output_dir.strip():
         report.add_error("output_dir est obligatoire en mode production.")
 

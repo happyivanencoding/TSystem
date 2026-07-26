@@ -10,6 +10,26 @@ from tp_backtest.config.settings import AppSettings
 from tp_backtest.runner.service import BacktestService
 
 
+def test_backtest_experiment_artifacts_default_to_compact_without_plot(
+    tmp_path,
+) -> None:
+    settings = AppSettings()
+    service = BacktestService()
+
+    compact = service._create_artifact_container(  # noqa: SLF001
+        tmp_path,
+        save_plots=settings.experiment.save_plots,
+    )
+    detailed = service._create_artifact_container(  # noqa: SLF001
+        tmp_path,
+        save_plots=True,
+    )
+
+    assert settings.experiment.holdings_mode == "minimal"
+    assert compact.plot is None
+    assert detailed.plot == tmp_path / "plot.html"
+
+
 def test_failed_backtest_writes_linked_failed_run_card(tmp_path, monkeypatch) -> None:
     run_dir = tmp_path / "backtest-run"
     run_dir.mkdir()

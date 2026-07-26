@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "hypothesis_id": "regime-sector-factor-rotation-v1",
+  "name": "Bottom-up factor rotation for regime and sector models",
+  "statement": "PIT-safe company transition breadth, factor rotation dispersion, and cross-market confirmation improve walk-forward regime risk ordering or sector validation and 2022+ holdout evidence versus their preregistered baselines.",
+  "owner": "TP Research",
+  "status": "research",
+  "universe": "SP500|NASDAQ|STOXX600|MSCI_EUROPE_SMALL",
+  "sample_start": "2010-01-31",
+  "sample_end": "2026-06-30",
+  "pit_cutoff": "2026-06-30",
+  "pit_policy": "available_at_or_before_decision_time",
+  "cost_assumptions": {
+    "transaction_cost": 0.0,
+    "slippage": 0.0
+  },
+  "trial_family": "regime-sector-bottom-up-factor-rotation",
+  "effective_trial_count": 7,
+  "component_versions": {
+    "factor_rotation_features": "tp.bottom_up_factor_rotation:1.0.0"
+  },
+  "tags": [
+    "research",
+    "regime",
+    "sector",
+    "factor-rotation",
+    "cross-market",
+    "configured"
+  ],
+  "artifact_policy": {
+    "save_plots": false,
+    "holdings_mode": "minimal"
+  },
+  "runner": {
+    "module": "tp_research.workflows.run_regime_sector_factor_rotation_research",
+    "callable": "main",
+    "default_args": [
+      "--start-date",
+      "2010-01-31",
+      "--min-train",
+      "60",
+      "--hmm-n-init",
+      "2",
+      "--bootstrap-samples",
+      "2000"
+    ],
+    "required_options": []
+  }
+}

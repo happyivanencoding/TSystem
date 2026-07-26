@@ -6,6 +6,7 @@ Top/Worst evidence, and keeps benchmark identity explicit in worker payloads.
 """
 
 from __future__ import annotations
+from tp_experiments.artifacts import experiment_plots_enabled, holdings_for_storage
 from tp_research.runtime import recorded_workflow
 
 import argparse
@@ -635,7 +636,9 @@ def run_one_official(
         )
         builder.run_portfolio_nav(max_weight=1.0, sector_neutral=False)
         builder.run_benchmark_nav(builder.screen, builder.start_date, profile.benchmark)
-        safe_frame(builder.sec_list_historical).to_parquet(record["sec_list"])
+        holdings_for_storage(
+            safe_frame(builder.sec_list_historical)
+        ).to_parquet(record["sec_list"], index=False)
         safe_frame(builder.buy_list).to_parquet(record["weights"])
         safe_frame(builder.list_exclusion_histo).to_parquet(record["exclusions"])
         save_series(builder.perf_ptf, Path(record["perf_ptf"]), "NAV")
@@ -1104,6 +1107,8 @@ def write_plotly_outputs(
     gate: pd.DataFrame,
     results: pd.DataFrame,
 ) -> list[str]:
+    if not experiment_plots_enabled():
+        return []
     try:
         import plotly.graph_objects as go
     except Exception as exc:  # pragma: no cover

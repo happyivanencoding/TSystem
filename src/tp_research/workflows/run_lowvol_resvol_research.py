@@ -1,4 +1,5 @@
 from __future__ import annotations
+from tp_experiments.artifacts import experiment_plots_enabled, holdings_for_storage
 from tp_research.runtime import recorded_workflow
 
 import argparse
@@ -487,22 +488,27 @@ def evaluate_candidate(
     perf = pd.concat([top_nav.rename("Top"), worst_nav.rename("Worst"), benchmark_nav.rename("Benchmark")], axis=1).dropna()
     candidate_dir = output_dir / candidate.name
     candidate_dir.mkdir(parents=True, exist_ok=True)
-    top_weights.to_csv(candidate_dir / "sec_list_top_fast.csv", index=False)
-    worst_weights.to_csv(candidate_dir / "sec_list_worst_fast.csv", index=False)
+    holdings_for_storage(top_weights).to_csv(
+        candidate_dir / "sec_list_top_fast.csv", index=False
+    )
+    holdings_for_storage(worst_weights).to_csv(
+        candidate_dir / "sec_list_worst_fast.csv", index=False
+    )
     perf.to_csv(candidate_dir / "performance_nav_fast.csv")
     ratios = pd.DataFrame(index=perf.index)
     ratios["Top / Benchmark"] = perf["Top"] / perf["Benchmark"]
     ratios["Worst / Benchmark"] = perf["Worst"] / perf["Benchmark"]
     ratios["Top / Worst"] = perf["Top"] / perf["Worst"]
     ratios.to_csv(candidate_dir / "performance_ratios_fast.csv")
-    PlotlyVisualizer.plot_top_bottom_vs_benchmark(
-        perf["Top"],
-        perf["Worst"],
-        perf["Benchmark"],
-        title=f"{candidate.name} Top/Worst vs {BENCH}",
-        save_path=str(candidate_dir / "top_worst_benchmark_fast.html"),
-        show_plot=False,
-    )
+    if experiment_plots_enabled():
+        PlotlyVisualizer.plot_top_bottom_vs_benchmark(
+            perf["Top"],
+            perf["Worst"],
+            perf["Benchmark"],
+            title=f"{candidate.name} Top/Worst vs {BENCH}",
+            save_path=str(candidate_dir / "top_worst_benchmark_fast.html"),
+            show_plot=False,
+        )
     row: dict[str, object] = {
         "candidate": candidate.name,
         "family": candidate.family,

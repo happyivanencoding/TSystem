@@ -11,6 +11,7 @@
 - Run Card schema v3 记录 hypothesis、配置和代码版本、输入 provenance/PIT、运行环境、指标、产物、状态、父运行和晋升决定。
 - 新研究写入 `artifacts/research/runs/`；历史实验只读保存在 `artifacts/research/runs/historical/`。
 - 原编号回测工作区已无损迁移并删除。迁移清单位于 `artifacts/research/migrations/`，新运行不得写回历史库。
+- 实验默认 `save_plots=false`、`holdings_mode=minimal`；holdings 只保存 `Date`、`Weight`、`ISIN`。需要图形或完整 holdings 时必须在 Hypothesis 的 `artifact_policy` 中显式开启，并由 Run Card 记录有效策略。
 
 ```powershell
 tp-research validate

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "candidate_id": "regime-sector-factor-rotation-shadow-v1",
+  "status": "shadow_only",
+  "feature_version": "tp.bottom_up_factor_rotation:1.0.0",
+  "evidence": {
+    "hypothesis_id": "regime-sector-factor-rotation-v1",
+    "run_id": "20260726T145612Z-4dda8e92",
+    "pit_cutoff": "2026-06-30"
+  },
+  "regime_detector": {
+    "US": {
+      "decision": "shadow_candidate",
+      "baseline": "baseline_core",
+      "extra_features": [
+        "transition_breadth_ewma3",
+        "revision_breadth_ewma3",
+        "rotation_dispersion_ewma3",
+        "confirmation_transition_breadth_ewma3"
+      ],
+      "promotion_gate": {
+        "minimum_forward_months": 12,
+        "risk_spearman_mean_delta_min": 0.02,
+        "high_vol_auc_delta_floor": -0.02,
+        "high_mdd_auc_delta_floor": -0.02
+      }
+    },
+    "EU": {
+      "decision": "keep_baseline",
+      "reason": "High-volatility AUC deterioration failed the joint gate."
+    }
+  },
+  "sector_model": {
+    "EU": {
+      "decision": "shadow_candidate",
+      "score": "cross_market_diffusion_blend",
+      "definition": "Use 35% diffusion_score when MSCI Europe Small transition breadth EWMA3 is at least 0.5, otherwise 15%; blend the remainder with baseline_rank.",
+      "promotion_gate": {
+        "minimum_forward_months": 12,
+        "active_annualized_delta_min": 0.0,
+        "active_sharpe_delta_min": 0.0,
+        "block_bootstrap_probability_positive_min": 0.7
+      }
+    },
+    "US": {
+      "decision": "keep_baseline",
+      "reason": "No candidate improved both validation and 2022+ holdout."
+    }
+  },
+  "production_promotion": {
+    "allowed": false,
+    "reason": "Requires genuinely future shadow evidence after the 2026-06-30 PIT cutoff and an explicitly authorized promotion task."
+  }
+}

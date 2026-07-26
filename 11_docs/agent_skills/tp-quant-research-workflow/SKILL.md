@@ -71,6 +71,10 @@ description: "Use this skill for TP quantitative research: register hypotheses, 
   "trial_family": "example-factor",
   "effective_trial_count": 1,
   "tags": ["research", "factor", "configured"],
+  "artifact_policy": {
+    "save_plots": false,
+    "holdings_mode": "minimal"
+  },
   "runner": {
     "module": "tp_research.workflows.run_example_factor_research",
     "callable": "main",
@@ -120,7 +124,7 @@ description: "Use this skill for TP quantitative research: register hypotheses, 
 - 多次试验的 trial ledger 与 effective trial count；
 - 数据缺口、不可比项、screening 结果和 official exact 结果是否被清晰分开。
 
-Run Card 的通用 metrics 目前主要记录耗时和 exit code。绩效判断必须读取 `results/` 的确定性产物，不能只看 Run Card 摘要。当前 CLI 不提供 compare、derive 或人工改写 decision 的子命令；需要比较时用可复现分析代码读取多个 run 的结果。
+Run Card 的通用 metrics 目前主要记录耗时、exit code 和 holdings 精简文件数。绩效判断必须读取 `results/` 的确定性产物，不能只看 Run Card 摘要。当前 CLI 不提供 compare、derive 或人工改写 decision 的子命令；需要比较时用可复现分析代码读取多个 run 的结果。
 
 不要手工修改完成后的 `run.json`。
 
@@ -178,6 +182,7 @@ Run Card 的通用 metrics 目前主要记录耗时和 exit code。绩效判断�
 
 ## 当前公共 API 边界
 
+- 使用 `tp_experiments.artifacts` 读取有效 artifact policy、判断 Plot 开关并精简 holdings。
 - 使用 `tp_research.executor` 处理 raw/relative/synergy gate、dedupe、gap detection、sharding 和 wave 路径。
 - 使用 `tp_backtest.BacktestService` 编排标准回测。
 - 使用 `tp_backtest.runner.input_loader.load_pruned_backtest_inputs` 规划裁剪后的 screen/returns 输入。
@@ -195,11 +200,13 @@ Run Card 的通用 metrics 目前主要记录耗时和 exit code。绩效判断�
 - 配置快照、manifest、输入 provenance/PIT 和 trial ledger；
 - official run results、performance summary、coverage 和 gate 表；
 - Top、Worst、Benchmark 与 Top/Worst ratio；
-- turnover、holdings、drawdown、rolling failure 和年度/时期证据；
+- turnover、精简 holdings、drawdown、rolling failure 和年度/时期证据；
 - raw rejection、relative-vs-level、pair/subset/LOO 或 LOPO 诊断；
 - 中文结论，分开 official evidence、screening、经济解释、未验证假设和缺失测试。
 
-默认生成 Plotly Top/Worst/Benchmark 和 Top/Worst ratio 比较，但不要让图表替代 CSV/JSON 证据。任何近似筛选都必须明确标注；最终结论只使用 official exact evidence。
+默认不保存 Plot。只有研究问题明确需要图形证据时，才在 Hypothesis 的 `artifact_policy` 中设置 `save_plots=true`。holdings 默认只保存 `Date`、`Weight`、`ISIN`；这些字段足以通过 PIT screen 还原其余元数据。只有独立、明确的审计需要才设置 `holdings_mode=full`。
+
+任何近似筛选都必须明确标注；最终结论只使用 official exact evidence。图形开启时也不能替代 CSV/JSON 证据。
 
 ## 硬性边界
 

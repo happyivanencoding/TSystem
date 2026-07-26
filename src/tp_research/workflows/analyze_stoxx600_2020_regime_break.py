@@ -1,4 +1,5 @@
 from __future__ import annotations
+from tp_experiments.artifacts import experiment_plots_enabled
 from tp_research.runtime import recorded_workflow
 
 from math import sqrt
@@ -352,6 +353,11 @@ def main() -> None:
         ),
     }
     pd.Series(summary).to_csv(OUT_DIR / "regime_break_summary.csv", header=["value"], encoding="utf-8-sig")
+
+    if not experiment_plots_enabled():
+        print(f"Wrote {OUT_DIR}")
+        print(summary)
+        return
 
     try:
         import plotly.express as px

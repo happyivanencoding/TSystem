@@ -47,6 +47,10 @@ batch:
   start_dates: []
   top_values: []
 
+experiment:
+  save_plots: false
+  holdings_mode: "minimal"
+
 execution:
   mode: "fast_nav"
   commission_bps: 0.0

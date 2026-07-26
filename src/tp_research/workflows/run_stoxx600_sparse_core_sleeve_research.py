@@ -13,6 +13,7 @@ The shared research executor owns gates, resumable shards, waves and deduping.
 """
 
 from __future__ import annotations
+from tp_experiments.artifacts import holdings_for_storage
 from tp_research.runtime import recorded_workflow
 
 import argparse
@@ -909,7 +910,9 @@ def run_one_official(
         builder.run_portfolio_nav(max_weight=1.0, sector_neutral=False)
         builder.run_benchmark_nav(builder.screen, builder.start_date, BENCHMARK)
 
-        safe_frame(builder.sec_list_historical).to_parquet(record["sec_list"])
+        holdings_for_storage(
+            safe_frame(builder.sec_list_historical)
+        ).to_parquet(record["sec_list"], index=False)
         safe_frame(builder.buy_list).to_parquet(record["weights"])
         safe_frame(builder.list_exclusion_histo).to_parquet(
             record["exclusions"]

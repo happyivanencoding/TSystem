@@ -217,6 +217,31 @@ LOPO/LORO 运行至少保留：
 也不能直接写入生产模型；必须在 PIT cutoff 之后累计真正未来 shadow
 证据，再执行独立晋升。
 
+上述两项通过结果的归因、提前量、误报、权重敏感性、行业贡献和成本深挖
+使用父子 lineage 运行：
+
+```powershell
+.\.venv_tp\Scripts\python.exe -m tp_research.cli run `
+  --parent-run-id 20260726T145612Z-4dda8e92 `
+  regime-sector-factor-rotation-deep-dive-v2
+```
+
+- Hypothesis：
+  `config/research/hypotheses/regime-sector-factor-rotation-deep-dive-v2.json`
+- workflow：
+  `tp_research.workflows.run_regime_sector_factor_rotation_deep_dive`
+- shadow 候选：
+  `config/research/model_candidates/regime-sector-factor-rotation-shadow-v2.json`
+- 当前成功证据：
+  `artifacts/research/runs/regime-sector-factor-rotation-deep-dive-v2/20260726T211046Z-cfbf3d89/`
+
+US 重点读取 `us_regime_attribution.csv`、`us_feature_lead_diagnostics.csv`、
+`us_direct_transition_score.csv` 和 `us_regime_classification.csv`。EU 重点
+读取 `eu_sector_sensitivity.csv`、`eu_sector_cost_sensitivity.csv`、
+`eu_confirmation_condition.csv`、`eu_sector_bootstrap.csv` 和
+`eu_sector_incremental_contributions.csv`。直接 transition stress 风险
+预算层仍是待注册的新研究，不是已部署入口。
+
 ## 技术分析与形态识别
 
 推荐文档位置：

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "hypothesis_id": "regime-sector-factor-rotation-deep-dive-v2",
+  "name": "Attribution and robustness deep dive for v1 regime and sector findings",
+  "statement": "The US regime gain is attributable to a smaller transition-breadth feature set with stable 2022+ risk ordering, while the EU sector conditional diffusion overlay remains superior to baseline across validation, holdout, 25 bps one-way costs, and preregistered sensitivity diagnostics.",
+  "owner": "TP Research",
+  "status": "research",
+  "universe": "SP500|NASDAQ|STOXX600|MSCI_EUROPE_SMALL",
+  "sample_start": "2010-01-31",
+  "sample_end": "2026-06-30",
+  "pit_cutoff": "2026-06-30",
+  "pit_policy": "available_at_or_before_decision_time",
+  "cost_assumptions": {
+    "transaction_cost_bps_one_way_grid": [
+      0,
+      10,
+      25
+    ],
+    "slippage": 0.0
+  },
+  "trial_family": "regime-sector-bottom-up-factor-rotation",
+  "effective_trial_count": 22,
+  "component_versions": {
+    "deep_dive": "tp.bottom_up_factor_rotation.deep_dive:2.0.0",
+    "parent_features": "tp.bottom_up_factor_rotation:1.0.0"
+  },
+  "tags": [
+    "research",
+    "regime",
+    "sector",
+    "attribution",
+    "robustness",
+    "shadow"
+  ],
+  "artifact_policy": {
+    "save_plots": false,
+    "holdings_mode": "minimal"
+  },
+  "runner": {
+    "module": "tp_research.workflows.run_regime_sector_factor_rotation_deep_dive",
+    "callable": "main",
+    "default_args": [
+      "--parent-results-dir",
+      "artifacts/research/runs/regime-sector-factor-rotation-v1/20260726T145612Z-4dda8e92/results",
+      "--min-train",
+      "60",
+      "--hmm-n-init",
+      "2",
+      "--bootstrap-samples",
+      "2000"
+    ],
+    "required_options": []
+  }
+}

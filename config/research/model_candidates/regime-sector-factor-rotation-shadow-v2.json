@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "candidate_id": "regime-sector-factor-rotation-shadow-v2",
+  "status": "shadow_only",
+  "evidence": {
+    "hypothesis_id": "regime-sector-factor-rotation-deep-dive-v2",
+    "run_id": "20260726T211046Z-cfbf3d89",
+    "parent_run_id": "20260726T145612Z-4dda8e92",
+    "pit_cutoff": "2026-06-30"
+  },
+  "regime_detector": {
+    "US": {
+      "hmm_branch": {
+        "decision": "retain_full_shadow_candidate",
+        "extra_features": [
+          "core_transition_breadth_ewma3",
+          "confirmation_transition_breadth_ewma3",
+          "core_revision_breadth_ewma3",
+          "core_rotation_dispersion_ewma3"
+        ],
+        "reason": "Only the full four-feature set passed the full-OOS, 2022+ stability, and AUC floor gate; the HMM input cannot yet be simplified safely."
+      },
+      "direct_confirmation_branch": {
+        "status": "research_proposal_not_implemented",
+        "score": "1 - mean(core_transition_breadth_ewma3, confirmation_transition_breadth_ewma3)",
+        "intended_use": "A causal cap or veto on the US risk-budget multiplier, not a stock-selection score.",
+        "reason": "The direct score was more informative in 2022+ than transition-only HMM variants and requires a separately registered portfolio-utility experiment."
+      },
+      "observed_tradeoff": {
+        "full_oos_high_vol_auc": {
+          "baseline": 0.563776,
+          "shadow": 0.612564
+        },
+        "full_oos_high_mdd_auc": {
+          "baseline": 0.514031,
+          "shadow": 0.586735
+        },
+        "full_oos_high_vol_false_positive_rate": {
+          "baseline": 0.214286,
+          "shadow": 0.267857
+        }
+      }
+    }
+  },
+  "sector_model": {
+    "EU": {
+      "decision": "retain_shadow_candidate",
+      "score": "conditional_15_35",
+      "definition": "Use 15% diffusion_score normally and 35% when MSCI Europe Small transition breadth EWMA3 is at least 0.5; blend the remainder with baseline_rank.",
+      "observed_evidence": {
+        "validation_active_annualized_delta": 0.001633,
+        "holdout_active_annualized_delta": 0.003227,
+        "holdout_delta_after_25bps_one_way_cost": 0.003081,
+        "holdout_bootstrap_probability_positive": 0.918,
+        "holdout_bootstrap_ci_95": [
+          -0.001351,
+          0.008171
+        ]
+      },
+      "interpretation": "The gain is modest and the 95% interval crosses zero. The overlay changed top-sector membership in 5 of 53 holdout months and bottom-sector membership in 11 of 53 months."
+    }
+  },
+  "next_registered_research": {
+    "required": true,
+    "topics": [
+      "US direct transition-stress risk-budget cap with causal expanding thresholds and portfolio-utility metrics",
+      "EU quality-plus-revision diffusion ablation without deleveraging drag"
+    ]
+  },
+  "production_promotion": {
+    "allowed": false,
+    "minimum_genuinely_future_months_after_pit_cutoff": 12,
+    "reason": "Requires future shadow evidence and an explicit production-promotion task."
+  }
+}

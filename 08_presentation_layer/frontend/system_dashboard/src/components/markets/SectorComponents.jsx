@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 
 import { cellText } from '../../domain/formatters.js'
-import { countryFlag } from './CountryComponents.jsx'
+import { countryFlag, countryScoreWidth } from './CountryComponents.jsx'
 
 const SECTOR_ICON_KEYS = [
   ['bank', Landmark],

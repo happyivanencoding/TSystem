@@ -30,7 +30,7 @@ export function countryFlag(value) {
   return COUNTRY_FLAGS[text] || COUNTRY_FLAGS[text.toUpperCase()] || '🌐'
 }
 
-function countryScoreWidth(value) {
+export function countryScoreWidth(value) {
   const number = Number.parseFloat(value)
   if (!Number.isFinite(number)) return '0%'
   return `${Math.max(0, Math.min(100, number * 10))}%`

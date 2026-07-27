@@ -1,0 +1,59 @@
+{
+  "generated_at": "2026-07-27T15:03:57",
+  "qa_passed": true,
+  "warnings": [],
+  "update_result": {
+    "update_mode": "returns_only",
+    "dry_run": true,
+    "update_screen": false,
+    "update_returns": true,
+    "input_month": "202607",
+    "input_batch_dir": "C:\\GoogleDrive\\TP\\00_screen\\production_inputs\\incoming\\202607",
+    "screen_excel": null,
+    "returns_delta": "C:\\GoogleDrive\\TP\\00_screen\\production_inputs\\incoming\\202607\\returns\\returns_com.parquet",
+    "backup_path": null,
+    "returns_backup_path": null,
+    "month_date": null,
+    "last_screen_path": "C:\\GoogleDrive\\TP\\00_screen\\last_screen.parquet",
+    "screen_path": "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate.parquet",
+    "returns_path": "C:\\GoogleDrive\\TP\\00_screen\\returns.parquet",
+    "ciq_path": null,
+    "ciq_skipped": true,
+    "ciq_result": null,
+    "fs_sector_dir": "C:\\GoogleDrive\\TP\\src\\00_screen\\production_inputs",
+    "fs_sector_skipped": true,
+    "fs_sector_result": null,
+    "fs_sector_backup_path": null,
+    "qa_report_path": null,
+    "returns_idempotency": {
+      "history_rows": 5511,
+      "delta_rows": 16,
+      "merged_rows": 5527,
+      "history_unique_dates": 5511,
+      "delta_unique_dates": 16,
+      "overlap_dates": 0,
+      "new_dates": 16,
+      "expected_merged_dates": 5527,
+      "merged_unique_dates": 5527,
+      "duplicate_merged_dates": 0,
+      "overlap_date_min": null,
+      "overlap_date_max": null,
+      "new_date_min": "2026-07-03T00:00:00",
+      "new_date_max": "2026-07-24T00:00:00",
+      "mode": "覆盖同日期最后一版，不追加重复日期"
+    },
+    "screen_idempotency": null,
+    "write_actions": [
+      "dry-run: 未写入 returns.parquet"
+    ],
+    "returns_last_date": "2026-07-24",
+    "returns_rows": 5527
+  },
+  "returns": {
+    "rows": 5527,
+    "columns": 12014,
+    "date_min": "2005-01-03T00:00:00",
+    "date_max": "2026-07-24T00:00:00",
+    "duplicate_dates": 0
+  }
+}

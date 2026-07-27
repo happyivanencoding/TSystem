@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "candidate_id": "regime-direct-risk-challengers-shadow-v3",
+  "status": "shadow_only",
+  "evidence": {
+    "hypothesis_id": "regime-direct-risk-challengers-v3",
+    "run_id": "20260726T221731Z-7244585e",
+    "parent_run_id": "20260726T221502Z-b481d8bb",
+    "pit_cutoff": "2026-06-30",
+    "holdout_interpretation": "retrospective_only_after_v1_v2_exposure"
+  },
+  "primary_candidate": {
+    "model": "elastic_net",
+    "decision": "retain_unified_risk_shadow_candidate",
+    "inputs": [
+      "12 fixed PIT market, macro, revision and bottom-up transition features"
+    ],
+    "selection_evidence": {
+      "US_validation_2018_2021_joint_score": 0.656688,
+      "US_validation_volatility_persistence_joint_score": 0.60889,
+      "US_holdout_2022_latest_joint_score": 0.738403,
+      "US_holdout_volatility_persistence_joint_score": 0.682268,
+      "US_full_joint_score": 0.672461,
+      "US_full_volatility_persistence_joint_score": 0.640637,
+      "EU_full_joint_score": 0.667089
+    },
+    "reason": "Selected without holdout performance, passed the strict both-target reliability and pairwise-common gates, and ranked first in the EU full cross-market review."
+  },
+  "model_output_stack": {
+    "model": "stacked_meta_model",
+    "decision": "retain_secondary_volatility_shadow_monitor_not_selected",
+    "base_model_outputs": [
+      "volatility_persistence",
+      "current_hmm",
+      "ridge",
+      "elastic_net",
+      "logistic",
+      "markov_switching_ar",
+      "ridge_logistic_ensemble"
+    ],
+    "training_contract": {
+      "first_layer": "historical monthly walk-forward OOS predictions only",
+      "normalization": "prediction CDF using dates strictly before each row",
+      "missing_or_non_converged_output": "score 0.5 plus availability flag 0",
+      "meta_model": "Ridge(alpha=1.0)",
+      "minimum_meta_training_months": 24
+    },
+    "observed_evidence": {
+      "US_validation_2018_2021_joint_score": 0.575393,
+      "US_validation_volatility_persistence_joint_score": 0.60889,
+      "US_holdout_2022_latest_joint_score": 0.752693,
+      "US_full_joint_score": 0.64378,
+      "EU_full_joint_score": 0.63221,
+      "US_holdout_fwd_vol_spearman": 0.629737,
+      "US_holdout_fwd_vol_auc": 0.901587,
+      "US_validation_fwd_mdd_spearman": -0.063063,
+      "US_validation_fwd_mdd_auc": 0.413194
+    },
+    "reason": "The stack was strongest for retrospective 2022+ US volatility, but failed the preregistered validation comparison and was weak on drawdown risk. It cannot replace the selected unified model."
+  },
+  "rejected_candidate": {
+    "model": "markov_switching_ar",
+    "decision": "reject_operational_reliability",
+    "reason": "Deterministic runs showed zero successful US MDD validation forecasts and zero convergence rate for US volatility validation fits."
+  },
+  "shadow_protocol": {
+    "apply_to_production_risk_budget": false,
+    "monthly_outputs": [
+      "elastic_net_fwd_vol",
+      "elastic_net_fwd_mdd",
+      "stacked_meta_fwd_vol"
+    ],
+    "required_monitoring": [
+      "forecast availability and convergence",
+      "Spearman and top-tercile AUC by target",
+      "calibration and false-positive rate",
+      "risk-budget portfolio utility versus current production and persistence",
+      "US and EU results reported separately"
+    ],
+    "minimum_genuinely_future_months_after_pit_cutoff": 12
+  },
+  "production_promotion": {
+    "allowed": false,
+    "reason": "Requires prospective post-2026-06-30 shadow evidence, portfolio-utility testing with costs, operational integration tests, and an explicitly authorized promotion task."
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "candidate_id": "regime-direct-risk-current-regime-stack-shadow-v4",
+  "status": "shadow_only",
+  "supersedes": "regime-direct-risk-challengers-shadow-v3",
+  "decision": {
+    "selected_model": "stacked_meta_model",
+    "selection_scope": "current_2022_plus_regime",
+    "selection_basis": "retrospective_2022_latest_priority",
+    "post_hoc_selection": true,
+    "production_change_authorized": false
+  },
+  "evidence": {
+    "hypothesis_id": "regime-direct-risk-challengers-v3",
+    "run_id": "20260726T221731Z-7244585e",
+    "pit_cutoff": "2026-06-30",
+    "US_2022_latest": {
+      "stacked_meta_model": {
+        "joint_score": 0.752693,
+        "mean_spearman": 0.445694,
+        "mean_high_risk_auc": 0.78254,
+        "fwd_vol_spearman": 0.629737,
+        "fwd_vol_auc": 0.901587,
+        "fwd_mdd_spearman": 0.261651,
+        "fwd_mdd_auc": 0.663492
+      },
+      "elastic_net": {
+        "joint_score": 0.738403,
+        "mean_spearman": 0.421867,
+        "mean_high_risk_auc": 0.765873,
+        "fwd_mdd_spearman": 0.275117,
+        "fwd_mdd_auc": 0.684127
+      },
+      "volatility_persistence": {
+        "joint_score": 0.682268
+      }
+    }
+  },
+  "current_regime_policy": {
+    "primary_model": "stacked_meta_model",
+    "targets": [
+      "fwd_vol",
+      "fwd_mdd"
+    ],
+    "fallback_model": "elastic_net",
+    "fallback_conditions": [
+      "stack output unavailable",
+      "any required first-layer or meta-model contract check fails",
+      "prospective MDD monitoring breaches the guardrail"
+    ],
+    "mdd_guardrail": {
+      "benchmark": "elastic_net",
+      "action": "fallback_fwd_mdd_to_elastic_net",
+      "condition": "stacked_meta_model trails elastic_net on both trailing MDD Spearman and AUC after at least 6 genuinely future observations"
+    }
+  },
+  "stack_training_contract": {
+    "base_inputs": "seven historical monthly walk-forward OOS model outputs",
+    "meta_model": "Ridge(alpha=1.0)",
+    "minimum_meta_training_months": 24,
+    "normalization": "strictly prior prediction CDF",
+    "missing_or_non_converged_input": "neutral 0.5 plus availability flag 0",
+    "fixed_msar_random_seeds": true
+  },
+  "shadow_protocol": {
+    "apply_to_production_risk_budget": false,
+    "start_after_pit_cutoff": "2026-06-30",
+    "minimum_genuinely_future_months_for_production_review": 12,
+    "monthly_comparisons": [
+      "stacked_meta_model",
+      "elastic_net",
+      "volatility_persistence",
+      "current_production_regime"
+    ],
+    "required_metrics": [
+      "forecast availability",
+      "fwd_vol Spearman and top-tercile AUC",
+      "fwd_mdd Spearman and top-tercile AUC",
+      "false-positive rate",
+      "risk-budget portfolio utility with costs"
+    ]
+  },
+  "production_promotion": {
+    "allowed": false,
+    "reason": "The current-regime selection deliberately uses the exposed 2022+ period. Production review requires genuinely future shadow evidence and separate explicit authorization."
+  }
+}

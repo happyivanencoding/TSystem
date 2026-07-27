@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "hypothesis_id": "regime-direct-risk-model-comparison-plots-v4",
+  "name": "US 2022+ regime-risk prediction versus actual visualization",
+  "statement": "A deterministic four-panel visualization can show how the stable causal model predictions track actual next-month US volatility and drawdown risk in the exposed 2022+ current-regime sample without treating score-only models as raw risk levels.",
+  "owner": "TP Research",
+  "status": "research",
+  "universe": "SP500",
+  "sample_start": "2022-01-31",
+  "sample_end": "2026-05-31",
+  "pit_cutoff": "2026-06-30",
+  "pit_policy": "read_only_visualization_of_parent_run",
+  "cost_assumptions": {
+    "transaction_cost": 0.0,
+    "slippage": 0.0,
+    "reason": "Visualization of forecast evidence only."
+  },
+  "trial_family": "regime-direct-risk-model-visualization",
+  "effective_trial_count": 1,
+  "component_versions": {
+    "plot_workflow": "tp.regime.direct_risk_model_plots:1.0.0",
+    "source_run": "20260726T221731Z-7244585e"
+  },
+  "tags": [
+    "research",
+    "regime",
+    "risk",
+    "visualization",
+    "post-hoc"
+  ],
+  "artifact_policy": {
+    "save_plots": true,
+    "holdings_mode": "minimal"
+  },
+  "runner": {
+    "module": "tp_research.workflows.plot_regime_direct_risk_model_comparison",
+    "callable": "main",
+    "default_args": [
+      "--predictions",
+      "artifacts/research/runs/regime-direct-risk-challengers-v3/20260726T221731Z-7244585e/results/walkforward_predictions.parquet",
+      "--region",
+      "US",
+      "--start",
+      "2022-01-01"
+    ],
+    "required_options": []
+  }
+}

@@ -4,6 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import App from './App.jsx'
+import { SectorMarketBoard } from './components/markets/SectorComponents.jsx'
 
 
 class FakeEventSource {
@@ -90,4 +91,35 @@ test('loads dashboard state and renders the default market page', async () => {
     expect.stringContaining('/api/dashboard/state'),
     expect.objectContaining({ headers: expect.any(Object) }),
   )
+})
+
+
+test('renders sector score bars without a runtime reference error', () => {
+  render(
+    <SectorMarketBoard
+      market={{
+        market: 'US',
+        latest_date: '2026-07-25',
+        sectors: 1,
+        positive: 1,
+        neutral: 0,
+        negative: 0,
+        path: 'test',
+      }}
+      onSelect={vi.fn()}
+      rows={[{
+        market: 'US',
+        sector_code: 'Technology',
+        sector_name: 'Technology',
+        最新月份: '2026-07',
+        score: 7.2,
+        rank: 1,
+        recommendation: 'Positive',
+      }]}
+      selectedSector={null}
+    />,
+  )
+
+  const scoreTrack = screen.getByLabelText('US Technology sector score')
+  expect(scoreTrack.querySelector('i')).toHaveStyle({ width: '72%' })
 })

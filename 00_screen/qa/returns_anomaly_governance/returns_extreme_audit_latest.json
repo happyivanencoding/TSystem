@@ -1,8 +1,8 @@
 {
-  "rows": 5511,
+  "rows": 5527,
   "columns": 12014,
   "date_min": "2005-01-03T00:00:00",
-  "date_max": "2026-07-02T00:00:00",
+  "date_max": "2026-07-24T00:00:00",
   "thresholds": {
     "abs_threshold": 1.0,
     "positive_threshold": 2.0,

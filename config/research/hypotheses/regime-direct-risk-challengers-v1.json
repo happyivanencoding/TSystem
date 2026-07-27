@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "hypothesis_id": "regime-direct-risk-challengers-v1",
+  "name": "Direct monthly volatility and drawdown risk challengers",
+  "statement": "A preregistered direct-risk challenger selected only on the 2018-2021 US validation window beats both the current HMM and volatility-persistence baselines by at least 0.02 joint risk score in the 2022+ holdout and full common windows.",
+  "owner": "TP Research",
+  "status": "research",
+  "universe": "SP500|STOXX600",
+  "sample_start": "2010-01-31",
+  "sample_end": "2026-06-30",
+  "pit_cutoff": "2026-06-30",
+  "pit_policy": "available_at_or_before_decision_time",
+  "cost_assumptions": {
+    "transaction_cost": 0.0,
+    "slippage": 0.0,
+    "reason": "Forecast comparison only; portfolio-utility testing is a separate experiment."
+  },
+  "trial_family": "regime-direct-risk-challengers",
+  "effective_trial_count": 7,
+  "component_versions": {
+    "challenger_workflow": "tp.regime.direct_risk_challengers:1.0.0",
+    "parent_features": "tp.bottom_up_factor_rotation:1.0.0"
+  },
+  "tags": [
+    "research",
+    "regime",
+    "risk",
+    "volatility",
+    "drawdown",
+    "challenger",
+    "shadow"
+  ],
+  "artifact_policy": {
+    "save_plots": false,
+    "holdings_mode": "minimal"
+  },
+  "runner": {
+    "module": "tp_research.workflows.run_regime_direct_risk_challengers",
+    "callable": "main",
+    "default_args": [
+      "--parent-features",
+      "artifacts/research/runs/regime-sector-factor-rotation-v1/20260726T145612Z-4dda8e92/results/market_factor_rotation_features.parquet",
+      "--min-train",
+      "60"
+    ],
+    "required_options": []
+  }
+}

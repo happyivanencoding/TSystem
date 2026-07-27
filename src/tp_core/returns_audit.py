@@ -62,8 +62,6 @@ def flag_returns_extremes(
         | (stacked["return"] <= negative_threshold)
     ].copy()
     flagged = flagged.sort_values("abs_return", ascending=False)
-    if flagged.empty:
-        return flagged
 
     reasons: list[str] = []
     for _, row in flagged.iterrows():

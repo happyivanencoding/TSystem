@@ -240,7 +240,42 @@ US 重点读取 `us_regime_attribution.csv`、`us_feature_lead_diagnostics.csv`�
 读取 `eu_sector_sensitivity.csv`、`eu_sector_cost_sensitivity.csv`、
 `eu_confirmation_condition.csv`、`eu_sector_bootstrap.csv` 和
 `eu_sector_incremental_contributions.csv`。直接 transition stress 风险
-预算层仍是待注册的新研究，不是已部署入口。
+预算层仍不是已部署入口。
+
+直接预测下一月波动与最大回撤的模型比较已经注册为可复现研究。当前有效
+版本使用固定 MS-AR 随机种子、严格双目标汇总和因果 OOS stacking：
+
+```powershell
+uv run --extra test tp-research run `
+  --parent-run-id 20260726T221502Z-b481d8bb `
+  regime-direct-risk-challengers-v3
+```
+
+- Hypothesis：
+  `config/research/hypotheses/regime-direct-risk-challengers-v3.json`
+- workflow：
+  `tp_research.workflows.run_regime_direct_risk_challengers_v2`
+- shadow 候选：
+  `config/research/model_candidates/regime-direct-risk-challengers-shadow-v3.json`
+- 当前 regime 选择：
+  `config/research/model_candidates/regime-direct-risk-current-regime-stack-shadow-v4.json`
+- 当前有效 Run Card：
+  `artifacts/research/runs/regime-direct-risk-challengers-v3/20260726T221731Z-7244585e/run.json`
+
+七个原始模型保持独立对照；第八个 `stacked_meta_model` 才把七个模型的
+历史逐月 OOS 输出作为训练输入。meta 特征只按严格更早的输出历史归一，
+未收敛或缺失输出使用中性值和可用性标记。v1 因联合平均跳过缺失目标而
+无效，v2 因 MS-AR 随机初始化未固定而只保留审计。v3 的 2022+ 数据已经
+在修正过程中暴露，只能解释为回溯证据；生产晋升必须累计 2026-06-30
+之后至少 12 个月的未来 shadow，并另做含成本的组合效用实验。
+
+2026-07-27 的 current-regime 决策将 2022+ 证据置于更高优先级，因此
+v4 shadow 主候选改为 `stacked_meta_model`，`elastic_net` 作为不可用
+回退和 MDD 安全对照。该决定明确属于 post-hoc selection：它不改变 v3
+按 2018–2021 validation 选出 Elastic Net 的研究事实，也不授权生产
+切换。Stack 在 2022+ 的联合分数为 0.752693，高于 Elastic Net 的
+0.738403；优势主要来自下一月波动预测，MDD AUC 仍低于 Elastic Net，
+因此未来 shadow 单独设置 MDD 回退门。
 
 ## 技术分析与形态识别
 

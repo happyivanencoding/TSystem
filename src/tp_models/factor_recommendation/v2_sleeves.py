@@ -9,18 +9,18 @@ production signal path.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from tp_backtest.runner.input_loader import load_pruned_backtest_inputs
 from tp_core.data_sources import RETURNS_PATH, SCREEN_AGGREGATE_PATH
-
 
 V2_FACTOR_DEFINITIONS: tuple[dict[str, Any], ...] = (
     {
@@ -29,6 +29,7 @@ V2_FACTOR_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "source_columns": ("Value Avg Percentile",),
         "direction": 1,
         "family": "value",
+        "score_scale": "0-10",
         "definition": "Higher percentile indicates cheaper valuation relative to the canonical cross-section.",
     },
     {
@@ -37,6 +38,7 @@ V2_FACTOR_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "source_columns": ("Quality Avg Percentile",),
         "direction": 1,
         "family": "quality",
+        "score_scale": "0-10",
         "definition": "Higher percentile indicates stronger canonical profitability, balance-sheet and earnings-quality characteristics.",
     },
     {
@@ -45,6 +47,7 @@ V2_FACTOR_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "source_columns": ("Growth Avg Percentile",),
         "direction": 1,
         "family": "growth",
+        "score_scale": "0-10",
         "definition": "Higher percentile indicates stronger canonical fundamental growth characteristics.",
     },
     {
@@ -53,6 +56,7 @@ V2_FACTOR_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "source_columns": ("Mom Avg Percentile",),
         "direction": 1,
         "family": "momentum",
+        "score_scale": "0-10",
         "definition": "Higher percentile indicates stronger canonical price-momentum characteristics.",
     },
     {
@@ -61,6 +65,7 @@ V2_FACTOR_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "source_columns": ("LowVol Avg Percentile",),
         "direction": 1,
         "family": "lowvol",
+        "score_scale": "0-10",
         "definition": "Higher percentile indicates lower realized or canonical volatility characteristics.",
     },
     {
@@ -69,6 +74,7 @@ V2_FACTOR_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "source_columns": ("Size Avg Percentile",),
         "direction": 1,
         "family": "size",
+        "score_scale": "0-10",
         "definition": "Higher percentile indicates larger market-cap exposure; it is not a small-cap signal.",
     },
     {
@@ -77,7 +83,9 @@ V2_FACTOR_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "source_columns": ("Size Avg Percentile",),
         "direction": -1,
         "family": "size",
-        "definition": "The explicit inverse of Size: small_size = 100 - Size percentile.",
+        "score_scale": "0-10",
+        "canonical_formula": "small_size_score = 10 - size_score",
+        "definition": "The explicit inverse of Size on the same 0-10 scale: small_size_score = 10 - size_score.",
     },
     {
         "name": "dividend",
@@ -85,6 +93,7 @@ V2_FACTOR_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "source_columns": ("Dividend Avg Percentile",),
         "direction": 1,
         "family": "dividend",
+        "score_scale": "0-10",
         "definition": "Higher percentile indicates stronger canonical dividend characteristics.",
     },
 )
@@ -154,7 +163,7 @@ class SleeveRunSpec:
 
     @property
     def sleeve_version(self) -> str:
-        return f"v2-p{int(round(self.sleeve_percentile * 100)):02d}"
+        return f"v2-p{round(self.sleeve_percentile * 100):02d}"
 
 
 def factor_definition_frame() -> pd.DataFrame:
@@ -168,6 +177,8 @@ def factor_definition_frame() -> pd.DataFrame:
                 "source_columns": ", ".join(item["source_columns"]),
                 "direction": item["direction"],
                 "family": item["family"],
+                "score_scale": item.get("score_scale", "0-10"),
+                "canonical_formula": item.get("canonical_formula", "score = source percentile / 10"),
                 "definition": item["definition"],
             }
             for item in V2_FACTOR_DEFINITIONS
@@ -177,6 +188,25 @@ def factor_definition_frame() -> pd.DataFrame:
 
 def factor_definition_map() -> dict[str, dict[str, Any]]:
     return {str(item["name"]): dict(item) for item in V2_FACTOR_DEFINITIONS}
+
+
+def canonical_factor_scores(factor: str, values: Any) -> pd.Series:
+    """Convert canonical percentile inputs to the frozen 0--10 factor scale.
+
+    The historical screen stores percentiles on a 0--100 scale.  Small Size
+    deliberately reuses the Size family and reverses the *canonical* score,
+    rather than reversing a raw percentile after a different normalization.
+    The <=10 branch keeps fixtures and already-normalised research inputs
+    stable.
+    """
+
+    numeric = pd.to_numeric(pd.Series(values), errors="coerce")
+    finite = numeric.dropna().abs()
+    divisor = 100.0 if not finite.empty and float(finite.max()) > 10.0 else 10.0
+    score = (numeric / divisor).clip(lower=0.0, upper=10.0)
+    if str(factor) == "small_size":
+        score = 10.0 - score
+    return score
 
 
 def component_map() -> dict[str, dict[str, Any]]:
@@ -198,10 +228,14 @@ def _component_screen(screen: pd.DataFrame, component: Mapping[str, Any]) -> pd.
     out = screen.copy()
     out["Date"] = pd.to_datetime(out["Date"], errors="coerce").dt.normalize()
     out = out.dropna(subset=["Date"])
+    if "Company SEDOL" in out.columns:
+        out = out.loc[out["Company SEDOL"].notna() & out["Company SEDOL"].astype(str).ne("nan")].copy()
     weight_column = str(component["weight_column"])
     if weight_column not in out.columns:
         raise KeyError(f"official sleeve input is missing {weight_column!r}")
-    mask = pd.to_numeric(out[weight_column], errors="coerce").gt(0)
+    weight_values = pd.to_numeric(out[weight_column], errors="coerce")
+    mask = weight_values.gt(0)
+    raw_benchmark_weight = weight_values.where(mask, 0.0).groupby(out["Date"], sort=False).transform("sum")
     country_column = component.get("country_column")
     countries = out[country_column].astype("string") if country_column and country_column in out.columns else None
     allowlist = tuple(component.get("country_allowlist") or ())
@@ -212,6 +246,9 @@ def _component_screen(screen: pd.DataFrame, component: Mapping[str, Any]) -> pd.
     excludes = tuple(component.get("exclude_countries") or ())
     if excludes and countries is not None:
         mask &= ~countries.isin(excludes)
+    retained_benchmark_weight = weight_values.where(mask, 0.0).groupby(out["Date"], sort=False).transform("sum")
+    out["__raw_benchmark_weight"] = raw_benchmark_weight
+    out["__retained_country_weight"] = retained_benchmark_weight
     out = out.loc[mask].copy()
     if out.empty:
         raise ValueError(f"no PIT members for {component['region_component']}")
@@ -270,6 +307,7 @@ def _period_rows(
     screen: pd.DataFrame,
     portfolio_result: Any,
     benchmark_result: Any,
+    security_returns: pd.DataFrame | None = None,
     max_months: int | None = None,
 ) -> pd.DataFrame:
     """Translate daily official results into formation-date labelled monthly rows."""
@@ -305,25 +343,57 @@ def _period_rows(
         gross_return = _compound(portfolio_gross.loc[days])
         net_return = _compound(portfolio_net.loc[days])
         benchmark_return = _compound(benchmark_daily.reindex(portfolio_net.index).fillna(0.0).loc[days])
-        component_at_date = screen.loc[screen["Date"].eq(formation_date)]
-        score_values = pd.to_numeric(component_at_date.get(factor_column), errors="coerce")
-        score_values = score_values.dropna()
+        component_at_date = screen.loc[screen["Date"].eq(formation_date)].copy()
+        raw_score_values = pd.to_numeric(component_at_date.get(factor_column), errors="coerce")
+        valid_factor_mask = raw_score_values.notna()
+        score_values = canonical_factor_scores(spec.factor, raw_score_values)
         benchmark_values = pd.to_numeric(component_at_date.get(component_weight), errors="coerce")
-        benchmark_coverage = float(benchmark_values.notna().mean()) if len(component_at_date) else 0.0
-        target_date = formation_date + pd.offsets.MonthBegin(1)
+        eligible_universe_rows = len(component_at_date)
+        valid_factor_rows = int(valid_factor_mask.sum())
+        eligible_benchmark_weight = float(benchmark_values.fillna(0.0).clip(lower=0.0).sum())
+        valid_factor_benchmark_weight = float(benchmark_values.where(valid_factor_mask, 0.0).fillna(0.0).clip(lower=0.0).sum())
+        factor_row_coverage = float(valid_factor_rows / eligible_universe_rows) if eligible_universe_rows else 0.0
+        factor_weight_coverage = float(valid_factor_benchmark_weight / eligible_benchmark_weight) if eligible_benchmark_weight > 0 else 0.0
+        raw_benchmark_weight = float(pd.to_numeric(component_at_date.get("__raw_benchmark_weight"), errors="coerce").dropna().iloc[0]) if "__raw_benchmark_weight" in component_at_date.columns and not pd.to_numeric(component_at_date["__raw_benchmark_weight"], errors="coerce").dropna().empty else eligible_benchmark_weight
+        retained_country_weight = float(pd.to_numeric(component_at_date.get("__retained_country_weight"), errors="coerce").dropna().iloc[0]) if "__retained_country_weight" in component_at_date.columns and not pd.to_numeric(component_at_date["__retained_country_weight"], errors="coerce").dropna().empty else eligible_benchmark_weight
+        retained_benchmark_coverage = float(retained_country_weight / raw_benchmark_weight) if raw_benchmark_weight > 0 else 0.0
         target_holdings = getattr(portfolio_result, "execution_weights", pd.DataFrame())
         holdings_count = 0
+        execution_date = pd.NaT
         if isinstance(target_holdings, pd.DataFrame) and not target_holdings.empty:
             try:
                 target_frame = target_holdings.reset_index()
                 target_frame["Date"] = pd.to_datetime(target_frame["Date"], errors="coerce").dt.normalize()
-                holdings_count = int(target_frame.loc[target_frame["Date"].eq(target_date)].shape[0])
+                execution_dates = sorted(pd.Timestamp(value) for value in target_frame["Date"].dropna().unique() if pd.Timestamp(value) > formation_date)
+                if execution_dates:
+                    in_interval = [value for value in execution_dates if value <= next_date]
+                    execution_date = in_interval[0] if in_interval else execution_dates[0]
+                    execution_rows = target_frame.loc[target_frame["Date"].eq(execution_date)]
+                    weight_column = next((column for column in ("Weight", "weight", "Portfolio weight") if column in execution_rows.columns), None)
+                    holdings_count = int((pd.to_numeric(execution_rows[weight_column], errors="coerce").gt(0)).sum()) if weight_column else len(execution_rows)
             except (KeyError, TypeError, ValueError):
                 holdings_count = 0
-        if holdings_count == 0:
-            holdings_count = max(1, int(round(len(component_at_date) * spec.sleeve_percentile)))
-        factor_coverage = float(score_values.notna().mean()) if len(component_at_date) else 0.0
+        return_available_weight = 0.0
+        return_cell_coverage = np.nan
+        if security_returns is None:
+            return_available_weight = retained_country_weight if bool(days.any()) else 0.0
+        else:
+            returns_frame = security_returns.copy()
+            returns_frame.index = pd.to_datetime(returns_frame.index, errors="coerce").normalize()
+            window_returns = returns_frame.reindex(portfolio_net.index[days])
+            return_cell_coverage = float(window_returns.notna().mean().mean()) if not window_returns.empty else 0.0
+            member_ids = component_at_date.get("Company SEDOL", pd.Series(dtype=object)).astype(str)
+            member_weights = pd.Series(benchmark_values.to_numpy(dtype=float), index=member_ids.to_numpy(dtype=str)) if len(member_ids) else pd.Series(dtype=float)
+            available_ids = {str(value) for value in window_returns.columns[window_returns.notna().any(axis=0)]} if not window_returns.empty else set()
+            return_available_weight = float(member_weights.loc[member_weights.index.isin(available_ids)].sum()) if len(member_weights) else 0.0
+        return_weight_coverage = float(return_available_weight / retained_country_weight) if retained_country_weight > 0 else 0.0
+        raw_benchmark_daily = getattr(benchmark_result, "gross_daily_returns", getattr(benchmark_result, "daily_returns", None))
+        raw_benchmark_daily = pd.Series(raw_benchmark_daily) if raw_benchmark_daily is not None else pd.Series(dtype=float)
+        if not raw_benchmark_daily.empty:
+            raw_benchmark_daily.index = pd.to_datetime(raw_benchmark_daily.index, errors="coerce").normalize()
+        benchmark_return_coverage = float(raw_benchmark_daily.reindex(portfolio_net.index[days]).notna().mean()) if bool(days.any()) and not raw_benchmark_daily.empty else np.nan
         minimum_constituents = int(component_map()[spec.region_component].get("minimum_monthly_constituents", 1))
+        formation_available = bool(holdings_count >= minimum_constituents and valid_factor_rows > 0 and return_weight_coverage > 0)
         turnover_value = float(turnover_daily.loc[days].sum()) if len(turnover_daily) else float("nan")
         fingerprint = _stable_fingerprint(
             {
@@ -341,6 +411,7 @@ def _period_rows(
                 "effective_start_date": portfolio_net.index[days].min(),
                 "effective_end_date": portfolio_net.index[days].max(),
                 "target_date": next_date,
+                "execution_date": execution_date,
                 "region": spec.region,
                 "region_component": spec.region_component,
                 "benchmark": spec.benchmark,
@@ -356,15 +427,31 @@ def _period_rows(
                 "spread": np.nan,
                 "turnover": turnover_value,
                 "holdings_count": holdings_count,
-                "formation_available": bool(holdings_count >= minimum_constituents and factor_coverage > 0),
-                "coverage": factor_coverage,
-                "factor_coverage": factor_coverage,
-                "weight_coverage": benchmark_coverage,
-                "benchmark_weight_coverage": benchmark_coverage,
-                "benchmark_coverage": benchmark_coverage,
+                "formation_available": formation_available,
+                "holdings_count_source": "official_execution_weights",
+                "eligible_universe_rows": eligible_universe_rows,
+                "valid_factor_rows": valid_factor_rows,
+                "factor_row_coverage": factor_row_coverage,
+                "eligible_benchmark_weight": eligible_benchmark_weight,
+                "valid_factor_benchmark_weight": valid_factor_benchmark_weight,
+                "factor_weight_coverage": factor_weight_coverage,
+                "raw_benchmark_weight": raw_benchmark_weight,
+                "retained_country_weight": retained_country_weight,
+                "retained_benchmark_coverage": retained_benchmark_coverage,
+                "return_available_weight": return_available_weight,
+                "return_weight_coverage": return_weight_coverage,
+                "return_cell_coverage": return_cell_coverage,
+                "benchmark_return_coverage": benchmark_return_coverage,
+                "coverage": factor_weight_coverage,
+                "factor_coverage": factor_weight_coverage,
+                "weight_coverage": retained_benchmark_coverage,
+                "benchmark_weight_coverage": retained_benchmark_coverage,
+                "benchmark_coverage": retained_benchmark_coverage,
                 "minimum_constituents": minimum_constituents,
-                "factor_score": float(score_values.mean()) if not score_values.empty else np.nan,
-                "universe_count": int(len(component_at_date)),
+                "factor_score": float(score_values.mean()) if not score_values.dropna().empty else np.nan,
+                "size_score": float(canonical_factor_scores("size", raw_score_values).mean()) if spec.factor in {"size", "small_size"} and not raw_score_values.dropna().empty else np.nan,
+                "small_size_score": float(canonical_factor_scores("small_size", raw_score_values).mean()) if spec.factor in {"size", "small_size"} and not raw_score_values.dropna().empty else np.nan,
+                "universe_count": eligible_universe_rows,
                 "engine_id": str(getattr(portfolio_result, "manifest", {}).get("engine_id", spec.engine_id)),
                 "engine_version": str(getattr(portfolio_result, "manifest", {}).get("engine_version", spec.engine_version)),
                 "execution_policy": "strictly_after_rebalance; apply_weights_at_close",
@@ -381,9 +468,13 @@ def _holdings_frame(
     *,
     spec: SleeveRunSpec,
     builder: Any,
+    portfolio_result: Any,
     screen: pd.DataFrame,
 ) -> pd.DataFrame:
-    source = getattr(builder, "sec_list_historical", None)
+    # Holdings evidence must be the weights actually consumed by the NAV
+    # engine.  ``sec_list_historical`` is a formation list and may have a
+    # different date/weight universe after execution-date mapping.
+    source = getattr(portfolio_result, "execution_weights", None)
     if source is None or not isinstance(source, pd.DataFrame) or source.empty:
         return pd.DataFrame()
     frame = source.reset_index() if source.index.name or not isinstance(source.index, pd.RangeIndex) else source.copy()
@@ -393,14 +484,21 @@ def _holdings_frame(
         return pd.DataFrame()
     frame["target_date"] = pd.to_datetime(frame[date_column], errors="coerce").dt.normalize()
     frame["formation_date"] = frame["target_date"] - pd.offsets.MonthBegin(1) + pd.offsets.MonthEnd(0)
-    id_column = next((column for column in ("Company SEDOL", "ISIN", "index") if column in frame.columns), None)
-    weight_column = next((column for column in ("Weight", "Portfolio weight", "weight") if column in frame.columns), None)
+    id_column = next((column for column in ("Company SEDOL", "security_id", "ISIN", "index") if column in frame.columns), None)
+    weight_column = next((column for column in ("Portfolio weight", "Weight", "weight") if column in frame.columns), None)
     if id_column is None or weight_column is None:
         return pd.DataFrame()
+    frame = frame.loc[frame[id_column].notna() & frame[id_column].astype(str).ne("nan")].copy()
+    frame["execution_date"] = frame["target_date"]
+    screen_dates = sorted(pd.Timestamp(value) for value in pd.to_datetime(screen["Date"], errors="coerce").dropna().unique())
+    frame["formation_date"] = frame["execution_date"].map(lambda value: max((date for date in screen_dates if date < value), default=pd.NaT))
+    frame["return_period_end"] = frame["formation_date"].map(lambda value: min((date for date in screen_dates if date > value), default=pd.NaT) if pd.notna(value) else pd.NaT)
     return pd.DataFrame(
         {
             "formation_date": frame["formation_date"],
-            "target_date": frame["target_date"],
+            "target_date": frame["execution_date"],
+            "execution_date": frame["execution_date"],
+            "return_period_end": frame["return_period_end"],
             "region": spec.region,
             "region_component": spec.region_component,
             "benchmark": spec.benchmark,
@@ -409,7 +507,9 @@ def _holdings_frame(
             "sleeve_version": spec.sleeve_version,
             "security_id": frame[id_column].astype(str),
             "weight": pd.to_numeric(frame[weight_column], errors="coerce"),
-            "fingerprint": _stable_fingerprint({"spec": spec.__dict__, "source": "sec_list_historical"}),
+            "holdings_source": "official_execution_weights",
+            "alignment_status": "execution_date_joined_to_monthly_period",
+            "fingerprint": _stable_fingerprint({"spec": spec.__dict__, "source": "portfolio_result.execution_weights"}),
         }
     )
 
@@ -436,7 +536,7 @@ def run_official_factor_sleeve(
     scoped = scoped.loc[scoped["Date"].between(_as_datetime(start_date), _as_datetime(end_date))].copy()
     if scoped.empty:
         raise ValueError(f"empty scoped screen for {spec.region_component}")
-    sedols = scoped["Company SEDOL"].astype(str).dropna().unique()
+    sedols = scoped["Company SEDOL"].dropna().astype(str).loc[lambda values: values.ne("nan")].unique()
     scoped_returns = returns.loc[:, returns.columns.astype(str).isin(set(sedols))].copy()
     if scoped_returns.empty:
         raise ValueError(f"empty returns for {spec.region_component}")
@@ -487,9 +587,13 @@ def run_official_factor_sleeve(
         screen=scoped,
         portfolio_result=portfolio_result,
         benchmark_result=benchmark_result,
+        security_returns=scoped_returns,
         max_months=max_months,
     )
-    holdings = _holdings_frame(spec=spec, builder=builder, screen=scoped)
+    holdings = _holdings_frame(spec=spec, builder=builder, portfolio_result=portfolio_result, screen=scoped)
+    monthly_execution_dates = set(pd.to_datetime(monthly.get("execution_date"), errors="coerce").dropna()) if not monthly.empty else set()
+    holdings_execution_dates = set(pd.to_datetime(holdings.get("execution_date"), errors="coerce").dropna()) if not holdings.empty else set()
+    alignment_status = "aligned" if monthly_execution_dates.issubset(holdings_execution_dates) else "missing_executed_holdings_evidence"
     metadata = {
         "spec": spec.__dict__,
         "engine": nav_engine_metadata(strictly_after_rebalance=True, apply_weights_at_close=True),
@@ -497,10 +601,13 @@ def run_official_factor_sleeve(
         "fill_method": "drift",
         "execution_config": execution_config,
         "internal_cost_method": "official_turnover * frozen_sleeve_internal_cost_bps; charged once after official gross NAV",
-        "screen_rows": int(len(scoped)),
+        "screen_rows": len(scoped),
         "return_columns": int(scoped_returns.shape[1]),
-        "monthly_rows": int(len(monthly)),
-        "holdings_rows": int(len(holdings)),
+        "monthly_rows": len(monthly),
+        "holdings_rows": len(holdings),
+        "holdings_alignment_status": alignment_status,
+        "monthly_execution_dates": len(monthly_execution_dates),
+        "holdings_execution_dates": len(holdings_execution_dates),
     }
     return monthly, holdings, metadata
 
@@ -579,7 +686,7 @@ def run_official_factor_sleeve_database(
                         if not holdings.empty:
                             holdings_frames.append(holdings)
                         runs.append(metadata)
-                    except Exception as error:  # evidence records the missing run; no fake fallback
+                    except Exception as error:  # noqa: BLE001 - evidence records the missing run; no fake fallback
                         errors.append({"spec": spec.__dict__, "error": f"{type(error).__name__}: {error}"})
     monthly = pd.concat(monthly_frames, ignore_index=True) if monthly_frames else pd.DataFrame()
     holdings = pd.concat(holdings_frames, ignore_index=True) if holdings_frames else pd.DataFrame()
@@ -608,8 +715,8 @@ def run_official_factor_sleeve_database(
         "fill_method": "drift",
         "runs": runs,
         "errors": errors,
-        "screen_rows": int(len(screen)),
-        "return_rows": int(len(returns)),
+        "screen_rows": len(screen),
+        "return_rows": len(returns),
     }
     return monthly, holdings, manifest
 
@@ -618,6 +725,7 @@ __all__ = [
     "V2_COMPONENTS",
     "V2_FACTOR_DEFINITIONS",
     "SleeveRunSpec",
+    "canonical_factor_scores",
     "component_map",
     "factor_definition_frame",
     "factor_definition_map",

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "run_id": "20260804T165649Z-1ebcb3be",
+  "hypothesis_id": "monthly-factor-recommendation-v2",
+  "decision": "implementation_reject",
+  "status": "invalid_for_model_selection",
+  "production_eligible": false,
+  "reason_codes": [
+    "m0_nan_metric_selected_first",
+    "cross_region_confirmation_same_date_target_leakage",
+    "coverage_computed_after_dropna",
+    "gate_uses_best_candidate_not_champion",
+    "top2_uplift_metric_mismatch",
+    "mdd_deterioration_metric_mismatch",
+    "dsr_formula_not_validated",
+    "hyperparameter_grid_not_executed",
+    "lopo_loro_not_retrained"
+  ],
+  "historical_run_card": "artifacts/research/runs/monthly-factor-recommendation-v2/20260804T165649Z-1ebcb3be/run.json",
+  "invalidated_at": "2026-08-04T17:00:00+02:00",
+  "invalidated_by_commit": "196a0103f085f372b89e7f94fae19e6268a9492a",
+  "scope": "implementation_validity_only",
+  "economic_hypothesis_status": "research",
+  "note": "The v2 economic hypothesis remains research. This record prevents the historical implementation from being used for model selection or promotion; it does not interpret the old REJECT as economic falsification."
+}

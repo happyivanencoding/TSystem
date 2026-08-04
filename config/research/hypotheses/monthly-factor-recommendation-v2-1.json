@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "hypothesis_id": "monthly-factor-recommendation-v2",
-  "name": "Monthly factor recommendation research v2",
-  "statement": "Point-in-time monthly factor-sleeve evidence can rank the next month's net active return of official Top factor sleeves after declared sleeve costs and allocator costs.",
+  "hypothesis_id": "monthly-factor-recommendation-v2-1",
+  "name": "Monthly factor recommendation research v2.1 methodology repair",
+  "statement": "Point-in-time monthly factor-sleeve evidence can rank the next month's net active return of official Top factor sleeves after declared sleeve costs and allocator costs, with implementation validity separately audited.",
   "owner": "TP Research",
   "status": "research",
   "decision": "review_required; never auto-promote",
-  "parent_hypothesis_id": "monthly-factor-recommendation-v1",
-  "invalidated_predecessor_run": "20260804T141711Z-e7a212e5",
+  "parent_hypothesis_id": "monthly-factor-recommendation-v2",
+  "invalidated_predecessor_run": "20260804T165649Z-1ebcb3be",
   "universe": "core.factor_recommendation.factor_sleeves",
   "sample_start": "2013-12-31",
   "sample_end": "2026-07-31",
@@ -17,7 +17,8 @@
     "features": "screen and platform context lagged by one complete monthly observation",
     "execution": "first trading day strictly after rebalance date; target weights applied after close return",
     "missing_snapshot": "drift",
-    "no_future_information": true
+    "no_future_information": true,
+    "publication_timestamp_status": "snapshot_assumption"
   },
   "regions": ["US", "EUROPE", "JAPAN", "GLOBAL"],
   "region_components": ["US", "EUROPE", "JAPAN", "GLOBAL", "ASIA_EX_JAPAN"],
@@ -29,14 +30,14 @@
     "unresolved_status": "NO_AGGREGATE_PERFORMANCE_CURRENCY_UNRESOLVED"
   },
   "factor_definitions": [
-    {"name": "value", "label": "Value", "source_columns": ["Value Avg Percentile"], "direction": 1, "definition": "Higher percentile indicates cheaper valuation relative to the canonical cross-section."},
-    {"name": "quality", "label": "Quality", "source_columns": ["Quality Avg Percentile"], "direction": 1, "definition": "Higher percentile indicates stronger canonical profitability, balance-sheet and earnings-quality characteristics."},
-    {"name": "growth", "label": "Growth", "source_columns": ["Growth Avg Percentile"], "direction": 1, "definition": "Higher percentile indicates stronger canonical fundamental growth characteristics."},
-    {"name": "momentum", "label": "Momentum", "source_columns": ["Mom Avg Percentile"], "direction": 1, "definition": "Higher percentile indicates stronger canonical price-momentum characteristics."},
-    {"name": "lowvol", "label": "Low Volatility", "source_columns": ["LowVol Avg Percentile"], "direction": 1, "definition": "Higher percentile indicates lower realized or canonical volatility characteristics."},
-    {"name": "size", "label": "Large Size", "source_columns": ["Size Avg Percentile"], "direction": 1, "family": "size", "definition": "Higher percentile indicates larger market-cap exposure; it is not a small-cap signal."},
+    {"name": "value", "label": "Value", "source_columns": ["Value Avg Percentile"], "direction": 1, "family": "value", "score_scale": "0-10", "definition": "Higher canonical score indicates cheaper valuation relative to the canonical cross-section."},
+    {"name": "quality", "label": "Quality", "source_columns": ["Quality Avg Percentile"], "direction": 1, "family": "quality", "score_scale": "0-10", "definition": "Higher canonical score indicates stronger profitability, balance-sheet and earnings-quality characteristics."},
+    {"name": "growth", "label": "Growth", "source_columns": ["Growth Avg Percentile"], "direction": 1, "family": "growth", "score_scale": "0-10", "definition": "Higher canonical score indicates stronger fundamental growth characteristics."},
+    {"name": "momentum", "label": "Momentum", "source_columns": ["Mom Avg Percentile"], "direction": 1, "family": "momentum", "score_scale": "0-10", "definition": "Higher canonical score indicates stronger canonical price-momentum characteristics."},
+    {"name": "lowvol", "label": "Low Volatility", "source_columns": ["LowVol Avg Percentile"], "direction": 1, "family": "lowvol", "score_scale": "0-10", "definition": "Higher canonical score indicates lower realized or canonical volatility characteristics."},
+    {"name": "size", "label": "Large Size", "source_columns": ["Size Avg Percentile"], "direction": 1, "family": "size", "score_scale": "0-10", "definition": "Higher canonical score indicates larger market-cap exposure; it is the large-size direction."},
     {"name": "small_size", "label": "Small Size", "source_columns": ["Size Avg Percentile"], "direction": -1, "family": "size", "score_scale": "0-10", "canonical_formula": "small_size_score = 10 - size_score", "definition": "The explicit inverse of Size on the same 0-10 scale: small_size_score = 10 - size_score."},
-    {"name": "dividend", "label": "Dividend", "source_columns": ["Dividend Avg Percentile"], "direction": 1, "definition": "Higher percentile indicates stronger canonical dividend characteristics."}
+    {"name": "dividend", "label": "Dividend", "source_columns": ["Dividend Avg Percentile"], "direction": 1, "family": "dividend", "score_scale": "0-10", "definition": "Higher canonical score indicates stronger canonical dividend characteristics."}
   ],
   "sleeve": {
     "research_unit": "Date x Region x RegionComponent x Factor x SleeveSide",
@@ -52,7 +53,7 @@
   "cost_assumptions": {
     "sleeve_internal_cost_bps": {"commission": 10, "slippage": 5},
     "allocator_cost_grid_bps": [0, 10, 25, 50],
-    "turnover_definition": "0.5 * sum(abs(current_weight - previous_weight))",
+    "turnover_definition": "0.5 * sum(abs(current_weight - previous_weight)) per allocator variant",
     "double_counting_policy": "allocator cost is applied only to allocator turnover; official sleeve internal cost is not charged again"
   },
   "economic_periods": [
@@ -62,11 +63,11 @@
     {"name": "post_covid", "start": "2022-01-31", "end": "2026-07-31"}
   ],
   "candidate_models": [
-    {"id": "M0_equal_factor", "kind": "baseline", "description": "Equal valid-factor basket; no winner prediction."},
-    {"id": "M1_trailing_12m", "kind": "trailing_momentum", "feature": "trailing_12m_active_return"},
-    {"id": "M2_transparent_composite", "kind": "frozen_composite", "formula": "0.35*rank(trailing_12m)+0.20*rank(trailing_6m)+0.15*rank(breadth)+0.10*coverage+0.10*drawdown+0.10*regime_alignment"},
-    {"id": "M3_pooled_ridge", "kind": "pooled_ridge", "backend": "sklearn.linear_model.Ridge"},
-    {"id": "M4_pooled_elastic_net", "kind": "pooled_elastic_net", "backend": "sklearn.linear_model.ElasticNet"}
+    {"id": "M0_equal_factor", "kind": "baseline", "selection_eligible": false, "description": "Equal valid-factor basket; baseline only and never a champion candidate."},
+    {"id": "M1_trailing_12m", "kind": "trailing_momentum", "selection_eligible": true, "feature": "trailing_12m_active_return"},
+    {"id": "M2_transparent_composite", "kind": "frozen_composite", "selection_eligible": true, "formula": "0.35*rank(trailing_12m)+0.20*rank(trailing_6m)+0.15*rank(breadth)+0.10*coverage+0.10*drawdown+0.10*regime_alignment"},
+    {"id": "M3_pooled_ridge", "kind": "pooled_ridge", "backend": "sklearn.linear_model.Ridge", "selection_eligible": true},
+    {"id": "M4_pooled_elastic_net", "kind": "pooled_elastic_net", "backend": "sklearn.linear_model.ElasticNet", "selection_eligible": true}
   ],
   "hyperparameter_grid": {
     "ridge_alpha": [0.1, 1.0, 10.0],
@@ -80,21 +81,18 @@
     "retrain": "monthly",
     "selection_metric": "rank_ic",
     "tie_break": ["rank_ic", "lower_turnover", "simpler_model"],
-    "train_only_transforms": ["imputer", "scaler", "hyperparameter_selection"]
+    "train_only_transforms": ["imputer", "scaler", "hyperparameter_selection"],
+    "inner_validation_months": 3
   },
   "allocator": {
     "primary": "top2_equal",
     "top2_weight": 0.5,
-    "alternatives": ["top1", "score_weighted", "confidence_gated", "equal_factor_baseline", "M1_trailing_12m", "M2_transparent_composite", "regional_benchmark_secondary"],
+    "alternatives": ["top1", "top2_equal", "score_weighted", "confidence_gated", "equal_factor", "M1_allocator", "M2_allocator"],
     "low_confidence": "neutral_equal_factor",
     "fewer_than_two_valid": "NO_VIEW",
     "primary_active_baseline": "equal_factor_basket_net_return"
   },
-  "promotion": {
-    "research_only": true,
-    "never_change_production_config": true,
-    "decision": "review_required"
-  },
+  "promotion": {"research_only": true, "never_change_production_config": true, "decision": "review_required"},
   "gates": {
     "minimum_monthly_observations": 120,
     "minimum_valid_factors_per_month": 5,
@@ -118,8 +116,8 @@
   "trial_ledger_scope": ["raw_variables", "relative_variables", "lags", "factors", "models", "hyperparameters", "allocations", "sleeve_percentiles", "cost_sensitivities"],
   "artifact_policy": {"save_plots": false, "holdings_mode": "minimal"},
   "component_versions": {
-    "workflow": "monthly-factor-recommendation-v2",
-    "core_boundary": "tp_models.factor_recommendation.v2",
+    "workflow": "monthly-factor-recommendation-v2-1",
+    "core_boundary": "tp_models.factor_recommendation.v2_research + v2_sleeves",
     "official_engine": "tp_core.backtesting.OfficialPortfolioBacktest",
     "nav_engine": "tp.security_nav:3.0.0"
   },
@@ -130,7 +128,9 @@
   "runner": {
     "module": "tp_research.workflows.run_monthly_factor_recommendation_v2_research",
     "callable": "main",
-    "default_args": [],
+    "default_args": ["--hypothesis-path", "config/research/hypotheses/monthly-factor-recommendation-v2-1.json"],
     "required_options": []
-  }
+  },
+  "workflow_id": "monthly-factor-recommendation-v2-1",
+  "trial_family": "monthly-factor-recommendation-v2-1"
 }

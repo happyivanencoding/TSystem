@@ -15,7 +15,14 @@ import pandas as pd
 from .catalog import catalog_health, initialize_database
 from .config import DuckDBConfig
 from .connection import connect, connection_info
+from .manifests import load_manifest
 from .parity import compare_frames
+from .partitioning import (
+    load_current_manifest,
+    migrate_dataset,
+    validate_mirror,
+    write_compatibility_export_from_manifest,
+)
 from .profiling import parquet_profile, timed_frame
 
 
@@ -100,19 +107,100 @@ def benchmark_main(argv: Iterable[str] | None = None) -> int:
 
 def parity_main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="比较两个 Parquet DataFrame 的基础 parity")
-    parser.add_argument("--left", required=True)
-    parser.add_argument("--right", required=True)
+    parser.add_argument("--left")
+    parser.add_argument("--right")
+    parser.add_argument("--dataset", choices=("screen", "returns_wide"))
+    parser.add_argument("--source")
+    parser.add_argument("--manifest")
+    parser.add_argument("--root", default=str(DuckDBConfig.from_env().data_root))
     parser.add_argument("--key", action="append", default=[])
     args = parser.parse_args(list(argv) if argv is not None else None)
+    if args.dataset:
+        if not args.source or not args.manifest:
+            parser.error("--dataset requires --source and --manifest")
+        payload = validate_mirror(args.source, args.manifest, root=args.root)
+        _json_dump(payload)
+        return 0 if payload["status"] == "passed" else 1
+    if not args.left or not args.right:
+        parser.error("direct parity requires --left and --right")
     result = compare_frames(pd.read_parquet(args.left), pd.read_parquet(args.right), key_columns=args.key)
     _json_dump(result.as_dict())
     return 0 if result.equal else 1
 
 
+def _migrate_main(argv: Iterable[str] | None, *, dataset_name: str) -> int:
+    parser = argparse.ArgumentParser(description=f"为 {dataset_name} 创建不可变 Parquet 分区镜像")
+    parser.add_argument("--root", default=str(DuckDBConfig.from_env().data_root))
+    parser.add_argument("--source", required=True)
+    parser.add_argument("--source-run-id")
+    parser.add_argument("--apply", action="store_true", help="实际写入；默认只审计源文件")
+    parser.add_argument("--write-compatibility-export", action="store_true")
+    parser.add_argument("--compatibility-export")
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    result = migrate_dataset(
+        args.source,
+        dataset_name=dataset_name,
+        root=args.root,
+        apply=args.apply,
+        source_run_id=args.source_run_id,
+        write_compatibility_export=args.write_compatibility_export,
+        compatibility_export_path=args.compatibility_export,
+    )
+    _json_dump(result.as_dict())
+    return 0
+
+
+def migrate_screen_main(argv: Iterable[str] | None = None) -> int:
+    return _migrate_main(argv, dataset_name="screen")
+
+
+def migrate_returns_main(argv: Iterable[str] | None = None) -> int:
+    return _migrate_main(argv, dataset_name="returns_wide")
+
+
+def compatibility_export_main(argv: Iterable[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="从明确 Dataset Manifest 原子重建兼容导出")
+    parser.add_argument("--dataset", choices=("screen", "returns_wide"), required=True)
+    parser.add_argument("--manifest", help="manifest 路径；默认读取 datasets/<dataset>/current.json")
+    parser.add_argument("--output", help="输出路径；默认读取 manifest.compatibility_export.path")
+    parser.add_argument("--root", default=str(DuckDBConfig.from_env().data_root))
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    root = Path(args.root)
+    if args.manifest:
+        manifest_path = Path(args.manifest)
+        if not manifest_path.is_absolute():
+            manifest_path = root / manifest_path
+        manifest = load_manifest(manifest_path, require_files=True, root=root)
+    else:
+        manifest_path = root / "00_screen" / "datasets" / "manifests" / args.dataset / "current.json"
+        manifest = load_current_manifest(manifest_path, root=root)
+    export_payload = manifest.payload.get("compatibility_export", {})
+    output_raw = args.output or export_payload.get("path")
+    if not output_raw:
+        parser.error("manifest does not define compatibility_export.path; pass --output")
+    output = Path(str(output_raw))
+    write_compatibility_export_from_manifest(manifest, output, root=root)
+    _json_dump(
+        {
+            "status": "written",
+            "dataset_name": manifest.dataset_name,
+            "dataset_version": manifest.dataset_version,
+            "manifest_path": str(manifest_path),
+            "output_path": str(output),
+            "source_role": "compatibility_export",
+            "authoritative_dataset_version": manifest.dataset_version,
+        }
+    )
+    return 0
+
+
 __all__ = [
     "benchmark_main",
     "build_catalog_main",
+    "compatibility_export_main",
     "data_audit_main",
+    "migrate_returns_main",
+    "migrate_screen_main",
     "parity_main",
     "validate_release_main",
 ]

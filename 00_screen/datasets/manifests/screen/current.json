@@ -1,0 +1,7 @@
+{
+  "schema_version": "tp.dataset-pointer.v1",
+  "dataset_name": "screen",
+  "dataset_version": "screen-96c8d5c34745e10ea66f-c2617f016131",
+  "manifest_path": "00_screen/datasets/manifests/screen/screen-96c8d5c34745e10ea66f-c2617f016131.json",
+  "updated_at": "2026-08-04T22:38:23.537582+00:00"
+}

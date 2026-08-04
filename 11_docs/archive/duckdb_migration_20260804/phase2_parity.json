@@ -1,0 +1,54 @@
+{
+  "phase": 2,
+  "phase_name": "partitioned_mirror_manifests_parity_compatibility",
+  "status": "passed",
+  "validated_at_utc": "2026-08-04T22:43:09.4491310Z",
+  "production_cutover": false,
+  "legacy_sources_preserved": true,
+  "datasets": [
+    {
+      "dataset_name": "screen",
+      "source_path": "00_screen/screen_aggregate.parquet",
+      "mirror_root": "00_screen/datasets/screen",
+      "manifest_path": "00_screen/datasets/manifests/screen/screen-96c8d5c34745e10ea66f-c2617f016131.json",
+      "current_pointer": "00_screen/datasets/manifests/screen/current.json",
+      "dataset_version": "screen-96c8d5c34745e10ea66f-c2617f016131",
+      "partitioning": ["year", "month"],
+      "source_rows": 3465456,
+      "source_columns": 301,
+      "source_row_groups": 4,
+      "partition_count": 320,
+      "date_min": "1999-12-31",
+      "date_max": "2026-07-31",
+      "parity_status": "passed",
+      "parity_issues": [],
+      "legacy_path_preserved": true
+    },
+    {
+      "dataset_name": "returns_wide",
+      "source_path": "00_screen/returns.parquet",
+      "mirror_root": "00_screen/datasets/returns_wide",
+      "manifest_path": "00_screen/datasets/manifests/returns_wide/returns_wide-d35c79288886d0e83316-22965e8cffbb.json",
+      "current_pointer": "00_screen/datasets/manifests/returns_wide/current.json",
+      "dataset_version": "returns_wide-d35c79288886d0e83316-22965e8cffbb",
+      "partitioning": ["year"],
+      "source_rows": 5533,
+      "source_columns": 12021,
+      "source_row_groups": 1,
+      "partition_count": 22,
+      "date_min": "2005-01-03",
+      "date_max": "2026-08-03",
+      "date_is_column": true,
+      "date_index_field": null,
+      "source_date_field": "__index_level_0__",
+      "parity_status": "passed",
+      "parity_issues": [],
+      "legacy_path_preserved": true
+    }
+  ],
+  "git_policy": {
+    "partition_files": "local_only_ignored",
+    "manifests_and_pointers": "commit",
+    "compatibility_exports": "legacy_files_preserved"
+  }
+}

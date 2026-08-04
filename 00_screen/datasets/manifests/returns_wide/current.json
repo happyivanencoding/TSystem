@@ -1,0 +1,7 @@
+{
+  "schema_version": "tp.dataset-pointer.v1",
+  "dataset_name": "returns_wide",
+  "dataset_version": "returns_wide-d35c79288886d0e83316-22965e8cffbb",
+  "manifest_path": "00_screen/datasets/manifests/returns_wide/returns_wide-d35c79288886d0e83316-22965e8cffbb.json",
+  "updated_at": "2026-08-04T22:39:41.558895+00:00"
+}

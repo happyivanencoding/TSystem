@@ -5,14 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Iterable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
 import duckdb
 import pandas as pd
 
-from .catalog import catalog_health, initialize_database
+from .catalog import build_catalog_release, catalog_health, initialize_database
 from .config import DuckDBConfig
 from .connection import connect, connection_info
 from .manifests import load_manifest
@@ -24,6 +24,8 @@ from .partitioning import (
     write_compatibility_export_from_manifest,
 )
 from .profiling import parquet_profile, timed_frame
+from .queries import ReturnsQuery, ScreenQuery
+from .shadow import shadow_compare_returns, shadow_compare_returns_partitions, shadow_compare_screen
 
 
 def _json_dump(payload: Any) -> None:
@@ -41,6 +43,9 @@ def build_catalog_main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="创建或检查 TP DuckDB catalog foundation")
     parser.add_argument("--database", help="目标 DuckDB 文件；默认读取 TP_DUCKDB_PATH")
     parser.add_argument("--release-id")
+    parser.add_argument("--screen-manifest")
+    parser.add_argument("--returns-manifest")
+    parser.add_argument("--update-latest", action="store_true")
     parser.add_argument("--apply", action="store_true", help="创建/更新 catalog；默认只检查配置")
     args = parser.parse_args(list(argv) if argv is not None else None)
     if not args.apply:
@@ -48,6 +53,21 @@ def build_catalog_main(argv: Iterable[str] | None = None) -> int:
         _json_dump({"status": "inspect_only", "config": config.as_dict()})
         return 0
     config = _database_config(args, read_only=False)
+    if args.screen_manifest or args.returns_manifest:
+        screen_manifest = args.screen_manifest or config.screen_dataset_manifest
+        returns_manifest = args.returns_manifest or config.returns_dataset_manifest
+        if screen_manifest is None or returns_manifest is None:
+            parser.error("release build requires both screen and returns manifests")
+        release_id = args.release_id or f"shadow-{datetime.now(UTC):%Y%m%dT%H%M%SZ}"
+        payload = build_catalog_release(
+            config,
+            release_id=release_id,
+            screen_manifest_path=screen_manifest,
+            returns_manifest_path=returns_manifest,
+            update_latest=args.update_latest,
+        )
+        _json_dump(payload)
+        return 0
     health = initialize_database(
         config,
         release_id=args.release_id or f"foundation-{datetime.now(UTC):%Y%m%dT%H%M%SZ}",
@@ -194,6 +214,76 @@ def compatibility_export_main(argv: Iterable[str] | None = None) -> int:
     return 0
 
 
+def shadow_compare_main(argv: Iterable[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="在 read-only DuckDB catalog 上执行 legacy/shadow parity")
+    parser.add_argument("--database", required=True, help="已构建的 DuckDB catalog release")
+    parser.add_argument("--dataset", choices=("screen", "returns_wide"), required=True)
+    parser.add_argument("--source", required=True)
+    parser.add_argument("--manifest", help="returns_wide manifest for partition-aware shadow")
+    parser.add_argument("--partition-aware", action="store_true")
+    parser.add_argument("--root", default=str(DuckDBConfig.from_env().data_root))
+    parser.add_argument("--surface", default="generic")
+    parser.add_argument("--column", action="append", default=[])
+    parser.add_argument("--security", action="append", default=[])
+    parser.add_argument("--isin", action="append", default=[])
+    parser.add_argument("--sedol", action="append", default=[])
+    parser.add_argument("--country", action="append", default=[])
+    parser.add_argument("--benchmark")
+    parser.add_argument("--positive-weight-only", action="store_true")
+    parser.add_argument("--date-from")
+    parser.add_argument("--date-to")
+    parser.add_argument("--as-of")
+    parser.add_argument("--limit", type=int)
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    config = DuckDBConfig.from_env(read_only=True, database_path=args.database)
+    date_from = _parse_optional_date(args.date_from)
+    date_to = _parse_optional_date(args.date_to)
+    with connect(config) as connection:
+        if args.dataset == "screen":
+            result = shadow_compare_screen(
+                connection,
+                args.source,
+                ScreenQuery(
+                    columns=tuple(args.column),
+                    date_from=date_from,
+                    date_to=date_to,
+                    as_of=_parse_optional_date(args.as_of),
+                    isins=tuple(args.isin),
+                    sedols=tuple(args.sedol),
+                    benchmark=args.benchmark,
+                    positive_weight_only=args.positive_weight_only,
+                    countries=tuple(args.country),
+                    limit=args.limit,
+                ),
+                surface=args.surface,
+            )
+        else:
+            returns_spec = ReturnsQuery(
+                securities=tuple(args.security),
+                date_from=date_from,
+                date_to=date_to,
+            )
+            if args.partition_aware:
+                if not args.manifest:
+                    parser.error("--partition-aware requires --manifest")
+                result = shadow_compare_returns_partitions(
+                    connection,
+                    args.source,
+                    args.manifest,
+                    returns_spec,
+                    root=args.root,
+                    surface=args.surface,
+                )
+            else:
+                result = shadow_compare_returns(connection, args.source, returns_spec, surface=args.surface)
+    _json_dump(result.as_dict())
+    return 0 if result.status == "passed" else 1
+
+
+def _parse_optional_date(value: str | None) -> date | None:
+    return date.fromisoformat(value) if value else None
+
+
 __all__ = [
     "benchmark_main",
     "build_catalog_main",
@@ -202,5 +292,6 @@ __all__ = [
     "migrate_returns_main",
     "migrate_screen_main",
     "parity_main",
+    "shadow_compare_main",
     "validate_release_main",
 ]

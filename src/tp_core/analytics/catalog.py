@@ -1,14 +1,20 @@
-"""DuckDB catalog schemas and release registration."""
+"""DuckDB catalog schemas, manifest views, and release registration."""
 
 from __future__ import annotations
 
+import json
+import os
+import shutil
+import tempfile
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from .config import DuckDBConfig
 from .connection import connect
 from .contracts import CATALOG_SCHEMA_VERSION, CATALOG_SCHEMAS, CatalogHealth, CatalogRelease
 from .locking import FileLock
+from .manifests import DatasetManifest, load_manifest, resolve_partition_path, write_json_atomic
 
 CATALOG_TABLES: tuple[str, ...] = (
     "meta.schema_migrations",
@@ -132,6 +138,206 @@ def initialize_database(
         return catalog_health(connection)
 
 
+def create_canonical_views(
+    connection: Any,
+    *,
+    screen_manifest: DatasetManifest,
+    returns_manifest: DatasetManifest,
+    data_root: str | Path,
+) -> tuple[str, ...]:
+    """Create canonical views from explicit immutable manifest file lists."""
+
+    initialize_catalog(connection)
+    root = Path(data_root).resolve()
+    views = {
+        "canonical.screen": screen_manifest,
+        "canonical.returns_wide": returns_manifest,
+    }
+    for relation, manifest in views.items():
+        schema_name, relation_name = relation.split(".", 1)
+        expression = _read_parquet_expression(manifest, root=root)
+        if manifest.dataset_name == "screen":
+            expression = (
+                f"(SELECT * EXCLUDE (year, month), CAST(year AS INTEGER) AS __tp_partition_year, "
+                f"CAST(month AS INTEGER) AS __tp_partition_month FROM {expression})"
+            )
+        else:
+            expression = f"(SELECT * EXCLUDE (year), CAST(year AS INTEGER) AS __tp_partition_year FROM {expression})"
+        connection.execute(
+            f'CREATE OR REPLACE VIEW "{schema_name}"."{relation_name}" AS SELECT * FROM {expression}'
+        )
+        _register_manifest(connection, manifest, root=root)
+    return tuple(views)
+
+
+def build_catalog_release(
+    config: DuckDBConfig,
+    *,
+    release_id: str,
+    screen_manifest_path: str | Path,
+    returns_manifest_path: str | Path,
+    update_latest: bool = False,
+) -> dict[str, Any]:
+    """Build one immutable catalog release without changing production defaults."""
+
+    if config.read_only:
+        raise ValueError("build_catalog_release requires read_only=False")
+    root = config.data_root.resolve()
+    screen_manifest = _load_manifest_reference(screen_manifest_path, root=root)
+    returns_manifest = _load_manifest_reference(returns_manifest_path, root=root)
+    if screen_manifest.dataset_name != "screen":
+        raise ValueError(f"screen manifest has unexpected dataset: {screen_manifest.dataset_name!r}")
+    if returns_manifest.dataset_name != "returns_wide":
+        raise ValueError(f"returns manifest has unexpected dataset: {returns_manifest.dataset_name!r}")
+
+    release_root = config.artifact_root / "analytics" / "duckdb" / "releases"
+    release_dir = release_root / release_id
+    final_database = release_dir / "tp_analytics.duckdb"
+    if final_database.exists():
+        raise FileExistsError(f"catalog release already exists: {final_database}")
+    release_root.mkdir(parents=True, exist_ok=True)
+    staging_root = config.artifact_root / "analytics" / "duckdb" / "staging"
+    staging_root.mkdir(parents=True, exist_ok=True)
+    staging_dir = Path(tempfile.mkdtemp(prefix=f"{release_id}-{os.getpid()}-", dir=staging_root))
+    staging_database = staging_dir / "tp_analytics.duckdb"
+    writer_lock = config.database_path.with_suffix(config.database_path.suffix + ".lock")
+    try:
+        build_config = config.with_database(staging_database, read_only=False)
+        with FileLock(writer_lock), connect(build_config) as connection:
+            create_canonical_views(
+                connection,
+                screen_manifest=screen_manifest,
+                returns_manifest=returns_manifest,
+                data_root=root,
+            )
+            register_release(
+                connection,
+                CatalogRelease(
+                    release_id=release_id,
+                    database_path=str(final_database),
+                    screen_dataset_version=screen_manifest.dataset_version,
+                    returns_dataset_version=returns_manifest.dataset_version,
+                    validation_status="shadow_ready",
+                    manifest_path=str(screen_manifest.path),
+                ),
+            )
+            health = catalog_health(connection)
+        release_dir.mkdir(parents=True, exist_ok=False)
+        os.replace(staging_database, final_database)
+        summary = {
+            "status": "applied",
+            "release_id": release_id,
+            "database_path": str(final_database),
+            "screen_dataset_version": screen_manifest.dataset_version,
+            "returns_dataset_version": returns_manifest.dataset_version,
+            "screen_manifest_path": str(screen_manifest.path),
+            "returns_manifest_path": str(returns_manifest.path),
+            "catalog_health": health.as_dict(),
+            "read_only_shadow": True,
+        }
+        if update_latest:
+            write_json_atomic(
+                config.latest_pointer,
+                {
+                    "schema_version": "tp.catalog-pointer.v1",
+                    "release_id": release_id,
+                    "database_path": str(final_database),
+                    "screen_dataset_version": screen_manifest.dataset_version,
+                    "returns_dataset_version": returns_manifest.dataset_version,
+                    "updated_at": datetime.now(UTC).isoformat(),
+                },
+            )
+            summary["latest_pointer"] = str(config.latest_pointer)
+        return summary
+    finally:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+
+
+def _load_manifest_reference(path: str | Path, *, root: Path) -> DatasetManifest:
+    target = Path(path)
+    if not target.is_absolute():
+        target = root / target
+    if target.name == "current.json":
+        payload = json.loads(target.read_text(encoding="utf-8"))
+        manifest_path = Path(str(payload["manifest_path"]))
+        if not manifest_path.is_absolute():
+            manifest_path = root / manifest_path
+        target = manifest_path
+    return load_manifest(target, require_files=True, root=root)
+
+
+def _read_parquet_expression(manifest: DatasetManifest, *, root: Path) -> str:
+    files = [resolve_partition_path(manifest, partition, root=root).resolve() for partition in manifest.partitions]
+    if not files:
+        raise ValueError(f"manifest has no partitions: {manifest.path}")
+    missing = [str(path) for path in files if not path.exists()]
+    if missing:
+        raise FileNotFoundError(f"manifest partitions are missing: {missing[:3]}")
+    literals = ", ".join(_sql_string(str(path).replace("\\", "/")) for path in files)
+    return f"read_parquet([{literals}], union_by_name=true, hive_partitioning=true)"
+
+
+def _sql_string(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _register_manifest(connection: Any, manifest: DatasetManifest, *, root: Path) -> None:
+    created_at = manifest.payload.get("created_at") or datetime.now(UTC).isoformat()
+    connection.execute(
+        "INSERT OR REPLACE INTO meta.dataset_registry "
+        "(dataset_name, current_dataset_version, current_manifest_path, updated_at) VALUES (?, ?, ?, ?)",
+        [manifest.dataset_name, manifest.dataset_version, str(manifest.path), datetime.now(UTC)],
+    )
+    connection.execute(
+        "INSERT OR REPLACE INTO meta.dataset_versions "
+        "(dataset_name, dataset_version, manifest_path, schema_fingerprint, row_count, validation_status, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+            manifest.dataset_name,
+            manifest.dataset_version,
+            str(manifest.path),
+            manifest.payload.get("schema_fingerprint"),
+            int(manifest.payload.get("row_count", 0)),
+            manifest.payload.get("validation_status", "unknown"),
+            created_at,
+        ],
+    )
+    for partition in manifest.partitions:
+        path = resolve_partition_path(manifest, partition, root=root)
+        connection.execute(
+            "INSERT OR REPLACE INTO meta.partition_registry "
+            "(dataset_name, dataset_version, partition_key, path, sha256, row_count, bytes, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                manifest.dataset_name,
+                manifest.dataset_version,
+                partition.get("partition_key"),
+                str(path),
+                partition.get("sha256"),
+                int(partition.get("row_count", 0)),
+                int(partition.get("bytes", 0)),
+                created_at,
+            ],
+        )
+    connection.execute(
+        "INSERT OR REPLACE INTO meta.schema_registry "
+        "(schema_name, object_name, object_type, schema_fingerprint, registered_at) VALUES (?, ?, ?, ?, ?)",
+        ["canonical", manifest.dataset_name, "view", manifest.payload.get("schema_fingerprint"), datetime.now(UTC)],
+    )
+    connection.execute(
+        "INSERT INTO meta.data_quality_results "
+        "(dataset_name, dataset_version, check_name, status, details_json, checked_at) VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            manifest.dataset_name,
+            manifest.dataset_version,
+            "manifest_validation",
+            manifest.payload.get("validation_status", "unknown"),
+            json.dumps({"partition_count": len(manifest.partitions), "root": str(root)}),
+            datetime.now(UTC),
+        ],
+    )
+
+
 _TABLE_DDL: tuple[str, ...] = (
     """CREATE TABLE IF NOT EXISTS meta.schema_migrations (
         version VARCHAR PRIMARY KEY,
@@ -248,7 +454,9 @@ _TABLE_DDL: tuple[str, ...] = (
 
 __all__ = [
     "CATALOG_TABLES",
+    "build_catalog_release",
     "catalog_health",
+    "create_canonical_views",
     "initialize_catalog",
     "initialize_database",
     "latest_release",

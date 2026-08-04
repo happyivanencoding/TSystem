@@ -1,0 +1,76 @@
+{
+  "phase": 3,
+  "phase_name": "shadow_query",
+  "phase_status": "shadow_surfaces_passed",
+  "validated_at_utc": "2026-08-04T23:27:53.6470901Z",
+  "production_cutover": false,
+  "read_cutover_ready": false,
+  "catalog_release": {
+    "release_id": "shadow-20260804-screen-returns-v2",
+    "database_path": "artifacts/analytics/duckdb/releases/shadow-20260804-screen-returns-v2/tp_analytics.duckdb",
+    "read_only": true,
+    "screen_dataset_version": "screen-96c8d5c34745e10ea66f-c2617f016131",
+    "returns_dataset_version": "returns_wide-d35c79288886d0e83316-22965e8cffbb",
+    "canonical_views": ["canonical.screen", "canonical.returns_wide"],
+    "explicit_manifest_file_lists": true,
+    "partition_columns": {
+      "screen": ["__tp_partition_year", "__tp_partition_month"],
+      "returns_wide": ["__tp_partition_year"]
+    },
+    "catalog_health": {
+      "schemas": 8,
+      "meta_tables": 14,
+      "dataset_versions": 2,
+      "partition_registry_rows": 342,
+      "data_quality_rows": 2,
+      "status": "passed"
+    }
+  },
+  "surface_shadow_results": [
+    {
+      "surface": "dashboard",
+      "dataset_name": "screen",
+      "query_window": {"date_from": "2026-07-31", "date_to": "2026-07-31"},
+      "legacy_rows": 11114,
+      "duckdb_rows": 11114,
+      "elapsed_seconds": 20.62668310001027,
+      "status": "passed",
+      "difference": null,
+      "fingerprint": "69eb6b92576002f8d99ff4450aea00b668e7c12e63a1df0b973660bbd43899e4"
+    },
+    {
+      "surface": "models",
+      "dataset_name": "screen",
+      "query_window": {"date_from": "2026-07-31", "date_to": "2026-07-31"},
+      "legacy_rows": 11114,
+      "duckdb_rows": 11114,
+      "elapsed_seconds": 20.841467800026294,
+      "status": "passed",
+      "difference": null,
+      "fingerprint": "52b648e4c436389b53757de472e2b639b977ae83170ecbae89222279383fb4ec"
+    },
+    {
+      "surface": "backtest",
+      "dataset_name": "returns_wide",
+      "query_window": {"date_from": "2026-01-01", "date_to": "2026-08-03"},
+      "securities": ["X5B68T-R", "CHKTQ0-R", "KQS7WY-R"],
+      "partition_aware": true,
+      "selected_partition_years": [2026],
+      "legacy_rows": 153,
+      "duckdb_rows": 153,
+      "elapsed_seconds": 0.4530318999895826,
+      "status": "passed",
+      "difference": null,
+      "fingerprint": "990fc1aacae50313b0acd7cf2859f01306464e0a73854c395a8c215e376a0482"
+    }
+  ],
+  "resource_guardrails": [
+    {
+      "workload": "unbounded or full-wide Returns union shadow",
+      "status": "bounded_stopped",
+      "observed_peak_memory_bytes_approx": 2200000000,
+      "reason": "wide 12020-security-column union is not safe for an interactive full-history shadow query",
+      "mitigation": "partition-aware selected-security query passed; keep production legacy and no read cutover"
+    }
+  ]
+}

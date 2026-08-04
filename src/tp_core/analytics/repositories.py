@@ -36,6 +36,9 @@ def _available_columns(connection: Any, relation: str) -> tuple[str, ...]:
 def _select_columns(available: tuple[str, ...], requested: Iterable[str]) -> str:
     columns = tuple(requested)
     if not columns:
+        hidden = tuple(column for column in available if column.startswith("__tp_partition_"))
+        if hidden:
+            return "* EXCLUDE (" + ", ".join(quote_identifier(column) for column in hidden) + ")"
         return "*"
     missing = [column for column in columns if column not in available]
     if missing:
@@ -75,6 +78,28 @@ def _date_predicates(
     return predicates
 
 
+def _partition_date_predicates(
+    available: tuple[str, ...],
+    date_from: Any,
+    date_to: Any,
+    as_of: Any,
+    parameters: list[Any],
+) -> list[str]:
+    if "__tp_partition_year" not in available:
+        return []
+    lower = date_from.year if date_from is not None else None
+    upper_values = [value.year for value in (date_to, as_of) if value is not None]
+    upper = min(upper_values) if upper_values else None
+    predicates: list[str] = []
+    if lower is not None:
+        predicates.append(f"{quote_identifier('__tp_partition_year')} >= ?")
+        parameters.append(lower)
+    if upper is not None:
+        predicates.append(f"{quote_identifier('__tp_partition_year')} <= ?")
+        parameters.append(upper)
+    return predicates
+
+
 class ScreenRepository:
     relation = "canonical.screen"
 
@@ -86,6 +111,7 @@ class ScreenRepository:
         selected = _select_columns(available, spec.columns)
         parameters: list[Any] = []
         predicates = _date_predicates(available, spec.date_from, spec.date_to, spec.as_of, parameters)
+        predicates.extend(_partition_date_predicates(available, spec.date_from, spec.date_to, spec.as_of, parameters))
         if spec.isins:
             if "ISIN" not in available:
                 raise QuerySpecError("isins filter requires an ISIN column")
@@ -115,7 +141,8 @@ class ScreenRepository:
         if spec.limit is not None:
             query += " LIMIT ?"
             parameters.append(spec.limit)
-        return self.connection.execute(query, parameters).df()
+        frame = self.connection.execute(query, parameters).df()
+        return _normalize_screen_dates(frame)
 
     def latest(self, *, columns: tuple[str, ...] = (), limit: int | None = None) -> pd.DataFrame:
         available = _available_columns(self.connection, self.relation)
@@ -125,12 +152,18 @@ class ScreenRepository:
         relation = _relation_sql(self.relation)
         date_column = quote_identifier("Date")
         query = f"SELECT {selected} FROM {relation} WHERE {date_column} = (SELECT MAX({date_column}) FROM {relation})"
+        if "__tp_partition_year" in available:
+            query += (
+                f" AND {quote_identifier('__tp_partition_year')} = "
+                f"(SELECT MAX({quote_identifier('__tp_partition_year')}) FROM {relation})"
+            )
         parameters: list[Any] = []
         if limit is not None:
             _validate_limit(limit)
             query += " LIMIT ?"
             parameters.append(limit)
-        return self.connection.execute(query, parameters).df()
+        frame = self.connection.execute(query, parameters).df()
+        return _normalize_screen_dates(frame)
 
     def company_history(self, isin: str, *, columns: tuple[str, ...] = ()) -> pd.DataFrame:
         return self.query(ScreenQuery(columns=columns, isins=(isin,)))
@@ -151,6 +184,7 @@ class ReturnsRepository:
         projection = _select_columns(available, tuple(selected) if spec.securities else ())
         parameters: list[Any] = []
         predicates = _date_predicates(available, spec.date_from, spec.date_to, None, parameters)
+        predicates.extend(_partition_date_predicates(available, spec.date_from, spec.date_to, None, parameters))
         query = f"SELECT {projection} FROM {_relation_sql(self.relation)}"
         if predicates:
             query += " WHERE " + " AND ".join(predicates)
@@ -159,6 +193,7 @@ class ReturnsRepository:
         if spec.preserve_wide and "Date" in frame.columns:
             frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
             frame = frame.set_index("Date")
+            frame.index = pd.DatetimeIndex(frame.index).astype("datetime64[ns]")
         return frame
 
 
@@ -252,6 +287,12 @@ class MartRepository:
 
     def query(self, name: str, *, columns: tuple[str, ...] = (), limit: int | None = None) -> pd.DataFrame:
         return _RelationRepository(self.connection, "marts", name).query(columns=columns, limit=limit)
+
+
+def _normalize_screen_dates(frame: pd.DataFrame) -> pd.DataFrame:
+    if "Date" in frame.columns:
+        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce").astype("datetime64[ns]")
+    return frame
 
 
 __all__ = [

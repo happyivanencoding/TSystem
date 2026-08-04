@@ -1,6 +1,8 @@
+import io
 from pathlib import Path
+import sys
 
-from tp_core.legacy_policy import scan_legacy_references
+from tp_core.legacy_policy import main, scan_legacy_references
 
 
 def test_retired_entrypoint_file_is_reported(tmp_path: Path) -> None:
@@ -48,3 +50,18 @@ def test_generated_artifacts_are_pruned_before_text_scan(tmp_path: Path) -> None
     )
 
     assert scan_legacy_references(tmp_path) == []
+
+
+def test_cli_reconfigures_non_utf8_stdout(tmp_path: Path, monkeypatch) -> None:
+    raw_stdout = io.BytesIO()
+    simulated_runner_stdout = io.TextIOWrapper(raw_stdout, encoding="cp1252")
+    monkeypatch.setattr(sys, "stdout", simulated_runner_stdout)
+
+    try:
+        assert main(["--root", str(tmp_path)]) == 0
+        simulated_runner_stdout.flush()
+        output = raw_stdout.getvalue().decode("utf-8")
+    finally:
+        simulated_runner_stdout.detach()
+
+    assert "未发现活跃内容引用冻结路径或退役入口。" in output

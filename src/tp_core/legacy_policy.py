@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 from typing import Iterable
 
 TP_ROOT = Path(__file__).resolve().parents[2]
@@ -225,6 +226,10 @@ def scan_legacy_references(root: Path = TP_ROOT) -> list[LegacyReference]:
 
 
 def main(argv: Iterable[str] | None = None) -> int:
+    stdout_reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if stdout_reconfigure is not None:
+        stdout_reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser(description="检查活跃代码、配置和文档是否恢复冻结路径或退役入口")
     parser.add_argument("--root", default=str(TP_ROOT), help="扫描根目录，默认 TP 根目录")
     parser.add_argument("--json", action="store_true", help="输出 JSON")

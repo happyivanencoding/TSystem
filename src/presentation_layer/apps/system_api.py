@@ -32,6 +32,10 @@ class DashboardDomain(Protocol):
 
     def launch_small_cap(self) -> dict[str, Any]: ...
 
+    def factor_recommendation_provider(self) -> dict[str, Any]: ...
+
+    def launch_factor_recommendation(self) -> dict[str, Any]: ...
+
     def launch_project(self, payload: dict[str, Any]) -> dict[str, Any]: ...
 
     def launch_pipeline(self, payload: dict[str, Any]) -> dict[str, Any]: ...
@@ -129,6 +133,10 @@ def register_dashboard_routes(
     def api_dashboard_small_cap_signal():
         return jsonify(domain.small_cap_provider())
 
+    @server.route("/api/dashboard/signals/factor-recommendation", methods=["GET"])
+    def api_dashboard_factor_recommendation_signal():
+        return jsonify(domain.factor_recommendation_provider())
+
     @server.route("/api/dashboard/signals/sector", methods=["GET"])
     def api_dashboard_sector_signal():
         return jsonify(domain.sector_provider())
@@ -213,6 +221,10 @@ def register_dashboard_routes(
     @server.route("/api/dashboard/jobs/signals/small-cap", methods=["POST"])
     def api_dashboard_refresh_small_cap_signal():
         return jsonify(domain.launch_small_cap()), 202
+
+    @server.route("/api/dashboard/jobs/signals/factor-recommendation", methods=["POST"])
+    def api_dashboard_refresh_factor_recommendation_signal():
+        return jsonify(domain.launch_factor_recommendation()), 202
 
     @server.route("/api/dashboard/jobs/project", methods=["POST"])
     def api_dashboard_launch_project():

@@ -1,0 +1,27 @@
+﻿factor,source_column,actual_column,exists,row_count,non_null_rows,coverage_pct,date_count_with_value
+value,Value Avg Percentile,Value Avg Percentile,True,3465456,2258365,0.6516790286761684,320
+value,Value,,False,3465456,0,0.0,0
+value,value,,False,3465456,0,0.0,0
+quality,Quality Avg Percentile,Quality Avg Percentile,True,3465456,2562436,0.7394224598436685,320
+quality,Quality,,False,3465456,0,0.0,0
+quality,quality,,False,3465456,0,0.0,0
+growth,Growth Avg Percentile,Growth Avg Percentile,True,3465456,2137999,0.6169459372734786,320
+growth,Growth,,False,3465456,0,0.0,0
+growth,growth,,False,3465456,0,0.0,0
+momentum,Mom Avg Percentile,Mom Avg Percentile,True,3465456,2378044,0.6862138777696211,320
+momentum,Momentum,,False,3465456,0,0.0,0
+momentum,momentum,,False,3465456,0,0.0,0
+lowvol,LowVol Avg Percentile,LowVol Avg Percentile,True,3465456,2382667,0.6875479013440078,320
+lowvol,LowVol,,False,3465456,0,0.0,0
+lowvol,lowvol,,False,3465456,0,0.0,0
+size,Size Avg Percentile,Size Avg Percentile,True,3465456,2383528,0.6877963534957593,320
+size,PCT Mkt Value,PCT Mkt Value,True,3465456,2384985,0.6882167887862377,320
+size,Size,,False,3465456,0,0.0,0
+size,size,,False,3465456,0,0.0,0
+small_size,Size Avg Percentile,Size Avg Percentile,True,3465456,2383528,0.6877963534957593,320
+small_size,PCT Mkt Value,PCT Mkt Value,True,3465456,2384985,0.6882167887862377,320
+small_size,Size,,False,3465456,0,0.0,0
+small_size,size,,False,3465456,0,0.0,0
+dividend,Dividend Avg Percentile,Dividend Avg Percentile,True,3465456,1416601,0.40877766158335294,320
+dividend,Dividend,,False,3465456,0,0.0,0
+dividend,dividend,,False,3465456,0,0.0,0

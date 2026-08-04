@@ -1,0 +1,151 @@
+{
+  "schema_version": "factor_recommendation.pipeline_outputs.v1",
+  "project": "16_factor_recommendation_model",
+  "latest_date": "2026-07-31",
+  "history_date_min": "2004-10-31",
+  "history_date_max": "2026-07-31",
+  "panel_rows": 7888,
+  "history_rows": 7888,
+  "signal_rows": 7888,
+  "regions": [
+    "ASIA",
+    "EU",
+    "GLOBAL",
+    "JAPAN",
+    "US"
+  ],
+  "factors": [
+    "dividend",
+    "growth",
+    "lowvol",
+    "momentum",
+    "quality",
+    "size",
+    "small_size",
+    "value"
+  ],
+  "minimum_coverage": 0.8,
+  "minimum_observed_coverage": 0.64454464460444,
+  "research_only": true,
+  "production_eligible": false,
+  "asia_approved": false,
+  "benchmark_definition": {
+    "status": "versioned_config",
+    "regions": {
+      "US": {
+        "components": [
+          "SP500"
+        ],
+        "aggregation_weights": {
+          "US": 1.0
+        },
+        "production_eligible": true,
+        "approval_status": "approved",
+        "currency_basis": "USD"
+      },
+      "EU": {
+        "components": [
+          "STOXX EUROPE 600"
+        ],
+        "aggregation_weights": {
+          "EUROPE": 1.0
+        },
+        "production_eligible": true,
+        "approval_status": "approved",
+        "currency_basis": "EUR"
+      },
+      "JAPAN": {
+        "components": [
+          "NIKKEI"
+        ],
+        "aggregation_weights": {
+          "JAPAN": 1.0
+        },
+        "production_eligible": true,
+        "approval_status": "approved",
+        "currency_basis": "JPY"
+      },
+      "GLOBAL": {
+        "components": [
+          "MSCI WORLD"
+        ],
+        "aggregation_weights": {
+          "GLOBAL": 1.0
+        },
+        "production_eligible": true,
+        "approval_status": "approved",
+        "currency_basis": "USD"
+      },
+      "ASIA": {
+        "components": [
+          "NIKKEI",
+          "MSCI EM"
+        ],
+        "aggregation_weights": {
+          "JAPAN": 0.5,
+          "ASIA_EX_JAPAN": 0.5
+        },
+        "production_eligible": false,
+        "approval_status": "research_only_benchmark_unapproved",
+        "currency_basis": "component_local_currency"
+      }
+    },
+    "asia": {
+      "components": [
+        "JAPAN",
+        "ASIA_EX_JAPAN"
+      ],
+      "aggregation_weights": {
+        "JAPAN": 0.5,
+        "ASIA_EX_JAPAN": 0.5
+      },
+      "status": "research_only_benchmark_unapproved"
+    }
+  },
+  "data_fingerprint": {
+    "screen": {
+      "path": "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate.parquet",
+      "exists": true,
+      "bytes": 1113318680,
+      "sha256": "96c8d5c34745e10ea66f593ba83588b33a9525575751d826912dbc385ecf1243"
+    },
+    "returns": {
+      "path": "C:\\GoogleDrive\\TP\\00_screen\\returns.parquet",
+      "exists": true,
+      "bytes": 288923561,
+      "sha256": "d35c79288886d0e83316e81266adf0d1b1f4d65f8f983b131e418befc1c52d5b"
+    },
+    "universe_config": {
+      "path": "C:\\GoogleDrive\\TP\\16_factor_recommendation_model\\config\\region_universes_v1.json",
+      "exists": true,
+      "bytes": 4885,
+      "sha256": "9a4d59a71029ea90a67658af87dd6633bb7aaae6b6a141702a7ac7c9310bb4f2"
+    },
+    "factor_config": {
+      "path": "C:\\GoogleDrive\\TP\\16_factor_recommendation_model\\config\\factor_definitions_v1.json",
+      "exists": true,
+      "bytes": 2326,
+      "sha256": "36c047ebcf5d234fb829da0079a64ee569e5f9db1d1a6d12c44609ca35175246"
+    },
+    "model_config": {
+      "path": "C:\\GoogleDrive\\TP\\16_factor_recommendation_model\\config\\model_v1.json",
+      "exists": true,
+      "bytes": 1100,
+      "sha256": "cb6de4a84b95d60617e950d099d22f5aa8688423a1e3cfc8a52ea13bbe4de6dc"
+    }
+  },
+  "status": "success",
+  "model_status": "research_only",
+  "outputs": {
+    "panel": "C:\\GoogleDrive\\TP\\16_factor_recommendation_model\\outputs\\factor_recommendation_panel.parquet",
+    "history": "C:\\GoogleDrive\\TP\\16_factor_recommendation_model\\outputs\\factor_recommendation_history.parquet",
+    "summary": "C:\\GoogleDrive\\TP\\16_factor_recommendation_model\\outputs\\factor_recommendation_summary.json",
+    "validation": "C:\\GoogleDrive\\TP\\16_factor_recommendation_model\\outputs\\factor_recommendation_validation.json",
+    "signal": "C:\\GoogleDrive\\TP\\artifacts\\signals\\factor_recommendation_signals.parquet"
+  },
+  "gates": {
+    "promotion": "not_promoted",
+    "asia_benchmark_approval": "not_approved",
+    "forward_shadow": "pending"
+  }
+}

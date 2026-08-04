@@ -3,7 +3,7 @@ const MODULE_ORDER_STORAGE_KEY = 'tp-dashboard-module-order-v1'
 export const DEFAULT_MODULE_ORDER = {
   market: ['brief'],
   production: ['overview', 'alerts', 'run-control', 'live-job', 'queue', 'core-database', 'project-assets', 'pipeline-status', 'data-assets'],
-  results: ['regime', 'country', 'sector', 'score-ml', 'factor-explorer'],
+  results: ['regime', 'country', 'sector', 'factor-recommendation', 'score-ml', 'factor-explorer'],
   technical: ['latest'],
 }
 
@@ -22,6 +22,7 @@ export const NAV_SECTIONS = [
       ['regime', 'Regime', '市场状态识别'],
       ['country', 'Country', '国家与区域评分'],
       ['sector', 'Sector', '行业推荐'],
+      ['factor-recommendation', 'Factor Recommendation', '月度因子推荐与研究证据'],
       ['score-ml', 'Score ML', '组合成分对比'],
       ['factor-explorer', '因子研究', '四市场收益、ratio、经济含义与稳健性证据'],
     ],

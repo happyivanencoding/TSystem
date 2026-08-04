@@ -27,6 +27,7 @@ import {
   SingleCountryBoard,
   countryFlag,
 } from '../components/markets/CountryComponents.jsx'
+import { FactorRecommendationPanel } from '../components/markets/FactorRecommendationComponents.jsx'
 import {
   SectorAnalysisDrawer,
   SectorMarketBoard,
@@ -53,6 +54,7 @@ import { useDashboardData } from '../hooks/useDashboardData.js'
 import { useDashboardNavigation } from '../hooks/useDashboardNavigation.js'
 import {
   useCountryRows,
+  useFactorRecommendationRows,
   useProductionRows,
   useRegimeRows,
   useScoreMlRows,
@@ -1039,6 +1041,11 @@ function App() {
     sectorVisualRows,
     selectedSectorRow,
   } = useSectorRows(dashboardState, selectedSector)
+  const {
+    factorRecommendationHistoryRows,
+    factorRecommendationRows,
+    factorRecommendationSignal,
+  } = useFactorRecommendationRows(dashboardState)
   const scoreMlRows = useScoreMlRows(scoreMlComponents)
   const {
     technicalMetricRows,
@@ -1061,6 +1068,9 @@ function App() {
     dashboardState,
     directionModelRows,
     drawdownModelRows,
+    factorRecommendationHistoryRows,
+    factorRecommendationRows,
+    factorRecommendationSignal,
     isBusy,
     job,
     latestMarketBrief,
@@ -1148,6 +1158,7 @@ function App() {
           <RegimePanel {...panelProps} />
           <CountryPanel {...panelProps} />
           <SectorPanel {...panelProps} />
+          <FactorRecommendationPanel {...panelProps} />
           <TechnicalPanel {...panelProps} />
           <ScoreMlPanel {...panelProps} />
           <ProductionTables {...panelProps} />

@@ -48,3 +48,14 @@
 ```powershell
 python -m tp_core.signals C:\GoogleDrive\TP\artifacts/signals\ml_signals.parquet
 ```
+
+## FactorRecommendation research signal
+
+月度因子推荐使用统一 schema 的 `signal_family=FactorRecommendation`、
+`scope=region`，每个因子一个 `signal_name`（例如
+`factor_recommendation_value`），`score` 为 0--100，`score_pct` 为 0--1，
+并保留 `region`、`benchmark`、`as_of_date`、`effective_date`、`horizon`、
+`confidence` 和研究治理字段。写出必须经过
+`tp_core.signals.write_signal_frame(..., strict=True)`；它是 research-only，
+不会被候选池或优化器消费。ASIA 行可有数据覆盖，但
+`benchmark_approved=false`、`production_eligible=false`，不能视为生产信号。

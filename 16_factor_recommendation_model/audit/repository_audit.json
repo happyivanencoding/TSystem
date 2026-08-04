@@ -1,0 +1,38 @@
+{
+  "schema_version": "factor_recommendation.repository_audit.v1",
+  "generated_at_utc": "2026-08-04T14:38:19.195306+00:00",
+  "repository_root": "C:\\GoogleDrive\\TP",
+  "package_dir": "C:\\GoogleDrive\\TP\\src\\tp_models\\factor_recommendation",
+  "package_files": [
+    "__init__.py",
+    "audit.py",
+    "cli.py",
+    "config.py",
+    "contracts.py",
+    "evaluation.py",
+    "exporter.py",
+    "factor_definitions.py",
+    "features.py",
+    "inputs.py",
+    "models.py",
+    "persistence.py",
+    "sleeve_engine.py",
+    "targets.py",
+    "universe.py"
+  ],
+  "config_files": [
+    "C:\\GoogleDrive\\TP\\16_factor_recommendation_model\\config\\factor_definitions_v1.json",
+    "C:\\GoogleDrive\\TP\\16_factor_recommendation_model\\config\\region_universes_v1.json"
+  ],
+  "canonical_inputs": {
+    "screen_aggregate": "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate.parquet",
+    "returns": "C:\\GoogleDrive\\TP\\00_screen\\returns.parquet"
+  },
+  "write_scope": [
+    "src/tp_models/factor_recommendation/",
+    "16_factor_recommendation_model/config/",
+    "16_factor_recommendation_model/audit/",
+    "tests/models/factor_recommendation/"
+  ],
+  "canonical_write_policy": "read_only"
+}

@@ -124,3 +124,22 @@ Smoke/inspect 使用独立 latest 指针，不覆盖 production latest。记录�
 - 不执行编号资源目录中的旧 wrapper。
 - 不依赖 `sitecustomize`、`.pth` 或业务代码路径注入。
 - 不以时间戳、退出码或文件存在性单独证明刷新成功；必须检查日期、行数、schema、关键缺失率和 manifest 状态。
+
+## Research-only 月度因子推荐
+
+`refresh_factor_recommendation` 是独立、默认关闭的 research-only step。它只写
+`16_factor_recommendation_model/outputs/` 和
+`artifacts/signals/factor_recommendation_signals.parquet`，不进入
+`export_signals`，不改变 security candidates 或 optimizer。默认配置使用版本化
+`region_universes_v1.json`、`factor_definitions_v1.json` 和 `model_v1.json`；运行
+时必须核对 `factor_recommendation_manifest.json`、`factor_recommendation_validation.json`
+以及 pipeline manifest 的 `production_effects` 全为 false。
+
+```powershell
+python -m tp_pipelines.refresh_factor_recommendation --inspect-only
+python -m tp_pipelines.refresh_factor_recommendation --as-of 2026-07-31 --minimum-coverage 0.8
+```
+
+ASIA 永远显示为 `research_only_benchmark_unapproved`；其缺少 benchmark approval 或
+12 个月 forward shadow 时不得 promotion。完整研究使用已注册
+`monthly-factor-recommendation-v1` Run Card，smoke 结果不能冒充 full evidence。

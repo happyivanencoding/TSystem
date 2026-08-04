@@ -1,0 +1,46 @@
+{
+  "schema_version": "factor_recommendation.integration_map.v1",
+  "canonical_inputs": {
+    "screen": "tp_core.data_sources.SCREEN_AGGREGATE_PATH -> screen_aggregate.parquet",
+    "returns": "tp_core.data_sources.RETURNS_PATH -> returns.parquet",
+    "screen_key": [
+      "ISIN",
+      "Date"
+    ],
+    "returns_key": [
+      "Date",
+      "Company SEDOL columns"
+    ]
+  },
+  "modules": {
+    "config": "tp_models.factor_recommendation.config",
+    "contracts": "tp_models.factor_recommendation.contracts",
+    "universe": "tp_models.factor_recommendation.universe",
+    "factor_definitions": "tp_models.factor_recommendation.factor_definitions",
+    "features": "tp_models.factor_recommendation.features",
+    "targets": "tp_models.factor_recommendation.targets",
+    "models": "tp_models.factor_recommendation.models",
+    "evaluation": "tp_models.factor_recommendation.evaluation",
+    "persistence": "tp_models.factor_recommendation.persistence",
+    "exporter": "tp_models.factor_recommendation.exporter",
+    "sleeve_engine": "tp_models.factor_recommendation.sleeve_engine",
+    "audit": "tp_models.factor_recommendation.audit",
+    "cli": "tp_models.factor_recommendation.cli"
+  },
+  "official_sleeve": {
+    "adapter_id": "tp_core.backtesting.OfficialPortfolioBacktest",
+    "entrypoint": "tp_core.backtesting.OfficialPortfolioBacktest",
+    "local_nav_implementation": false,
+    "asia_aggregate": "research_only / benchmark_unapproved; component results only"
+  },
+  "asia_definition": {
+    "JAPAN": "NIKKEI positive weight + Exchange Country Iso2 allowlist ['JP'] for the ASIA component; raw NIKKEI coverage remains separately audited",
+    "ASIA_EX_JAPAN": "MSCI EM positive weight + fixed ISO2 allowlist CN/HK/IN/KR/TW/SG/MY/TH/ID/PH",
+    "component_aggregation_weights": {
+      "JAPAN": 0.5,
+      "ASIA_EX_JAPAN": 0.5
+    },
+    "weight_policy": "record raw coverage first; normalize within component only after coverage audit; never adjust aggregate weights",
+    "aggregate_status": "research_only / benchmark_unapproved"
+  }
+}

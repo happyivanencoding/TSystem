@@ -383,6 +383,44 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--small-cap-output-dir", default=str(DEFAULT_SMALL_CAP_OUTPUT_DIR))
     parser.add_argument("--small-cap-signal-output", default=str(DEFAULT_SMALL_CAP_SIGNAL_OUTPUT))
     parser.add_argument("--small-cap-min-coverage", type=float, default=0.5)
+    parser.add_argument(
+        "--refresh-factor-recommendation",
+        action="store_true",
+        help="显式运行 research-only 月度因子推荐；默认关闭且不影响生产候选池",
+    )
+    parser.add_argument(
+        "--inspect-only-factor-recommendation",
+        dest="factor_recommendation_inspect_only",
+        action="store_true",
+        help="只检查因子推荐已有产物",
+    )
+    factor_root = TP_ROOT / "16_factor_recommendation_model"
+    parser.add_argument("--factor-recommendation-as-of")
+    parser.add_argument("--factor-recommendation-screen", default=str(SCREEN_AGGREGATE_PATH))
+    parser.add_argument("--factor-recommendation-returns", default=str(RETURNS_PATH))
+    parser.add_argument(
+        "--factor-recommendation-universe-config",
+        default=str(factor_root / "config" / "region_universes_v1.json"),
+    )
+    parser.add_argument(
+        "--factor-recommendation-factor-config",
+        default=str(factor_root / "config" / "factor_definitions_v1.json"),
+    )
+    parser.add_argument(
+        "--factor-recommendation-model-config",
+        default=str(factor_root / "config" / "model_v1.json"),
+    )
+    parser.add_argument(
+        "--factor-recommendation-output-dir",
+        default=str(factor_root / "outputs"),
+    )
+    parser.add_argument(
+        "--factor-recommendation-signal-output",
+        default=str(SIGNALS_DIR / "factor_recommendation_signals.parquet"),
+    )
+    parser.add_argument("--factor-recommendation-all-history", action="store_true")
+    parser.add_argument("--factor-recommendation-use-frozen-model", action="store_true")
+    parser.add_argument("--factor-recommendation-minimum-coverage", type=float, default=0.8)
     parser.add_argument("--skip-build-candidates", action="store_true", help="跳过候选池")
     parser.add_argument("--skip-optimize-portfolio", action="store_true", help="跳过组合优化")
     parser.add_argument("--skip-backtest", action="store_true", help="跳过回测")

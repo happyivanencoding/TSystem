@@ -1,0 +1,71 @@
+{
+  "schema_version": "factor_recommendation.factor_definitions.v1",
+  "model_version": "factor_recommendation_v1",
+  "score_scale": 10.0,
+  "factors": {
+    "value": {
+      "label": "Value",
+      "source_columns": ["Value Avg Percentile", "Value", "value"],
+      "direction": 1,
+      "transform": "identity",
+      "min_count": 1,
+      "description": "Canonical Value composite score; higher is stronger value exposure."
+    },
+    "quality": {
+      "label": "Quality",
+      "source_columns": ["Quality Avg Percentile", "Quality", "quality"],
+      "direction": 1,
+      "transform": "identity",
+      "min_count": 1,
+      "description": "Canonical Quality composite score."
+    },
+    "growth": {
+      "label": "Growth",
+      "source_columns": ["Growth Avg Percentile", "Growth", "growth"],
+      "direction": 1,
+      "transform": "identity",
+      "min_count": 1,
+      "description": "Canonical Growth composite score."
+    },
+    "momentum": {
+      "label": "Momentum",
+      "source_columns": ["Mom Avg Percentile", "Momentum", "momentum"],
+      "direction": 1,
+      "transform": "identity",
+      "min_count": 1,
+      "description": "Canonical momentum composite score."
+    },
+    "lowvol": {
+      "label": "Low Volatility",
+      "source_columns": ["LowVol Avg Percentile", "LowVol", "lowvol"],
+      "direction": 1,
+      "transform": "identity",
+      "min_count": 1,
+      "description": "Canonical low-volatility composite score."
+    },
+    "size": {
+      "label": "Large Size",
+      "source_columns": ["Size Avg Percentile", "PCT Mkt Value", "Size", "size"],
+      "direction": 1,
+      "transform": "identity",
+      "min_count": 1,
+      "description": "High score means large-size exposure, not small-cap exposure."
+    },
+    "small_size": {
+      "label": "Small Size",
+      "source_columns": ["Size Avg Percentile", "PCT Mkt Value", "Size", "size"],
+      "direction": -1,
+      "transform": "reverse_score",
+      "min_count": 1,
+      "description": "Explicit inverse of size: score = 10 - large-size score."
+    },
+    "dividend": {
+      "label": "Dividend",
+      "source_columns": ["Dividend Avg Percentile", "Dividend", "dividend"],
+      "direction": 1,
+      "transform": "identity",
+      "min_count": 1,
+      "description": "Canonical dividend composite score."
+    }
+  }
+}

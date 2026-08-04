@@ -1,7 +1,161 @@
 import { useMemo } from 'react'
 
-import { EMPTY_DASHBOARD_STATE } from '../domain/dashboardContracts.js'
+import {
+  EMPTY_DASHBOARD_STATE,
+  EMPTY_FACTOR_RECOMMENDATION,
+  FACTOR_RECOMMENDATION_REGIONS,
+} from '../domain/dashboardContracts.js'
 import { statusText } from '../domain/formatters.js'
+
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function firstValue(...values) {
+  return values.find((value) => value !== undefined && value !== null && value !== '')
+}
+
+function listValue(value) {
+  if (Array.isArray(value)) return value
+  if (value === undefined || value === null || value === '') return []
+  if (isRecord(value)) return Object.values(value)
+  return [value]
+}
+
+function rowObjects(value) {
+  if (Array.isArray(value)) return value
+  if (!isRecord(value)) return []
+  return Object.entries(value).map(([region, item]) => (
+    isRecord(item) ? { ...item, region: firstValue(item.region, region) } : { region, value: item }
+  ))
+}
+
+function factorRegion(item, fallback = '') {
+  return firstValue(
+    item?.region,
+    item?.market,
+    item?.Region,
+    item?.area,
+    item?.code,
+    item?.name,
+    item?.label,
+    item?.latest?.region,
+    fallback,
+  ) || ''
+}
+
+function factorLatestItems(signal) {
+  const candidates = [signal.rows, signal.latest_rows, signal.latest, signal.current_rows]
+  for (const candidate of candidates) {
+    const items = rowObjects(candidate)
+    if (items.length) return items
+  }
+  return rowObjects(
+    signal.latest_by_region
+      || signal.regions_by_region
+      || (isRecord(signal.regions) ? signal.regions : null),
+  )
+}
+
+export function normalizeFactorRecommendationRow(item = {}, fallbackRegion = '', fallbackDate = '') {
+  const source = isRecord(item) ? item : { value: item }
+  const latest = isRecord(source.latest) ? source.latest : {}
+  const comparison = isRecord(source.recommended_vs_neutral)
+    ? source.recommended_vs_neutral
+    : {}
+  const region = factorRegion(source, fallbackRegion)
+  return {
+    ...source,
+    region,
+    latest_date: firstValue(
+      source.latest_date,
+      source.latest_month,
+      source.最新月份,
+      source.month,
+      source.date,
+      latest.latest_date,
+      latest.latest_month,
+      latest.最新月份,
+      latest.date,
+      fallbackDate,
+    ) || '',
+    rank: firstValue(source.rank, source.latest_rank, latest.rank, latest.latest_rank),
+    score: firstValue(source.score, source.latest_score, source.factor_score, latest.score, latest.latest_score, latest.factor_score),
+    stance: firstValue(
+      source.stance,
+      source.recommendation,
+      source.recommended_stance,
+      latest.stance,
+      latest.recommendation,
+    ),
+    recommended_return: firstValue(
+      source.recommended_return,
+      source.recommended,
+      source.recommend_return,
+      latest.recommended_return,
+      latest.recommended,
+      comparison.recommended_return,
+      comparison.recommended,
+      comparison.recommended?.predicted_return,
+      comparison.recommended?.return,
+    ),
+    neutral_return: firstValue(
+      source.neutral_return,
+      source.neutral,
+      source.neutral_return_prediction,
+      latest.neutral_return,
+      latest.neutral,
+      comparison.neutral_return,
+      comparison.neutral,
+      comparison.neutral?.predicted_return,
+      comparison.neutral?.return,
+    ),
+    predicted_return: firstValue(
+      source.predicted_return,
+      source.predictedReturn,
+      source.prediction,
+      latest.predicted_return,
+      latest.predictedReturn,
+      latest.prediction,
+    ),
+    confidence: firstValue(source.confidence, latest.confidence),
+    drivers: listValue(firstValue(source.drivers, source.driver, latest.drivers, latest.driver)),
+    warnings: listValue(firstValue(source.warnings, source.warning, latest.warnings, latest.warning)),
+  }
+}
+
+export function normalizeFactorRecommendationSignal(value = {}) {
+  const source = isRecord(value) ? value : {}
+  const latestItems = factorLatestItems(source)
+  const fallbackDate = firstValue(source.latest_date, source.latest_month, source.最新月份, '') || ''
+  const historyItems = rowObjects(source.history)
+  const status = firstValue(source.status, EMPTY_FACTOR_RECOMMENDATION.status)
+  const researchOnly = source.research_only ?? status === 'research_only'
+  const missing = source.missing ?? latestItems.length === 0
+  const stale = source.stale ?? status === 'stale'
+  const configuredRegions = listValue(source.regions)
+    .map((item) => (isRecord(item) ? factorRegion(item) : item))
+    .filter(Boolean)
+  const rowRegions = [...latestItems, ...historyItems]
+    .map((item) => factorRegion(item))
+    .filter(Boolean)
+  const regions = [...new Set(configuredRegions.length ? configuredRegions : rowRegions)]
+  return {
+    ...EMPTY_FACTOR_RECOMMENDATION,
+    ...source,
+    status,
+    research_only: researchOnly,
+    missing,
+    stale,
+    regions: regions.length ? regions : FACTOR_RECOMMENDATION_REGIONS,
+    rows: latestItems.map((item) => normalizeFactorRecommendationRow(item, '', fallbackDate)),
+    history: historyItems.map((item) => normalizeFactorRecommendationRow(item, '', fallbackDate)),
+    warnings: source.warnings !== undefined
+      ? listValue(source.warnings)
+      : (researchOnly || missing || stale ? EMPTY_FACTOR_RECOMMENDATION.warnings : []),
+  }
+}
+
 export function useProductionRows(job, connection, dashboardState) {
   const metrics = useMemo(
     () => [
@@ -165,6 +319,27 @@ export function useSectorRows(dashboardState, selectedSector) {
   }
 }
 
+export function useFactorRecommendationRows(dashboardState) {
+  const rawSignal = dashboardState?.signals?.factor_recommendation
+  const factorRecommendationSignal = useMemo(
+    () => normalizeFactorRecommendationSignal(rawSignal),
+    [rawSignal],
+  )
+  const factorRecommendationRows = useMemo(
+    () => factorRecommendationSignal.rows || [],
+    [factorRecommendationSignal],
+  )
+  const factorRecommendationHistoryRows = useMemo(
+    () => factorRecommendationSignal.history || [],
+    [factorRecommendationSignal],
+  )
+  return {
+    factorRecommendationHistoryRows,
+    factorRecommendationRows,
+    factorRecommendationSignal,
+  }
+}
+
 export function useScoreMlRows(scoreMlComponents) {
   return useMemo(
     () => (scoreMlComponents.rows || []).map((item) => ({
@@ -233,4 +408,3 @@ export function useTechnicalRows(dashboardState) {
   )
   return { technicalMetricRows, technicalSecurityRows, technicalSignal }
 }
-

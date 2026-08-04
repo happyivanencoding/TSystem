@@ -151,6 +151,30 @@ class RefreshSmallCapConfig(StepConfig):
 
 
 @dataclass
+class RefreshFactorRecommendationConfig(StepConfig):
+    """Research-only factor recommendation refresh contract.
+
+    The step deliberately has its own output and signal paths.  Keeping this
+    contract separate from the production signal export prevents a research
+    refresh from changing the security candidate or optimizer inputs.
+    """
+
+    inspect_only: bool
+    as_of: str | None
+    screen: str
+    returns: str
+    universe_config: str
+    factor_config: str
+    model_config: str
+    output_dir: str
+    signal_output: str
+    all_history: bool
+    use_frozen_model: bool
+    minimum_coverage: float
+    run_type: str
+
+
+@dataclass
 class BuildCandidatesConfig(StepConfig):
     as_of: str | None
     output: str
@@ -237,6 +261,7 @@ class PipelineControls:
     skip_optimize_portfolio: bool
     skip_backtest: bool
     skip_report: bool
+    refresh_factor_recommendation: bool
 
 
 @dataclass(frozen=True)
@@ -267,6 +292,7 @@ class PipelineRunConfig:
     refresh_technical: RefreshTechnicalConfig
     export_signals: ExportSignalsConfig
     refresh_small_cap: RefreshSmallCapConfig
+    refresh_factor_recommendation: RefreshFactorRecommendationConfig
     build_candidates: BuildCandidatesConfig
     optimize_portfolio: OptimizePortfolioConfig
     run_backtest: RunBacktestConfig
@@ -333,6 +359,9 @@ class PipelineRunConfig:
             skip_optimize_portfolio=bool(get("skip_optimize_portfolio", False)),
             skip_backtest=bool(get("skip_backtest", False)),
             skip_report=bool(get("skip_report", False)),
+            refresh_factor_recommendation=bool(
+                get("refresh_factor_recommendation", False)
+            ),
         )
         experiment = PipelineExperimentConfig(
             hypothesis_id=hypothesis_id,
@@ -514,6 +543,70 @@ class PipelineRunConfig:
             min_coverage=float(get("small_cap_min_coverage", 0.5)),
             run_type=run_type,
         )
+        factor_recommendation_root = TP_ROOT / "16_factor_recommendation_model"
+        factor_recommendation_config = RefreshFactorRecommendationConfig(
+            inspect_only=bool(
+                get(
+                    "factor_recommendation_inspect_only",
+                    get("inspect_only_factor_recommendation", False),
+                )
+            ),
+            as_of=get("factor_recommendation_as_of", as_of),
+            screen=str(
+                get(
+                    "factor_recommendation_screen",
+                    get("factor_screen", SCREEN_AGGREGATE_PATH),
+                )
+            ),
+            returns=str(
+                get(
+                    "factor_recommendation_returns",
+                    get("factor_returns", RETURNS_PATH),
+                )
+            ),
+            universe_config=str(
+                get(
+                    "factor_recommendation_universe_config",
+                    factor_recommendation_root
+                    / "config"
+                    / "region_universes_v1.json",
+                )
+            ),
+            factor_config=str(
+                get(
+                    "factor_recommendation_factor_config",
+                    factor_recommendation_root
+                    / "config"
+                    / "factor_definitions_v1.json",
+                )
+            ),
+            model_config=str(
+                get(
+                    "factor_recommendation_model_config",
+                    factor_recommendation_root / "config" / "model_v1.json",
+                )
+            ),
+            output_dir=str(
+                get(
+                    "factor_recommendation_output_dir",
+                    factor_recommendation_root / "outputs",
+                )
+            ),
+            signal_output=str(
+                get(
+                    "factor_recommendation_signal_output",
+                    SIGNALS_DIR / "factor_recommendation_signals.parquet",
+                )
+            ),
+            all_history=bool(get("factor_recommendation_all_history", False)),
+            use_frozen_model=bool(
+                get("factor_recommendation_use_frozen_model", False)
+            ),
+            minimum_coverage=float(
+                get("factor_recommendation_minimum_coverage", 0.8)
+            ),
+            run_type=run_type,
+        )
         build_candidates = BuildCandidatesConfig(
             as_of=as_of,
             output=candidates_output,
@@ -593,6 +686,7 @@ class PipelineRunConfig:
             refresh_technical=refresh_technical,
             export_signals=export_signals,
             refresh_small_cap=refresh_small_cap,
+            refresh_factor_recommendation=factor_recommendation_config,
             build_candidates=build_candidates,
             optimize_portfolio=optimize_portfolio,
             run_backtest=run_backtest,

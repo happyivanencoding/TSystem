@@ -83,3 +83,7 @@ from tp_core.data_contract import validate_returns_contract, validate_screen_con
 - 历史 notebook 中的硬编码路径不构成当前数据源声明。
 
 运行 `tp-check-legacy-references` 确认活跃代码、配置和文档没有恢复旧入口。
+
+## 月度因子推荐研究源
+
+`16_factor_recommendation_model` 只读取本表登记的 `screen_aggregate.parquet`、`returns.parquet` 和版本化配置 `config/region_universes_v1.json`、`config/factor_definitions_v1.json`、`config/model_v1.json`。成员资格按 PIT benchmark weight 选择；ASIA 仅是固定 `JAPAN(NIKKEI) + ASIA_EX_JAPAN(MSCI EM allowlist)` 的 0.5/0.5 research-only union，不把 `Univ ML OTHER` 或整张 MSCI EM 改名为 Asia。

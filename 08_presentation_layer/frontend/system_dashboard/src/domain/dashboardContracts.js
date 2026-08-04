@@ -44,6 +44,27 @@ export const EMPTY_JOB = {
   error: '',
 }
 
+export const FACTOR_RECOMMENDATION_REGIONS = ['US', 'EU', 'ASIA']
+
+export const EMPTY_FACTOR_RECOMMENDATION = {
+  status: 'research_only',
+  research_only: true,
+  missing: true,
+  stale: true,
+  latest_date: '',
+  updated_at: '',
+  regions: FACTOR_RECOMMENDATION_REGIONS,
+  rows: [],
+  history: [],
+  evidence: [],
+  backtest: [],
+  baselines: [],
+  gates: [],
+  benchmark_definition: {},
+  warnings: ['research_only', 'missing', 'stale', 'ASIA'],
+  message: '',
+}
+
 export const EMPTY_DASHBOARD_STATE = {
   generated_at: '',
   overview: [],
@@ -119,6 +140,7 @@ export const EMPTY_DASHBOARD_STATE = {
       rows: [],
       message: '',
     },
+    factor_recommendation: EMPTY_FACTOR_RECOMMENDATION,
     technical: {
       status: 'missing',
       latest_date: '',
@@ -181,6 +203,10 @@ export function normalizeDashboardState(nextState = {}) {
     signals: {
       ...EMPTY_DASHBOARD_STATE.signals,
       ...(nextState.signals || {}),
+      factor_recommendation: {
+        ...EMPTY_FACTOR_RECOMMENDATION,
+        ...(nextState.signals?.factor_recommendation || {}),
+      },
     },
   }
 }

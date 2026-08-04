@@ -1,0 +1,36 @@
+{
+  "schema_version": "factor_recommendation.model.v1",
+  "model_version": "factor_recommendation_v1",
+  "champion_policy": "research_only_until_gate_and_forward_shadow",
+  "default_model": "transparent_composite",
+  "candidate_models": [
+    "M0_equal_factor",
+    "M1_trailing_12m",
+    "M2_transparent_composite",
+    "M3_pooled_ridge",
+    "M4_pooled_elastic_net"
+  ],
+  "pit_lag_months": 1,
+  "target_horizon_months": 1,
+  "minimum_train_months": 60,
+  "purge_months": 1,
+  "allocation_strategy": "top_2_equal",
+  "sleeve_percentile": 0.2,
+  "transaction_cost_bps": [0, 10, 25, 50],
+  "promotion": {
+    "research_only": true,
+    "asia_benchmark_approval_required": true,
+    "forward_shadow_months_required": 12,
+    "decision": "review_required"
+  },
+  "gates": {
+    "minimum_monthly_observations": 120,
+    "minimum_valid_factors_per_month": 5,
+    "minimum_benchmark_weight_coverage": 0.7,
+    "minimum_median_weight_coverage": 0.8,
+    "minimum_mean_rank_ic": 0.05,
+    "minimum_positive_ic_rate": 0.55,
+    "minimum_bootstrap_probability": 0.75,
+    "minimum_dsr_probability": 0.8
+  }
+}

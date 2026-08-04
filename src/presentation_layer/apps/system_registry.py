@@ -28,6 +28,7 @@ PIPELINE_STEPS: tuple[str, ...] = (
     "refresh_data",
     "refresh_ml",
     "refresh_small_cap",
+    "refresh_factor_recommendation",
     "export_signals",
     "build_candidates",
     "optimize_portfolio",
@@ -284,6 +285,30 @@ PROJECT_REGISTRY: tuple[ProjectRegistryEntry, ...] = (
         manifest_required=True,
         pipeline_step="refresh_small_cap",
     ),
+    ProjectRegistryEntry(
+        project_id="16_factor_recommendation_model",
+        role="research-only 月度因子推荐、历史面板和研究信号",
+        root_path=TP_ROOT / "16_factor_recommendation_model",
+        inputs=("screen_aggregate", "returns", "universe/factor/model config"),
+        outputs=(
+            "factor_recommendation_panel",
+            "factor_recommendation_history",
+            "factor_recommendation_signals",
+            "refresh_factor_recommendation manifest",
+        ),
+        commands=("python -m tp_pipelines.refresh_factor_recommendation",),
+        smoke_test="python -m tp_pipelines.refresh_factor_recommendation --inspect-only",
+        data_assets=(
+            "factor_recommendation_panel",
+            "factor_recommendation_history",
+            "factor_recommendation_signals",
+            "factor_recommendation_manifest",
+        ),
+        # Research-only outputs are optional and must not fail the production
+        # control tower while the refresh step remains disabled by default.
+        manifest_required=False,
+        pipeline_step="refresh_factor_recommendation",
+    ),
 )
 
 
@@ -353,6 +378,45 @@ DATA_ASSET_REGISTRY: tuple[DataAssetEntry, ...] = (
         "eu_small_model_summary",
         TP_ROOT / "15_small_cap_model" / "outputs" / "eu_small_model_summary.json",
         "small-cap model summary json",
+    ),
+    DataAssetEntry(
+        "16_factor_recommendation_model",
+        "factor_recommendation_panel",
+        TP_ROOT
+        / "16_factor_recommendation_model"
+        / "outputs"
+        / "factor_recommendation_panel.parquet",
+        "factor recommendation panel parquet",
+        "Date",
+        required=False,
+    ),
+    DataAssetEntry(
+        "16_factor_recommendation_model",
+        "factor_recommendation_history",
+        TP_ROOT
+        / "16_factor_recommendation_model"
+        / "outputs"
+        / "factor_recommendation_history.parquet",
+        "factor recommendation history parquet",
+        "Date",
+        required=False,
+    ),
+    DataAssetEntry(
+        "16_factor_recommendation_model",
+        "factor_recommendation_signals",
+        SIGNALS_DIR / "factor_recommendation_signals.parquet",
+        "research signal parquet",
+        "Date",
+        required=False,
+    ),
+    DataAssetEntry(
+        "16_factor_recommendation_model",
+        "factor_recommendation_manifest",
+        PIPELINE_MANIFESTS_DIR
+        / "refresh_factor_recommendation"
+        / "refresh_factor_recommendation_latest.json",
+        "pipeline manifest json",
+        required=False,
     ),
     DataAssetEntry(
         "13_sector_score_model",

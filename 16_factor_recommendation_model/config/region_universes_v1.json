@@ -1,0 +1,148 @@
+{
+  "schema_version": "factor_recommendation.region_universes.v1",
+  "regions": {
+    "US": {
+      "display_name": "United States",
+      "aliases": [],
+      "aggregation_weights": {"US": 1.0},
+      "component_aggregation_weights": {"US": 1.0},
+      "currency_basis": "USD",
+      "minimum_monthly_constituents": 100,
+      "minimum_weight_coverage": 0.8,
+      "history_start": "2004-10",
+      "production_eligible": true,
+      "approval_status": "approved",
+      "research_only": false,
+      "benchmark_approved": true,
+      "aggregation_policy": "single_component",
+      "description": "PIT positive membership in SP500.",
+      "components": [
+        {
+          "name": "US",
+          "benchmark": "SP500",
+          "weight_column": "Weight in SP500",
+          "positive_weight": true
+        }
+      ]
+    },
+    "EUROPE": {
+      "display_name": "Europe (EU alias)",
+      "aliases": ["EU"],
+      "aggregation_weights": {"EUROPE": 1.0},
+      "component_aggregation_weights": {"EUROPE": 1.0},
+      "currency_basis": "EUR",
+      "minimum_monthly_constituents": 200,
+      "minimum_weight_coverage": 0.8,
+      "history_start": "2004-10",
+      "production_eligible": true,
+      "approval_status": "approved",
+      "research_only": false,
+      "benchmark_approved": true,
+      "aggregation_policy": "single_component",
+      "description": "PIT positive membership in STOXX EUROPE 600.",
+      "components": [
+        {
+          "name": "EUROPE",
+          "benchmark": "STOXX EUROPE 600",
+          "weight_column": "Weight in STOXX EUROPE 600",
+          "positive_weight": true
+        }
+      ]
+    },
+    "JAPAN": {
+      "display_name": "Japan",
+      "aliases": ["JP"],
+      "aggregation_weights": {"JAPAN": 1.0},
+      "component_aggregation_weights": {"JAPAN": 1.0},
+      "currency_basis": "JPY",
+      "minimum_monthly_constituents": 100,
+      "minimum_weight_coverage": 0.8,
+      "history_start": "2009-03",
+      "production_eligible": true,
+      "approval_status": "approved",
+      "research_only": false,
+      "benchmark_approved": true,
+      "aggregation_policy": "single_component",
+      "description": "PIT positive membership in NIKKEI.",
+      "components": [
+        {
+          "name": "JAPAN",
+          "benchmark": "NIKKEI",
+          "weight_column": "Weight in NIKKEI",
+          "positive_weight": true
+        }
+      ]
+    },
+    "GLOBAL": {
+      "display_name": "Global",
+      "aliases": ["WORLD"],
+      "aggregation_weights": {"GLOBAL": 1.0},
+      "component_aggregation_weights": {"GLOBAL": 1.0},
+      "currency_basis": "USD",
+      "minimum_monthly_constituents": 500,
+      "minimum_weight_coverage": 0.8,
+      "history_start": "1999-12",
+      "production_eligible": true,
+      "approval_status": "approved",
+      "research_only": false,
+      "benchmark_approved": true,
+      "aggregation_policy": "single_component",
+      "description": "PIT positive membership in MSCI WORLD.",
+      "components": [
+        {
+          "name": "GLOBAL",
+          "benchmark": "MSCI WORLD",
+          "weight_column": "Weight in MSCI WORLD",
+          "positive_weight": true
+        }
+      ]
+    },
+    "ASIA": {
+      "display_name": "Asia research union (Japan + Asia ex Japan)",
+      "aliases": [],
+      "aggregation_weights": {"JAPAN": 0.5, "ASIA_EX_JAPAN": 0.5},
+      "component_aggregation_weights": {"JAPAN": 0.5, "ASIA_EX_JAPAN": 0.5},
+      "currency_basis": "component_local_currency",
+      "minimum_monthly_constituents": 200,
+      "minimum_weight_coverage": 0.8,
+      "history_start": "2013-12",
+      "production_eligible": false,
+      "approval_status": "research_only_benchmark_unapproved",
+      "research_only": true,
+      "benchmark_approved": false,
+      "aggregation_policy": "union_of_components_research_only",
+      "description": "研究定义：JAPAN(NIKKEI) + ASIA_EX_JAPAN(MSCI EM 正权重且国家固定 allowlist)。不得当作单一官方 benchmark。",
+      "components": [
+        {
+          "name": "JAPAN",
+          "benchmark": "NIKKEI",
+          "weight_column": "Weight in NIKKEI",
+          "positive_weight": true,
+          "country_column": "Exchange Country Iso2",
+          "country_allowlist": ["JP"],
+          "pit_boundary_note": "ASIA Japan component keeps only ISO2=JP; NIKKEI raw positive history is retained separately in audit."
+        },
+        {
+          "name": "ASIA_EX_JAPAN",
+          "benchmark": "MSCI EM",
+          "weight_column": "Weight in MSCI EM",
+          "positive_weight": true,
+          "country_column": "Exchange Country Iso2",
+          "country_allowlist": [
+            "CN",
+            "HK",
+            "IN",
+            "KR",
+            "TW",
+            "SG",
+            "MY",
+            "TH",
+            "ID",
+            "PH"
+          ],
+          "exclude_countries": ["JP"]
+        }
+      ]
+    }
+  }
+}

@@ -34,6 +34,8 @@ class DashboardDomainService:
     small_cap_command: Callable[[], list[str]]
     project_command: Callable[[str, str], list[str]]
     pipeline_command: Callable[..., list[str]]
+    factor_recommendation_provider: Callable[[], dict[str, Any]] | None = None
+    factor_recommendation_command: Callable[[], list[str]] | None = None
 
     def state(
         self,
@@ -64,6 +66,19 @@ class DashboardDomainService:
 
     def launch_small_cap(self) -> dict[str, Any]:
         return self.launch(self.small_cap_command(), "signal:small_cap_model")
+
+    def factor_recommendation(self) -> dict[str, Any]:
+        if self.factor_recommendation_provider is None:
+            return {"status": "missing", "research_only": True, "rows": []}
+        return self.factor_recommendation_provider()
+
+    def launch_factor_recommendation(self) -> dict[str, Any]:
+        if self.factor_recommendation_command is None:
+            raise ValueError("factor recommendation command is not registered")
+        return self.launch(
+            self.factor_recommendation_command(),
+            "signal:factor_recommendation",
+        )
 
     def launch_project(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         project_id = str(

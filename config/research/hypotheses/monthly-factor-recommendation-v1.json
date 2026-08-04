@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "hypothesis_id": "monthly-factor-recommendation-v1",
+  "name": "Monthly factor recommendation research v1",
+  "statement": "A point-in-time monthly factor recommendation selected only with training-period evidence can improve risk-adjusted forward returns after declared costs, while remaining review-only until an independent promotion gate.",
+  "owner": "TP Research",
+  "status": "research",
+  "universe": "core.factor_recommendation",
+  "sample_start": null,
+  "sample_end": null,
+  "pit_cutoff": null,
+  "pit_policy": "available_at_or_before_decision_time",
+  "cost_assumptions": {
+    "transaction_cost": 0.001,
+    "slippage": 0.0005,
+    "turnover_definition": "sum absolute weight changes; first formation turnover included"
+  },
+  "trial_family": "monthly-factor-recommendation",
+  "effective_trial_count": 8,
+  "tags": [
+    "research",
+    "factor-recommendation",
+    "monthly",
+    "point-in-time",
+    "review-only"
+  ],
+  "artifact_policy": {
+    "save_plots": false,
+    "holdings_mode": "minimal"
+  },
+  "component_versions": {
+    "workflow": "monthly-factor-recommendation-v1",
+    "core_boundary": "tp_models.factor_recommendation.public-research-inputs"
+  },
+  "research_contract": {
+    "required_artifacts": [
+      "config_snapshot.json",
+      "component_status.json",
+      "target_definition.json",
+      "feature_definitions.csv",
+      "feature_matrix.parquet",
+      "target_frame.parquet",
+      "pit_audit.csv",
+      "walk_forward_folds.csv",
+      "grouped_folds.csv",
+      "fold_predictions.parquet",
+      "model_selection.csv",
+      "lopo_loro_results.csv",
+      "cost_assumptions.json",
+      "cost_adjusted_metrics.csv",
+      "dsr_results.csv",
+      "bootstrap_results.csv",
+      "promotion_gate.csv",
+      "research_report.md",
+      "manifest.json",
+      "repository_data_audit.json",
+      "universe_definitions.csv",
+      "factor_definitions.csv",
+      "raw_variable_gate.csv",
+      "relative_variable_gate.csv",
+      "factor_sleeve_metrics.csv",
+      "factor_sleeve_monthly_returns.parquet",
+      "feature_coverage.csv",
+      "model_candidate_registry.csv",
+      "walk_forward_predictions.parquet",
+      "walk_forward_metrics.csv",
+      "period_definitions.csv",
+      "lopo_results.csv",
+      "loro_results.csv",
+      "strategy_monthly_returns.parquet",
+      "strategy_metrics.csv",
+      "cost_sensitivity.csv",
+      "block_bootstrap_results.csv",
+      "deflated_sharpe_results.csv",
+      "trial_ledger.csv",
+      "selection_audit.csv"
+    ],
+    "required_methods": [
+      "target",
+      "feature",
+      "PIT",
+      "walk-forward",
+      "grouped folds",
+      "LOPO-LORO",
+      "cost",
+      "DSR",
+      "bootstrap",
+      "model selection",
+      "promotion gate"
+    ],
+    "decision_policy": "review_required; never auto-promote"
+  },
+  "runner": {
+    "module": "tp_research.workflows.run_monthly_factor_recommendation_research",
+    "callable": "main",
+    "default_args": [],
+    "required_options": []
+  }
+}

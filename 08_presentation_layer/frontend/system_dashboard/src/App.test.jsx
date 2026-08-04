@@ -91,6 +91,10 @@ test('loads dashboard state and renders the default market page', async () => {
     expect.stringContaining('/api/dashboard/state'),
     expect.objectContaining({ headers: expect.any(Object) }),
   )
+  expect(fetch).toHaveBeenCalledWith(
+    expect.stringContaining('/api/dashboard/signals/factor-recommendation'),
+    expect.objectContaining({ headers: expect.any(Object) }),
+  )
 })
 
 

@@ -89,3 +89,12 @@ npm run build --prefix 08_presentation_layer\frontend\system_dashboard
 ```
 
 Archive、runs、outputs 和生成资产继续从 pytest、ruff、mypy、CRG 和 CI discovery 中排除。
+
+## Factor Recommendation dashboard panel
+
+Presentation Layer 提供 `/api/dashboard/signals/factor-recommendation` 和对应的
+React panel。它从 repository boundary 读取最新 panel、history、严格 signal、
+summary/validation 和 manifest，展示 US/EU/ASIA、因子分数、覆盖率、证据、基线
+与 promotion gate。响应即使产物缺失、损坏或过期也保持稳定 contract；状态
+`research_only` 不代表已晋升，ASIA 的固定双组件定义和
+`research_only_benchmark_unapproved` 必须在页面上保留。

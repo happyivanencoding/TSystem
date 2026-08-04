@@ -1,0 +1,9 @@
+{
+  "signal_schema_valid": true,
+  "signal_schema_errors": [],
+  "signal_schema_warnings": [],
+  "duplicate_signal_keys": 0,
+  "panel_rows": 7888,
+  "history_rows": 7888,
+  "signal_rows": 7888
+}

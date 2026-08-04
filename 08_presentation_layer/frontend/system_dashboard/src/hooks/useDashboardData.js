@@ -27,13 +27,19 @@ export function useDashboardData(setToast) {
         country: '/api/dashboard/signals/country',
         small_cap: '/api/dashboard/signals/small-cap',
         sector: '/api/dashboard/signals/sector',
+        factor_recommendation: '/api/dashboard/signals/factor-recommendation',
         technical: '/api/dashboard/signals/technical',
         score_ml_components: '/api/dashboard/score-ml-components',
       }
+      const signalRequests = Object.entries(signalEndpoints).map(([key, endpoint]) => (
+        key === 'factor_recommendation'
+          ? requestJson(endpoint).catch(() => EMPTY_DASHBOARD_STATE.signals.factor_recommendation)
+          : requestJson(endpoint)
+      ))
       const [coreState, backtest, ...signalResults] = await Promise.all([
         requestJson('/api/dashboard/state'),
         requestJson('/api/dashboard/backtest'),
-        ...Object.values(signalEndpoints).map((endpoint) => requestJson(endpoint)),
+        ...signalRequests,
       ])
       const signals = { ...(coreState.signals || {}) }
       Object.keys(signalEndpoints).forEach((key, index) => {
@@ -132,4 +138,3 @@ export function useDashboardData(setToast) {
     setSelectedSector,
   }
 }
-

@@ -83,6 +83,16 @@ def run_export_signals(config):
     return implementation(config)
 
 
+def run_refresh_factor_recommendation(config):
+    """Lazy seam for the isolated research-only factor recommendation step."""
+
+    from .refresh_factor_recommendation import (
+        run_refresh_factor_recommendation as implementation,
+    )
+
+    return implementation(config)
+
+
 def run_backtest_step(config):
     from .run_backtest import run_backtest_step as implementation
 
@@ -140,6 +150,12 @@ def _refresh_small_cap(context: PipelineContext) -> Path:
     from .refresh_small_cap import run_refresh_small_cap
 
     return run_refresh_small_cap(context.config.refresh_small_cap)
+
+
+def _refresh_factor_recommendation(context: PipelineContext) -> Path:
+    return run_refresh_factor_recommendation(
+        context.config.refresh_factor_recommendation
+    )
 
 
 def _build_candidates(context: PipelineContext) -> Path:
@@ -221,6 +237,14 @@ def pipeline_dag() -> PipelineDAG:
             ("refresh_regime", "refresh_ml", "refresh_technical", "refresh_country_model"),
             lambda context: not context.config.controls.skip_export_signals,
             _export_signals,
+        ),
+        PipelineStep(
+            "refresh_factor_recommendation",
+            (),
+            lambda context: bool(
+                getattr(context.config.controls, "refresh_factor_recommendation", False)
+            ),
+            _refresh_factor_recommendation,
         ),
         PipelineStep(
             "refresh_small_cap",

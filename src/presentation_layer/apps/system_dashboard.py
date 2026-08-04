@@ -90,6 +90,31 @@ SMALL_CAP_SIGNAL_PATH = SIGNALS_DIR / "small_cap_model_signals.parquet"
 SMALL_CAP_MODEL_DIR = TP_ROOT / "15_small_cap_model"
 SMALL_CAP_PANEL_PATH = SMALL_CAP_MODEL_DIR / "outputs" / "eu_small_model_scores_latest.parquet"
 SMALL_CAP_SUMMARY_PATH = SMALL_CAP_MODEL_DIR / "outputs" / "eu_small_model_summary.json"
+FACTOR_RECOMMENDATION_PROJECT_ROOT = TP_ROOT / "16_factor_recommendation_model"
+FACTOR_RECOMMENDATION_OUTPUT_DIR = FACTOR_RECOMMENDATION_PROJECT_ROOT / "outputs"
+FACTOR_RECOMMENDATION_PANEL_PATH = (
+    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_recommendation_panel.parquet"
+)
+FACTOR_RECOMMENDATION_HISTORY_PATH = (
+    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_recommendation_history.parquet"
+)
+FACTOR_RECOMMENDATION_SUMMARY_PATH = (
+    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_recommendation_summary.json"
+)
+FACTOR_RECOMMENDATION_VALIDATION_PATH = (
+    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_recommendation_validation.json"
+)
+FACTOR_RECOMMENDATION_OUTPUT_MANIFEST_PATH = (
+    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_recommendation_manifest.json"
+)
+FACTOR_RECOMMENDATION_MANIFEST_PATH = (
+    PIPELINE_MANIFESTS_DIR
+    / "refresh_factor_recommendation"
+    / "refresh_factor_recommendation_latest.json"
+)
+FACTOR_RECOMMENDATION_SIGNAL_PATH = SIGNALS_DIR / "factor_recommendation_signals.parquet"
+FACTOR_RECOMMENDATION_REGIONS = ("US", "EU", "ASIA")
+FACTOR_RECOMMENDATION_STALE_DAYS = 62
 COUNTRY_DATABASE_PATH = TP_ROOT / "14_country_model" / "data" / "country_model_database.parquet"
 COUNTRY_SINGLE_COUNTRY_SCORE_PATH = (
     TP_ROOT / "14_country_model" / "outputs" / "country_model_single_country_scores.parquet"
@@ -4903,6 +4928,433 @@ def _lineage_edge_rows() -> list[dict[str, Any]]:
     return rows
 
 
+def _factor_recommendation_empty_payload() -> dict[str, Any]:
+    """Return the stable, cheap default contract for the research panel."""
+
+    paths = {
+        "panel": _rel(FACTOR_RECOMMENDATION_PANEL_PATH),
+        "history": _rel(FACTOR_RECOMMENDATION_HISTORY_PATH),
+        "manifest": _rel(FACTOR_RECOMMENDATION_MANIFEST_PATH),
+        "signal": _rel(FACTOR_RECOMMENDATION_SIGNAL_PATH),
+        "summary": _rel(FACTOR_RECOMMENDATION_SUMMARY_PATH),
+        "validation": _rel(FACTOR_RECOMMENDATION_VALIDATION_PATH),
+        "output_manifest": _rel(FACTOR_RECOMMENDATION_OUTPUT_MANIFEST_PATH),
+    }
+    return {
+        "name": "factor_recommendation",
+        "title": "Factor Recommendation",
+        "status": "research_only",
+        "research_only": True,
+        "production_eligible": False,
+        "model_status": "research_only",
+        "affects_security_candidates": False,
+        "affects_optimizer": False,
+        "missing": True,
+        "stale": True,
+        "latest_date": "",
+        "updated_at": "",
+        "regions": list(FACTOR_RECOMMENDATION_REGIONS),
+        "asia_approved": False,
+        "paths": paths,
+        "artifact_states": {
+            "panel": "missing",
+            "history": "missing",
+            "signal": "missing",
+            "manifest": "missing",
+            "summary": "missing",
+            "validation": "missing",
+            "output_manifest": "missing",
+        },
+        "region_status": {"US": "missing", "EU": "missing", "ASIA": "unapproved"},
+        "region_details": {
+            "US": {"status": "missing", "production_eligible": True, "benchmark_approved": True},
+            "EU": {"status": "missing", "production_eligible": True, "benchmark_approved": True},
+            "ASIA": {
+                "status": "unapproved",
+                "production_eligible": False,
+                "benchmark_approved": False,
+                "approval_status": "research_only_benchmark_unapproved",
+            },
+        },
+        "asia_definition": {
+            "status": "research_only_benchmark_unapproved",
+            "components": ["JAPAN", "ASIA_EX_JAPAN"],
+            "aggregation_weights": {"JAPAN": 0.5, "ASIA_EX_JAPAN": 0.5},
+        },
+        "panel_path": paths["panel"],
+        "history_path": paths["history"],
+        "manifest_path": paths["manifest"],
+        "signal_path": paths["signal"],
+        "summary_path": paths["summary"],
+        "validation_path": paths["validation"],
+        "output_manifest_path": paths["output_manifest"],
+        "effective_date": "",
+        "data_fingerprint": {},
+        "rows": [],
+        "history": [],
+        "evidence": [],
+        "backtest": [],
+        "baselines": [],
+        "gates": [],
+        "benchmark_definition": {},
+        "warnings": ["research_only", "missing", "stale", "ASIA", "asian_unapproved"],
+        "refresh_endpoint": "/api/dashboard/jobs/signals/factor-recommendation",
+        "message": "factor recommendation is research-only and has no readable latest artifact",
+    }
+
+
+def _factor_recommendation_value(value: Any) -> Any:
+    if value is None or value is pd.NA:
+        return None
+    if isinstance(value, (pd.Timestamp, datetime)):
+        return value.isoformat()
+    if isinstance(value, np.generic):
+        value = value.item()
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
+def _factor_recommendation_frame_rows(
+    frame: pd.DataFrame | None, limit: int = 500
+) -> list[dict[str, Any]]:
+    if frame is None or frame.empty:
+        return []
+    return [
+        {
+            str(key): _factor_recommendation_value(value)
+            for key, value in record.items()
+        }
+        for record in frame.head(limit).to_dict(orient="records")
+    ]
+
+
+def _factor_recommendation_date_column(frame: pd.DataFrame | None) -> str | None:
+    if frame is None:
+        return None
+    for column in (
+        "Date",
+        "date",
+        "as_of",
+        "as_of_date",
+        "effective_date",
+        "recommendation_date",
+    ):
+        if column in frame.columns:
+            return column
+    return None
+
+
+def _factor_recommendation_latest_date(frame: pd.DataFrame | None) -> pd.Timestamp | None:
+    column = _factor_recommendation_date_column(frame)
+    if column is None:
+        return None
+    values = pd.to_datetime(frame[column], errors="coerce").dropna()
+    return values.max().normalize() if not values.empty else None
+
+
+def _factor_recommendation_region(value: Any) -> str:
+    if value is None:
+        text = ""
+    else:
+        try:
+            missing = pd.isna(value)
+        except (TypeError, ValueError):
+            missing = False
+        text = "" if isinstance(missing, (bool, np.bool_)) and bool(missing) else str(value)
+        text = text.strip().upper()
+    if text in FACTOR_RECOMMENDATION_REGIONS:
+        return text
+    if text in {"JP", "JAPAN"}:
+        return "JAPAN"
+    if text in {"WORLD", "GLOBAL"}:
+        return "GLOBAL"
+    if any(token in text for token in ("ASIA", "JAPAN", "CHINA", "HONG KONG", "INDIA")):
+        return "ASIA"
+    if any(token in text for token in ("EUROPE", "EU", "EMU", "UK", "UNITED KINGDOM")):
+        return "EU"
+    if any(token in text for token in ("US", "USA", "NORTH AMERICA", "UNITED STATES")):
+        return "US"
+    return text
+
+
+def _factor_recommendation_has_asia(frame: pd.DataFrame | None) -> bool:
+    if frame is None or frame.empty:
+        return False
+    for column in ("region", "Region", "market", "universe", "Exchange Country Region"):
+        if column in frame.columns:
+            return bool(frame[column].map(_factor_recommendation_region).eq("ASIA").any())
+    return False
+
+
+def _factor_recommendation_manifest() -> dict[str, Any] | None:
+    payload = _read_json(FACTOR_RECOMMENDATION_MANIFEST_PATH)
+    if payload is not None:
+        return payload
+    return _latest_manifest("refresh_factor_recommendation")
+
+
+def _factor_recommendation_payload() -> dict[str, Any]:
+    """Read factor artifacts through the dashboard repository boundary."""
+
+    payload = _factor_recommendation_empty_payload()
+    paths = {
+        "panel": FACTOR_RECOMMENDATION_PANEL_PATH,
+        "history": FACTOR_RECOMMENDATION_HISTORY_PATH,
+        "signal": FACTOR_RECOMMENDATION_SIGNAL_PATH,
+    }
+    sidecar_paths = {
+        "summary": FACTOR_RECOMMENDATION_SUMMARY_PATH,
+        "validation": FACTOR_RECOMMENDATION_VALIDATION_PATH,
+        "output_manifest": FACTOR_RECOMMENDATION_OUTPUT_MANIFEST_PATH,
+    }
+    frames: dict[str, pd.DataFrame] = {}
+    artifact_states: dict[str, str] = {}
+    errors: list[str] = []
+    empty: list[str] = []
+    updated_times: list[float] = []
+    for name, path in paths.items():
+        if not path.exists():
+            artifact_states[name] = "missing"
+            continue
+        frame = _read_frame(path)
+        if frame is None:
+            artifact_states[name] = "corrupt"
+            errors.append(f"{name}: unreadable")
+            continue
+        if frame.empty:
+            artifact_states[name] = "empty"
+            empty.append(name)
+            continue
+        artifact_states[name] = "ok"
+        frames[name] = frame
+        try:
+            updated_times.append(path.stat().st_mtime)
+        except OSError:
+            pass
+
+    sidecars: dict[str, dict[str, Any]] = {}
+    for name, path in sidecar_paths.items():
+        sidecar = _read_json(path)
+        if sidecar is None:
+            artifact_states[name] = "missing" if not path.exists() else "corrupt"
+        else:
+            artifact_states[name] = "ok"
+            sidecars[name] = sidecar
+
+    manifest = _factor_recommendation_manifest()
+    direct_manifest = _read_json(FACTOR_RECOMMENDATION_MANIFEST_PATH)
+    latest_manifest_path = (
+        PIPELINE_MANIFESTS_DIR
+        / "refresh_factor_recommendation"
+        / "refresh_factor_recommendation_latest.json"
+    )
+    manifest_corrupt = (
+        FACTOR_RECOMMENDATION_MANIFEST_PATH.exists() and direct_manifest is None
+    ) or (
+        not FACTOR_RECOMMENDATION_MANIFEST_PATH.exists()
+        and latest_manifest_path.exists()
+        and manifest is None
+    )
+    artifact_states["manifest"] = (
+        "corrupt" if manifest_corrupt else "ok" if manifest else "missing"
+    )
+    payload["artifact_states"] = artifact_states
+    if manifest_corrupt:
+        errors.append("manifest: unreadable")
+    model_manifest = sidecars.get("output_manifest") or {}
+    manifest_details: dict[str, Any] = {}
+    if isinstance(sidecars.get("summary"), dict):
+        manifest_details.update(sidecars["summary"])
+    if isinstance(manifest, dict) and isinstance(manifest.get("details"), dict):
+        manifest_details.update(manifest["details"])
+    if isinstance(model_manifest, dict):
+        manifest_details = {**manifest_details, **model_manifest}
+
+    if not frames:
+        if errors:
+            payload.update(
+                {
+                    "status": "error",
+                    "missing": False,
+                    "warnings": [
+                        "research_only",
+                        "corrupt",
+                        "ASIA",
+                        "asian_unapproved",
+                    ],
+                    "message": "; ".join(errors),
+                }
+            )
+        elif empty:
+            payload.update(
+                {
+                    "status": "missing",
+                    "missing": True,
+                    "warnings": [
+                        "research_only",
+                        "empty",
+                        "stale",
+                        "ASIA",
+                        "asian_unapproved",
+                    ],
+                    "message": f"factor recommendation artifacts empty: {', '.join(empty)}",
+                }
+            )
+        return payload
+
+    panel = frames.get("panel")
+    if panel is None:
+        panel = frames.get("history")
+    if panel is None:
+        panel = frames.get("signal")
+    history = frames.get("history")
+    if history is None:
+        history = frames.get("panel")
+    if history is None:
+        history = frames.get("signal")
+    signal = frames.get("signal")
+    latest_dates = [
+        value
+        for value in (
+            _factor_recommendation_latest_date(frames.get("panel")),
+            _factor_recommendation_latest_date(frames.get("history")),
+            _factor_recommendation_latest_date(frames.get("signal")),
+        )
+        if value is not None
+    ]
+    latest_date = max(latest_dates) if latest_dates else None
+    stale = latest_date is None or latest_date < pd.Timestamp.now().normalize() - pd.Timedelta(
+        days=FACTOR_RECOMMENDATION_STALE_DAYS
+    )
+
+    asia_present = any(_factor_recommendation_has_asia(frame) for frame in frames.values())
+    approved_regions = manifest_details.get("approved_regions") or manifest_details.get(
+        "regions_approved"
+    ) or []
+    if isinstance(approved_regions, str):
+        approved_regions = [approved_regions]
+    asia_approved = "ASIA" in {
+        _factor_recommendation_region(value) for value in approved_regions
+    }
+    if manifest_details.get("asia_approved") is True:
+        asia_approved = True
+
+    warnings = ["research_only"]
+    if stale:
+        warnings.append("stale")
+    if errors:
+        warnings.append("corrupt")
+    if empty:
+        warnings.append("empty")
+    missing_artifacts = [name for name, state in artifact_states.items() if state == "missing"]
+    if missing_artifacts:
+        warnings.append("missing")
+    if asia_present and not asia_approved:
+        warnings.extend(["ASIA", "asian_unapproved"])
+    elif not asia_approved:
+        warnings.append("ASIA")
+    warnings.extend(["benchmark_unapproved", "forward_shadow_pending", "not_promoted"])
+
+    status = (
+        "error"
+        if errors
+        else "stale"
+        if stale
+        else "missing"
+        if empty or missing_artifacts
+        else "research_only"
+    )
+    region_status = {}
+    region_details: dict[str, dict[str, Any]] = {}
+    for region in FACTOR_RECOMMENDATION_REGIONS:
+        present = any(
+            any(
+                column in frame.columns
+                and frame[column].map(_factor_recommendation_region).eq(region).any()
+                for column in ("region", "Region", "market", "universe", "Exchange Country Region")
+            )
+            for frame in frames.values()
+        )
+        if region == "ASIA" and not asia_approved:
+            region_status[region] = "unapproved"
+            region_details[region] = {
+                "status": "unapproved" if present else "missing_unapproved",
+                "production_eligible": False,
+                "benchmark_approved": False,
+                "approval_status": "research_only_benchmark_unapproved",
+            }
+        else:
+            region_status[region] = "available" if present else "missing"
+            region_details[region] = {
+                "status": region_status[region],
+                "production_eligible": False,
+                "benchmark_approved": asia_approved if region == "ASIA" else True,
+                "approval_status": "approved" if region != "ASIA" else "research_only_benchmark_unapproved",
+            }
+    date_column = _factor_recommendation_date_column(panel)
+    latest_panel = panel
+    if date_column is not None and latest_date is not None:
+        parsed_dates = pd.to_datetime(panel[date_column], errors="coerce").dt.normalize()
+        latest_panel = panel[parsed_dates.eq(latest_date)]
+    effective_date = ""
+    as_of_date = ""
+    if latest_panel is not None and not latest_panel.empty:
+        for column, target in (("effective_date", "effective_date"), ("as_of_date", "as_of_date")):
+            if column in latest_panel.columns:
+                values = pd.to_datetime(latest_panel[column], errors="coerce").dropna()
+                if not values.empty:
+                    if target == "effective_date":
+                        effective_date = values.max().date().isoformat()
+                    else:
+                        as_of_date = values.max().date().isoformat()
+    payload.update(
+        {
+            "status": status,
+            "model_status": str(manifest_details.get("model_status", "research_only")),
+            "production_eligible": False,
+            "missing": bool(empty or missing_artifacts),
+            "stale": stale,
+            "latest_date": latest_date.date().isoformat() if latest_date is not None else "",
+            "updated_at": datetime.fromtimestamp(max(updated_times)).isoformat(
+                timespec="seconds"
+            )
+            if updated_times
+            else "",
+            "asia_approved": asia_approved,
+            "artifact_states": artifact_states,
+            "region_status": region_status,
+            "region_details": region_details,
+            "warnings": list(dict.fromkeys(warnings)),
+            "rows": _factor_recommendation_frame_rows(latest_panel),
+            "history": _factor_recommendation_frame_rows(history),
+            "signal_rows": _factor_recommendation_frame_rows(signal),
+            "manifest": manifest or {},
+            "evidence": manifest_details.get("evidence", []),
+            "backtest": manifest_details.get("backtest", []),
+            "baselines": manifest_details.get("baselines", []),
+            "gates": manifest_details.get("gates", []),
+            "benchmark_definition": manifest_details.get("benchmark_definition", {}),
+            "asia_definition": manifest_details.get("benchmark_definition", {}).get("asia", {})
+            if isinstance(manifest_details.get("benchmark_definition", {}), dict)
+            else {},
+            "summary_path": _rel(FACTOR_RECOMMENDATION_SUMMARY_PATH),
+            "validation_path": _rel(FACTOR_RECOMMENDATION_VALIDATION_PATH),
+            "output_manifest_path": _rel(FACTOR_RECOMMENDATION_OUTPUT_MANIFEST_PATH),
+            "effective_date": effective_date,
+            "as_of_date": as_of_date,
+            "data_fingerprint": manifest_details.get("data_fingerprint", {}),
+            "message": f"{len(panel)} panel rows / {len(history)} history rows",
+        }
+    )
+    return payload
+
+
 def _deferred_signal_payloads() -> dict[str, dict[str, Any]]:
     return {
         "regime": {"status": "deferred", "endpoint": "/api/dashboard/signals/regime"},
@@ -4912,6 +5364,7 @@ def _deferred_signal_payloads() -> dict[str, dict[str, Any]]:
             "endpoint": "/api/dashboard/signals/small-cap",
         },
         "sector": {"status": "deferred", "endpoint": "/api/dashboard/signals/sector"},
+        "factor_recommendation": _factor_recommendation_empty_payload(),
         "technical": {
             "status": "deferred",
             "endpoint": "/api/dashboard/signals/technical",
@@ -4946,6 +5399,7 @@ def _dashboard_state_payload(
             "country": _country_signal_payload(),
             "small_cap": _small_cap_signal_payload(),
             "sector": _sector_signal_payload(),
+            "factor_recommendation": _factor_recommendation_payload(),
             "technical": _technical_signal_payload(),
             "score_ml_components": _score_ml_components_payload(),
         }
@@ -5007,6 +5461,7 @@ def _command_options() -> list[dict[str, str]]:
         {"label": "总 pipeline", "value": "run_all"},
         {"label": "数据刷新", "value": "refresh_data"},
         {"label": "ML 刷新", "value": "refresh_ml"},
+        {"label": "因子推荐研究刷新", "value": "refresh_factor_recommendation"},
         {"label": "信号导出", "value": "export_signals"},
         {"label": "候选池", "value": "build_candidates"},
         {"label": "组合优化", "value": "optimize_portfolio"},
@@ -5101,6 +5556,13 @@ def _build_pipeline_command(
 
     if step == "refresh_ml":
         if inspect_refresh:
+            command.append("--inspect-only")
+        return command
+
+    if step == "refresh_factor_recommendation":
+        command = _build_factor_recommendation_signal_command()
+        _add_option(command, "--as-of", as_of)
+        if inspect_refresh and "--inspect-only" not in command:
             command.append("--inspect-only")
         return command
 
@@ -5203,6 +5665,15 @@ def _build_small_cap_signal_command() -> list[str]:
         "--signal-output",
         str(SMALL_CAP_SIGNAL_PATH),
     ]
+
+
+def _build_factor_recommendation_signal_command() -> list[str]:
+    """Use the registry command so the dashboard cannot invent a runner."""
+
+    return _build_project_command(
+        "16_factor_recommendation_model",
+        "registered_command",
+    )
 
 
 def _launch(command: list[str], step: str) -> dict[str, Any]:
@@ -6348,6 +6819,7 @@ def _dashboard_domain_service() -> DashboardDomainService:
         small_cap_provider=_small_cap_signal_payload,
         sector_provider=_sector_signal_payload,
         technical_provider=_technical_signal_payload,
+        factor_recommendation_provider=_factor_recommendation_payload,
         score_ml_provider=_score_ml_components_payload,
         company_provider=_company_detail_payload,
         job_provider=_job_payload,
@@ -6359,6 +6831,7 @@ def _dashboard_domain_service() -> DashboardDomainService:
         regime_command=_build_regime_signal_command,
         country_command=_build_country_signal_command,
         small_cap_command=_build_small_cap_signal_command,
+        factor_recommendation_command=_build_factor_recommendation_signal_command,
         project_command=_build_project_command,
         pipeline_command=_command_from_callback,
     )

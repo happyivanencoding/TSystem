@@ -1,6 +1,23 @@
 # Monthly Factor Recommendation Model
 
-本目录只记录 `monthly-factor-recommendation-v1` 的研究入口和证据边界。核心实现位于 `src/tp_models/factor_recommendation`，研究 workflow 不复制或修改核心包，也不写入 pipeline、presentation 或 frontend。
+> 版本状态：v1 已因研究单位、模型区分、官方 sleeve、时序和统计标签问题被拒绝；保留旧 Run Card 仅作审计，不得用于 v2 选模或晋升。拒绝记录见 `config/research/model_candidates/monthly-factor-recommendation-v1-rejected.json`。当前实现入口为 `monthly-factor-recommendation-v2`。
+
+本目录记录 `monthly-factor-recommendation-v2` 的研究入口和证据边界。核心实现位于 `src/tp_models/factor_recommendation`，研究 workflow 不复制或修改 canonical 数据，也不进入 production config。
+
+v2 的研究单位是 `Date × Region × RegionComponent × Factor × SleeveSide`；主目标是 `next_month_top_sleeve_net_active_return`。Top/Worst sleeve 必须经 `tp_core.backtesting.OfficialPortfolioBacktest`，缺失月份使用 `drift`，执行严格晚于再平衡日且权重在收盘后生效。`factor_exposure_snapshot` 是暴露快照，不是预测；无冻结 v2 champion 时 forecast 只输出 `model_unavailable / NO_VIEW`。
+
+## 因子定义
+
+| 因子 | 定义 |
+|---|---|
+| Value | Higher percentile indicates cheaper valuation relative to the canonical cross-section. |
+| Quality | Higher percentile indicates stronger canonical profitability, balance-sheet and earnings-quality characteristics. |
+| Growth | Higher percentile indicates stronger canonical fundamental growth characteristics. |
+| Momentum | Higher percentile indicates stronger canonical price-momentum characteristics. |
+| Low Volatility | Higher percentile indicates lower realized or canonical volatility characteristics. |
+| Large Size | Higher percentile indicates larger market-cap exposure; it is not a small-cap signal. |
+| Small Size | Explicit inverse of Size: `100 - Size percentile`; same size family, mutually exclusive. |
+| Dividend | Higher percentile indicates stronger canonical dividend characteristics. |
 
 ## Core calling boundary
 

@@ -45,7 +45,7 @@ function factorRegion(item, fallback = '') {
 }
 
 function factorLatestItems(signal) {
-  const candidates = [signal.rows, signal.latest_rows, signal.latest, signal.current_rows]
+  const candidates = [signal.factor_rows, signal.rows, signal.latest_rows, signal.latest, signal.current_rows]
   for (const candidate of candidates) {
     const items = rowObjects(candidate)
     if (items.length) return items
@@ -67,6 +67,7 @@ export function normalizeFactorRecommendationRow(item = {}, fallbackRegion = '',
   return {
     ...source,
     region,
+    factor: firstValue(source.factor, source.factor_name, source.factor_label, latest.factor, ''),
     latest_date: firstValue(
       source.latest_date,
       source.latest_month,
@@ -118,6 +119,15 @@ export function normalizeFactorRecommendationRow(item = {}, fallbackRegion = '',
       latest.predictedReturn,
       latest.prediction,
     ),
+    predicted_active_return: firstValue(
+      source.predicted_active_return,
+      source.predicted_active,
+      latest.predicted_active_return,
+    ),
+    score_0_100: firstValue(source.score_0_100, source.score, latest.score_0_100, latest.score),
+    neutral_weight: firstValue(source.neutral_weight, source.neutral_weight_pct, latest.neutral_weight),
+    recommended_weight: firstValue(source.recommended_weight, source.recommended_weight_pct, latest.recommended_weight),
+    coverage: firstValue(source.coverage, source.factor_coverage, latest.coverage, latest.factor_coverage),
     confidence: firstValue(source.confidence, latest.confidence),
     drivers: listValue(firstValue(source.drivers, source.driver, latest.drivers, latest.driver)),
     warnings: listValue(firstValue(source.warnings, source.warning, latest.warnings, latest.warning)),
@@ -149,6 +159,8 @@ export function normalizeFactorRecommendationSignal(value = {}) {
     stale,
     regions: regions.length ? regions : FACTOR_RECOMMENDATION_REGIONS,
     rows: latestItems.map((item) => normalizeFactorRecommendationRow(item, '', fallbackDate)),
+    factorRows: rowObjects(source.factor_rows).map((item) => normalizeFactorRecommendationRow(item, '', fallbackDate)),
+    forecastRows: rowObjects(source.forecast_rows).map((item) => normalizeFactorRecommendationRow(item, '', fallbackDate)),
     history: historyItems.map((item) => normalizeFactorRecommendationRow(item, '', fallbackDate)),
     warnings: source.warnings !== undefined
       ? listValue(source.warnings)

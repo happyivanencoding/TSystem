@@ -28,6 +28,27 @@ from .models import (
 from .persistence import upsert_frame
 from .sleeve_engine import OfficialSleeveAdapter, OfficialSleeveResult, run_official_sleeve
 from .targets import build_factor_sleeve_targets, build_next_month_targets
+from .v2_research import (
+    FEATURE_COLUMNS,
+    MODEL_IDS,
+    allocate_top2,
+    block_bootstrap,
+    build_factor_panel,
+    candidate_prediction_metrics,
+    deflated_sharpe,
+    economic_metrics,
+    make_smoke_sleeve_returns,
+    promotion_gates,
+    walk_forward_predictions,
+)
+from .v2_sleeves import (
+    V2_COMPONENTS,
+    V2_FACTOR_DEFINITIONS,
+    SleeveRunSpec,
+    factor_definition_frame,
+    run_official_factor_sleeve,
+    run_official_factor_sleeve_database,
+)
 from .universe import (
     RegionUniverse,
     UniverseComponent,
@@ -69,4 +90,21 @@ __all__ = [
     "select_universe",
     "upsert_frame",
     "write_audit_artifacts",
+    "FEATURE_COLUMNS",
+    "MODEL_IDS",
+    "V2_COMPONENTS",
+    "V2_FACTOR_DEFINITIONS",
+    "SleeveRunSpec",
+    "allocate_top2",
+    "block_bootstrap",
+    "build_factor_panel",
+    "candidate_prediction_metrics",
+    "deflated_sharpe",
+    "economic_metrics",
+    "factor_definition_frame",
+    "make_smoke_sleeve_returns",
+    "promotion_gates",
+    "run_official_factor_sleeve",
+    "run_official_factor_sleeve_database",
+    "walk_forward_predictions",
 ]

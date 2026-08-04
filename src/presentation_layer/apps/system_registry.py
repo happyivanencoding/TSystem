@@ -291,17 +291,19 @@ PROJECT_REGISTRY: tuple[ProjectRegistryEntry, ...] = (
         root_path=TP_ROOT / "16_factor_recommendation_model",
         inputs=("screen_aggregate", "returns", "universe/factor/model config"),
         outputs=(
-            "factor_recommendation_panel",
-            "factor_recommendation_history",
-            "factor_recommendation_signals",
+            "factor_exposure_snapshot_panel",
+            "factor_exposure_snapshot_history",
+            "factor_exposure_snapshot_signals",
+            "factor_recommendation_forecast_signals",
             "refresh_factor_recommendation manifest",
         ),
         commands=("python -m tp_pipelines.refresh_factor_recommendation",),
         smoke_test="python -m tp_pipelines.refresh_factor_recommendation --inspect-only",
         data_assets=(
-            "factor_recommendation_panel",
-            "factor_recommendation_history",
-            "factor_recommendation_signals",
+            "factor_exposure_snapshot_panel",
+            "factor_exposure_snapshot_history",
+            "factor_exposure_snapshot_signals",
+            "factor_recommendation_forecast_signals",
             "factor_recommendation_manifest",
         ),
         # Research-only outputs are optional and must not fail the production
@@ -381,31 +383,39 @@ DATA_ASSET_REGISTRY: tuple[DataAssetEntry, ...] = (
     ),
     DataAssetEntry(
         "16_factor_recommendation_model",
-        "factor_recommendation_panel",
+        "factor_exposure_snapshot_panel",
         TP_ROOT
         / "16_factor_recommendation_model"
         / "outputs"
-        / "factor_recommendation_panel.parquet",
-        "factor recommendation panel parquet",
+        / "factor_exposure_snapshot_panel.parquet",
+        "factor exposure snapshot panel parquet",
         "Date",
         required=False,
     ),
     DataAssetEntry(
         "16_factor_recommendation_model",
-        "factor_recommendation_history",
+        "factor_exposure_snapshot_history",
         TP_ROOT
         / "16_factor_recommendation_model"
         / "outputs"
-        / "factor_recommendation_history.parquet",
-        "factor recommendation history parquet",
+        / "factor_exposure_snapshot_history.parquet",
+        "factor exposure snapshot history parquet",
         "Date",
         required=False,
     ),
     DataAssetEntry(
         "16_factor_recommendation_model",
-        "factor_recommendation_signals",
-        SIGNALS_DIR / "factor_recommendation_signals.parquet",
-        "research signal parquet",
+        "factor_exposure_snapshot_signals",
+        SIGNALS_DIR / "factor_exposure_snapshot_signals.parquet",
+        "exposure snapshot research signal parquet",
+        "Date",
+        required=False,
+    ),
+    DataAssetEntry(
+        "16_factor_recommendation_model",
+        "factor_recommendation_forecast_signals",
+        SIGNALS_DIR / "factor_recommendation_forecast_signals.parquet",
+        "forecast signal parquet; NO_VIEW when no champion",
         "Date",
         required=False,
     ),

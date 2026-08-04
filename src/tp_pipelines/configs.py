@@ -595,7 +595,7 @@ class PipelineRunConfig:
             signal_output=str(
                 get(
                     "factor_recommendation_signal_output",
-                    SIGNALS_DIR / "factor_recommendation_signals.parquet",
+                    SIGNALS_DIR / "factor_exposure_snapshot_signals.parquet",
                 )
             ),
             all_history=bool(get("factor_recommendation_all_history", False)),

@@ -1,4 +1,6 @@
-# 月度因子推荐模型 v1 交付报告
+# 月度因子推荐模型 v1 交付报告（已拒绝，仅审计留档）
+
+> v1 不再是可选模型。它的 Run Card `20260804T141711Z-e7a212e5` 保持不变，但因 security-level research unit、模型候选别名、未执行 promotion thresholds、错误的 iid bootstrap 标签、研究时序与 dirty commit 问题被拒绝。拒绝记录：`config/research/model_candidates/monthly-factor-recommendation-v1-rejected.json`。v2 不继承本报告中的任何 Sharpe 或推荐结论。
 
 ## 结论
 

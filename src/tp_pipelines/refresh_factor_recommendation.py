@@ -35,6 +35,7 @@ from tp_models.factor_recommendation.universe import (
     load_region_universes,
     select_universe,
 )
+from tp_models.factor_recommendation.v2_sleeves import V2_FACTOR_DEFINITIONS
 
 from .common import StepManifest, path_profile
 from .configs import RefreshFactorRecommendationConfig
@@ -51,6 +52,13 @@ DEFAULT_SUMMARY_OUTPUT = DEFAULT_OUTPUT_DIR / "factor_recommendation_summary.jso
 DEFAULT_VALIDATION_OUTPUT = DEFAULT_OUTPUT_DIR / "factor_recommendation_validation.json"
 DEFAULT_PROJECT_MANIFEST_OUTPUT = DEFAULT_OUTPUT_DIR / "factor_recommendation_manifest.json"
 DEFAULT_SIGNAL_OUTPUT = SIGNALS_DIR / "factor_recommendation_signals.parquet"
+DEFAULT_SNAPSHOT_PANEL_OUTPUT = DEFAULT_OUTPUT_DIR / "factor_exposure_snapshot_panel.parquet"
+DEFAULT_SNAPSHOT_HISTORY_OUTPUT = DEFAULT_OUTPUT_DIR / "factor_exposure_snapshot_history.parquet"
+DEFAULT_SNAPSHOT_SUMMARY_OUTPUT = DEFAULT_OUTPUT_DIR / "factor_exposure_snapshot_summary.json"
+DEFAULT_SNAPSHOT_VALIDATION_OUTPUT = DEFAULT_OUTPUT_DIR / "factor_exposure_snapshot_validation.json"
+DEFAULT_SNAPSHOT_MANIFEST_OUTPUT = DEFAULT_OUTPUT_DIR / "factor_exposure_snapshot_manifest.json"
+DEFAULT_SNAPSHOT_SIGNAL_OUTPUT = SIGNALS_DIR / "factor_exposure_snapshot_signals.parquet"
+DEFAULT_FORECAST_SIGNAL_OUTPUT = SIGNALS_DIR / "factor_recommendation_forecast_signals.parquet"
 FROZEN_MODEL_DIR = TP_ROOT / "artifacts" / "reports" / "factor_model_archive"
 
 OUTPUT_REGIONS = ("US", "EU", "ASIA", "JAPAN", "GLOBAL")
@@ -68,6 +76,23 @@ def _read_json(path: Path) -> dict[str, Any]:
         return {}
     payload = json.loads(path.read_text(encoding="utf-8"))
     return payload if isinstance(payload, dict) else {}
+
+
+def _v2_snapshot_factor_definitions() -> tuple[FactorDefinition, ...]:
+    """Use the frozen v2 factor contract for the isolated exposure snapshot."""
+
+    return tuple(
+        FactorDefinition(
+            name=str(item["name"]),
+            label=str(item["label"]),
+            source_columns=tuple(str(value) for value in item["source_columns"]),
+            direction=int(item["direction"]),
+            score_scale=100.0,
+            transform="reverse_score" if int(item["direction"]) < 0 else "identity",
+            description=str(item["definition"]),
+        )
+        for item in V2_FACTOR_DEFINITIONS
+    )
 
 
 def _json_default(value: Any) -> Any:
@@ -590,6 +615,65 @@ def _build_signal(panel: pd.DataFrame, minimum_coverage: float) -> pd.DataFrame:
     return signal
 
 
+def _build_exposure_snapshot_signal(panel: pd.DataFrame, minimum_coverage: float) -> pd.DataFrame:
+    """Build an exposure-only signal; it deliberately has no forecast fields."""
+
+    signal = _build_signal(panel, minimum_coverage).drop(
+        columns=["prob_outperform", "prediction_semantics"], errors="ignore"
+    )
+    if signal.empty:
+        signal["mode"] = pd.Series(dtype="string")
+        signal["forecast_available"] = pd.Series(dtype=bool)
+        return signal
+    signal["mode"] = "exposure_snapshot"
+    signal["forecast_available"] = False
+    signal["not_a_forecast"] = True
+    signal["research_v1_invalidated"] = True
+    signal["signal_description"] = "Exposure snapshot / Not a forecast / Research v1 invalidated"
+    return signal
+
+
+def _build_forecast_unavailable_signal(panel: pd.DataFrame) -> pd.DataFrame:
+    """Persist an explicit NO_VIEW forecast contract when no v2 champion exists."""
+
+    if panel.empty:
+        return pd.DataFrame(
+            columns=[
+                "Date", "feature_as_of_date", "effective_date", "region", "factor", "rank",
+                "score_0_100", "predicted_active_return", "calibrated_probability", "confidence",
+                "stance", "neutral_weight", "recommended_weight", "overlay_weight", "positive_drivers",
+                "negative_drivers", "coverage", "warnings", "model_version", "model_status", "run_id", "fingerprint",
+            ]
+        )
+    rows = panel.copy()
+    rows["feature_as_of_date"] = rows.get("as_of_date", rows.get("Date"))
+    rows["rank"] = rows.groupby(["Date", "region"], sort=False)["score_0_100"].rank(ascending=False, method="first")
+    rows["predicted_active_return"] = np.nan
+    rows["calibrated_probability"] = np.nan
+    rows["confidence"] = np.nan
+    rows["stance"] = "NO_VIEW"
+    rows["neutral_weight"] = np.nan
+    rows["recommended_weight"] = np.nan
+    rows["overlay_weight"] = np.nan
+    rows["positive_drivers"] = ""
+    rows["negative_drivers"] = ""
+    rows["warnings"] = "model_unavailable; no frozen v2 champion"
+    rows["model_version"] = "monthly-factor-recommendation-v2"
+    rows["model_status"] = "model_unavailable"
+    rows["run_id"] = ""
+    rows["fingerprint"] = rows.apply(
+        lambda row: hashlib.sha256(f"{row.get('Date')}|{row.get('region')}|{row.get('factor')}|model_unavailable".encode()).hexdigest(),
+        axis=1,
+    )
+    columns = [
+        "Date", "feature_as_of_date", "effective_date", "region", "factor", "rank", "score_0_100",
+        "predicted_active_return", "calibrated_probability", "confidence", "stance", "neutral_weight",
+        "recommended_weight", "overlay_weight", "positive_drivers", "negative_drivers", "coverage",
+        "warnings", "model_version", "model_status", "run_id", "fingerprint",
+    ]
+    return rows.reindex(columns=columns)
+
+
 def _inspect_frame(path: Path) -> tuple[bool, str, int]:
     if not path.exists():
         return False, "missing", 0
@@ -643,11 +727,24 @@ def run_refresh_factor_recommendation(args: RefreshFactorRecommendationConfig) -
     model_config = Path(getattr(args, "model_config", DEFAULT_MODEL_CONFIG))
     output_dir = Path(getattr(args, "output_dir", DEFAULT_OUTPUT_DIR))
     signal_output = Path(getattr(args, "signal_output", DEFAULT_SIGNAL_OUTPUT))
-    panel_output = output_dir / DEFAULT_PANEL_OUTPUT.name
-    history_output = output_dir / DEFAULT_HISTORY_OUTPUT.name
-    summary_output = output_dir / DEFAULT_SUMMARY_OUTPUT.name
-    validation_output = output_dir / DEFAULT_VALIDATION_OUTPUT.name
-    project_manifest_output = output_dir / DEFAULT_PROJECT_MANIFEST_OUTPUT.name
+    v2_snapshot = (
+        output_dir.resolve() == DEFAULT_OUTPUT_DIR.resolve()
+        and signal_output.resolve() == DEFAULT_SNAPSHOT_SIGNAL_OUTPUT.resolve()
+    )
+    if v2_snapshot:
+        panel_output = DEFAULT_SNAPSHOT_PANEL_OUTPUT
+        history_output = DEFAULT_SNAPSHOT_HISTORY_OUTPUT
+        summary_output = DEFAULT_SNAPSHOT_SUMMARY_OUTPUT
+        validation_output = DEFAULT_SNAPSHOT_VALIDATION_OUTPUT
+        project_manifest_output = DEFAULT_SNAPSHOT_MANIFEST_OUTPUT
+        forecast_output = DEFAULT_FORECAST_SIGNAL_OUTPUT
+    else:
+        panel_output = output_dir / DEFAULT_PANEL_OUTPUT.name
+        history_output = output_dir / DEFAULT_HISTORY_OUTPUT.name
+        summary_output = output_dir / DEFAULT_SUMMARY_OUTPUT.name
+        validation_output = output_dir / DEFAULT_VALIDATION_OUTPUT.name
+        project_manifest_output = output_dir / DEFAULT_PROJECT_MANIFEST_OUTPUT.name
+        forecast_output = None
 
     manifest.inputs = {
         "screen": path_profile(screen_path, parquet=True),
@@ -665,6 +762,8 @@ def run_refresh_factor_recommendation(args: RefreshFactorRecommendationConfig) -
         "project_manifest": path_profile(project_manifest_output),
         "signal": path_profile(signal_output, parquet=True),
     }
+    if forecast_output is not None:
+        manifest.outputs["forecast"] = path_profile(forecast_output, parquet=True)
 
     try:
         if getattr(args, "inspect_only", False):
@@ -676,6 +775,7 @@ def run_refresh_factor_recommendation(args: RefreshFactorRecommendationConfig) -
                 ("validation", validation_output),
                 ("manifest", project_manifest_output),
                 ("signal", signal_output),
+                *([("forecast", forecast_output)] if forecast_output is not None else []),
             ):
                 if path.suffix == ".parquet":
                     exists, state, rows = _inspect_frame(path)
@@ -710,7 +810,7 @@ def run_refresh_factor_recommendation(args: RefreshFactorRecommendationConfig) -
         regions: dict[str, RegionUniverse] | None = None
         if versioned:
             regions = load_region_universes(universe_config)
-            definitions = tuple(load_factor_definitions(factor_config))
+            definitions = _v2_snapshot_factor_definitions() if v2_snapshot else tuple(load_factor_definitions(factor_config))
             screen = _load_versioned_screen(screen_path, definitions, regions)
             full_panel, build_details = _build_versioned_panel(
                 screen,
@@ -747,17 +847,41 @@ def run_refresh_factor_recommendation(args: RefreshFactorRecommendationConfig) -
             if bool(getattr(args, "all_history", False))
             else full_panel.loc[pd.to_datetime(full_panel["Date"]).eq(latest_date)].copy()
         )
-        signal = _build_signal(history, float(getattr(args, "minimum_coverage", 0.5)))
+        if v2_snapshot:
+            # Exposure snapshots are not forecasts. Keep the forecast contract
+            # in a separate file and make the missing champion explicit.
+            panel = panel.drop(
+                columns=["prob_outperform", "prediction_semantics"], errors="ignore"
+            ).copy()
+            history = history.drop(
+                columns=["prob_outperform", "prediction_semantics"], errors="ignore"
+            ).copy()
+            for frame in (panel, history):
+                frame["mode"] = "exposure_snapshot"
+                frame["not_a_forecast"] = True
+                frame["research_v1_invalidated"] = True
+                frame["model_status"] = "exposure_snapshot"
+            signal = _build_exposure_snapshot_signal(
+                history, float(getattr(args, "minimum_coverage", 0.5))
+            )
+        else:
+            signal = _build_signal(history, float(getattr(args, "minimum_coverage", 0.5)))
         output_dir.mkdir(parents=True, exist_ok=True)
         _write_parquet(panel, panel_output)
         _write_parquet(history, history_output)
         signal_output.parent.mkdir(parents=True, exist_ok=True)
         write_signal_frame(signal, signal_output, strict=True)
+        if forecast_output is not None:
+            forecast = _build_forecast_unavailable_signal(history)
+            forecast_output.parent.mkdir(parents=True, exist_ok=True)
+            forecast.to_parquet(forecast_output, index=False)
 
         validation = validate_signal_frame(pd.read_parquet(signal_output), strict=True)
         coverage = pd.to_numeric(history.get("coverage"), errors="coerce").dropna()
         summary = {
-            "schema_version": "factor_recommendation.pipeline_outputs.v1",
+            "schema_version": "factor_exposure_snapshot.pipeline_outputs.v2"
+            if v2_snapshot
+            else "factor_recommendation.pipeline_outputs.v1",
             "project": "16_factor_recommendation_model",
             "latest_date": latest_date.date().isoformat(),
             "history_date_min": pd.to_datetime(history["Date"]).min().date().isoformat(),
@@ -771,6 +895,9 @@ def run_refresh_factor_recommendation(args: RefreshFactorRecommendationConfig) -
             "minimum_observed_coverage": float(coverage.min()) if not coverage.empty else None,
             "research_only": True,
             "production_eligible": False,
+            "mode": "exposure_snapshot" if v2_snapshot else "legacy_research",
+            "not_a_forecast": bool(v2_snapshot),
+            "research_v1_invalidated": bool(v2_snapshot),
             "asia_approved": False,
             "benchmark_definition": _benchmark_definition(regions),
             "data_fingerprint": {
@@ -814,6 +941,11 @@ def run_refresh_factor_recommendation(args: RefreshFactorRecommendationConfig) -
                 "forward_shadow": "pending",
             },
         }
+        if forecast_output is not None:
+            project_manifest["outputs"]["forecast"] = str(forecast_output)
+            project_manifest["forecast_status"] = "model_unavailable_no_view"
+            project_manifest["mode"] = "exposure_snapshot"
+            project_manifest["research_v1_invalidated"] = True
         _write_json(project_manifest_output, project_manifest)
         manifest.outputs = {
             "panel": path_profile(panel_output, parquet=True),
@@ -823,12 +955,17 @@ def run_refresh_factor_recommendation(args: RefreshFactorRecommendationConfig) -
             "project_manifest": path_profile(project_manifest_output),
             "signal": path_profile(signal_output, parquet=True),
         }
+        if forecast_output is not None:
+            manifest.outputs["forecast"] = path_profile(forecast_output, parquet=True)
         manifest.details.update(
             {
                 "research_only": True,
                 "production_effects": parameters["production_effects"],
                 "asia_approved": False,
                 "model_status": "research_only",
+                "mode": "exposure_snapshot" if v2_snapshot else "legacy_research",
+                "not_a_forecast": bool(v2_snapshot),
+                "research_v1_invalidated": bool(v2_snapshot),
                 "build": build_details,
                 "latest_date": summary["latest_date"],
                 "rows": int(len(panel)),
@@ -898,7 +1035,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--factor-config", default=str(DEFAULT_FACTOR_CONFIG))
     parser.add_argument("--model-config", default=str(DEFAULT_MODEL_CONFIG))
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
-    parser.add_argument("--signal-output", default=str(DEFAULT_SIGNAL_OUTPUT))
+    parser.add_argument("--signal-output", default=str(DEFAULT_SNAPSHOT_SIGNAL_OUTPUT))
     parser.add_argument("--all-history", action="store_true", help="写出所有可用日期；默认只写最新日期")
     parser.add_argument("--use-frozen-model", action="store_true", help="使用登记的 frozen factor model 版本")
     parser.add_argument("--minimum-coverage", type=float, default=0.8)
@@ -926,6 +1063,10 @@ __all__ = [
     "DEFAULT_OUTPUT_DIR",
     "DEFAULT_PANEL_OUTPUT",
     "DEFAULT_SIGNAL_OUTPUT",
+    "DEFAULT_SNAPSHOT_PANEL_OUTPUT",
+    "DEFAULT_SNAPSHOT_HISTORY_OUTPUT",
+    "DEFAULT_SNAPSHOT_SIGNAL_OUTPUT",
+    "DEFAULT_FORECAST_SIGNAL_OUTPUT",
     "DEFAULT_UNIVERSE_CONFIG",
     "RefreshFactorRecommendationConfig",
     "build_parser",

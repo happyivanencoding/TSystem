@@ -12,6 +12,7 @@ function isRecord(value) {
 }
 
 function displayValue(value) {
+  if (value === undefined || value === null || value === '') return '—'
   if (Array.isArray(value)) return value.map((item) => displayValue(item)).join(' / ')
   if (isRecord(value)) {
     const shortValue = value.label ?? value.name ?? value.title ?? value.text ?? value.value ?? value.status
@@ -63,7 +64,7 @@ function FactorTable({ columns, rows, empty = '暂无数据' }) {
           {safeRows.map((row, rowIndex) => {
             const safeRowValue = safeRow(row)
             return (
-              <tr key={`${safeRowValue.region || 'row'}-${safeRowValue.latest_date || safeRowValue.月份 || rowIndex}`}>
+              <tr key={`${safeRowValue.region || 'row'}-${safeRowValue.factor || safeRowValue.latest_date || safeRowValue.月份 || rowIndex}-${rowIndex}`}>
                 {columns.map((column) => (
                   <td key={column} title={displayValue(safeRowValue[column])}>{displayValue(safeRowValue[column])}</td>
                 ))}
@@ -147,6 +148,7 @@ export function FactorRecommendationPanel({
   const rows = Array.isArray(factorRecommendationRows) ? factorRecommendationRows : []
   const historyRows = Array.isArray(factorRecommendationHistoryRows) ? factorRecommendationHistoryRows : []
   const status = sourceSignal.status || EMPTY_FACTOR_RECOMMENDATION.status
+  const snapshotMode = sourceSignal.mode === 'exposure_snapshot'
   const researchOnly = sourceSignal.research_only ?? status === 'research_only'
   const missing = sourceSignal.missing ?? rows.length === 0
   const stale = sourceSignal.stale ?? status === 'stale'
@@ -182,6 +184,18 @@ export function FactorRecommendationPanel({
     [activeRegion, rows],
   )
   const activeRow = safeRow(activeRows[0])
+  const factorTableRows = activeRows.map((item) => {
+    const row = safeRow(item)
+    return {
+      ...row,
+      factor: row.factor || row.factor_label,
+      predicted_active_return: snapshotMode ? 'N/A (not a forecast)' : row.predicted_active_return,
+      score_0_100: row.score_0_100 ?? row.score,
+      neutral_weight: row.neutral_weight ?? row.neutral,
+      recommended_weight: row.recommended_weight ?? row.recommended,
+      warning: Array.isArray(row.warnings) ? row.warnings.join(' / ') : row.warnings,
+    }
+  })
   const activeHistoryRows = historyRows.filter(
     (item) => !safeRow(item).region || regionCode(safeRow(item).region) === regionCode(activeRegion),
   )
@@ -227,6 +241,11 @@ export function FactorRecommendationPanel({
           <ShieldCheck size={14} /> 当前结果仅供 research_only 研究审阅，未进入生产推荐。
         </div>
       )}
+      {snapshotMode && (
+        <div className="tp-panel-note">
+          Exposure snapshot / Not a forecast / Research v1 invalidated
+        </div>
+      )}
       <div className="tp-panel-note">{signal.message ? displayValue(signal.message) : 'Factor Recommendation / 月度因子推荐'}</div>
 
       <div aria-label="Factor recommendation regions" className="tp-segmented-control">
@@ -254,12 +273,11 @@ export function FactorRecommendationPanel({
         <div className="tp-country-status-row">
           <Metric label="Latest rank" value={activeRow.rank} />
           <Metric label="Score" value={activeRow.score} />
-          <Metric label="Stance" value={activeRow.stance} />
           <Metric
             label="Recommended vs neutral"
             value={`${displayValue(activeRow.recommended_return)} / ${displayValue(activeRow.neutral_return)}`}
           />
-          <Metric label="Predicted return" value={activeRow.predicted_return} />
+          {snapshotMode ? <Metric label="Mode" value="Exposure snapshot" /> : <Metric label="Predicted return" value={activeRow.predicted_return} />}
           <Metric label="Confidence" value={activeRow.confidence} />
         </div>
         {!activeRows.length && (
@@ -267,6 +285,11 @@ export function FactorRecommendationPanel({
             {signal.status === 'research_only' ? '暂无可展示的研究结果，等待该区域的月度因子证据。' : '暂无该区域的月度因子推荐。'}
           </div>
         )}
+        <FactorTable
+          columns={['factor', 'rank', 'predicted_active_return', 'score_0_100', 'stance', 'neutral_weight', 'recommended_weight', 'confidence', 'coverage', 'warning']}
+          empty="暂无该区域的因子排名"
+          rows={factorTableRows}
+        />
         <div className="tp-country-dashboard">
           <div className="tp-country-column">
             <div className="tp-model-section-head">
@@ -298,7 +321,7 @@ export function FactorRecommendationPanel({
           <span>{activeHistoryRows.length} rows</span>
         </div>
         <FactorTable
-          columns={['region', 'latest_date', 'rank', 'score', 'stance', 'predicted_return', 'confidence']}
+          columns={['region', 'factor', 'latest_date', 'rank', 'score_0_100', 'stance', 'predicted_active_return', 'confidence', 'coverage']}
           empty="暂无 history"
           rows={activeHistoryRows}
         />

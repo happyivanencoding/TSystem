@@ -416,7 +416,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--factor-recommendation-signal-output",
-        default=str(SIGNALS_DIR / "factor_recommendation_signals.parquet"),
+        default=str(SIGNALS_DIR / "factor_exposure_snapshot_signals.parquet"),
     )
     parser.add_argument("--factor-recommendation-all-history", action="store_true")
     parser.add_argument("--factor-recommendation-use-frozen-model", action="store_true")

@@ -44,6 +44,8 @@ export const EMPTY_JOB = {
   error: '',
 }
 
+// Keep the empty/legacy contract stable; actual v2 rows add JAPAN, GLOBAL and
+// ASIA_EX_JAPAN to the configured region list when those rows exist.
 export const FACTOR_RECOMMENDATION_REGIONS = ['US', 'EU', 'ASIA']
 
 export const EMPTY_FACTOR_RECOMMENDATION = {
@@ -51,6 +53,15 @@ export const EMPTY_FACTOR_RECOMMENDATION = {
   research_only: true,
   missing: true,
   stale: true,
+  mode: 'exposure_snapshot',
+  not_a_forecast: true,
+  research_v1_invalidated: true,
+  forecast_status: 'model_unavailable',
+  forecast_rows: [],
+  factor_rows: [],
+  factor_row_count: 0,
+  factor_rows_truncated: false,
+  row_schema: 'factor_exposure_snapshot.v2',
   latest_date: '',
   updated_at: '',
   regions: FACTOR_RECOMMENDATION_REGIONS,

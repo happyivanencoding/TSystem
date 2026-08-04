@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "candidate_id": "monthly-factor-recommendation-v1",
+  "version": "v1",
+  "decision": "reject",
+  "status": "invalid_for_model_selection",
+  "production_eligible": false,
+  "rejection_date": "2026-08-04",
+  "reason_codes": [
+    "research_unit_is_security_not_factor_sleeve",
+    "declared_models_not_distinct",
+    "official_sleeves_not_used",
+    "promotion_thresholds_not_executed",
+    "iid_bootstrap_mislabeled_as_block",
+    "research_pipeline_timing_mismatch",
+    "run_dirty_and_commit_mismatch"
+  ],
+  "reason": "The v1 evidence evaluated a security-level proxy and aliased model candidates. It is retained for audit history but cannot be used for v2 model selection or promotion.",
+  "preserved_run_card": "20260804T141711Z-e7a212e5",
+  "required_v2_boundary": {
+    "research_unit": "Date x Region x RegionComponent x Factor x SleeveSide",
+    "target": "next_month_top_sleeve_net_active_return",
+    "engine": "tp_core.backtesting.OfficialPortfolioBacktest",
+    "execution": "strictly_after_rebalance; weights_at_close",
+    "fill_method": "drift"
+  }
+}

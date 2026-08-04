@@ -93,27 +93,28 @@ SMALL_CAP_SUMMARY_PATH = SMALL_CAP_MODEL_DIR / "outputs" / "eu_small_model_summa
 FACTOR_RECOMMENDATION_PROJECT_ROOT = TP_ROOT / "16_factor_recommendation_model"
 FACTOR_RECOMMENDATION_OUTPUT_DIR = FACTOR_RECOMMENDATION_PROJECT_ROOT / "outputs"
 FACTOR_RECOMMENDATION_PANEL_PATH = (
-    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_recommendation_panel.parquet"
+    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_exposure_snapshot_panel.parquet"
 )
 FACTOR_RECOMMENDATION_HISTORY_PATH = (
-    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_recommendation_history.parquet"
+    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_exposure_snapshot_history.parquet"
 )
 FACTOR_RECOMMENDATION_SUMMARY_PATH = (
-    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_recommendation_summary.json"
+    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_exposure_snapshot_summary.json"
 )
 FACTOR_RECOMMENDATION_VALIDATION_PATH = (
-    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_recommendation_validation.json"
+    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_exposure_snapshot_validation.json"
 )
 FACTOR_RECOMMENDATION_OUTPUT_MANIFEST_PATH = (
-    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_recommendation_manifest.json"
+    FACTOR_RECOMMENDATION_OUTPUT_DIR / "factor_exposure_snapshot_manifest.json"
 )
 FACTOR_RECOMMENDATION_MANIFEST_PATH = (
     PIPELINE_MANIFESTS_DIR
     / "refresh_factor_recommendation"
     / "refresh_factor_recommendation_latest.json"
 )
-FACTOR_RECOMMENDATION_SIGNAL_PATH = SIGNALS_DIR / "factor_recommendation_signals.parquet"
-FACTOR_RECOMMENDATION_REGIONS = ("US", "EU", "ASIA")
+FACTOR_RECOMMENDATION_SIGNAL_PATH = SIGNALS_DIR / "factor_exposure_snapshot_signals.parquet"
+FACTOR_RECOMMENDATION_FORECAST_SIGNAL_PATH = SIGNALS_DIR / "factor_recommendation_forecast_signals.parquet"
+FACTOR_RECOMMENDATION_REGIONS = ("US", "EU", "JAPAN", "GLOBAL", "ASIA_EX_JAPAN")
 FACTOR_RECOMMENDATION_STALE_DAYS = 62
 COUNTRY_DATABASE_PATH = TP_ROOT / "14_country_model" / "data" / "country_model_database.parquet"
 COUNTRY_SINGLE_COUNTRY_SCORE_PATH = (
@@ -4939,6 +4940,7 @@ def _factor_recommendation_empty_payload() -> dict[str, Any]:
         "summary": _rel(FACTOR_RECOMMENDATION_SUMMARY_PATH),
         "validation": _rel(FACTOR_RECOMMENDATION_VALIDATION_PATH),
         "output_manifest": _rel(FACTOR_RECOMMENDATION_OUTPUT_MANIFEST_PATH),
+        "forecast": _rel(FACTOR_RECOMMENDATION_FORECAST_SIGNAL_PATH),
     }
     return {
         "name": "factor_recommendation",
@@ -4947,6 +4949,11 @@ def _factor_recommendation_empty_payload() -> dict[str, Any]:
         "research_only": True,
         "production_eligible": False,
         "model_status": "research_only",
+        "mode": "exposure_snapshot",
+        "not_a_forecast": True,
+        "research_v1_invalidated": True,
+        "forecast_status": "model_unavailable",
+        "forecast_signal_path": _rel(FACTOR_RECOMMENDATION_FORECAST_SIGNAL_PATH),
         "affects_security_candidates": False,
         "affects_optimizer": False,
         "missing": True,
@@ -4964,11 +4971,20 @@ def _factor_recommendation_empty_payload() -> dict[str, Any]:
             "summary": "missing",
             "validation": "missing",
             "output_manifest": "missing",
+            "forecast": "missing",
         },
-        "region_status": {"US": "missing", "EU": "missing", "ASIA": "unapproved"},
+        "region_status": {region: ("unapproved" if region == "ASIA_EX_JAPAN" else "missing") for region in FACTOR_RECOMMENDATION_REGIONS},
         "region_details": {
             "US": {"status": "missing", "production_eligible": True, "benchmark_approved": True},
             "EU": {"status": "missing", "production_eligible": True, "benchmark_approved": True},
+            "JAPAN": {"status": "missing", "production_eligible": False, "benchmark_approved": True},
+            "GLOBAL": {"status": "missing", "production_eligible": False, "benchmark_approved": True},
+            "ASIA_EX_JAPAN": {
+                "status": "unapproved",
+                "production_eligible": False,
+                "benchmark_approved": False,
+                "approval_status": "research_only_benchmark_unapproved",
+            },
             "ASIA": {
                 "status": "unapproved",
                 "production_eligible": False,
@@ -4991,6 +5007,10 @@ def _factor_recommendation_empty_payload() -> dict[str, Any]:
         "effective_date": "",
         "data_fingerprint": {},
         "rows": [],
+        "factor_rows": [],
+        "factor_row_count": 0,
+        "factor_rows_truncated": False,
+        "row_schema": "factor_exposure_snapshot.v2",
         "history": [],
         "evidence": [],
         "backtest": [],
@@ -5074,6 +5094,8 @@ def _factor_recommendation_region(value: Any) -> str:
         return "JAPAN"
     if text in {"WORLD", "GLOBAL"}:
         return "GLOBAL"
+    if text in {"ASIA_EX_JAPAN", "ASIA EX JAPAN"}:
+        return "ASIA_EX_JAPAN"
     if any(token in text for token in ("ASIA", "JAPAN", "CHINA", "HONG KONG", "INDIA")):
         return "ASIA"
     if any(token in text for token in ("EUROPE", "EU", "EMU", "UK", "UNITED KINGDOM")):
@@ -5107,6 +5129,7 @@ def _factor_recommendation_payload() -> dict[str, Any]:
         "panel": FACTOR_RECOMMENDATION_PANEL_PATH,
         "history": FACTOR_RECOMMENDATION_HISTORY_PATH,
         "signal": FACTOR_RECOMMENDATION_SIGNAL_PATH,
+        "forecast": FACTOR_RECOMMENDATION_FORECAST_SIGNAL_PATH,
     }
     sidecar_paths = {
         "summary": FACTOR_RECOMMENDATION_SUMMARY_PATH,
@@ -5219,6 +5242,7 @@ def _factor_recommendation_payload() -> dict[str, Any]:
     if history is None:
         history = frames.get("signal")
     signal = frames.get("signal")
+    forecast = frames.get("forecast")
     latest_dates = [
         value
         for value in (
@@ -5316,7 +5340,16 @@ def _factor_recommendation_payload() -> dict[str, Any]:
     payload.update(
         {
             "status": status,
-            "model_status": str(manifest_details.get("model_status", "research_only")),
+            "model_status": str(manifest_details.get("model_status", "exposure_snapshot")),
+            "mode": str(manifest_details.get("mode", "exposure_snapshot")),
+            "not_a_forecast": True,
+            "research_v1_invalidated": True,
+            "forecast_status": "model_unavailable" if forecast is None or forecast.empty else "no_view",
+            "forecast_rows": _factor_recommendation_frame_rows(forecast),
+            "factor_rows": _factor_recommendation_frame_rows(latest_panel, limit=5000),
+            "factor_row_count": int(len(latest_panel)) if latest_panel is not None else 0,
+            "factor_rows_truncated": bool(latest_panel is not None and len(latest_panel) > 5000),
+            "row_schema": "factor_exposure_snapshot.v2",
             "production_eligible": False,
             "missing": bool(empty or missing_artifacts),
             "stale": stale,

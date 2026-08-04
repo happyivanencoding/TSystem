@@ -100,6 +100,7 @@ def fit_model(
     alpha: float = 1.0,
     l1_ratio: float = 0.5,
     feature_names: Iterable[str] | None = None,
+    require_real_backend: bool = False,
 ) -> ModelFit:
     """拟合单个回归模型并返回 backend/fallback 元数据。"""
 
@@ -135,6 +136,10 @@ def fit_model(
     try:
         from sklearn.linear_model import ElasticNet, Ridge
     except ImportError as exc:
+        if require_real_backend:
+            raise RuntimeError(
+                f"{model_name} requires the declared sklearn backend; fallback is disabled"
+            ) from exc
         estimator = NumpyRidgeRegressor(names, alpha=max(float(alpha), 0.0)).fit(values, target)
         return ModelFit(
             model_name=model_name,

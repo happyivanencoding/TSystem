@@ -128,3 +128,39 @@ def test_research_step_is_independent_and_disabled_by_default() -> None:
 
     assert step.dependencies == ()
     assert step.enabled(SimpleNamespace(config=SimpleNamespace(controls=SimpleNamespace()))) is False
+
+
+def test_v2_snapshot_and_forecast_contracts_are_separate() -> None:
+    snapshot = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2026-07-31", "2026-07-31"]),
+            "factor": ["value", "small_size"],
+            "score_0_100": [55.0, 65.0],
+            "coverage_flag": [True, True],
+            "model_version": ["factor-exposure-snapshot-v2"] * 2,
+            "region": ["US", "US"],
+            "benchmark": ["SP500", "SP500"],
+            "region_key": ["US", "US"],
+            "as_of_date": pd.to_datetime(["2026-07-31", "2026-07-31"]),
+            "effective_date": pd.to_datetime(["2026-07-31", "2026-07-31"]),
+            "horizon": ["1M", "1M"],
+            "confidence": [0.9, 0.9],
+            "recommendation": ["Neutral", "Positive"],
+            "factor_label": ["Value", "Small Size"],
+            "factor_coverage": [0.9, 0.9],
+            "weight_coverage": [0.9, 0.9],
+            "production_eligible": [True, True],
+            "benchmark_approved": [True, True],
+            "approval_status": ["approved", "approved"],
+            "prediction_semantics": ["snapshot", "snapshot"],
+        }
+    )
+    signal = refresh._build_exposure_snapshot_signal(snapshot, 0.8)
+    forecast = refresh._build_forecast_unavailable_signal(snapshot)
+
+    assert set(signal["mode"]) == {"exposure_snapshot"}
+    assert signal["not_a_forecast"].all()
+    assert "prediction_semantics" not in signal.columns
+    assert set(forecast["stance"]) == {"NO_VIEW"}
+    assert set(forecast["model_status"]) == {"model_unavailable"}
+    assert len(refresh._v2_snapshot_factor_definitions()) == 8

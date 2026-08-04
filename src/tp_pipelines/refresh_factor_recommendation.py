@@ -87,7 +87,7 @@ def _v2_snapshot_factor_definitions() -> tuple[FactorDefinition, ...]:
             label=str(item["label"]),
             source_columns=tuple(str(value) for value in item["source_columns"]),
             direction=int(item["direction"]),
-            score_scale=100.0,
+            score_scale=10.0,
             transform="reverse_score" if int(item["direction"]) < 0 else "identity",
             description=str(item["definition"]),
         )
@@ -836,6 +836,8 @@ def run_refresh_factor_recommendation(args: RefreshFactorRecommendationConfig) -
             )
         if full_panel.empty:
             raise ValueError("没有生成任何区域/因子推荐行")
+        if v2_snapshot:
+            full_panel["model_version"] = "factor-exposure-snapshot-v2"
 
         latest_date = pd.to_datetime(full_panel["Date"], errors="coerce").max()
         history = full_panel.copy()
@@ -850,6 +852,9 @@ def run_refresh_factor_recommendation(args: RefreshFactorRecommendationConfig) -
         if v2_snapshot:
             # Exposure snapshots are not forecasts. Keep the forecast contract
             # in a separate file and make the missing champion explicit.
+            signal = _build_exposure_snapshot_signal(
+                history, float(getattr(args, "minimum_coverage", 0.5))
+            )
             panel = panel.drop(
                 columns=["prob_outperform", "prediction_semantics"], errors="ignore"
             ).copy()
@@ -861,9 +866,6 @@ def run_refresh_factor_recommendation(args: RefreshFactorRecommendationConfig) -
                 frame["not_a_forecast"] = True
                 frame["research_v1_invalidated"] = True
                 frame["model_status"] = "exposure_snapshot"
-            signal = _build_exposure_snapshot_signal(
-                history, float(getattr(args, "minimum_coverage", 0.5))
-            )
         else:
             signal = _build_signal(history, float(getattr(args, "minimum_coverage", 0.5)))
         output_dir.mkdir(parents=True, exist_ok=True)

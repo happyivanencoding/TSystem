@@ -4,12 +4,20 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
+from presentation_layer.company_browser import settings
 from presentation_layer.company_browser.data.repository import get_repository
 from presentation_layer.company_browser.data.schemas import COL_ISIN, COL_NAME
 
 
 @pytest.fixture(scope="module")
 def repo():
+    missing = [
+        path
+        for path in (settings.DES_PARQUET, settings.NEWS_PARQUET)
+        if not path.is_file()
+    ]
+    if missing:
+        pytest.skip(f"company browser parquet fixtures are unavailable: {missing[0]}")
     return get_repository()
 
 

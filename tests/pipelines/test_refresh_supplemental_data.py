@@ -588,6 +588,8 @@ def test_run_all_calls_supplemental_stage_only_when_enabled(
             "--supplemental-source",
             "fred",
             "--supplemental-dry-run",
+            "--skip-refresh-sector",
+            "--skip-refresh-country-model",
             "--skip-refresh-technical",
             "--skip-export-signals",
             "--skip-refresh-small-cap",

@@ -11,7 +11,33 @@ from tp_research.workflows import analyze_cross_market_leave_one_period_out as l
 from tp_research.workflows import run_cross_market_lag6_anchor_synergy as synergy
 from tp_research.workflows import run_cross_market_lag6_relative_research as lag6
 
+
+def _require_market_runs() -> None:
+    missing = [
+        report_builder.RUN_ROOT / config["oop"]
+        for config in report_builder.MARKETS.values()
+        if not (report_builder.RUN_ROOT / config["oop"]).is_dir()
+    ]
+    if missing:
+        pytest.skip(f"cross-market generated runs are unavailable: {missing[0]}")
+
+
+def _factor_explorer_html() -> str:
+    path = REPORT_DIR / "factor-explorer.html"
+    if not path.is_file():
+        pytest.skip(f"generated factor explorer report is unavailable: {path}")
+    return path.read_text(encoding="utf-8")
+
+
 def test_lag6_registry_has_two_independent_variants_per_level_field() -> None:
+    missing = [
+        lag6.frozen_definition_path(profile)
+        for profile in lag6.PROFILES.values()
+        if not lag6.frozen_definition_path(profile).is_file()
+    ]
+    if missing:
+        pytest.skip(f"frozen lag6 definitions are unavailable: {missing[0]}")
+
     for profile in lag6.PROFILES.values():
         level_specs = lag6.load_level_specs(profile)
         definitions = pd.DataFrame(
@@ -83,6 +109,8 @@ def test_anchor_subset_matrix_formula_matches_completed_runs() -> None:
 
 
 def test_four_market_app_is_embedded_and_has_static_fallback() -> None:
+    _require_market_runs()
+
     payload = {
         key: report_builder.market_payload(key, config)
         for key, config in report_builder.MARKETS.items()
@@ -103,7 +131,7 @@ def test_four_market_app_is_embedded_and_has_static_fallback() -> None:
 
 
 def test_authoritative_explorer_preserves_return_ratio_and_economic_views() -> None:
-    html = (REPORT_DIR / "factor-explorer.html").read_text(encoding="utf-8")
+    html = _factor_explorer_html()
     marker = '<script id="report-data" type="application/json">'
     payload_text = html.split(marker, 1)[1].split("</script>", 1)[0]
     payload = json.loads(payload_text)
@@ -138,7 +166,7 @@ def test_authoritative_explorer_preserves_return_ratio_and_economic_views() -> N
 
 
 def test_authoritative_explorer_has_auditable_rotation_map_for_every_market() -> None:
-    html = (REPORT_DIR / "factor-explorer.html").read_text(encoding="utf-8")
+    html = _factor_explorer_html()
     marker = '<script id="report-data" type="application/json">'
     payload_text = html.split(marker, 1)[1].split("</script>", 1)[0]
     payload = json.loads(payload_text)

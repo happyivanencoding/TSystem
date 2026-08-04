@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
   "pandas>=2.0",
   "numpy>=1.24",
+  "duckdb>=0.10",
   "python-dateutil>=2.8",
   "pyarrow>=14",
   "openpyxl>=3.1",
@@ -79,6 +80,11 @@ tp-build-factor-research-app = "tp_reporting.factor_research_app:main"
 tp-build-factor-explorer = "tp_reporting.factor_explorer:main"
 tp-build-stoxx600-factor-explorer = "tp_reporting.stoxx600_factor_explorer:main"
 tp-company-report = "tp_reporting.company_research.cli:main"
+tp-data-audit = "tp_core.analytics.cli:data_audit_main"
+tp-data-benchmark = "tp_core.analytics.cli:benchmark_main"
+tp-data-validate-parity = "tp_core.analytics.cli:parity_main"
+tp-duckdb-build-catalog = "tp_core.analytics.cli:build_catalog_main"
+tp-duckdb-validate-release = "tp_core.analytics.cli:validate_release_main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

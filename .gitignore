@@ -2,6 +2,9 @@
 *.parquet
 *.pkl
 *.pickle
+*.duckdb
+*.duckdb.wal
+*.duckdb.lock
 
 # Data archives, backups, and generated outputs
 **/_quarantine_*/
@@ -20,6 +23,10 @@ artifacts/**
 !artifacts/
 !artifacts/**/
 !artifacts/**/README.md
+artifacts/analytics/duckdb/releases/
+artifacts/analytics/duckdb/staging/
+artifacts/analytics/duckdb/temp/
+00_screen/datasets/staging/
 
 # Local environments and caches
 .venv_tp/

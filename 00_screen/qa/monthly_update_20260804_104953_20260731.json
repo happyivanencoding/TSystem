@@ -1,0 +1,297 @@
+{
+  "generated_at": "2026-08-04T10:49:53",
+  "qa_passed": true,
+  "warnings": [],
+  "update_result": {
+    "update_mode": "both",
+    "dry_run": false,
+    "update_screen": true,
+    "update_returns": true,
+    "input_month": null,
+    "input_batch_dir": null,
+    "screen_excel": "C:\\GoogleDrive\\TP\\00_screen\\production_inputs\\incoming\\FS_SCREEN_2025_+NTM PROD.xlsx",
+    "returns_delta": "C:\\GoogleDrive\\TP\\00_screen\\production_inputs\\incoming\\download (12)",
+    "backup_path": "C:\\GoogleDrive\\TP\\00_screen\\backups\\screen_aggregate\\screen_aggregate_20260804_104310_before_monthly_update.parquet",
+    "returns_backup_path": "C:\\GoogleDrive\\TP\\00_screen\\backups\\returns\\returns_20260804_104654_957649_before_returns_update.parquet",
+    "month_date": "2026-07-31",
+    "last_screen_path": "C:\\GoogleDrive\\TP\\00_screen\\last_screen.parquet",
+    "screen_path": "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate.parquet",
+    "returns_path": "C:\\GoogleDrive\\TP\\00_screen\\returns.parquet",
+    "ciq_path": null,
+    "ciq_skipped": true,
+    "ciq_result": null,
+    "fs_sector_dir": "C:\\GoogleDrive\\TP\\00_screen\\production_inputs",
+    "fs_sector_skipped": false,
+    "fs_sector_result": {
+      "workbook_dir": "C:\\GoogleDrive\\TP\\00_screen\\production_inputs",
+      "source_workbooks": [
+        "C:\\GoogleDrive\\TP\\00_screen\\production_inputs\\Score_Sectoriel_US.xlsm",
+        "C:\\GoogleDrive\\TP\\00_screen\\production_inputs\\Score_Sectoriel_EU.xlsm"
+      ],
+      "history_rows": 6084,
+      "history_date_min": "2005-01-31T00:00:00",
+      "history_date_max": "2026-07-31T00:00:00",
+      "eligible_rows": 272199,
+      "matched_rows": 253695,
+      "latest_date": "2026-07-31T00:00:00",
+      "latest_eligible_rows": 1077,
+      "latest_matched_rows": 1077,
+      "new_columns": [],
+      "fs_sector_columns": [
+        "FS_MARKET_FS_SECTOR",
+        "FS_SECTOR_NAME_FS_SECTOR",
+        "LEVERAGE_RANK_FS_SECTOR",
+        "LEVERAGE_SCORE_FS_SECTOR",
+        "MARGIN_RANK_FS_SECTOR",
+        "MARGIN_SCORE_FS_SECTOR",
+        "VALUE_RANK_FS_SECTOR",
+        "VALUE_SCORE_FS_SECTOR",
+        "MOMENTUM_RANK_FS_SECTOR",
+        "MOMENTUM_SCORE_FS_SECTOR",
+        "GROWTH_RANK_FS_SECTOR",
+        "GROWTH_SCORE_FS_SECTOR",
+        "LOW_VOL_RANK_FS_SECTOR",
+        "LOW_VOL_SCORE_FS_SECTOR",
+        "FIVE_FACTOR_RANK_FS_SECTOR",
+        "FIVE_FACTOR_SCORE_FS_SECTOR",
+        "RECO_TOP_FLAG_FS_SECTOR",
+        "RECO_WORST_FLAG_FS_SECTOR",
+        "RECO_SCORE_FS_SECTOR",
+        "BENCH_WEIGHT_FS_SECTOR",
+        "MACRO_SIGNAL_AVG_FS_SECTOR",
+        "MACRO_CYCLE_CODE_FS_SECTOR",
+        "RATE_SIGNAL_FS_SECTOR"
+      ],
+      "output_rows": 3465456,
+      "output_columns": 300,
+      "idempotency_mode": "overwrite FS_SECTOR columns from current workbooks; keep row count unchanged"
+    },
+    "fs_sector_backup_path": "C:\\GoogleDrive\\TP\\00_screen\\backups\\screen_aggregate\\screen_aggregate_20260804_104756_992794_before_fs_sector_history_merge.parquet",
+    "qa_report_path": null,
+    "returns_idempotency": {
+      "history_rows": 5533,
+      "delta_rows": 6,
+      "merged_rows": 5533,
+      "history_unique_dates": 5533,
+      "delta_unique_dates": 6,
+      "overlap_dates": 6,
+      "new_dates": 0,
+      "expected_merged_dates": 5533,
+      "merged_unique_dates": 5533,
+      "duplicate_merged_dates": 0,
+      "overlap_date_min": "2026-07-27T00:00:00",
+      "overlap_date_max": "2026-08-03T00:00:00",
+      "new_date_min": null,
+      "new_date_max": null,
+      "mode": "覆盖同日期最后一版，不追加重复日期"
+    },
+    "screen_idempotency": {
+      "target_dates": [
+        "2026-07-31"
+      ],
+      "old_rows": 3465456,
+      "new_rows": 11114,
+      "old_target_rows_replaced": 11114,
+      "new_unique_keys": 11114,
+      "old_non_target_rows_preserved": 3454342,
+      "merged_non_target_rows": 3454342,
+      "expected_rows_after_merge": 3465456,
+      "merged_rows": 3465456,
+      "shared_existing_keys": 11114,
+      "common_values_equal_before_recalculation": false,
+      "mode": "只替换 new_base 覆盖的目标月份；非目标月份行数必须保持不变"
+    },
+    "write_actions": [
+      "backup: C:\\GoogleDrive\\TP\\00_screen\\backups\\returns\\returns_20260804_104654_957649_before_returns_update.parquet",
+      "C:\\GoogleDrive\\TP\\00_screen\\returns.parquet",
+      "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate.parquet",
+      "backup: C:\\GoogleDrive\\TP\\00_screen\\backups\\screen_aggregate\\screen_aggregate_20260804_104756_992794_before_fs_sector_history_merge.parquet",
+      "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate.parquet"
+    ],
+    "returns_last_date": "2026-08-03",
+    "returns_rows": 5533,
+    "new_rows": 11114,
+    "total_rows": 3465456,
+    "derived_outputs": {
+      "latest_date": "2026-07-31T00:00:00",
+      "last_screen_path": "C:\\GoogleDrive\\TP\\00_screen\\last_screen.parquet",
+      "last_screen_rows": 11114,
+      "screen_5y_path": "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate_5Y.parquet",
+      "screen_5y_rows": 654451,
+      "write_skipped": false
+    }
+  },
+  "derived_outputs": {
+    "latest_date": "2026-07-31T00:00:00",
+    "last_screen_path": "C:\\GoogleDrive\\TP\\00_screen\\last_screen.parquet",
+    "last_screen_rows": 11114,
+    "screen_5y_path": "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate_5Y.parquet",
+    "screen_5y_rows": 654451,
+    "write_skipped": false
+  },
+  "screen": {
+    "rows": 3465456,
+    "columns": 301,
+    "date_min": "1999-12-31T00:00:00",
+    "date_max": "2026-07-31T00:00:00",
+    "latest_date": "2026-07-31T00:00:00",
+    "latest_rows": 11114,
+    "duplicate_keys": 0
+  },
+  "returns": {
+    "rows": 5533,
+    "columns": 12020,
+    "date_min": "2005-01-03T00:00:00",
+    "date_max": "2026-08-03T00:00:00",
+    "duplicate_dates": 0
+  },
+  "latest_sedol_coverage": {
+    "valid_sedol_count": 11089,
+    "missing_in_returns_count": 0,
+    "missing_in_returns_sample": []
+  },
+  "weight_sums": {
+    "Weight in MSCI WORLD": {
+      "exists": true,
+      "non_null": 1280,
+      "sum": 1.0
+    },
+    "Weight in SP500": {
+      "exists": true,
+      "non_null": 503,
+      "sum": 1.0
+    },
+    "Weight in STOXX EUROPE 600": {
+      "exists": true,
+      "non_null": 599,
+      "sum": 1.0
+    },
+    "Weight in MSCI EM": {
+      "exists": true,
+      "non_null": 1177,
+      "sum": 0.9999999999999999
+    },
+    "Weight in Univ ML EU": {
+      "exists": true,
+      "non_null": 607,
+      "sum": 1.0
+    },
+    "Weight in Univ ML US": {
+      "exists": true,
+      "non_null": 598,
+      "sum": 0.9999999999999999
+    },
+    "Weight in Univ ML OTHER": {
+      "exists": true,
+      "non_null": 350,
+      "sum": 1.0000000000000002
+    }
+  },
+  "risk_columns": {
+    "Volatilite Rolling ewma 250D": {
+      "exists": true,
+      "latest_non_null": 10656,
+      "total_non_null": 53307,
+      "latest_missing_rate": 0.04120928558574766
+    },
+    "VaR 1% Rolling 250D": {
+      "exists": true,
+      "latest_non_null": 10656,
+      "total_non_null": 31969,
+      "latest_missing_rate": 0.04120928558574766
+    },
+    "Maximum Drawdown Rolling 250D": {
+      "exists": true,
+      "latest_non_null": 10656,
+      "total_non_null": 53307,
+      "latest_missing_rate": 0.04120928558574766
+    },
+    "Beta vs SXXP (Rolling ewma 250D)": {
+      "exists": true,
+      "latest_non_null": 10656,
+      "total_non_null": 31969,
+      "latest_missing_rate": 0.04120928558574766
+    },
+    "Beta vs Regional Benchmark (Rolling ewma 250D)": {
+      "exists": true,
+      "latest_non_null": 10656,
+      "total_non_null": 31969,
+      "latest_missing_rate": 0.04120928558574766
+    },
+    "Beta Up vs SXXP (252D)": {
+      "exists": true,
+      "latest_non_null": 10656,
+      "total_non_null": 31969,
+      "latest_missing_rate": 0.04120928558574766
+    },
+    "Beta Down vs SXXP (252D)": {
+      "exists": true,
+      "latest_non_null": 10656,
+      "total_non_null": 31969,
+      "latest_missing_rate": 0.04120928558574766
+    }
+  },
+  "perf_columns": {
+    "Perf5D": {
+      "exists": true,
+      "latest_non_null": 11083
+    },
+    "Perf1M": {
+      "exists": true,
+      "latest_non_null": 11083
+    },
+    "Perf3M": {
+      "exists": true,
+      "latest_non_null": 10959
+    },
+    "Perf6M": {
+      "exists": true,
+      "latest_non_null": 10863
+    }
+  },
+  "ciq_merge": null,
+  "fs_sector_merge": {
+    "workbook_dir": "C:\\GoogleDrive\\TP\\00_screen\\production_inputs",
+    "source_workbooks": [
+      "C:\\GoogleDrive\\TP\\00_screen\\production_inputs\\Score_Sectoriel_US.xlsm",
+      "C:\\GoogleDrive\\TP\\00_screen\\production_inputs\\Score_Sectoriel_EU.xlsm"
+    ],
+    "history_rows": 6084,
+    "history_date_min": "2005-01-31T00:00:00",
+    "history_date_max": "2026-07-31T00:00:00",
+    "eligible_rows": 272199,
+    "matched_rows": 253695,
+    "latest_date": "2026-07-31T00:00:00",
+    "latest_eligible_rows": 1077,
+    "latest_matched_rows": 1077,
+    "new_columns": [],
+    "fs_sector_columns": [
+      "FS_MARKET_FS_SECTOR",
+      "FS_SECTOR_NAME_FS_SECTOR",
+      "LEVERAGE_RANK_FS_SECTOR",
+      "LEVERAGE_SCORE_FS_SECTOR",
+      "MARGIN_RANK_FS_SECTOR",
+      "MARGIN_SCORE_FS_SECTOR",
+      "VALUE_RANK_FS_SECTOR",
+      "VALUE_SCORE_FS_SECTOR",
+      "MOMENTUM_RANK_FS_SECTOR",
+      "MOMENTUM_SCORE_FS_SECTOR",
+      "GROWTH_RANK_FS_SECTOR",
+      "GROWTH_SCORE_FS_SECTOR",
+      "LOW_VOL_RANK_FS_SECTOR",
+      "LOW_VOL_SCORE_FS_SECTOR",
+      "FIVE_FACTOR_RANK_FS_SECTOR",
+      "FIVE_FACTOR_SCORE_FS_SECTOR",
+      "RECO_TOP_FLAG_FS_SECTOR",
+      "RECO_WORST_FLAG_FS_SECTOR",
+      "RECO_SCORE_FS_SECTOR",
+      "BENCH_WEIGHT_FS_SECTOR",
+      "MACRO_SIGNAL_AVG_FS_SECTOR",
+      "MACRO_CYCLE_CODE_FS_SECTOR",
+      "RATE_SIGNAL_FS_SECTOR"
+    ],
+    "output_rows": 3465456,
+    "output_columns": 300,
+    "idempotency_mode": "overwrite FS_SECTOR columns from current workbooks; keep row count unchanged"
+  }
+}

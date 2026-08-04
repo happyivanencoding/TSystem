@@ -31,6 +31,7 @@ def test_production_dag_exposes_cross_step_dependencies() -> None:
     assert dag.dependencies_for("build_candidates") == (
         "export_signals",
         "refresh_small_cap",
+        "refresh_sector_model",
     )
     assert dag.dependencies_for("optimize_portfolio") == ("build_candidates",)
     assert dag.names().index("export_signals") < dag.names().index("build_candidates")

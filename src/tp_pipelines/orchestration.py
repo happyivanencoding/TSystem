@@ -16,6 +16,7 @@ class PipelineContext:
     config: PipelineRunConfig
     child_manifests: list[str] = field(default_factory=list)
     regime_refreshed: bool = False
+    country_model_refreshed: bool = False
     experiment_parent_run_id: str | None = None
 
     @classmethod
@@ -64,6 +65,18 @@ def run_refresh_regime(config):
     return implementation(config)
 
 
+def run_refresh_sector_model(config):
+    from .refresh_sector_model import run_refresh_sector_model as implementation
+
+    return implementation(config)
+
+
+def run_refresh_country_model(config):
+    from .refresh_country_model import run_refresh_country_model as implementation
+
+    return implementation(config)
+
+
 def run_export_signals(config):
     from .export_signals import run_export_signals as implementation
 
@@ -92,6 +105,17 @@ def _refresh_regime(context: PipelineContext) -> Path:
     return result
 
 
+def _refresh_sector_model(context: PipelineContext) -> Path:
+    return run_refresh_sector_model(context.config.refresh_sector)
+
+
+def _refresh_country_model(context: PipelineContext) -> Path:
+    result = run_refresh_country_model(context.config.refresh_country_model)
+    if not context.config.refresh_country_model.inspect_only:
+        context.country_model_refreshed = True
+    return result
+
+
 def _refresh_ml(context: PipelineContext) -> Path:
     from .refresh_ml import run_refresh_ml
 
@@ -106,6 +130,9 @@ def _refresh_technical(context: PipelineContext) -> Path:
 
 def _export_signals(context: PipelineContext) -> Path:
     context.config.export_signals.skip_regime = context.regime_refreshed
+    context.config.export_signals.skip_country = (
+        context.config.export_signals.skip_country or context.country_model_refreshed
+    )
     return run_export_signals(context.config.export_signals)
 
 
@@ -164,6 +191,18 @@ def pipeline_dag() -> PipelineDAG:
             _refresh_regime,
         ),
         PipelineStep(
+            "refresh_sector_model",
+            ("refresh_data",),
+            lambda context: not context.config.controls.skip_refresh_sector,
+            _refresh_sector_model,
+        ),
+        PipelineStep(
+            "refresh_country_model",
+            ("refresh_data",),
+            lambda context: not context.config.controls.skip_refresh_country_model,
+            _refresh_country_model,
+        ),
+        PipelineStep(
             "refresh_ml",
             ("refresh_data",),
             lambda context: context.config.controls.refresh_ml
@@ -179,7 +218,7 @@ def pipeline_dag() -> PipelineDAG:
         ),
         PipelineStep(
             "export_signals",
-            ("refresh_regime", "refresh_ml", "refresh_technical"),
+            ("refresh_regime", "refresh_ml", "refresh_technical", "refresh_country_model"),
             lambda context: not context.config.controls.skip_export_signals,
             _export_signals,
         ),
@@ -191,7 +230,7 @@ def pipeline_dag() -> PipelineDAG:
         ),
         PipelineStep(
             "build_candidates",
-            ("export_signals", "refresh_small_cap"),
+            ("export_signals", "refresh_small_cap", "refresh_sector_model"),
             lambda context: not context.config.controls.skip_build_candidates,
             _build_candidates,
         ),

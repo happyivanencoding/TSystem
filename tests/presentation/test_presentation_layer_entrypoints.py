@@ -1064,6 +1064,8 @@ def test_run_all_refresh_regime_uses_dedicated_regime_step(tmp_path: Path, monke
     manifest = run_all_module.run_all(
         SimpleNamespace(
             skip_refresh_data=True,
+            skip_refresh_sector=True,
+            skip_refresh_country_model=True,
             skip_refresh_technical=True,
             skip_refresh_small_cap=True,
             skip_export_signals=False,

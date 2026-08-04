@@ -1,6 +1,6 @@
 # TP 生产流水线运行手册
 
-最后更新：2026-07-26
+最后更新：2026-08-04
 
 本文档是月更数据、主流水线命令、标准产物和运行证据的唯一操作手册。所有生产操作从已安装的 `tp-*` 控制台入口进入，不执行编号资源目录中的 Python 文件。
 
@@ -51,6 +51,8 @@
 | --- | --- | --- | --- |
 | 数据刷新 | `tp-pipeline-refresh-data` | `production_inputs/incoming/YYYYMM/` | Canonical parquet、QA |
 | 补充数据 | `tp-pipeline-refresh-supplemental-data` | 官方 API、字段配置、标识映射 | `00_screen/supplemental/`、QA |
+| 行业模型 | `python -m tp_pipelines.refresh_sector_model` | Canonical screen、returns、ICB mapping | EU/US 行业评分与回测产物 |
+| 国家模型 | `python -m tp_pipelines.refresh_country_model` | `modele_pays.xlsb` | 国家数据库、评分面板及 country signal |
 | ML 刷新 | `python -m tp_pipelines.refresh_ml --inspect-only` | Canonical screen、ML 公共 API | Score ML 覆盖及 ML signal |
 | 信号导出 | `tp-pipeline-export-signals` | Canonical 数据、模型专项结果 | `artifacts/signals/` |
 | 候选池 | `tp-pipeline-build-candidates` | Signals、latest screen | `artifacts/candidates/` |
@@ -73,7 +75,7 @@
 .\.venv_tp\Scripts\tp-pipeline-run-all.exe --dry-run-data --inspect-only-backtest
 ```
 
-`run_all` 只做 typed step config、registry/DAG 和顺序编排；业务规则仍由各公共包负责。
+`run_all` 只做 typed step config、registry/DAG 和顺序编排；业务规则仍由各公共包负责。默认在 `refresh_data` 后刷新行业、国家、Regime、technical，并重新导出信号；需要临时跳过时使用对应的 `--skip-refresh-*` 参数。
 
 ## 幂等与写入规则
 
@@ -81,7 +83,7 @@
 - `screen_aggregate.parquet` 只替换目标月份切片，非目标月份不得变化。
 - CIQ 按 `(ISIN, Date)` 对齐，只填补空值，不覆盖已有非空值。
 - Canonical 写入前必须通过唯一键和 schema 校验，并生成可回滚备份。
-- `run_all` 不隐式刷新 ML、不隐式访问外部 API，也不把补充数据自动晋升为 Canonical 字段。
+- `refresh_data` 会更新 Score ML；`run_all` 随后自动刷新行业、国家、Regime、technical 和标准信号，不隐式访问外部 API，也不把补充数据自动晋升为 Canonical 字段。
 - Stable latest 产物可以覆盖；时间戳运行证据不得被覆盖。
 
 ## 补充数据影子层

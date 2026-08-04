@@ -347,6 +347,30 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="只检查现有补充数据分区，不访问外部 API",
     )
+    parser.add_argument("--skip-refresh-sector", action="store_true", help="跳过 EU/US 行业模型刷新")
+    parser.add_argument("--inspect-only-sector", action="store_true", help="只检查已有行业模型产物")
+    parser.add_argument("--sector-screen", default=str(SCREEN_AGGREGATE_PATH))
+    parser.add_argument("--sector-returns", default=str(RETURNS_PATH))
+    parser.add_argument("--sector-mapping", default=None, help="行业模型 ICB mapping xlsx")
+    parser.add_argument(
+        "--sector-us-output-dir",
+        default=str(TP_ROOT / "13_sector_score_model" / "outputs_fs_sector_default"),
+    )
+    parser.add_argument(
+        "--sector-eu-output-dir",
+        default=str(TP_ROOT / "13_sector_score_model" / "outputs_eu"),
+    )
+    parser.add_argument(
+        "--sector-legacy-us-output-dir",
+        default=str(TP_ROOT / "13_sector_score_model" / "outputs"),
+    )
+    parser.add_argument("--sector-start-date", default="2010-01-01")
+    parser.add_argument("--sector-score-column", default="score_final")
+    parser.add_argument("--sector-top-n", type=int, default=3)
+    parser.add_argument("--sector-bottom-n", type=int, default=3)
+    parser.add_argument("--skip-refresh-country-model", action="store_true", help="跳过国家模型数据库和信号刷新")
+    parser.add_argument("--inspect-only-country-model", action="store_true", help="只检查已有国家模型产物")
+    parser.add_argument("--use-existing-country-database", action="store_true", help="国家模型复用已有数据库，不重新读取 xlsb")
     parser.add_argument("--skip-refresh-technical", action="store_true", help="跳过 technical patterns 刷新")
     parser.add_argument("--inspect-only-technical", action="store_true", help="只检查已有 technical patterns，不重算")
     parser.add_argument("--technical-patterns-output", default=str(DEFAULT_TECHNICAL_PATTERNS), help="technical patterns 输出路径")
@@ -372,7 +396,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ml-to-date", help="Score ML 截止日期")
     parser.add_argument("--ml-universe", action="append", choices=["EU", "US", "OTHER", "EM"], help="Score ML universe，可重复")
     parser.add_argument("--ml-timeout-seconds", type=int, default=7200)
-    parser.add_argument("--refresh-regime", action="store_true", help="刷新 Regime detector、webapp 数据和诊断产物")
+    parser.add_argument("--refresh-regime", dest="refresh_regime", action="store_true", default=True, help="刷新 Regime detector、webapp 数据和诊断产物（默认开启）")
+    parser.add_argument("--skip-refresh-regime", dest="refresh_regime", action="store_false", help="跳过 Regime detector 刷新")
     parser.add_argument("--regime-oos", action="store_true", help="Regime 使用 OOS 文件")
     parser.add_argument("--regime-region", action="append", choices=["US", "EU"], help="Regime 区域")
     parser.add_argument("--country-output", default=str(SIGNALS_DIR / "country_model_signals.parquet"))

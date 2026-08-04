@@ -1,0 +1,87 @@
+{
+  "action": "updated",
+  "run_id": "20260804_105021",
+  "target_dates": [
+    "2026-07-31"
+  ],
+  "universes": [
+    "EU",
+    "US",
+    "OTHER",
+    "EM"
+  ],
+  "generated": [
+    {
+      "universe": "EU",
+      "target_date": "2026-07-31",
+      "score_path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\Output_files\\SCORE_ML_EU_20260731_production.parquet",
+      "shap_path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\Output_files\\SCORE_ML_EU_20260731_production_SHAP.parquet",
+      "rows": 607
+    },
+    {
+      "universe": "US",
+      "target_date": "2026-07-31",
+      "score_path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\Output_files\\SCORE_ML_US_20260731_production.parquet",
+      "shap_path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\Output_files\\SCORE_ML_US_20260731_production_SHAP.parquet",
+      "rows": 598
+    },
+    {
+      "universe": "OTHER",
+      "target_date": "2026-07-31",
+      "score_path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\Output_files\\SCORE_ML_OTHER_20260731_production.parquet",
+      "shap_path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\Output_files\\SCORE_ML_OTHER_20260731_production_SHAP.parquet",
+      "rows": 350
+    },
+    {
+      "universe": "EM",
+      "target_date": "2026-07-31",
+      "score_path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\Output_files\\SCORE_ML_EM_20260731_production.parquet",
+      "shap_path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\Output_files\\SCORE_ML_EM_20260731_production_SHAP.parquet",
+      "rows": 1176
+    }
+  ],
+  "score_update_rows": 2715,
+  "score_ml_non_null_before": 372896,
+  "score_ml_non_null_after": 375611,
+  "score_ml_rows_by_date": {
+    "2026-07-31": 2715
+  },
+  "backups": {
+    "screen_aggregate": "C:\\GoogleDrive\\TP\\00_screen\\backups\\ml_score_update\\screen_aggregate_20260804_105021_before_score_ml_update.parquet",
+    "last_screen": "C:\\GoogleDrive\\TP\\00_screen\\backups\\ml_score_update\\last_screen_20260804_105021_before_score_ml_update.parquet",
+    "screen_aggregate_5y": "C:\\GoogleDrive\\TP\\00_screen\\backups\\ml_score_update\\screen_aggregate_5Y_20260804_105021_before_score_ml_update.parquet"
+  },
+  "derived_outputs": {
+    "latest_date": "2026-07-31 00:00:00",
+    "last_screen_path": "C:\\GoogleDrive\\TP\\00_screen\\last_screen.parquet",
+    "last_screen_rows": 11114,
+    "screen_5y_path": "C:\\GoogleDrive\\TP\\00_screen\\screen_aggregate_5Y.parquet",
+    "screen_5y_rows": 654451,
+    "write_skipped": false
+  },
+  "ml_signals_path": "C:\\GoogleDrive\\TP\\artifacts\\signals\\ml_signals.parquet",
+  "comparison": {
+    "path": "C:\\GoogleDrive\\TP\\03_ml_enhanced\\Output_files\\score_ml_vs_score_ml_if_20260804_105021.csv",
+    "rows": 0
+  },
+  "score_ml_database_requirement": {
+    "neutralized_before_database_update": true,
+    "neutralization_group_columns": [
+      "Date",
+      " Benchmark ICB Supersector ",
+      "Exchange Country Region"
+    ]
+  },
+  "score_ml_neutrality_validation": {
+    "required": true,
+    "group_columns": [
+      "Date",
+      " Benchmark ICB Supersector ",
+      "Exchange Country Region"
+    ],
+    "checked_rows": 2715,
+    "group_count": 126,
+    "max_abs_diff": 0.0,
+    "ok": true
+  }
+}

@@ -4,91 +4,91 @@
       "direction_models": [
         {
           "model": "基准(恒涨)",
-          "准确率": 0.652,
+          "准确率": 0.656,
           "AUC": null,
-          "年化收益%": 13.66,
+          "年化收益%": 13.64,
           "夏普": 0.82
         },
         {
           "model": "HMM状态",
-          "准确率": 0.64,
+          "准确率": 0.644,
           "AUC": null,
-          "年化收益%": 11.64,
-          "夏普": 0.73
+          "年化收益%": 11.65,
+          "夏普": 0.74
         },
         {
           "model": "Logistic+ML_IF",
-          "准确率": 0.64,
-          "AUC": 0.635,
+          "准确率": 0.644,
+          "AUC": 0.638,
           "年化收益%": 12.35,
           "夏普": 0.81
         },
         {
           "model": "GBM+ML_IF",
-          "准确率": 0.551,
-          "AUC": 0.533,
-          "年化收益%": 9.07,
-          "夏普": 0.59
+          "准确率": 0.567,
+          "AUC": 0.536,
+          "年化收益%": 9.56,
+          "夏普": 0.62
         }
       ],
       "volatility_models": [
         {
           "model": "Ridge+ScreenVol",
-          "Pearson": 0.426,
-          "IC(Spearman)": 0.452,
-          "R2": 0.03,
-          "高波动AUC": 0.808
+          "Pearson": 0.429,
+          "IC(Spearman)": 0.461,
+          "R2": 0.035,
+          "高波动AUC": 0.811
         },
         {
           "model": "GBM+ML_IF+ScreenVol",
-          "Pearson": 0.342,
-          "IC(Spearman)": 0.482,
-          "R2": 0.099,
-          "高波动AUC": 0.788
+          "Pearson": 0.339,
+          "IC(Spearman)": 0.479,
+          "R2": 0.093,
+          "高波动AUC": 0.791
         },
         {
           "model": "持续性(rvol_ann)",
-          "Pearson": 0.398,
-          "IC(Spearman)": 0.349,
-          "R2": -0.097,
-          "高波动AUC": 0.744
+          "Pearson": 0.401,
+          "IC(Spearman)": 0.363,
+          "R2": -0.092,
+          "高波动AUC": 0.747
         },
         {
           "model": "HMM状态",
-          "Pearson": 0.195,
-          "IC(Spearman)": 0.004,
-          "R2": -0.072,
-          "高波动AUC": 0.48
+          "Pearson": 0.196,
+          "IC(Spearman)": 0.022,
+          "R2": -0.068,
+          "高波动AUC": 0.483
         }
       ],
       "drawdown_models": [
         {
           "model": "Ridge+ScreenVol",
-          "Pearson": 0.13,
-          "IC(Spearman)": 0.204,
-          "R2": -0.533,
-          "高波动AUC": 0.614
+          "Pearson": 0.132,
+          "IC(Spearman)": 0.209,
+          "R2": -0.528,
+          "高波动AUC": 0.618
         },
         {
           "model": "持续性(rvol_ann)",
-          "Pearson": 0.17,
-          "IC(Spearman)": 0.139,
-          "R2": -16.803,
-          "高波动AUC": 0.575
+          "Pearson": 0.173,
+          "IC(Spearman)": 0.146,
+          "R2": -16.792,
+          "高波动AUC": 0.581
         },
         {
           "model": "GBM+ML_IF+ScreenVol",
-          "Pearson": 0.06,
-          "IC(Spearman)": 0.092,
-          "R2": -0.138,
-          "高波动AUC": 0.559
+          "Pearson": 0.045,
+          "IC(Spearman)": 0.082,
+          "R2": -0.149,
+          "高波动AUC": 0.55
         },
         {
           "model": "HMM状态",
-          "Pearson": -0.065,
-          "IC(Spearman)": -0.053,
-          "R2": -0.215,
-          "高波动AUC": 0.408
+          "Pearson": -0.059,
+          "IC(Spearman)": -0.041,
+          "R2": -0.209,
+          "高波动AUC": 0.417
         }
       ]
     },
@@ -96,94 +96,94 @@
       "direction_models": [
         {
           "model": "基准(恒涨)",
-          "准确率": 0.631,
+          "准确率": 0.636,
           "AUC": null,
-          "年化收益%": 10.03,
-          "夏普": 0.7
+          "年化收益%": 10.51,
+          "夏普": 0.74
         },
         {
           "model": "HMM状态",
-          "准确率": 0.585,
+          "准确率": 0.606,
           "AUC": null,
-          "年化收益%": 6.15,
-          "夏普": 0.65
+          "年化收益%": 6.91,
+          "夏普": 0.73
         },
         {
           "model": "Logistic+ML_IF",
-          "准确率": 0.585,
-          "AUC": 0.475,
-          "年化收益%": 8.69,
+          "准确率": 0.576,
+          "AUC": 0.464,
+          "年化收益%": 8.56,
           "夏普": 0.69
         },
         {
           "model": "GBM+ML_IF",
-          "准确率": 0.554,
-          "AUC": 0.56,
-          "年化收益%": 8.57,
-          "夏普": 0.89
+          "准确率": 0.561,
+          "AUC": 0.563,
+          "年化收益%": 9.03,
+          "夏普": 0.97
         }
       ],
       "volatility_models": [
         {
-          "model": "持续性(rvol_ann)",
-          "Pearson": 0.379,
-          "IC(Spearman)": 0.361,
-          "R2": -0.057,
-          "高波动AUC": 0.719
+          "model": "Ridge+ScreenVol",
+          "Pearson": 0.483,
+          "IC(Spearman)": 0.34,
+          "R2": 0.015,
+          "高波动AUC": 0.721
         },
         {
-          "model": "Ridge+ScreenVol",
-          "Pearson": 0.481,
-          "IC(Spearman)": 0.339,
-          "R2": 0.012,
-          "高波动AUC": 0.719
+          "model": "持续性(rvol_ann)",
+          "Pearson": 0.379,
+          "IC(Spearman)": 0.357,
+          "R2": -0.056,
+          "高波动AUC": 0.716
         },
         {
           "model": "GBM+ML_IF+ScreenVol",
-          "Pearson": 0.343,
-          "IC(Spearman)": 0.314,
-          "R2": -0.028,
-          "高波动AUC": 0.7
+          "Pearson": 0.341,
+          "IC(Spearman)": 0.303,
+          "R2": -0.029,
+          "高波动AUC": 0.69
         },
         {
           "model": "HMM状态",
-          "Pearson": 0.098,
-          "IC(Spearman)": 0.082,
-          "R2": -0.154,
-          "高波动AUC": 0.552
+          "Pearson": 0.1,
+          "IC(Spearman)": 0.085,
+          "R2": -0.155,
+          "高波动AUC": 0.549
         }
       ],
       "drawdown_models": [
         {
-          "model": "GBM+ML_IF+ScreenVol",
-          "Pearson": 0.399,
-          "IC(Spearman)": 0.374,
-          "R2": 0.134,
-          "高波动AUC": 0.65
-        },
-        {
           "model": "持续性(rvol_ann)",
           "Pearson": 0.322,
-          "IC(Spearman)": 0.258,
-          "R2": -15.593,
-          "高波动AUC": 0.648
+          "IC(Spearman)": 0.256,
+          "R2": -15.774,
+          "高波动AUC": 0.646
+        },
+        {
+          "model": "GBM+ML_IF+ScreenVol",
+          "Pearson": 0.392,
+          "IC(Spearman)": 0.371,
+          "R2": 0.126,
+          "高波动AUC": 0.642
         },
         {
           "model": "Ridge+ScreenVol",
-          "Pearson": 0.341,
-          "IC(Spearman)": 0.251,
-          "R2": -0.104,
+          "Pearson": 0.342,
+          "IC(Spearman)": 0.25,
+          "R2": -0.101,
           "高波动AUC": 0.633
         },
         {
           "model": "HMM状态",
-          "Pearson": 0.059,
-          "IC(Spearman)": 0.049,
-          "R2": -0.248,
-          "高波动AUC": 0.472
+          "Pearson": 0.057,
+          "IC(Spearman)": 0.055,
+          "R2": -0.252,
+          "高波动AUC": 0.476
         }
       ]
     }
   },
-  "updated_at": "2026-07-11T10:14:19"
+  "updated_at": "2026-08-04T12:10:37"
 }

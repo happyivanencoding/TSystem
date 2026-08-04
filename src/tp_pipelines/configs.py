@@ -7,7 +7,13 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, TypeVar
 
-from tp_core.data_sources import LAST_SCREEN_PATH, RETURNS_PATH, SCREEN_AGGREGATE_PATH, TP_ROOT
+from tp_core.data_sources import (
+    FACTSET_ICB_MAPPING_PATH,
+    LAST_SCREEN_PATH,
+    RETURNS_PATH,
+    SCREEN_AGGREGATE_PATH,
+    TP_ROOT,
+)
 from tp_core.workspace import CANDIDATES_DIR, PORTFOLIOS_DIR, REPORTS_DIR, SIGNALS_DIR
 
 TConfig = TypeVar("TConfig", bound="StepConfig")
@@ -57,6 +63,34 @@ class RefreshSupplementalConfig(StepConfig):
 @dataclass
 class RefreshRegimeConfig(StepConfig):
     regime_output: str
+    run_type: str
+
+
+@dataclass
+class RefreshSectorConfig(StepConfig):
+    screen: str
+    returns: str
+    mapping: str
+    us_output_dir: str
+    eu_output_dir: str
+    legacy_us_output_dir: str | None
+    start_date: str
+    score_column: str
+    top_n: int
+    bottom_n: int
+    inspect_only: bool
+    run_type: str
+
+
+@dataclass
+class RefreshCountryConfig(StepConfig):
+    workbook: str
+    database_output: str
+    output_dir: str
+    signal_output: str
+    all_history: bool
+    use_existing_database: bool
+    inspect_only: bool
     run_type: str
 
 
@@ -194,6 +228,8 @@ class PipelineControls:
     refresh_supplemental_data: bool
     refresh_regime: bool
     refresh_ml: bool
+    skip_refresh_sector: bool
+    skip_refresh_country_model: bool
     skip_refresh_technical: bool
     skip_export_signals: bool
     skip_refresh_small_cap: bool
@@ -225,6 +261,8 @@ class PipelineRunConfig:
     refresh_data: RefreshDataConfig
     refresh_supplemental: RefreshSupplementalConfig
     refresh_regime: RefreshRegimeConfig
+    refresh_sector: RefreshSectorConfig
+    refresh_country_model: RefreshCountryConfig
     refresh_ml: RefreshMLConfig
     refresh_technical: RefreshTechnicalConfig
     export_signals: ExportSignalsConfig
@@ -284,8 +322,10 @@ class PipelineRunConfig:
         controls = PipelineControls(
             skip_refresh_data=bool(get("skip_refresh_data", False)),
             refresh_supplemental_data=bool(get("refresh_supplemental_data", False)),
-            refresh_regime=bool(get("refresh_regime", False)),
+            refresh_regime=bool(get("refresh_regime", True)),
             refresh_ml=bool(get("refresh_ml", False)),
+            skip_refresh_sector=bool(get("skip_refresh_sector", False)),
+            skip_refresh_country_model=bool(get("skip_refresh_country_model", False)),
             skip_refresh_technical=bool(get("skip_refresh_technical", False)),
             skip_export_signals=bool(get("skip_export_signals", False)),
             skip_refresh_small_cap=bool(get("skip_refresh_small_cap", False)),
@@ -344,6 +384,57 @@ class PipelineRunConfig:
         )
         refresh_regime = RefreshRegimeConfig(
             regime_output=str(SIGNALS_DIR / "regime_risk_budget.parquet"),
+            run_type=run_type,
+        )
+        refresh_sector = RefreshSectorConfig(
+            screen=str(get("sector_screen", SCREEN_AGGREGATE_PATH)),
+            returns=str(get("sector_returns", RETURNS_PATH)),
+            mapping=str(get("sector_mapping") or FACTSET_ICB_MAPPING_PATH),
+            us_output_dir=str(
+                get(
+                    "sector_us_output_dir",
+                    TP_ROOT / "13_sector_score_model" / "outputs_fs_sector_default",
+                )
+            ),
+            eu_output_dir=str(
+                get(
+                    "sector_eu_output_dir",
+                    TP_ROOT / "13_sector_score_model" / "outputs_eu",
+                )
+            ),
+            legacy_us_output_dir=str(
+                get(
+                    "sector_legacy_us_output_dir",
+                    TP_ROOT / "13_sector_score_model" / "outputs",
+                )
+            ),
+            start_date=str(get("sector_start_date", "2010-01-01")),
+            score_column=str(get("sector_score_column", "score_final")),
+            top_n=int(get("sector_top_n", 3)),
+            bottom_n=int(get("sector_bottom_n", 3)),
+            inspect_only=bool(get("inspect_only_sector", False)),
+            run_type=run_type,
+        )
+        refresh_country_model = RefreshCountryConfig(
+            workbook=str(
+                get(
+                    "country_workbook",
+                    TP_ROOT / "00_screen" / "production_inputs" / "modele_pays.xlsb",
+                )
+            ),
+            database_output=str(
+                get(
+                    "country_database",
+                    TP_ROOT / "14_country_model" / "data" / "country_model_database.parquet",
+                )
+            ),
+            output_dir=str(TP_ROOT / "14_country_model" / "outputs"),
+            signal_output=str(
+                get("country_output", SIGNALS_DIR / "country_model_signals.parquet")
+            ),
+            all_history=bool(get("all_history_signals", False)),
+            use_existing_database=bool(get("use_existing_country_database", False)),
+            inspect_only=bool(get("inspect_only_country_model", False)),
             run_type=run_type,
         )
         refresh_ml = RefreshMLConfig(
@@ -496,6 +587,8 @@ class PipelineRunConfig:
             refresh_data=refresh_data,
             refresh_supplemental=refresh_supplemental,
             refresh_regime=refresh_regime,
+            refresh_sector=refresh_sector,
+            refresh_country_model=refresh_country_model,
             refresh_ml=refresh_ml,
             refresh_technical=refresh_technical,
             export_signals=export_signals,

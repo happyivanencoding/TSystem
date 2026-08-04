@@ -1,17 +1,17 @@
 {
-  "rows": 5527,
-  "columns": 12014,
+  "rows": 5533,
+  "columns": 12020,
   "date_min": "2005-01-03T00:00:00",
-  "date_max": "2026-07-24T00:00:00",
+  "date_max": "2026-08-03T00:00:00",
   "thresholds": {
     "abs_threshold": 1.0,
     "positive_threshold": 2.0,
     "negative_threshold": -0.95
   },
-  "flagged_cells": 2020,
+  "flagged_cells": 2021,
   "flagged_unique_sedol": 442,
   "severity_counts": {
-    "review": 1057,
+    "review": 1058,
     "high": 494,
     "critical": 469
   },

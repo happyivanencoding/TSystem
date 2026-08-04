@@ -1,0 +1,51 @@
+file,line,operation,api_matches,canonical_reference,text
+DATA_CONTRACT.md,52,read,read_screen_aggregate;read_returns,True,"from tp_core.io import read_screen_aggregate, read_returns"
+DATA_CONTRACT.md,55,read,read_screen_aggregate,True,screen = read_screen_aggregate()
+DATA_SOURCES.md,31,read,read_screen_aggregate;read_returns,True,"from tp_core.io import read_returns, read_screen_aggregate"
+README.md,29,read,read_screen_aggregate;read_returns,True,"from tp_core.io import read_screen_aggregate, read_returns"
+README.md,31,read,read_screen_aggregate,True,screen = read_screen_aggregate()
+00_screen/说明文档/screen_returns_context.md,58,read,read_screen_aggregate;read_returns,True,"from tp_core.io import read_returns, read_screen_aggregate"
+00_screen/说明文档/screen_returns_context.md,60,read,read_screen_aggregate,True,screen = read_screen_aggregate()
+11_docs/ENVIRONMENT.md,63,read,read_screen_aggregate;read_returns,True,"from tp_core.io import read_screen_aggregate, read_returns"
+src/presentation_layer/data_repository.py,12,read,read_screen_aggregate;read_last_screen;read_returns,True,"from tp_core.io import read_last_screen, read_returns, read_screen_aggregate"
+src/presentation_layer/data_repository.py,32,read,read_screen_aggregate;read_last_screen,True,return read_last_screen() if last_only else read_screen_aggregate()
+src/presentation_layer/data_repository.py,85,read,read_parquet,True,"frame = pd.read_parquet(SCREEN_AGGREGATE_PATH, filters=[(""ISIN"", ""=="", isin)])"
+src/presentation_layer/apps/system_checks.py,71,read,read_last_screen,True,"""from tp_core.io import read_last_screen; """
+src/presentation_layer/apps/system_checks.py,73,read,read_last_screen,True,"""print(read_last_screen(columns=['Date','ISIN']).shape)"""
+src/tp_core/io.py,18,read,read_screen_aggregate,True,def read_screen_aggregate(
+src/tp_core/io.py,32,read,read_last_screen,True,def read_last_screen(
+src/tp_core/io.py,38,read,read_screen_aggregate,True,"return read_screen_aggregate(path, columns=columns, drop_deprecated=drop_deprecated, normalize_dates=normalize_dates)"
+src/tp_core/io.py,47,read,read_screen_aggregate,True,"return read_screen_aggregate(path, columns=columns, drop_deprecated=drop_deprecated, normalize_dates=normalize_dates)"
+src/tp_core/io.py,50,read,read_returns,True,"def read_returns(path: str | Path = RETURNS_PATH, columns: Iterable[str] | None = None) -> pd.DataFrame:"
+src/tp_core/signals.py,176,read,read_last_screen,True,from .io import read_last_screen
+src/tp_core/signals.py,179,read,read_last_screen,True,"mapping = read_last_screen(columns=[""Company SEDOL"", ""ISIN""])"
+src/tp_core/signals.py,181,read,read_last_screen,True,mapping = read_last_screen()
+src/tp_models/factor_recommendation/cli.py,21,read,read_screen_aggregate,True,from tp_core.io import read_screen_aggregate
+src/tp_models/factor_recommendation/cli.py,103,read,read_screen_aggregate,True,screen = read_screen_aggregate(
+src/tp_models/factor_recommendation/cli.py,120,read,read_screen_aggregate,True,screen = read_screen_aggregate(
+src/tp_models/factor_recommendation/inputs.py,12,read,read_screen_aggregate;read_returns,True,"from tp_core.io import read_returns, read_screen_aggregate"
+src/tp_models/factor_recommendation/inputs.py,70,read,read_screen_aggregate,True,"screen = read_screen_aggregate(Path(screen_path), columns=screen_columns)"
+src/tp_models/ml/cli.py,35,read,read_parquet,True,"screen = pd.read_parquet(SCREEN_AGGREGATE_PATH, columns=columns)"
+src/tp_models/ml/cli.py,37,read,read_parquet,True,screen = pd.read_parquet(SCREEN_AGGREGATE_PATH)
+src/tp_models/ml/production.py,52,read,read_parquet,True,screen = pd.read_parquet(SCREEN_AGGREGATE_PATH)
+src/tp_models/ml/signals.py,30,read,read_parquet,True,"return pd.read_parquet(SCREEN_AGGREGATE_PATH, columns=columns)"
+src/tp_models/ml/signals.py,33,read,read_parquet,True,return pd.read_parquet(SCREEN_AGGREGATE_PATH)
+src/tp_models/regime/returns_loader.py,19,read,read_parquet,True,r = pd.read_parquet(config.RETURNS_PATH)
+src/tp_models/sector/improvement_research.py,123,read,read_parquet,True,"screen = pd.read_parquet(model.SCREEN_AGGREGATE_PATH, columns=list(dict.fromkeys(columns))).reset_index()"
+src/tp_pipelines/refresh_data.py,207,read,read_parquet,True,"frame = pd.read_parquet(RETURNS_PATH, columns=[])"
+src/tp_pipelines/refresh_factor_recommendation.py,25,read,read_screen_aggregate,True,from tp_core.io import read_screen_aggregate
+src/tp_pipelines/refresh_factor_recommendation.py,268,read,read_screen_aggregate,True,"screen = read_screen_aggregate(screen_path, columns=columns)"
+src/tp_pipelines/refresh_supplemental_data.py,106,read,read_parquet,True,latest = ensure_isin_column(pd.read_parquet(LAST_SCREEN_PATH))
+src/tp_pipelines/refresh_supplemental_data.py,417,read,read_parquet,True,"date_frame = pd.read_parquet(SCREEN_AGGREGATE_PATH, columns=[""Date""])"
+src/tp_pipelines/refresh_supplemental_data.py,448,read,read_parquet,True,"pd.read_parquet(SCREEN_AGGREGATE_PATH, columns=qa_columns)"
+src/tp_pipelines/refresh_supplemental_data.py,589,read,read_parquet,True,original_screen = pd.read_parquet(SCREEN_AGGREGATE_PATH)
+src/tp_research/runtime.py,69,read,read_parquet,True,"screen = pd.read_parquet(SCREEN_AGGREGATE_PATH, columns=[""Date""])"
+src/tp_research/runtime.py,77,read,read_parquet,True,"returns = pd.read_parquet(RETURNS_PATH, columns=[])"
+src/tp_research/workflows/run_lowvol_multifactor_residual_research.py,102,read,read_parquet,True,"available = pd.read_parquet(TP_ROOT / ""00_screen"" / ""screen_aggregate.parquet"", engine=""pyarrow"").columns"
+src/tp_research/workflows/run_lowvol_multifactor_residual_research.py,104,read,read_parquet,True,"screen = pd.read_parquet(TP_ROOT / ""00_screen"" / ""screen_aggregate.parquet"", columns=cols)"
+src/tp_research/workflows/run_lowvol_multifactor_residual_research.py,108,read,read_parquet,True,"returns = pd.read_parquet(TP_ROOT / ""00_screen"" / ""returns.parquet"")"
+src/tp_research/workflows/run_lowvol_resvol_research.py,117,read,read_parquet,True,"available = pd.read_parquet(TP_ROOT / ""00_screen"" / ""screen_aggregate.parquet"", engine=""pyarrow"").columns"
+src/tp_research/workflows/run_lowvol_resvol_research.py,119,read,read_parquet,True,"screen = pd.read_parquet(TP_ROOT / ""00_screen"" / ""screen_aggregate.parquet"", columns=cols)"
+src/tp_research/workflows/run_lowvol_resvol_research.py,123,read,read_parquet,True,"returns = pd.read_parquet(TP_ROOT / ""00_screen"" / ""returns.parquet"")"
+tools/duckdb_migration_audit.py,79,read,read_screen_aggregate,True,"r""read_screen_aggregate"","
+tools/duckdb_migration_audit.py,80,read,read_last_screen,True,"r""read_last_screen"","

@@ -1,0 +1,324 @@
+{
+  "nodes": [
+    {
+      "module": "src/tp_pipelines/__init__.py",
+      "io_sites": 0
+    },
+    {
+      "module": "src/tp_pipelines/build_candidates.py",
+      "io_sites": 2
+    },
+    {
+      "module": "src/tp_pipelines/common.py",
+      "io_sites": 1
+    },
+    {
+      "module": "src/tp_pipelines/configs.py",
+      "io_sites": 0
+    },
+    {
+      "module": "src/tp_pipelines/dag.py",
+      "io_sites": 0
+    },
+    {
+      "module": "src/tp_pipelines/export_signals.py",
+      "io_sites": 1
+    },
+    {
+      "module": "src/tp_pipelines/generate_report.py",
+      "io_sites": 3
+    },
+    {
+      "module": "src/tp_pipelines/optimize_portfolio.py",
+      "io_sites": 5
+    },
+    {
+      "module": "src/tp_pipelines/orchestration.py",
+      "io_sites": 0
+    },
+    {
+      "module": "src/tp_pipelines/refresh_country_model.py",
+      "io_sites": 2
+    },
+    {
+      "module": "src/tp_pipelines/refresh_data.py",
+      "io_sites": 1
+    },
+    {
+      "module": "src/tp_pipelines/refresh_factor_recommendation.py",
+      "io_sites": 9
+    },
+    {
+      "module": "src/tp_pipelines/refresh_ml.py",
+      "io_sites": 0
+    },
+    {
+      "module": "src/tp_pipelines/refresh_regime.py",
+      "io_sites": 0
+    },
+    {
+      "module": "src/tp_pipelines/refresh_sector_model.py",
+      "io_sites": 2
+    },
+    {
+      "module": "src/tp_pipelines/refresh_small_cap.py",
+      "io_sites": 1
+    },
+    {
+      "module": "src/tp_pipelines/refresh_supplemental_data.py",
+      "io_sites": 15
+    },
+    {
+      "module": "src/tp_pipelines/refresh_technical.py",
+      "io_sites": 4
+    },
+    {
+      "module": "src/tp_pipelines/run_all.py",
+      "io_sites": 3
+    },
+    {
+      "module": "src/tp_pipelines/run_backtest.py",
+      "io_sites": 0
+    }
+  ],
+  "imports": [
+    {
+      "module": "src/tp_pipelines/build_candidates.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/build_candidates.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/common.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/common.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/common.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/common.py",
+      "imports": "tp_experiments"
+    },
+    {
+      "module": "src/tp_pipelines/common.py",
+      "imports": "tp_portfolio"
+    },
+    {
+      "module": "src/tp_pipelines/configs.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/configs.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/export_signals.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/export_signals.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/export_signals.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/export_signals.py",
+      "imports": "tp_models"
+    },
+    {
+      "module": "src/tp_pipelines/export_signals.py",
+      "imports": "tp_models"
+    },
+    {
+      "module": "src/tp_pipelines/export_signals.py",
+      "imports": "tp_models"
+    },
+    {
+      "module": "src/tp_pipelines/generate_report.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/generate_report.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/optimize_portfolio.py",
+      "imports": "tp_portfolio"
+    },
+    {
+      "module": "src/tp_pipelines/optimize_portfolio.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_country_model.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_country_model.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_country_model.py",
+      "imports": "tp_models"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_data.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_data.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_data.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_data.py",
+      "imports": "tp_data"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_factor_recommendation.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_factor_recommendation.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_factor_recommendation.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_factor_recommendation.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_factor_recommendation.py",
+      "imports": "tp_models"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_factor_recommendation.py",
+      "imports": "tp_models"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_factor_recommendation.py",
+      "imports": "tp_models"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_ml.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_ml.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_ml.py",
+      "imports": "tp_models"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_regime.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_regime.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_regime.py",
+      "imports": "tp_models"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_sector_model.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_sector_model.py",
+      "imports": "tp_models"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_small_cap.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_small_cap.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_small_cap.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_small_cap.py",
+      "imports": "tp_models"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_supplemental_data.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_supplemental_data.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_supplemental_data.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_supplemental_data.py",
+      "imports": "tp_data"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_supplemental_data.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_technical.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/refresh_technical.py",
+      "imports": "tp_models"
+    },
+    {
+      "module": "src/tp_pipelines/run_all.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/run_all.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/run_all.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/run_all.py",
+      "imports": "tp_experiments"
+    },
+    {
+      "module": "src/tp_pipelines/run_all.py",
+      "imports": "tp_portfolio"
+    },
+    {
+      "module": "src/tp_pipelines/run_backtest.py",
+      "imports": "tp_core"
+    },
+    {
+      "module": "src/tp_pipelines/run_backtest.py",
+      "imports": "tp_core"
+    }
+  ],
+  "registered_dag": "src/tp_pipelines/orchestration.py",
+  "io_site_count": 49
+}

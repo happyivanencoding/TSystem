@@ -1,0 +1,126 @@
+{
+  "schema_version": "tp.duckdb-migration-plan.v1",
+  "generated_at": "2026-08-04T23:47:12+0200",
+  "decision": "AUDIT_BASELINE",
+  "phases": [
+    {
+      "phase": 0,
+      "name": "Audit / Baseline",
+      "status": "complete"
+    },
+    {
+      "phase": 1,
+      "name": "DuckDB Foundation",
+      "status": "pending",
+      "depends_on": [
+        0
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Partitioned Mirror",
+      "status": "pending",
+      "depends_on": [
+        1
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Shadow Query",
+      "status": "pending",
+      "depends_on": [
+        2
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Read Cutover",
+      "status": "pending",
+      "depends_on": [
+        3
+      ]
+    },
+    {
+      "phase": 5,
+      "name": "Writer Cutover",
+      "status": "pending",
+      "depends_on": [
+        4
+      ]
+    },
+    {
+      "phase": 6,
+      "name": "Materialized Mart Cutover",
+      "status": "pending",
+      "depends_on": [
+        5
+      ]
+    },
+    {
+      "phase": 7,
+      "name": "Canonical Authority Switch",
+      "status": "blocked_until_user_approval",
+      "depends_on": [
+        6
+      ]
+    },
+    {
+      "phase": 8,
+      "name": "Retirement",
+      "status": "blocked_until_two_cycles",
+      "depends_on": [
+        7
+      ]
+    }
+  ],
+  "active_canonical_site_count": 54,
+  "canonical_summary": {
+    "screen_aggregate": {
+      "exists": true,
+      "bytes": 1113318680,
+      "rows": 3465456,
+      "columns": 301,
+      "row_groups": 4,
+      "date_min": "1999-12-31T00:00:00",
+      "date_max": "2026-07-31T00:00:00",
+      "key_duplicate_rows": 0
+    },
+    "returns": {
+      "exists": true,
+      "bytes": 288923561,
+      "rows": 5533,
+      "columns": 12021,
+      "row_groups": 1,
+      "date_min": null,
+      "date_max": null,
+      "key_duplicate_rows": null
+    },
+    "last_screen": {
+      "exists": true,
+      "bytes": 6956845,
+      "rows": 11114,
+      "columns": 301,
+      "row_groups": 1,
+      "date_min": "2026-07-31T00:00:00",
+      "date_max": "2026-07-31T00:00:00",
+      "key_duplicate_rows": null
+    },
+    "screen_aggregate_5y": {
+      "exists": true,
+      "bytes": 273827732,
+      "rows": 654451,
+      "columns": 301,
+      "row_groups": 1,
+      "date_min": "2021-07-31T00:00:00",
+      "date_max": "2026-07-31T00:00:00",
+      "key_duplicate_rows": null
+    }
+  },
+  "phase_7_prerequisites": [
+    "full real-data parity",
+    "complete production-chain parity",
+    "rollback drill",
+    "two independent historical monthly replays or two production monthly cycles",
+    "explicit user approval"
+  ]
+}

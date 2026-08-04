@@ -1,0 +1,38 @@
+file,line,operation,api_matches,canonical_reference,text
+src/presentation_layer/company_analysis.py,30,read,read_excel,False,"df_mapping = pd.read_excel(path_params, sheet_name='Mapping', header=0, na_values=""@NA"")"
+src/presentation_layer/data_repository.py,12,read,read_screen_aggregate;read_last_screen;read_returns,True,"from tp_core.io import read_last_screen, read_returns, read_screen_aggregate"
+src/presentation_layer/data_repository.py,32,read,read_screen_aggregate;read_last_screen,True,return read_last_screen() if last_only else read_screen_aggregate()
+src/presentation_layer/data_repository.py,37,read,read_returns,False,return read_returns()
+src/presentation_layer/data_repository.py,85,read,read_parquet,True,"frame = pd.read_parquet(SCREEN_AGGREGATE_PATH, filters=[(""ISIN"", ""=="", isin)])"
+src/presentation_layer/apps/system_checks.py,71,read,read_last_screen,True,"""from tp_core.io import read_last_screen; """
+src/presentation_layer/apps/system_checks.py,73,read,read_last_screen,True,"""print(read_last_screen(columns=['Date','ISIN']).shape)"""
+src/presentation_layer/apps/system_checks.py,299,read,read_parquet,False,"""database=pd.read_parquet(m.COUNTRY_DATABASE_PATH); """
+src/presentation_layer/apps/system_dashboard.py,1377,read,read_table,False,"table = pq.read_table(path_text, columns=[column])"
+src/presentation_layer/apps/system_dashboard.py,1412,read,ParquetFile,False,schema_names = set(pq.ParquetFile(path).schema.names)
+src/presentation_layer/apps/system_dashboard.py,1416,read,read_parquet,False,frame = pd.read_parquet(path)
+src/presentation_layer/apps/system_dashboard.py,1422,read,read_parquet,False,"frame = pd.read_parquet(path, columns=read_columns)"
+src/presentation_layer/apps/system_dashboard.py,1463,read,ParquetFile,False,return tuple(pq.ParquetFile(path).schema.names)
+src/presentation_layer/apps/system_dashboard.py,1478,read,read_table,False,"table = pq.read_table(path_text, columns=[column])"
+src/presentation_layer/apps/system_dashboard.py,1907,read,read_parquet,False,"frame = pd.read_parquet(path_text, columns=SCORE_ML_COMPONENT_COLUMNS)"
+src/presentation_layer/apps/system_dashboard.py,1926,read,read_parquet,False,frame = pd.read_parquet(path_text)
+src/presentation_layer/apps/system_dashboard.py,1946,read,read_parquet,False,frame = pd.read_parquet(path_text)
+src/presentation_layer/apps/system_dashboard.py,1955,read,read_parquet,False,frame = pd.read_parquet(path_text)
+src/presentation_layer/apps/system_dashboard.py,2066,read,read_parquet,False,"sec_list = pd.read_parquet(run_dir / ""sec_list.parquet"", columns=[""Date""])"
+src/presentation_layer/apps/system_dashboard.py,2104,read,read_parquet,False,"sec_list = pd.read_parquet(run_dir / ""sec_list.parquet"")"
+src/presentation_layer/apps/system_dashboard.py,2586,read,read_csv,False,"frame = pd.read_csv(latest_path, encoding=""utf-8-sig"")"
+src/presentation_layer/apps/system_dashboard.py,3287,read,read_parquet,False,"frame = pd.read_parquet(path, columns=columns)"
+src/presentation_layer/apps/system_dashboard.py,3457,read,read_csv,False,"frame = pd.read_csv(path, encoding=""utf-8-sig"")"
+src/presentation_layer/apps/system_repository.py,33,read,read_parquet,False,return pd.read_parquet(path_text)
+src/presentation_layer/company_browser/data/icb19_supersectors.py,29,read,read_csv,False,mdf = pd.read_csv(ICB_MAPPING_CSV)
+src/presentation_layer/company_browser/data/loaders.py,40,read,read_csv,False,mdf = pd.read_csv(path)
+src/presentation_layer/company_browser/data/loaders.py,77,read,read_parquet,False,df = pd.read_parquet(path)
+src/presentation_layer/company_browser/data/loaders.py,142,read,read_excel,False,"raw = pd.read_excel(path, engine=""openpyxl"")"
+src/presentation_layer/portfolio/dashboard.py,198,read,read_excel,False,df = pd.read_excel(path)
+src/presentation_layer/portfolio/dashboard.py,205,read,read_excel,False,"df = pd.read_excel(path, sheet_name=sheet, header=0, usecols=""A:D"")"
+src/presentation_layer/portfolio/dashboard.py,214,read,read_parquet,False,df = pd.read_parquet(path)
+src/presentation_layer/portfolio/dashboard.py,234,read,read_excel,False,df = pd.read_excel(path)
+src/presentation_layer/portfolio/dashboard.py,242,read,read_parquet,False,df = pd.read_parquet(path)
+src/presentation_layer/portfolio/dashboard.py,330,read,read_excel,False,self.df_reco_facto = pd.read_excel(
+src/presentation_layer/portfolio/dashboard.py,353,read,read_parquet,False,"self._news_raw = pd.read_parquet(self.paths[""news""])"
+src/presentation_layer/portfolio/dashboard.py,362,read,read_parquet,False,"self._news_scored = pd.read_parquet(self.paths[""news_scored""])"
+src/presentation_layer/portfolio/dashboard.py,1114,read,read_excel,False,"transco_fi = pd.read_excel(self.paths['transco_ISIN_Fonds'], index_col=1)"

@@ -1,0 +1,900 @@
+file,line,operation,api_matches,canonical_reference,text
+DATA_CONTRACT.md,52,read,read_screen_aggregate;read_returns,True,"from tp_core.io import read_screen_aggregate, read_returns"
+DATA_CONTRACT.md,55,read,read_screen_aggregate,True,screen = read_screen_aggregate()
+DATA_CONTRACT.md,56,read,read_returns,False,returns = read_returns()
+DATA_SOURCES.md,31,read,read_screen_aggregate;read_returns,True,"from tp_core.io import read_returns, read_screen_aggregate"
+README.md,29,read,read_screen_aggregate;read_returns,True,"from tp_core.io import read_screen_aggregate, read_returns"
+README.md,31,read,read_screen_aggregate,True,screen = read_screen_aggregate()
+README.md,32,read,read_returns,False,returns = read_returns()
+00_screen/说明文档/screen_returns_context.md,58,read,read_screen_aggregate;read_returns,True,"from tp_core.io import read_returns, read_screen_aggregate"
+00_screen/说明文档/screen_returns_context.md,60,read,read_screen_aggregate,True,screen = read_screen_aggregate()
+00_screen/说明文档/screen_returns_context.md,61,read,read_returns,False,returns = read_returns()
+11_docs/ENVIRONMENT.md,63,read,read_screen_aggregate;read_returns,True,"from tp_core.io import read_screen_aggregate, read_returns"
+16_factor_recommendation_model/build_report_html.py,86,read,read_csv,False,frame = pd.read_csv(path)
+16_factor_recommendation_model/build_report_html.py,178,read,read_parquet,False,"panel = pd.read_parquet(OUTPUT_DIR / ""factor_recommendation_panel.parquet"")"
+16_factor_recommendation_model/build_report_html.py,179,read,read_parquet,False,"history = pd.read_parquet(OUTPUT_DIR / ""factor_recommendation_history.parquet"")"
+16_factor_recommendation_model/build_v2_report_html.py,24,read,read_csv,False,"factors = pd.read_csv(results / ""factor_definitions.csv"") if (results / ""factor_definitions.csv"").exists() else pd.DataFrame()"
+16_factor_recommendation_model/build_v2_report_html.py,25,read,read_parquet,False,"panel = pd.read_parquet(results / ""factor_panel.parquet"") if (results / ""factor_panel.parquet"").exists() else pd.DataFrame()"
+16_factor_recommendation_model/build_v2_report_html.py,26,read,read_csv,False,"gates = pd.read_csv(results / ""promotion_gate.csv"") if (results / ""promotion_gate.csv"").exists() else pd.DataFrame()"
+16_factor_recommendation_model/build_v2_report_html.py,27,read,read_csv,False,"metrics = pd.read_csv(results / ""strategy_metrics.csv"") if (results / ""strategy_metrics.csv"").exists() else pd.DataFrame()"
+16_factor_recommendation_model/build_v2_report_html.py,28,read,read_csv,False,"selection = pd.read_csv(results / ""model_selection_summary.csv"") if (results / ""model_selection_summary.csv"").exists() else pd.DataFrame()"
+16_factor_recommendation_model/build_v2_report_html.py,29,read,read_csv,False,"coverage = pd.read_csv(results / ""coverage_gate_results.csv"") if (results / ""coverage_gate_results.csv"").exists() else pd.DataFrame()"
+16_factor_recommendation_model/build_v2_report_html.py,30,read,read_csv,False,"pit = pd.read_csv(results / ""pit_audit.csv"") if (results / ""pit_audit.csv"").exists() else pd.DataFrame()"
+16_factor_recommendation_model/build_v2_report_html.py,31,read,read_parquet,False,"alternative = pd.read_parquet(results / ""alternative_allocator_results.parquet"") if (results / ""alternative_allocator_results.parquet"").exists() else pd.DataFrame()"
+16_factor_recommendation_model/build_v2_report_html.py,32,read,read_csv,False,"mdd = pd.read_csv(results / ""mdd_comparison.csv"") if (results / ""mdd_comparison.csv"").exists() else pd.DataFrame()"
+src/presentation_layer/company_analysis.py,30,read,read_excel,False,"df_mapping = pd.read_excel(path_params, sheet_name='Mapping', header=0, na_values=""@NA"")"
+src/presentation_layer/data_repository.py,12,read,read_screen_aggregate;read_last_screen;read_returns,True,"from tp_core.io import read_last_screen, read_returns, read_screen_aggregate"
+src/presentation_layer/data_repository.py,32,read,read_screen_aggregate;read_last_screen,True,return read_last_screen() if last_only else read_screen_aggregate()
+src/presentation_layer/data_repository.py,37,read,read_returns,False,return read_returns()
+src/presentation_layer/data_repository.py,85,read,read_parquet,True,"frame = pd.read_parquet(SCREEN_AGGREGATE_PATH, filters=[(""ISIN"", ""=="", isin)])"
+src/presentation_layer/apps/system_checks.py,71,read,read_last_screen,True,"""from tp_core.io import read_last_screen; """
+src/presentation_layer/apps/system_checks.py,73,read,read_last_screen,True,"""print(read_last_screen(columns=['Date','ISIN']).shape)"""
+src/presentation_layer/apps/system_checks.py,299,read,read_parquet,False,"""database=pd.read_parquet(m.COUNTRY_DATABASE_PATH); """
+src/presentation_layer/apps/system_dashboard.py,1377,read,read_table,False,"table = pq.read_table(path_text, columns=[column])"
+src/presentation_layer/apps/system_dashboard.py,1412,read,ParquetFile,False,schema_names = set(pq.ParquetFile(path).schema.names)
+src/presentation_layer/apps/system_dashboard.py,1416,read,read_parquet,False,frame = pd.read_parquet(path)
+src/presentation_layer/apps/system_dashboard.py,1422,read,read_parquet,False,"frame = pd.read_parquet(path, columns=read_columns)"
+src/presentation_layer/apps/system_dashboard.py,1463,read,ParquetFile,False,return tuple(pq.ParquetFile(path).schema.names)
+src/presentation_layer/apps/system_dashboard.py,1478,read,read_table,False,"table = pq.read_table(path_text, columns=[column])"
+src/presentation_layer/apps/system_dashboard.py,1907,read,read_parquet,False,"frame = pd.read_parquet(path_text, columns=SCORE_ML_COMPONENT_COLUMNS)"
+src/presentation_layer/apps/system_dashboard.py,1926,read,read_parquet,False,frame = pd.read_parquet(path_text)
+src/presentation_layer/apps/system_dashboard.py,1946,read,read_parquet,False,frame = pd.read_parquet(path_text)
+src/presentation_layer/apps/system_dashboard.py,1955,read,read_parquet,False,frame = pd.read_parquet(path_text)
+src/presentation_layer/apps/system_dashboard.py,2066,read,read_parquet,False,"sec_list = pd.read_parquet(run_dir / ""sec_list.parquet"", columns=[""Date""])"
+src/presentation_layer/apps/system_dashboard.py,2104,read,read_parquet,False,"sec_list = pd.read_parquet(run_dir / ""sec_list.parquet"")"
+src/presentation_layer/apps/system_dashboard.py,2586,read,read_csv,False,"frame = pd.read_csv(latest_path, encoding=""utf-8-sig"")"
+src/presentation_layer/apps/system_dashboard.py,3287,read,read_parquet,False,"frame = pd.read_parquet(path, columns=columns)"
+src/presentation_layer/apps/system_dashboard.py,3457,read,read_csv,False,"frame = pd.read_csv(path, encoding=""utf-8-sig"")"
+src/presentation_layer/apps/system_repository.py,33,read,read_parquet,False,return pd.read_parquet(path_text)
+src/presentation_layer/company_browser/data/des_ciq_mapping.py,77,write,to_parquet,False,"df.to_parquet(p_parquet, index=False)"
+src/presentation_layer/company_browser/data/icb19_supersectors.py,29,read,read_csv,False,mdf = pd.read_csv(ICB_MAPPING_CSV)
+src/presentation_layer/company_browser/data/loaders.py,40,read,read_csv,False,mdf = pd.read_csv(path)
+src/presentation_layer/company_browser/data/loaders.py,77,read,read_parquet,False,df = pd.read_parquet(path)
+src/presentation_layer/company_browser/data/loaders.py,142,read,read_excel,False,"raw = pd.read_excel(path, engine=""openpyxl"")"
+src/presentation_layer/portfolio/dashboard.py,198,read,read_excel,False,df = pd.read_excel(path)
+src/presentation_layer/portfolio/dashboard.py,205,read,read_excel,False,"df = pd.read_excel(path, sheet_name=sheet, header=0, usecols=""A:D"")"
+src/presentation_layer/portfolio/dashboard.py,214,read,read_parquet,False,df = pd.read_parquet(path)
+src/presentation_layer/portfolio/dashboard.py,234,read,read_excel,False,df = pd.read_excel(path)
+src/presentation_layer/portfolio/dashboard.py,242,read,read_parquet,False,df = pd.read_parquet(path)
+src/presentation_layer/portfolio/dashboard.py,330,read,read_excel,False,self.df_reco_facto = pd.read_excel(
+src/presentation_layer/portfolio/dashboard.py,353,read,read_parquet,False,"self._news_raw = pd.read_parquet(self.paths[""news""])"
+src/presentation_layer/portfolio/dashboard.py,362,read,read_parquet,False,"self._news_scored = pd.read_parquet(self.paths[""news_scored""])"
+src/presentation_layer/portfolio/dashboard.py,1114,read,read_excel,False,"transco_fi = pd.read_excel(self.paths['transco_ISIN_Fonds'], index_col=1)"
+src/tp_backtest/core/data_loader.py,38,read,read_parquet,False,self.screen = pd.read_parquet(source)
+src/tp_backtest/core/data_loader.py,64,read,read_parquet,False,self.returns = pd.read_parquet(source)
+src/tp_backtest/core/esg_pivot.py,88,read,read_excel,False,return pd.read_excel(pivot_path)
+src/tp_backtest/core/esg_pivot.py,91,read,read_csv,False,"return pd.read_csv(pivot_path, encoding=""cp1252"", sep=""|"", engine=""python"")"
+src/tp_backtest/core/esg_pivot.py,93,read,read_csv,False,"return pd.read_csv(pivot_path, encoding=""cp1252"", sep=None, engine=""python"")"
+src/tp_backtest/core/security_list_constructor.py,157,read,read_parquet,False,self.screen = pd.read_parquet(screen)
+src/tp_backtest/core/security_list_constructor.py,225,read,read_parquet,False,screen_agg = pd.read_parquet(screen_agg)
+src/tp_backtest/core/security_list_drift.py,22,read,read_parquet,False,returns = pd.read_parquet(self.returns)
+src/tp_backtest/core/security_list_persistence.py,34,read,read_excel,False,existing_data = pd.read_excel(output_file)
+src/tp_backtest/core/weight_table_adapter.py,41,read,read_parquet,False,"screen_agg = pd.read_parquet(screen) if isinstance(screen, str) else screen"
+src/tp_backtest/runner/artifacts.py,114,write,to_parquet,False,"dataframe.to_parquet(target, index=False)"
+src/tp_backtest/runner/artifacts.py,137,write,to_parquet,False,"series.reset_index(name=series.name or ""value"").to_parquet(target, index=False)"
+src/tp_backtest/runner/input_loader.py,72,read,ParquetFile,False,available_order = list(pq.ParquetFile(path).schema_arrow.names)
+src/tp_backtest/runner/input_loader.py,111,read,read_parquet,False,"frame = pd.read_parquet(path, columns=columns, filters=filters)"
+src/tp_backtest/runner/input_loader.py,209,read,read_returns,False,def _read_returns_parquet(
+src/tp_backtest/runner/input_loader.py,217,read,ParquetFile,False,available_order = list(pq.ParquetFile(path).schema_arrow.names)
+src/tp_backtest/runner/input_loader.py,222,read,read_parquet,False,"frame = pd.read_parquet(path, columns=columns, filters=filters)"
+src/tp_backtest/runner/input_loader.py,226,read,read_returns,False,def _read_returns_fallback(
+src/tp_backtest/runner/input_loader.py,279,read,read_returns,False,returns = _read_returns_parquet(
+src/tp_backtest/runner/input_loader.py,285,read,read_returns,False,returns = _read_returns_fallback(
+src/tp_backtest/runner/validators.py,106,read,read_parquet,False,return pd.read_parquet(path)
+src/tp_backtest/runner/validators.py,108,read,read_csv,False,return pd.read_csv(path)
+src/tp_backtest/runner/validators.py,110,read,read_excel,False,return pd.read_excel(path)
+src/tp_backtest/runner/validators.py,222,read,ParquetFile,False,parquet_file = pq.ParquetFile(path)
+src/tp_backtest/runner/validators.py,241,read,read_parquet,False,"dates = pd.to_datetime(pd.read_parquet(path, columns=[""Date""])[""Date""], errors=""coerce"").dropna()"
+src/tp_backtest/runner/validators.py,259,read,read_parquet,False,"frame = pd.read_parquet(path, columns=[])"
+src/tp_backtest/utils/data_utils.py,48,read,read_excel,False,liste_noire = pd.read_excel(file_list_noire)
+src/tp_core/io.py,14,read,read_parquet,False,"def read_parquet_dataset(path: str | Path, columns: Iterable[str] | None = None) -> pd.DataFrame:"
+src/tp_core/io.py,15,read,read_parquet,False,"return pd.read_parquet(Path(path), columns=list(columns) if columns is not None else None)"
+src/tp_core/io.py,18,read,read_screen_aggregate,True,def read_screen_aggregate(
+src/tp_core/io.py,24,read,read_parquet,False,"df = read_parquet_dataset(path, columns=columns)"
+src/tp_core/io.py,32,read,read_last_screen,True,def read_last_screen(
+src/tp_core/io.py,38,read,read_screen_aggregate,True,"return read_screen_aggregate(path, columns=columns, drop_deprecated=drop_deprecated, normalize_dates=normalize_dates)"
+src/tp_core/io.py,41,read,read_screen_5y,False,def read_screen_5y(
+src/tp_core/io.py,47,read,read_screen_aggregate,True,"return read_screen_aggregate(path, columns=columns, drop_deprecated=drop_deprecated, normalize_dates=normalize_dates)"
+src/tp_core/io.py,50,read,read_returns,True,"def read_returns(path: str | Path = RETURNS_PATH, columns: Iterable[str] | None = None) -> pd.DataFrame:"
+src/tp_core/io.py,51,read,read_parquet,False,"returns = read_parquet_dataset(path, columns=columns)"
+src/tp_core/production_inputs.py,273,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_core/production_inputs.py,324,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_core/production_inputs.py,668,read,read_parquet,False,screen_df = pd.read_parquet(screen_path)
+src/tp_core/production_inputs.py,693,read,read_parquet,False,returns_df = pd.read_parquet(returns_path)
+src/tp_core/returns_audit.py,13,read,read_returns,False,from .io import read_returns
+src/tp_core/returns_audit.py,146,read,read_returns,False,returns = read_returns(path)
+src/tp_core/returns_audit.py,170,write,to_parquet,False,"flagged.to_parquet(output, index=False)"
+src/tp_core/security_nav_engine.py,66,read,read_parquet,False,df_returns = pd.read_parquet(returns)
+src/tp_core/signals.py,176,read,read_last_screen,True,from .io import read_last_screen
+src/tp_core/signals.py,179,read,read_last_screen,True,"mapping = read_last_screen(columns=[""Company SEDOL"", ""ISIN""])"
+src/tp_core/signals.py,181,read,read_last_screen,True,mapping = read_last_screen()
+src/tp_core/signals.py,264,write,to_parquet,False,"standardized.to_parquet(output, index=False)"
+src/tp_core/signals.py,271,read,read_parquet,False,return standardize_signal_frame(pd.read_parquet(path))
+src/tp_core/signals.py,280,read,read_parquet,False,frame = pd.read_parquet(args.path)
+src/tp_core/research_context/model_adapter.py,33,read,read_csv,False,"frame = pd.read_csv(spec.path, encoding=""utf-8-sig"")"
+src/tp_data/import_benchmark_weights.py,389,write,to_parquet,True,"latest.to_parquet(LAST_SCREEN_PATH, index=True)"
+src/tp_data/import_benchmark_weights.py,390,write,to_parquet,False,"five_year.to_parquet(SCREEN_5Y_PATH, index=True)"
+src/tp_data/import_benchmark_weights.py,417,read,read_parquet,False,original = pd.read_parquet(SCREEN_PATH)
+src/tp_data/import_benchmark_weights.py,439,write,to_parquet,False,"updated.to_parquet(temp_path, index=True)"
+src/tp_data/import_benchmark_weights.py,440,read,read_parquet,False,"check = pd.read_parquet(temp_path, columns=[""Date"", *BENCHMARK_COLUMNS.values()])"
+src/tp_data/monthly_update.py,339,write,to_parquet,True,latest_screen.to_parquet(last_screen_path)
+src/tp_data/monthly_update.py,340,write,to_parquet,False,screen_5y.to_parquet(screen_5y_path)
+src/tp_data/monthly_update.py,358,read,read_parquet,False,parts = [pd.read_parquet(path) for path in ciq_files]
+src/tp_data/monthly_update.py,451,read,read_parquet,False,screen_df = pd.read_parquet(screen_path)
+src/tp_data/monthly_update.py,459,write,to_parquet,False,"output.to_parquet(screen_path, index=True)"
+src/tp_data/monthly_update.py,646,read,read_parquet,False,"returns_history = pd.read_parquet(paths[""returns_path""])"
+src/tp_data/monthly_update.py,649,read,read_parquet,False,returns_delta_df = pd.read_parquet(returns_delta_path)
+src/tp_data/monthly_update.py,657,read,read_parquet,False,"returns_updated = pd.read_parquet(paths[""returns_path""])"
+src/tp_data/monthly_update.py,703,write,to_parquet,False,"returns_updated.to_parquet(paths[""returns_path""])"
+src/tp_data/monthly_update.py,735,read,read_parquet,False,"old_base = pd.read_parquet(paths[""screen_path""])"
+src/tp_data/monthly_update.py,771,write,to_parquet,False,"returns_updated.to_parquet(paths[""returns_path""])"
+src/tp_data/monthly_update.py,783,read,read_parquet,False,"final_screen = df_combined if dry_run else pd.read_parquet(paths[""screen_path""])"
+src/tp_data/monthly_update.py,791,read,read_parquet,False,"final_screen = pd.read_parquet(paths[""screen_path""])"
+src/tp_data/monthly_update.py,824,write,to_parquet,False,"final_screen.to_parquet(paths[""screen_path""], index=True)"
+src/tp_data/monthly_update.py,825,read,read_parquet,False,"final_screen = pd.read_parquet(paths[""screen_path""])"
+src/tp_data/screen_func.py,437,read,read_excel,False,df = pd.read_excel(
+src/tp_data/screen_func.py,468,read,read_excel,False,df_mapping = pd.read_excel(
+src/tp_data/screen_func.py,573,read,read_parquet,False,old_base = pd.read_parquet(screen_agg)
+src/tp_data/screen_func.py,588,write,to_parquet,False,old_base.to_parquet(backup_path)
+src/tp_data/screen_func.py,735,read,read_parquet,False,df_returns = returns_df.copy() if returns_df is not None else pd.read_parquet(self.path_returns)
+src/tp_data/screen_func.py,851,write,to_parquet,False,df_combined.to_parquet(screen_path)
+src/tp_data/screen_func.py,855,write,to_parquet,False,"screen_5y.to_parquet(screen_path.with_name(f""{screen_path.stem}_5Y{screen_path.suffix}""))"
+src/tp_data/screen_func.py,861,read,read_parquet,False,daily_weights = pd.read_parquet(path_daily)
+src/tp_data/screen_func.py,872,write,to_parquet,False,daily_weights.to_parquet(path_daily)
+src/tp_data/screen_func.py,933,read,read_parquet,False,returns = returns_df.copy() if returns_df is not None else pd.read_parquet(self.path_returns)
+src/tp_data/screen_func.py,967,read,read_excel,False,"df_mapping = pd.read_excel(param_mapping_excel, sheet_name='Mapping', header = 0, na_values=""@NA"")"
+src/tp_data/screen_func.py,973,read,read_excel,False,"df = pd.read_excel(new_screen_excel, header = 0, skiprows=[0,1,2,3,5], index_col = 4, na_values=[""@NA"", ""#N/A""])"
+src/tp_data/screen_func.py,1013,read,read_excel,False,"old_bench = pd.read_excel(output_file, index_col=0, header = 0)"
+src/tp_experiments/artifacts.py,166,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_experiments/artifacts.py,168,read,read_csv,False,frame = pd.read_csv(path)
+src/tp_experiments/artifacts.py,170,read,read_excel,False,frame = pd.read_excel(path)
+src/tp_experiments/artifacts.py,173,write,to_parquet,False,"minimal.to_parquet(path, index=False)"
+src/tp_models/country.py,391,write,to_parquet,False,"database.to_parquet(output, index=False)"
+src/tp_models/country.py,490,read,read_parquet,False,database = pd.read_parquet(database_output)
+src/tp_models/country.py,500,write,to_parquet,False,"panel.to_parquet(panel_path, index=False)"
+src/tp_models/country.py,505,write,to_parquet,False,"single_country.to_parquet(single_country_path, index=False)"
+src/tp_models/country.py,507,read,read_parquet,False,single_country = pd.read_parquet(single_country_path)
+src/tp_models/small_cap.py,40,read,ParquetFile,False,return set(pq.ParquetFile(path).schema_arrow.names)
+src/tp_models/small_cap.py,112,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=read_columns)"
+src/tp_models/small_cap.py,271,write,to_parquet,False,"panel.to_parquet(panel_output, index=False)"
+src/tp_models/small_cap.py,317,read,read_parquet,False,signal = pd.read_parquet(signal_output)
+src/tp_models/technical_signals.py,43,read,ParquetFile,False,available_columns = set(pq.ParquetFile(path).schema_arrow.names)
+src/tp_models/technical_signals.py,47,read,read_parquet,False,"return pd.read_parquet(path, columns=[*BASE_PATTERN_COLUMNS, *optional_columns])"
+src/tp_models/technical_signals.py,53,read,read_parquet,False,"frame = pd.read_parquet(path, columns=[column])"
+src/tp_models/technical_signals.py,61,read,read_parquet,False,"return pd.read_parquet(returns_path, columns=[]).index"
+src/tp_models/factor_recommendation/audit.py,34,read,ParquetFile,False,parquet = pq.ParquetFile(path)
+src/tp_models/factor_recommendation/audit.py,51,read,ParquetFile,False,parquet = pq.ParquetFile(path)
+src/tp_models/factor_recommendation/audit.py,75,read,read_parquet,False,"frame = pd.read_parquet(path, columns=list(requested))"
+src/tp_models/factor_recommendation/audit.py,130,read,read_parquet,False,"date_frame = pd.read_parquet(path, columns=[])"
+src/tp_models/factor_recommendation/cli.py,21,read,read_screen_aggregate,True,from tp_core.io import read_screen_aggregate
+src/tp_models/factor_recommendation/cli.py,79,read,ParquetFile,False,available = set(pq.ParquetFile(screen_path).schema_arrow.names)
+src/tp_models/factor_recommendation/cli.py,103,read,read_screen_aggregate,True,screen = read_screen_aggregate(
+src/tp_models/factor_recommendation/cli.py,116,write,to_parquet,False,"result.to_parquet(output, index=False)"
+src/tp_models/factor_recommendation/cli.py,120,read,read_screen_aggregate,True,screen = read_screen_aggregate(
+src/tp_models/factor_recommendation/inputs.py,12,read,read_screen_aggregate;read_returns,True,"from tp_core.io import read_returns, read_screen_aggregate"
+src/tp_models/factor_recommendation/inputs.py,64,read,ParquetFile,False,available = set(pq.ParquetFile(Path(screen_path)).schema.names)
+src/tp_models/factor_recommendation/inputs.py,70,read,read_screen_aggregate,True,"screen = read_screen_aggregate(Path(screen_path), columns=screen_columns)"
+src/tp_models/factor_recommendation/inputs.py,71,read,read_returns,False,"returns = read_returns(Path(returns_path), columns=return_columns)"
+src/tp_models/factor_recommendation/persistence.py,27,read,read_parquet,False,return pd.read_parquet(path)
+src/tp_models/factor_recommendation/persistence.py,29,read,read_csv,False,return pd.read_csv(path)
+src/tp_models/factor_recommendation/persistence.py,39,write,to_parquet,False,"frame.to_parquet(path, index=False)"
+src/tp_models/ml/cli.py,35,read,read_parquet,True,"screen = pd.read_parquet(SCREEN_AGGREGATE_PATH, columns=columns)"
+src/tp_models/ml/cli.py,37,read,read_parquet,True,screen = pd.read_parquet(SCREEN_AGGREGATE_PATH)
+src/tp_models/ml/production.py,52,read,read_parquet,True,screen = pd.read_parquet(SCREEN_AGGREGATE_PATH)
+src/tp_models/ml/production.py,150,read,read_parquet,False,score = _ensure_isin_column(pd.read_parquet(path))
+src/tp_models/ml/production.py,252,write,to_parquet,True,"screen.set_index(""ISIN"").to_parquet(SCREEN_AGGREGATE_PATH)"
+src/tp_models/ml/signals.py,30,read,read_parquet,True,"return pd.read_parquet(SCREEN_AGGREGATE_PATH, columns=columns)"
+src/tp_models/ml/signals.py,33,read,read_parquet,True,return pd.read_parquet(SCREEN_AGGREGATE_PATH)
+src/tp_models/ml/codes/ML_PIPELINE.py,114,read,read_parquet,False,input_transformed = pd.read_parquet(self.input_file_path)
+src/tp_models/ml/codes/ML_PIPELINE.py,190,read,read_parquet,False,screen_agg = pd.read_parquet(self.screen_path).reset_index()
+src/tp_models/ml/codes/ML_PIPELINE.py,191,read,read_parquet,False,score_output = pd.read_parquet(self.score_ml_path).reset_index()
+src/tp_models/ml/codes/ML_PIPELINE.py,233,write,to_parquet,False,screen_agg.to_parquet(self.screen_path)
+src/tp_models/ml/codes/ML_PREDICTOR.py,415,write,to_parquet,False,# screen_pred.to_parquet(save_path_parquet)  # Save as parquet file
+src/tp_models/ml/codes/ML_PREDICTOR.py,420,write,to_parquet,False,screen_pred.to_parquet(save_path_parquet)  # Save as parquet file
+src/tp_models/ml/codes/ML_PREDICTOR.py,423,write,to_parquet,False,shap_total.to_parquet(save_path_parquet_shap)  # Save as parquet file
+src/tp_models/ml/codes/ML_PREDICTOR.py,429,write,to_parquet,False,screen_pred_last.to_parquet(save_path_parquet)  # Save as parquet file
+src/tp_models/ml/codes/ML_PREDICTOR.py,432,write,to_parquet,False,shap_total.to_parquet(save_path_parquet_shap)  # Save as parquet file
+src/tp_models/ml/codes/ML_PREPROCESS.py,36,read,read_parquet,False,screen_agg = pd.read_parquet(self.screen_path)
+src/tp_models/ml/codes/ML_PREPROCESS.py,37,read,read_parquet,False,df_returns = pd.read_parquet(self.returns_path)
+src/tp_models/ml/codes/ML_PREPROCESS.py,430,read,read_parquet,False,screen_agg = pd.read_parquet(self.screen_path)
+src/tp_models/ml/codes/ML_PREPROCESS.py,494,write,to_parquet,False,screen_full_feat.to_parquet(self.df_features_path)
+src/tp_models/ml/codes/ML_SUIVI.py,34,read,read_parquet,False,"score_EU = pd.read_parquet(_resolve_config_path(config_EU, 'score_ml_path', 'score_ml_backtest_path'))"
+src/tp_models/ml/codes/ML_SUIVI.py,35,read,read_parquet,False,"score_US = pd.read_parquet(_resolve_config_path(config_US, 'score_ml_path', 'score_ml_backtest_path'))"
+src/tp_models/ml/codes/ML_SUIVI.py,36,read,read_parquet,False,# score_OTHER = pd.read_parquet(config_OTHER.params_principal['score_ml_path'])
+src/tp_models/ml/codes/ML_SUIVI.py,38,read,read_parquet,False,"shap_EU = pd.read_parquet(_resolve_config_path(config_EU, 'shap_path', 'shap_backtest_path'))"
+src/tp_models/ml/codes/ML_SUIVI.py,39,read,read_parquet,False,"shap_US = pd.read_parquet(_resolve_config_path(config_US, 'shap_path', 'shap_backtest_path'))"
+src/tp_models/ml/codes/ML_SUIVI.py,40,read,read_parquet,False,# shap_OTHER = pd.read_parquet(config_OTHER.params_principal['shap_path'])
+src/tp_models/ml/codes/ML_SUIVI.py,210,read,read_parquet,False,screen = pd.read_parquet(path_screen)
+src/tp_models/ml/codes/ML_SUIVI.py,214,read,read_parquet,False,ciq = pd.read_parquet(path_ciq)
+src/tp_models/ml/codes/ML_SUIVI.py,240,read,read_parquet,False,ptf = pd.read_parquet(path_ptf_world)
+src/tp_models/ml/codes/ML_SUIVI.py,315,read,read_parquet,False,"screen_EU = pd.read_parquet(_resolve_config_path(config_EU, 'df_features_path', 'df_features_backtest_path'))"
+src/tp_models/ml/codes/ML_SUIVI.py,316,read,read_parquet,False,"screen_US = pd.read_parquet(_resolve_config_path(config_US, 'df_features_path', 'df_features_backtest_path'))"
+src/tp_models/ml/codes/ML_SUIVI.py,317,read,read_parquet,False,# screen_OTHER = pd.read_parquet(config_OTHER.params_principal.get('df_features_path'))
+src/tp_models/ml/codes/ML_SUIVI.py,378,read,read_parquet,False,"list_exclu_EU = pd.read_parquet(_resolve_config_path(config_EU, 'list_exclusion_path'))"
+src/tp_models/ml/codes/ML_SUIVI.py,379,read,read_parquet,False,"list_exclu_US = pd.read_parquet(_resolve_config_path(config_US, 'list_exclusion_path'))"
+src/tp_models/ml/codes/ML_SUIVI.py,380,read,read_parquet,False,# list_exclu_OTHER = pd.read_parquet(config_OTHER.params_principal['list_exclusion_path'])
+src/tp_models/ml/codes/ML_SUIVI.py,1062,read,read_parquet,False,ptf = pd.read_parquet(ptf_ticker).to_frame()
+src/tp_models/ml/codes/ML_SUIVI.py,1083,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_models/ml/codes/ML_SUIVI.py,1148,read,read_parquet,False,returns = pd.read_parquet(returns_path)
+src/tp_models/ml/codes/ML_SUIVI.py,1204,read,read_parquet,False,returns = pd.read_parquet(returns_path)
+src/tp_models/news/data_pipeline.py,275,read,read_parquet,False,"clean = pd.concat([pd.read_parquet(path), clean], ignore_index=True)"
+src/tp_models/news/data_pipeline.py,277,write,to_parquet,False,"clean.to_parquet(path, index=False)"
+src/tp_models/news/data_pipeline.py,293,read,read_parquet,False,frames.append(pd.read_parquet(path))
+src/tp_models/news/data_pipeline.py,674,read,read_parquet,False,return pd.read_parquet(path)
+src/tp_models/news/data_pipeline.py,676,read,read_csv,False,return pd.read_csv(path)
+src/tp_models/news/gdelt.py,241,write,to_parquet,False,"frame.to_parquet(output, index=False)"
+src/tp_models/news/gdelt.py,462,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_models/news/gdelt.py,472,write,to_parquet,False,"kept.to_parquet(path, index=False)"
+src/tp_models/news/gdelt.py,485,read,read_csv,False,for chunk in pd.read_csv(
+src/tp_models/news/gdelt.py,555,read,read_parquet,False,entity_history = pd.read_parquet(entity_history_path) if entity_history_path.exists() else pd.DataFrame()
+src/tp_models/news/research.py,85,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=SCREEN_COLUMNS)"
+src/tp_models/news/research.py,162,read,ParquetFile,False,available = set(pq.ParquetFile(path).schema_arrow.names)
+src/tp_models/news/research.py,209,read,read_parquet,False,"raw = pd.read_parquet(returns_path, columns=sorted(set(mapping.values())))"
+src/tp_models/news/research.py,382,read,read_parquet,False,news = pd.read_parquet(
+src/tp_models/news/research.py,386,read,read_excel,False,"mapping = pd.read_excel(mapping_path, sheet_name=""Mapping"")"
+src/tp_models/news/research.py,429,read,read_parquet,False,"names = pd.read_parquet(screen_path, columns=[DATE_COL, ID_COL, ""Name""])"
+src/tp_models/news/research.py,882,read,read_parquet,False,country = pd.read_parquet(country_path)
+src/tp_models/news/research.py,894,read,read_parquet,False,"regime = pd.read_parquet(regime_path)[[""Date"", ""region"", ""score"", ""model_version""]]"
+src/tp_models/news/research.py,957,write,to_parquet,False,"universe.to_parquet(paths[""universe_panel""], index=False)"
+src/tp_models/news/research.py,958,write,to_parquet,False,"market_labels.to_parquet(paths[""market_labels""], index=False)"
+src/tp_models/news/research.py,959,write,to_parquet,False,"sector_labels.to_parquet(paths[""sector_labels""], index=False)"
+src/tp_models/news/research.py,961,write,to_parquet,False,"build_entity_sector_history(universe).to_parquet(paths[""entity_sector_history""], index=False)"
+src/tp_models/news/research.py,999,write,to_parquet,False,"predictions.to_parquet(paths[""predictions""], index=False)"
+src/tp_models/news/research.py,1003,write,to_parquet,False,"signal_panel.to_parquet(paths[""news_signal_panel""], index=False)"
+src/tp_models/news/research.py,1004,write,to_parquet,False,"sector_daily.to_parquet(paths[""sector_top_worst_daily""], index=False)"
+src/tp_models/news/research.py,1007,write,to_parquet,False,"alignment.to_parquet(paths[""existing_model_alignment""], index=False)"
+src/tp_models/news/research.py,1009,write,to_parquet,False,"signal_panel.to_parquet(config.OUTPUT_DIR / ""news_signal_panel.parquet"", index=False)"
+src/tp_models/news/run.py,45,read,read_parquet,False,"normalized, pd.read_parquet(config.ENTITY_HISTORY_PATH)"
+src/tp_models/news/run.py,74,read,read_parquet,False,"pd.read_parquet(raw_path), market=shard.market, source_era=shard.source_era"
+src/tp_models/news/run.py,78,read,read_parquet,False,"normalized, pd.read_parquet(config.ENTITY_HISTORY_PATH)"
+src/tp_models/news/run.py,120,read,read_parquet,False,labels = pd.read_parquet(label_path)
+src/tp_models/news/run.py,135,read,read_parquet,False,"pd.read_parquet(market_path),"
+src/tp_models/news/run.py,136,read,read_parquet,False,"pd.read_parquet(sector_path),"
+src/tp_models/news/run.py,141,write,to_parquet,False,"market_state.to_parquet(market_path, index=False)"
+src/tp_models/news/run.py,142,write,to_parquet,False,"sector_state.to_parquet(sector_path, index=False)"
+src/tp_models/news/run.py,161,read,read_parquet,False,daily_state = pd.read_parquet(state_path)
+src/tp_models/news/run.py,162,read,read_parquet,False,market_labels = pd.read_parquet(labels_path)
+src/tp_models/news/run.py,176,read,read_parquet,False,"sector_state=pd.read_parquet(sector_state_path),"
+src/tp_models/news/run.py,177,read,read_parquet,False,"sector_labels=pd.read_parquet(sector_labels_path),"
+src/tp_models/news/run.py,188,read,read_csv,False,audit = pd.read_csv(audit_path)
+src/tp_models/news/run.py,189,read,read_parquet,False,state = pd.read_parquet(state_path)
+src/tp_models/news/run.py,214,read,read_csv,False,"metrics = pd.read_csv(latest_run / ""metrics.csv"") if latest_run and (latest_run / ""metrics.csv"").exists() else pd.DataFrame()"
+src/tp_models/news/run.py,215,read,read_csv,False,"placebos = pd.read_csv(latest_run / ""placebo_metrics.csv"") if latest_run and (latest_run / ""placebo_metrics.csv"").exists() else pd.DataFrame()"
+src/tp_models/news/run.py,216,read,read_csv,False,"sector = pd.read_csv(latest_run / ""sector_top_worst_summary.csv"") if latest_run and (latest_run / ""sector_top_worst_summary.csv"").exists() else pd.DataFrame()"
+src/tp_models/news/run.py,217,read,read_csv,False,"risk = pd.read_csv(latest_run / ""risk_state_metrics.csv"") if latest_run and (latest_run / ""risk_state_metrics.csv"").exists() else pd.DataFrame()"
+src/tp_models/news/run.py,218,read,read_csv,False,"increment = pd.read_csv(latest_run / ""existing_increment_comparison.csv"") if latest_run and (latest_run / ""existing_increment_comparison.csv"").exists() else pd.DataFrame()"
+src/tp_models/regime/build_features.py,8,read,read_parquet,False,macro = pd.read_parquet(config.MACRO_PATH).sort_index()
+src/tp_models/regime/build_features.py,21,read,read_excel,False,raw = pd.read_excel(
+src/tp_models/regime/build_features.py,64,write,to_parquet,False,feats.to_parquet(out)
+src/tp_models/regime/data_loader.py,10,read,read_parquet,False,"df = pd.read_parquet(config.SCREEN_PATH, columns=config.screen_columns())"
+src/tp_models/regime/data_loader.py,46,read,read_parquet,False,"df = pd.read_parquet(config.SCREEN_PATH, columns=list(dict.fromkeys(cols)))"
+src/tp_models/regime/export_dashboard.py,49,read,read_parquet,False,"regime = pd.read_parquet(config.OUTPUT_DIR / f""regime_{region}.parquet"")"
+src/tp_models/regime/export_risk_budget.py,81,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_models/regime/load_macro_data.py,13,read,read_excel,False,"df = pd.read_excel(SRC, sheet_name=sheet, header=2, usecols=usecols)"
+src/tp_models/regime/load_macro_data.py,24,write,to_parquet,False,"macro.to_parquet(BASE / ""macro_data.parquet"")"
+src/tp_models/regime/merge_ciq_history.py,20,read,read_parquet,False,"nw = pd.concat([pd.read_parquet(p) for p in NEW], ignore_index=True)"
+src/tp_models/regime/merge_ciq_history.py,28,read,read_table,False,table = pq.read_table(SA)
+src/tp_models/regime/merge_ciq_history.py,50,write,write_table,False,"pq.write_table(table, SA)"
+src/tp_models/regime/ml_compare.py,44,read,read_parquet,False,"oos = pd.read_parquet(config.OUTPUT_DIR / f""regime_oos_{region}.parquet"")[""state""]"
+src/tp_models/regime/ml_if_features.py,57,read,read_parquet,False,"screen = pd.read_parquet(config.SCREEN_PATH, columns=list(dict.fromkeys(cols)))"
+src/tp_models/regime/model.py,43,read,read_parquet,False,"return pd.read_parquet(config.OUTPUT_DIR / f""features_{region}.parquet"").sort_index()"
+src/tp_models/regime/returns_loader.py,19,read,read_parquet,True,r = pd.read_parquet(config.RETURNS_PATH)
+src/tp_models/regime/risk_budget_model.py,35,read,read_parquet,False,"features = pd.read_parquet(config.OUTPUT_DIR / ""features_EU.parquet"").sort_index()"
+src/tp_models/regime/screen_vol_features.py,130,read,read_parquet,False,"screen = pd.read_parquet(config.SCREEN_PATH, columns=list(dict.fromkeys(cols)))"
+src/tp_models/regime/train_regime.py,57,write,to_parquet,False,"res.to_parquet(config.OUTPUT_DIR / f""regime_{region}.parquet"")"
+src/tp_models/regime/vol_compare.py,76,read,read_parquet,False,"oos = pd.read_parquet(config.OUTPUT_DIR / f""regime_oos_{region}.parquet"")[""state""]"
+src/tp_models/regime/walkforward.py,85,write,to_parquet,False,"res.to_parquet(config.OUTPUT_DIR / f""regime_oos_{region}.parquet"")"
+src/tp_models/sector/eu_variable_research.py,140,read,ParquetFile,False,schema = pq.ParquetFile(path).schema_arrow
+src/tp_models/sector/eu_variable_research.py,163,read,read_parquet,False,"frame = pd.read_parquet(path, columns=list(dict.fromkeys([*BASE_COLUMNS, *columns])))"
+src/tp_models/sector/improvement_research.py,123,read,read_parquet,True,"screen = pd.read_parquet(model.SCREEN_AGGREGATE_PATH, columns=list(dict.fromkeys(columns))).reset_index()"
+src/tp_models/sector/improvement_research.py,337,read,read_parquet,False,"_add_candidates(pd.read_parquet(panel_path)),"
+src/tp_models/sector/model.py,168,read,ParquetFile,False,return set(pq.ParquetFile(path).schema_arrow.names)
+src/tp_models/sector/model.py,179,read,read_excel,False,"mapping = pd.read_excel(path, sheet_name=""Mapping"")"
+src/tp_models/sector/model.py,196,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=columns)"
+src/tp_models/sector/model.py,382,read,ParquetFile,False,available = set(pq.ParquetFile(returns_path).schema_arrow.names)
+src/tp_models/sector/model.py,392,read,read_parquet,False,"returns = pd.read_parquet(returns_path, columns=securities)"
+src/tp_models/sector/model.py,722,write,to_parquet,False,"panel.to_parquet(paths[""sector_scores_panel""], index=False)"
+src/tp_models/technical/Main.py,33,read,read_parquet,False,returns = pd.read_parquet(path_returns)
+src/tp_models/technical/Main.py,34,read,read_parquet,False,screen_agg = pd.read_parquet(path_screen)
+src/tp_models/technical/Main.py,87,write,to_parquet,False,patterns_total.to_parquet(path_output_pattern)
+src/tp_models/technical/pattern_backtest_engine.py,54,read,read_parquet,False,patterns = pd.read_parquet(patterns_path).copy()
+src/tp_models/technical/pattern_backtest_engine.py,62,read,read_parquet,False,returns = pd.read_parquet(returns_path).copy()
+src/tp_models/technical/pattern_backtest_engine.py,67,read,read_parquet,False,screen = pd.read_parquet(screen_path).copy()
+src/tp_pipelines/build_candidates.py,145,read,read_csv,False,"frame = pd.read_csv(path, encoding=""utf-8-sig"")"
+src/tp_pipelines/build_candidates.py,435,write,to_parquet,False,"candidates.to_parquet(output, index=False)"
+src/tp_pipelines/common.py,78,read,ParquetFile,False,metadata = pq.ParquetFile(target).metadata
+src/tp_pipelines/export_signals.py,27,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_pipelines/generate_report.py,58,read,read_parquet,False,"frame = pd.read_parquet(path, columns=[column])"
+src/tp_pipelines/generate_report.py,66,read,read_csv,False,"frame = pd.read_csv(path, usecols=[column])"
+src/tp_pipelines/generate_report.py,74,read,read_parquet,False,"frame = pd.read_parquet(path, columns=[])"
+src/tp_pipelines/optimize_portfolio.py,34,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_pipelines/optimize_portfolio.py,36,read,read_excel,False,frame = pd.read_excel(path)
+src/tp_pipelines/optimize_portfolio.py,38,read,read_csv,False,frame = pd.read_csv(path)
+src/tp_pipelines/optimize_portfolio.py,260,read,read_parquet,False,candidates = pd.read_parquet(candidates_path)
+src/tp_pipelines/optimize_portfolio.py,380,write,to_parquet,False,"output_frame.to_parquet(output, index=False)"
+src/tp_pipelines/refresh_country_model.py,28,read,read_parquet,False,"dates = pd.to_datetime(pd.read_parquet(path, columns=[column])[column], errors=""coerce"").dropna()"
+src/tp_pipelines/refresh_country_model.py,48,read,read_csv,False,"pd.read_csv(latest_csv, usecols=[""Date""])[""Date""], errors=""coerce"""
+src/tp_pipelines/refresh_data.py,207,read,read_parquet,True,"frame = pd.read_parquet(RETURNS_PATH, columns=[])"
+src/tp_pipelines/refresh_factor_recommendation.py,25,read,read_screen_aggregate,True,from tp_core.io import read_screen_aggregate
+src/tp_pipelines/refresh_factor_recommendation.py,121,write,to_parquet,False,"frame.to_parquet(temporary, index=False)"
+src/tp_pipelines/refresh_factor_recommendation.py,256,read,ParquetFile,False,available = set(pq.ParquetFile(screen_path).schema.names)
+src/tp_pipelines/refresh_factor_recommendation.py,268,read,read_screen_aggregate,True,"screen = read_screen_aggregate(screen_path, columns=columns)"
+src/tp_pipelines/refresh_factor_recommendation.py,681,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_pipelines/refresh_factor_recommendation.py,826,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_pipelines/refresh_factor_recommendation.py,879,write,to_parquet,False,"forecast.to_parquet(forecast_output, index=False)"
+src/tp_pipelines/refresh_factor_recommendation.py,881,read,read_parquet,False,"validation = validate_signal_frame(pd.read_parquet(signal_output), strict=True)"
+src/tp_pipelines/refresh_factor_recommendation.py,918,read,read_parquet,False,pd.read_parquet(signal_output).duplicated(
+src/tp_pipelines/refresh_sector_model.py,26,read,read_parquet,False,"dates = pd.to_datetime(pd.read_parquet(path, columns=[""Date""])[""Date""], errors=""coerce"").dropna()"
+src/tp_pipelines/refresh_sector_model.py,33,read,read_csv,False,"dates = pd.to_datetime(pd.read_csv(path, usecols=[""Date""])[""Date""], errors=""coerce"").dropna()"
+src/tp_pipelines/refresh_small_cap.py,74,read,read_parquet,False,signal = pd.read_parquet(signal_output)
+src/tp_pipelines/refresh_supplemental_data.py,76,write,_atomic_write_parquet,False,"def _atomic_write_parquet(path: Path, frame: pd.DataFrame, *, index: bool = False) -> None:"
+src/tp_pipelines/refresh_supplemental_data.py,79,write,to_parquet,False,"frame.to_parquet(temp_path, index=index)"
+src/tp_pipelines/refresh_supplemental_data.py,93,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_pipelines/refresh_supplemental_data.py,106,read,read_parquet,True,latest = ensure_isin_column(pd.read_parquet(LAST_SCREEN_PATH))
+src/tp_pipelines/refresh_supplemental_data.py,138,read,read_csv,False,"overrides = pd.read_csv(path, dtype=""string"")"
+src/tp_pipelines/refresh_supplemental_data.py,300,write,_atomic_write_parquet,False,"_atomic_write_parquet(normalized_path, records)"
+src/tp_pipelines/refresh_supplemental_data.py,378,read,read_parquet,False,"return pd.concat([pd.read_parquet(path) for path in paths], ignore_index=True)"
+src/tp_pipelines/refresh_supplemental_data.py,417,read,read_parquet,True,"date_frame = pd.read_parquet(SCREEN_AGGREGATE_PATH, columns=[""Date""])"
+src/tp_pipelines/refresh_supplemental_data.py,437,write,_atomic_write_parquet,False,"_atomic_write_parquet(macro_path, macro)"
+src/tp_pipelines/refresh_supplemental_data.py,439,write,_atomic_write_parquet,False,"_atomic_write_parquet(security_path, security)"
+src/tp_pipelines/refresh_supplemental_data.py,448,read,read_parquet,True,"pd.read_parquet(SCREEN_AGGREGATE_PATH, columns=qa_columns)"
+src/tp_pipelines/refresh_supplemental_data.py,455,write,_atomic_write_parquet,False,"_atomic_write_parquet(sidecar_path, sidecar)"
+src/tp_pipelines/refresh_supplemental_data.py,589,read,read_parquet,True,original_screen = pd.read_parquet(SCREEN_AGGREGATE_PATH)
+src/tp_pipelines/refresh_supplemental_data.py,619,write,_atomic_write_parquet,True,"_atomic_write_parquet(SCREEN_AGGREGATE_PATH, output_screen, index=isin_was_index)"
+src/tp_pipelines/refresh_supplemental_data.py,633,read,read_parquet,False,"""rows"": int(sum(len(pd.read_parquet(path, columns=[""value""])) for path in paths)),"
+src/tp_pipelines/refresh_technical.py,34,read,read_parquet,False,"frame = pd.read_parquet(path, columns=[column])"
+src/tp_pipelines/refresh_technical.py,46,read,read_parquet,False,"return pd.read_parquet(returns_path, columns=[]).index"
+src/tp_pipelines/refresh_technical.py,75,read,ParquetFile,False,available_columns = set(pq.ParquetFile(path).schema_arrow.names)
+src/tp_pipelines/refresh_technical.py,79,read,read_parquet,False,"return pd.read_parquet(path, columns=[""Date"", *optional_columns])"
+src/tp_pipelines/run_all.py,49,read,read_parquet,False,"frame = pd.read_parquet(path, columns=[column])"
+src/tp_pipelines/run_all.py,57,read,read_csv,False,"frame = pd.read_csv(path, usecols=[column])"
+src/tp_pipelines/run_all.py,70,read,read_parquet,False,"frame = pd.read_parquet(path, columns=[])"
+src/tp_reporting/factor_explorer.py,404,read,read_parquet;read_csv,False,"frame = pd.read_parquet(path) if path.suffix.lower() == "".parquet"" else pd.read_csv(path)"
+src/tp_reporting/factor_explorer.py,489,read,read_csv,False,"summary = pd.read_csv(run / ""family_subset_results.csv"")"
+src/tp_reporting/factor_explorer.py,649,read,read_csv,False,"subsets = pd.read_csv(run / ""family_subset_results.csv"")"
+src/tp_reporting/factor_explorer.py,652,read,read_csv,False,"candidate_map = pd.read_csv(run / ""theme_candidate_map.csv"").set_index(""metric"").to_dict(orient=""index"")"
+src/tp_reporting/factor_explorer.py,653,read,read_csv,False,"summary = pd.read_csv(run / ""theme_performance_summary.csv"")"
+src/tp_reporting/factor_explorer.py,738,read,read_csv,False,"summary = pd.read_csv(run / ""theme_performance_summary.csv"")"
+src/tp_reporting/factor_explorer.py,2903,read,read_csv,False,frame = pd.read_csv(path)
+src/tp_reporting/factor_research_app.py,60,read,read_csv,False,"def read_csv(run: str, filename: str) -> pd.DataFrame:"
+src/tp_reporting/factor_research_app.py,62,read,read_csv,False,return pd.read_csv(path) if path.exists() and path.stat().st_size else pd.DataFrame()
+src/tp_reporting/factor_research_app.py,107,read,read_csv,False,"frame = read_csv(run, filename)"
+src/tp_reporting/factor_research_app.py,126,read,read_csv,False,"frame = read_csv(run, filename)"
+src/tp_reporting/factor_research_app.py,130,read,read_csv,False,"definitions = read_csv(run, ""regime_definitions.csv"")"
+src/tp_reporting/factor_research_app.py,145,read,read_csv,False,"gate = read_csv(run, ""architecture_gate_results.csv"")"
+src/tp_reporting/factor_research_app.py,146,read,read_csv,False,"loro = read_csv(run, ""architecture_loro_summary.csv"")"
+src/tp_reporting/factor_research_app.py,154,read,read_csv,False,"pairs = read_csv(run, ""pair_synergy_results.csv"")"
+src/tp_reporting/factor_research_app.py,155,read,read_csv,False,"subsets = read_csv(run, ""family_subset_results.csv"")"
+src/tp_reporting/factor_research_app.py,161,read,read_csv,False,"frame = read_csv(run, ""synergy_loro_summary.csv"")"
+src/tp_reporting/factor_research_app.py,163,read,read_csv,False,"frame = read_csv(run, ""synergy_lopo_summary.csv"")"
+src/tp_reporting/factor_research_app.py,176,read,read_csv,False,"frame = read_csv(config[""matrix""], ""architecture_deflated_sharpe.csv"")"
+src/tp_reporting/factor_research_app.py,187,read,read_csv,False,"return read_csv(config[""oop""], ""deflated_sharpe_results.csv"")"
+src/tp_reporting/factor_research_app.py,191,read,read_csv,False,"frame = read_csv(config[""oop""], ""regime_definitions.csv"")"
+src/tp_reporting/factor_research_app.py,200,read,read_csv,False,"monthly = read_csv(config[""lag6""], ""benchmark_monthly_audit.csv"")"
+src/tp_reporting/factor_research_app.py,233,read,read_csv,False,"read_csv(config[""lag_old""], ""relative_validation_gate.csv"")"
+src/tp_reporting/factor_research_app.py,236,read,read_csv,False,"read_csv(config[""lag6""], ""relative_validation_gate.csv"")"
+src/tp_reporting/stoxx600_factor_explorer.py,47,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_reporting/stoxx600_factor_explorer.py,119,read,read_csv,False,"summary = pd.read_csv(RUN / ""performance_summary.csv"")"
+src/tp_reporting/stoxx600_factor_explorer.py,120,read,read_csv,False,"candidates = pd.read_csv(RUN / ""candidate_map.csv"")"
+src/tp_reporting/stoxx600_factor_explorer.py,123,read,read_csv,False,raw = pd.read_csv(RAW_GATE)
+src/tp_reporting/stoxx600_factor_explorer.py,124,read,read_csv,False,rel = pd.read_csv(REL_GATE)
+src/tp_reporting/stoxx600_factor_explorer.py,125,read,read_csv,False,"claims = pd.read_csv(RUN / ""synergy_claims.csv"").sort_values(""synergy_score"", ascending=False)"
+src/tp_reporting/stoxx600_factor_explorer.py,126,read,read_csv,False,"subsets = pd.read_csv(RUN / ""family_subset_results.csv"").sort_values(""robust_score"", ascending=False)"
+src/tp_reporting/stoxx600_factor_explorer.py,127,read,read_csv,False,"loo = pd.read_csv(RUN / ""leave_one_out_results.csv"").sort_values(""loo_contribution"", ascending=False)"
+src/tp_reporting/stoxx600_factor_explorer.py,128,read,read_csv,False,"regime = pd.read_csv(RUN / ""period_active_cagr_selected.csv"").sort_values(""post_active_cagr"", ascending=False)"
+src/tp_reporting/stoxx600_factor_explorer.py,129,read,read_csv,False,"official = pd.read_csv(RUN / ""official_run_results.csv"")"
+src/tp_research/executor.py,77,read,read_csv,False,frames.append(pd.read_csv(path))
+src/tp_research/runtime.py,69,read,read_parquet,True,"screen = pd.read_parquet(SCREEN_AGGREGATE_PATH, columns=[""Date""])"
+src/tp_research/runtime.py,77,read,read_parquet,True,"returns = pd.read_parquet(RETURNS_PATH, columns=[])"
+src/tp_research/workflows/analyze_cross_market_leave_one_period_out.py,268,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_research/workflows/analyze_cross_market_leave_one_period_out.py,334,read,read_csv,False,frame = pd.read_csv(path)
+src/tp_research/workflows/analyze_cross_market_leave_one_period_out.py,346,read,read_csv,False,frame = pd.read_csv(path)
+src/tp_research/workflows/analyze_cross_market_leave_one_period_out.py,349,read,read_csv,False,frame = pd.read_csv(path)
+src/tp_research/workflows/analyze_cross_market_leave_one_period_out.py,408,read,read_csv,False,summary = pd.read_csv(summary_path)
+src/tp_research/workflows/analyze_cross_market_leave_one_period_out.py,565,read,read_parquet,False,screen = pd.read_parquet(
+src/tp_research/workflows/analyze_cross_market_leave_one_period_out.py,598,read,read_parquet,False,"frame = pd.read_parquet(path, columns=[lag6.DATE_COL])"
+src/tp_research/workflows/analyze_cross_market_leave_one_period_out.py,690,read,read_csv,False,existing = pd.read_csv(output_path)
+src/tp_research/workflows/analyze_eu_small_variable_rotation.py,132,read,read_csv,False,"gate = pd.read_csv(validated_run_dir / ""raw_validation_gate.csv"")"
+src/tp_research/workflows/analyze_eu_small_variable_rotation.py,138,read,read_parquet,False,"screen = pd.read_parquet(raw_run_dir / ""eu_small_multifactor_screen.parquet"")"
+src/tp_research/workflows/analyze_eu_small_variable_rotation.py,178,write,to_parquet,False,"screen.to_parquet(screen_path, index=False)"
+src/tp_research/workflows/analyze_eu_small_variable_rotation.py,575,read,read_csv,False,run_results = pd.read_csv(existing_results_path)
+src/tp_research/workflows/analyze_eu_small_variable_rotation.py,577,read,read_csv,False,existing_results = pd.read_csv(existing_results_path) if args.resume and existing_results_path.exists() else None
+src/tp_research/workflows/analyze_eu_small_variable_rotation.py,603,read,read_csv,False,"raw_run_results = pd.read_csv(raw_run_dir / ""official_run_results.csv"")"
+src/tp_research/workflows/analyze_eu_small_variable_rotation.py,604,read,read_csv,False,"raw_summary = pd.read_csv(raw_run_dir / ""performance_summary.csv"")"
+src/tp_research/workflows/analyze_eu_small_variable_rotation.py,605,read,read_csv,False,"validated_run_results = pd.read_csv(validated_run_dir / ""official_run_results.csv"")"
+src/tp_research/workflows/analyze_eu_small_variable_rotation.py,606,read,read_csv,False,"validated_summary = pd.read_csv(validated_run_dir / ""performance_summary.csv"")"
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,54,read,read_csv,False,def read_csv(path: Path) -> pd.DataFrame:
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,56,read,read_csv,False,return pd.read_csv(path)
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,97,read,read_csv,False,"raw_summary = read_csv(raw_dir / ""performance_summary.csv"")"
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,98,read,read_csv,False,"rel_summary = read_csv(relative_dir / ""performance_summary.csv"")"
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,114,read,read_csv,False,"raw_gate = read_csv(raw_dir / ""raw_validation_gate.csv"")"
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,115,read,read_csv,False,"rel_gate = read_csv(relative_dir / ""relative_validation_gate.csv"")"
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,198,read,read_parquet,False,"raw_screen = pd.read_parquet(raw_dir / ""nasdaq_multifactor_screen.parquet"")"
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,203,read,read_parquet,False,"rel_screen = pd.read_parquet(relative_dir / ""nasdaq_relative_variable_screen.parquet"", columns=rel_cols)"
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,208,write,to_parquet,False,"screen.to_parquet(screen_path, index=False)"
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,308,read,read_csv,False,frames.append(pd.read_csv(path))
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,348,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,691,read,read_csv,False,"relative_comparison = read_csv(relative_dir / ""relative_vs_level_comparison.csv"")"
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,700,write,to_parquet,False,"screen.to_parquet(screen_path, index=False)"
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,703,read,read_csv,False,"read_csv(raw_dir / ""data_construction_checks.csv"").assign(source_run=""raw_level""),"
+src/tp_research/workflows/analyze_nasdaq_extended_factor_research.py,704,read,read_csv,False,"read_csv(relative_dir / ""data_construction_checks.csv"").assign(source_run=""relative_raw""),"
+src/tp_research/workflows/analyze_sp500_raw_variable_synergy.py,57,read,read_csv,False,def read_csv(path: Path) -> pd.DataFrame:
+src/tp_research/workflows/analyze_sp500_raw_variable_synergy.py,59,read,read_csv,False,return pd.read_csv(path)
+src/tp_research/workflows/analyze_sp500_raw_variable_synergy.py,130,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_research/workflows/analyze_sp500_raw_variable_synergy.py,492,read,read_csv,False,"raw_gate = read_csv(validated_dir / ""raw_validation_gate.csv"")"
+src/tp_research/workflows/analyze_sp500_raw_variable_synergy.py,493,read,read_csv,False,"raw_summary = read_csv(raw_dir / ""performance_summary.csv"")"
+src/tp_research/workflows/analyze_sp500_raw_variable_synergy.py,494,read,read_parquet,False,"raw_screen = pd.read_parquet(raw_dir / ""sp500_multifactor_screen.parquet"")"
+src/tp_research/workflows/analyze_sp500_raw_variable_synergy.py,498,write,to_parquet,False,"pair_screen.to_parquet(pair_screen_path, index=False)"
+src/tp_research/workflows/analyze_sp500_raw_variable_synergy.py,510,read,read_csv,False,pair_summary = read_csv(pair_summary_path)
+src/tp_research/workflows/analyze_sp500_raw_variable_synergy.py,519,read,read_csv,False,existing_results = read_csv(pair_results_path) if args.resume and pair_results_path.exists() else None
+src/tp_research/workflows/analyze_stoxx600_2020_regime_break.py,30,read,read_parquet,False,df = pd.read_parquet(path)
+src/tp_research/workflows/analyze_stoxx600_2020_regime_break.py,32,read,read_csv,False,df = pd.read_csv(path)
+src/tp_research/workflows/analyze_stoxx600_2020_regime_break.py,232,read,read_csv,False,"raw_gate = pd.read_csv(RAW_RUN / ""raw_validation_gate.csv"")"
+src/tp_research/workflows/analyze_stoxx600_2020_regime_break.py,233,read,read_csv,False,"raw_summary = pd.read_csv(RAW_RUN / ""performance_summary.csv"")"
+src/tp_research/workflows/analyze_stoxx600_2020_regime_break.py,244,read,read_csv,False,"pair_metrics = pd.read_csv(PAIR_RUN / ""raw_pair_full_period_rank.csv"")"
+src/tp_research/workflows/analyze_stoxx600_2020_regime_break.py,245,read,read_csv,False,"pair_summary = pd.read_csv(PAIR_RUN / ""performance_summary.csv"")"
+src/tp_research/workflows/analyze_stoxx600_lag_extension_robustness.py,354,read,read_csv,False,"lag6_gate = pd.read_csv(lag6_run / ""official_validation_gate.csv"")"
+src/tp_research/workflows/analyze_stoxx600_lag_extension_robustness.py,355,read,read_csv,False,level_gate = pd.read_csv(args.level_gate.resolve())
+src/tp_research/workflows/analyze_stoxx600_lag_extension_robustness.py,356,read,read_csv,False,prior_gate = pd.read_csv(args.prior_relative_gate.resolve())
+src/tp_research/workflows/analyze_stoxx600_leave_one_regime_out.py,90,read,read_parquet;read_csv,False,"frame = pd.read_parquet(path) if path.suffix.lower() == "".parquet"" else pd.read_csv(path)"
+src/tp_research/workflows/analyze_stoxx600_leave_one_regime_out.py,208,read,read_csv,False,"raw_gate = pd.read_csv(RAW_RUN / ""raw_validation_gate.csv"")"
+src/tp_research/workflows/analyze_stoxx600_leave_one_regime_out.py,209,read,read_csv,False,"raw_summary = pd.read_csv(RAW_RUN / ""performance_summary.csv"")"
+src/tp_research/workflows/analyze_stoxx600_leave_one_regime_out.py,210,read,read_csv,False,"relative_gate = pd.read_csv(RELATIVE_RUN / ""relative_validation_gate.csv"")"
+src/tp_research/workflows/analyze_stoxx600_leave_one_regime_out.py,211,read,read_csv,False,"relative_summary = pd.read_csv(RELATIVE_RUN / ""performance_summary.csv"")"
+src/tp_research/workflows/analyze_stoxx600_leave_one_regime_out.py,212,read,read_csv,False,"combo_map = pd.read_csv(SYNERGY_RUN / ""candidate_map.csv"")"
+src/tp_research/workflows/analyze_stoxx600_leave_one_regime_out.py,213,read,read_csv,False,"combo_summary = pd.read_csv(SYNERGY_RUN / ""performance_summary.csv"")"
+src/tp_research/workflows/analyze_stoxx600_leave_one_regime_out.py,214,read,read_csv,False,"selected_legs = pd.read_csv(SYNERGY_RUN / ""selected_legs.csv"")"
+src/tp_research/workflows/analyze_stoxx600_leave_one_regime_out.py,376,read,read_csv,False,existing = pd.read_csv(output_path)
+src/tp_research/workflows/analyze_stoxx600_sparse_core_sleeve_robustness.py,165,read,read_csv,False,"registry = pd.read_csv(run_dir / ""candidate_registry.csv"")"
+src/tp_research/workflows/analyze_stoxx600_sparse_core_sleeve_robustness.py,166,read,read_csv,False,"results = pd.read_csv(run_dir / ""official_run_results.csv"")"
+src/tp_research/workflows/analyze_stoxx600_sparse_core_sleeve_robustness.py,167,read,read_csv,False,"gate = pd.read_csv(run_dir / ""official_validation_gate.csv"")"
+src/tp_research/workflows/analyze_stoxx600_sparse_core_sleeve_robustness.py,168,read,read_csv,False,"summary = pd.read_csv(run_dir / ""performance_summary.csv"")"
+src/tp_research/workflows/analyze_stoxx600_sparse_core_sleeve_robustness.py,170,read,read_csv,False,"synergy = pd.read_csv(run_dir / ""synergy_evidence.csv"")"
+src/tp_research/workflows/build_eu_small_factor_explorer.py,105,read,read_csv,False,def read_csv(path: Path) -> pd.DataFrame:
+src/tp_research/workflows/build_eu_small_factor_explorer.py,106,read,read_csv,False,return pd.read_csv(path)
+src/tp_research/workflows/build_eu_small_factor_explorer.py,110,read,read_csv,False,frame = read_csv(path)
+src/tp_research/workflows/build_eu_small_factor_explorer.py,143,read,read_csv,False,raw = pd.read_csv(csv_path)
+src/tp_research/workflows/build_eu_small_factor_explorer.py,207,read,read_csv,False,"selected = read_csv(SYNERGY_DIR / ""selected_legs.csv"")"
+src/tp_research/workflows/build_eu_small_factor_explorer.py,219,read,read_csv,False,"raw_gate = read_csv(VALIDATED_DIR / ""raw_validation_gate.csv"")"
+src/tp_research/workflows/build_eu_small_factor_explorer.py,436,read,read_csv,False,"raw_gate = read_csv(VALIDATED_DIR / ""raw_validation_gate.csv"")"
+src/tp_research/workflows/build_eu_small_factor_explorer.py,437,read,read_csv,False,"relative_gate = read_csv(RELATIVE_DIR / ""relative_validation_gate.csv"")"
+src/tp_research/workflows/build_eu_small_factor_explorer.py,438,read,read_csv,False,"latest_performance = read_csv(SYNERGY_DIR / ""performance_summary.csv"")"
+src/tp_research/workflows/build_eu_small_factor_explorer.py,439,read,read_csv,False,"candidate_map_frame = read_csv(SYNERGY_DIR / ""candidate_map.csv"")"
+src/tp_research/workflows/build_eu_small_factor_explorer.py,441,read,read_csv,False,"synergy = read_csv(SYNERGY_DIR / ""synergy_claims.csv"")"
+src/tp_research/workflows/build_eu_small_factor_explorer.py,442,read,read_csv,False,"subsets = read_csv(SYNERGY_DIR / ""family_subset_results.csv"").sort_values(""robust_score"", ascending=False)"
+src/tp_research/workflows/build_eu_small_factor_explorer.py,443,read,read_csv,False,"leave_one_out = read_csv(SYNERGY_DIR / ""leave_one_out_results.csv"")"
+src/tp_research/workflows/build_sp500_factor_explorer.py,43,read,read_csv,False,def read_csv(path: Path) -> pd.DataFrame:
+src/tp_research/workflows/build_sp500_factor_explorer.py,44,read,read_csv,False,return pd.read_csv(path)
+src/tp_research/workflows/build_sp500_factor_explorer.py,48,read,read_csv,False,frame = read_csv(path)
+src/tp_research/workflows/build_sp500_factor_explorer.py,81,read,read_csv,False,raw = pd.read_csv(csv_path)
+src/tp_research/workflows/build_sp500_factor_explorer.py,145,read,read_csv,False,"selected = read_csv(SYNERGY_DIR / ""selected_legs.csv"")"
+src/tp_research/workflows/build_sp500_factor_explorer.py,157,read,read_csv,False,"raw_gate = read_csv(SYNERGY_DIR / ""report_raw_top_pass.csv"")"
+src/tp_research/workflows/build_sp500_factor_explorer.py,454,read,read_csv,False,"candidate_map = read_csv(SYNERGY_DIR / ""candidate_map.csv"").set_index(""metric"")"
+src/tp_research/workflows/build_sp500_factor_explorer.py,455,read,read_csv,False,"synergy = read_csv(SYNERGY_DIR / ""synergy_claims.csv"")"
+src/tp_research/workflows/build_sp500_factor_explorer.py,456,read,read_csv,False,"subsets = read_csv(SYNERGY_DIR / ""family_subset_results.csv"").sort_values(""robust_score"", ascending=False)"
+src/tp_research/workflows/build_sp500_factor_explorer.py,457,read,read_csv,False,"leave_one_out = read_csv(SYNERGY_DIR / ""leave_one_out_results.csv"")"
+src/tp_research/workflows/build_sp500_factor_explorer.py,458,read,read_csv,False,"raw_pass = read_csv(SYNERGY_DIR / ""report_raw_top_pass.csv"")"
+src/tp_research/workflows/build_sp500_factor_explorer.py,459,read,read_csv,False,"relative_gate = read_csv(RELATIVE_DIR / ""relative_validation_gate.csv"")"
+src/tp_research/workflows/build_sp500_factor_explorer.py,460,read,read_csv,False,"relative_pass = read_csv(SYNERGY_DIR / ""report_relative_top_pass.csv"")"
+src/tp_research/workflows/build_sp500_factor_explorer.py,461,read,read_csv,False,"period_top_raw = read_csv(SYNERGY_DIR / ""report_period_top_raw.csv"")"
+src/tp_research/workflows/build_stoxx600_factor_explorer.py,63,read,read_parquet;read_csv,False,"frame = pd.read_parquet(path) if path.suffix.lower() == "".parquet"" else pd.read_csv(path)"
+src/tp_research/workflows/build_stoxx600_factor_explorer.py,76,read,read_csv,False,"summary = pd.read_csv(run / ""performance_summary.csv"", low_memory=False)"
+src/tp_research/workflows/build_stoxx600_factor_explorer.py,147,read,read_csv,False,"registry = pd.read_csv(LORO_RUN / ""candidate_registry.csv"", low_memory=False)"
+src/tp_research/workflows/build_stoxx600_factor_explorer.py,148,read,read_csv,False,"regime_defs = pd.read_csv(LORO_RUN / ""regime_definitions.csv"")"
+src/tp_research/workflows/build_stoxx600_factor_explorer.py,149,read,read_csv,False,"regime_metrics = pd.read_csv(LORO_RUN / ""candidate_regime_metrics.csv"", low_memory=False)"
+src/tp_research/workflows/build_stoxx600_factor_explorer.py,150,read,read_csv,False,"singles = pd.read_csv(LORO_RUN / ""single_loro_selection_summary.csv"", low_memory=False)"
+src/tp_research/workflows/build_stoxx600_factor_explorer.py,151,read,read_csv,False,combinations = pd.read_csv(
+src/tp_research/workflows/build_stoxx600_factor_explorer.py,154,read,read_csv,False,"synergy = pd.read_csv(LORO_RUN / ""synergy_loro_summary.csv"", low_memory=False)"
+src/tp_research/workflows/build_stoxx600_factor_explorer.py,155,read,read_csv,False,"loo = pd.read_csv(LORO_RUN / ""leave_one_out_regime_contribution.csv"")"
+src/tp_research/workflows/build_stoxx600_factor_explorer.py,156,read,read_csv,False,"raw_gate = pd.read_csv(RAW_RUN / ""raw_validation_gate.csv"", low_memory=False)"
+src/tp_research/workflows/build_stoxx600_factor_explorer.py,157,read,read_csv,False,relative_gate = pd.read_csv(
+src/tp_research/workflows/build_stoxx600_factor_explorer.py,202,read,read_csv,False,"pd.read_csv(LORO_RUN / ""single_loro_selection_summary.csv"", low_memory=False),"
+src/tp_research/workflows/build_stoxx600_factor_explorer.py,203,read,read_csv,False,pd.read_csv(
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,138,read,read_parquet,False,pd.read_parquet(path)
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,140,read,read_csv,False,else pd.read_csv(path)
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,332,read,read_csv,False,"registry = pd.read_csv(run_dir / ""candidate_registry.csv"")"
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,333,read,read_csv,False,"results = pd.read_csv(run_dir / ""official_run_results.csv"", low_memory=False)"
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,334,read,read_csv,False,"summary = pd.read_csv(run_dir / ""performance_summary.csv"", low_memory=False)"
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,335,read,read_csv,False,"validation = pd.read_csv(run_dir / ""official_validation_gate.csv"")"
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,336,read,read_csv,False,"architecture = pd.read_csv(run_dir / ""architecture_gate_results.csv"")"
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,337,read,read_csv,False,"regime = pd.read_csv(run_dir / ""architecture_regime_metrics.csv"")"
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,338,read,read_csv,False,"synergy = pd.read_csv(run_dir / ""synergy_evidence.csv"")"
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,339,read,read_csv,False,"cost = pd.read_csv(run_dir / ""architecture_cost_sensitivity.csv"")"
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,340,read,read_csv,False,"dsr = pd.read_csv(run_dir / ""full_ledger_deflated_sharpe.csv"")"
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,341,read,read_csv,False,"rolling = pd.read_csv(run_dir / ""architecture_rolling_robustness.csv"")"
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,342,read,read_csv,False,"break_tests = pd.read_csv(run_dir / ""break_2020_tests.csv"")"
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,343,read,read_csv,False,"drift = pd.read_csv(run_dir / ""missing_month_drift_check.csv"")"
+src/tp_research/workflows/build_stoxx600_sparse_factor_explorer.py,353,read,read_csv,False,lag_comparison = pd.read_csv(
+src/tp_research/workflows/dispatch_stoxx600_synergy_metrics.py,21,read,read_csv,False,"candidate_map = pd.read_csv(output_dir / ""candidate_map.csv"")"
+src/tp_research/workflows/dispatch_stoxx600_synergy_metrics.py,32,read,read_csv,False,frames.append(pd.read_csv(path))
+src/tp_research/workflows/plot_regime_direct_risk_model_comparison.py,107,read,read_parquet,False,predictions = pd.read_parquet(predictions_path)
+src/tp_research/workflows/resume_sp500_relative_synergy_full_loop.py,27,read,read_csv,False,"def read_csv_rows(path: Path) -> list[dict[str, str]]:"
+src/tp_research/workflows/resume_sp500_relative_synergy_full_loop.py,36,read,read_csv,False,rows = read_csv_rows(path)
+src/tp_research/workflows/resume_sp500_relative_synergy_full_loop.py,57,read,read_csv,False,for row in read_csv_rows(path):
+src/tp_research/workflows/resume_sp500_relative_variable_sequential.py,59,read,read_csv,False,"metric_diag = pd.read_csv(output_dir / ""metric_diagnostics.csv"")"
+src/tp_research/workflows/resume_sp500_relative_variable_sequential.py,60,read,read_csv,False,"meta = pd.read_csv(output_dir / ""relative_variable_definitions.csv"")"
+src/tp_research/workflows/resume_sp500_relative_variable_sequential.py,61,read,read_csv,False,"checks = pd.read_csv(output_dir / ""data_construction_checks.csv"")"
+src/tp_research/workflows/resume_sp500_relative_variable_sequential.py,155,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_research/workflows/resume_stoxx600_relative_synergy_isolated.py,35,read,read_csv,False,frames.append(pd.read_csv(path))
+src/tp_research/workflows/resume_stoxx600_relative_synergy_isolated.py,58,read,read_csv,False,"candidates = pd.read_csv(output_dir / ""candidate_map.csv"")"
+src/tp_research/workflows/run_cross_market_lag6_anchor_synergy.py,143,read,read_csv,False,"return output_path, pd.read_csv(registry_path)"
+src/tp_research/workflows/run_cross_market_lag6_anchor_synergy.py,145,read,read_csv,False,"source_gate = pd.read_csv(study.lag6_run / ""relative_validation_gate.csv"")"
+src/tp_research/workflows/run_cross_market_lag6_anchor_synergy.py,157,read,read_parquet,False,lag_screen = pd.read_parquet(
+src/tp_research/workflows/run_cross_market_lag6_anchor_synergy.py,163,read,ParquetFile,False,available = set(pq.ParquetFile(canonical_path).schema_arrow.names)
+src/tp_research/workflows/run_cross_market_lag6_anchor_synergy.py,171,read,read_parquet,False,raw = pd.read_parquet(
+src/tp_research/workflows/run_cross_market_lag6_anchor_synergy.py,208,write,to_parquet,False,"screen.to_parquet(output_path, index=False)"
+src/tp_research/workflows/run_cross_market_lag6_anchor_synergy.py,335,read,read_csv,False,registry = pd.read_csv(registry_path)
+src/tp_research/workflows/run_cross_market_lag6_anchor_synergy.py,351,read,read_csv,False,"source_gate = pd.read_csv(study.lag6_run / ""relative_validation_gate.csv"")"
+src/tp_research/workflows/run_cross_market_lag6_anchor_synergy.py,355,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_research/workflows/run_cross_market_lag6_anchor_synergy.py,356,read,read_csv,False,"rows = pd.read_csv(output_dir / ""anchor_registry.csv"").to_dict(""records"")"
+src/tp_research/workflows/run_cross_market_lag6_anchor_synergy.py,434,write,to_parquet,False,"screen.to_parquet(screen_path, index=False)"
+src/tp_research/workflows/run_cross_market_lag6_anchor_synergy.py,456,read,read_csv,False,"lag_gate = pd.read_csv(study.lag6_run / ""relative_validation_gate.csv"")"
+src/tp_research/workflows/run_cross_market_lag6_anchor_synergy.py,871,read,read_csv,False,"pd.read_csv(study.lag6_run / ""relative_validation_gate.csv"")["
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,143,read,ParquetFile,False,parquet = pq.ParquetFile(resolved)
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,192,read,read_csv,False,definitions = pd.read_csv(frozen_definition_path(profile))
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,328,read,read_csv,False,"return output_path, pd.read_csv(registry_path), pd.read_csv(definitions_path)"
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,331,read,ParquetFile,False,available = set(pq.ParquetFile(screen_path).schema_arrow.names)
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,345,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=list(dict.fromkeys(required)))"
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,397,write,to_parquet,False,"screen.to_parquet(output_path, index=False)"
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,407,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=[DATE_COL, *metrics])"
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,466,read,read_parquet,False,screen = pd.read_parquet(
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,565,write,to_parquet,False,output.to_frame().to_parquet(path)
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,641,write,to_parquet,False,").to_parquet(record[""sec_list""], index=False)"
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,642,write,to_parquet,False,"safe_frame(builder.buy_list).to_parquet(record[""weights""])"
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,643,write,to_parquet,False,"safe_frame(builder.list_exclusion_histo).to_parquet(record[""exclusions""])"
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,728,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,786,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,794,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,906,read,read_parquet,False,canonical = pd.read_parquet(
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,985,read,ParquetFile,False,return_columns = set(pq.ParquetFile(returns_path).schema_arrow.names)
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,988,read,read_parquet,False,"returns = pd.read_parquet(returns_path, columns=matched_sedols)"
+src/tp_research/workflows/run_cross_market_lag6_relative_research.py,1476,read,read_csv,False,prior_level = pd.read_csv(
+src/tp_research/workflows/run_eu_small_factor_extension.py,104,read,ParquetFile,False,available = set(pq.ParquetFile(returns_path).schema.names)
+src/tp_research/workflows/run_eu_small_factor_extension.py,106,read,read_parquet,False,"returns = pd.read_parquet(returns_path, columns=sedols)"
+src/tp_research/workflows/run_eu_small_factor_extension.py,189,read,read_parquet,False,"screen = pd.read_parquet(raw_dir / ""eu_small_validated_gate_screen.parquet"")"
+src/tp_research/workflows/run_eu_small_factor_extension.py,205,read,read_parquet,False,"extra = pd.read_parquet(source_path, columns=extra_columns)"
+src/tp_research/workflows/run_eu_small_factor_extension.py,326,write,to_parquet,False,"screen.to_parquet(output_dir / ""eu_small_extension_screen.parquet"", index=False)"
+src/tp_research/workflows/run_eu_small_factor_extension.py,348,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_research/workflows/run_eu_small_factor_extension.py,349,read,ParquetFile,False,available = set(pq.ParquetFile(returns_path).schema.names)
+src/tp_research/workflows/run_eu_small_factor_extension.py,351,read,read_parquet,False,"returns = pd.read_parquet(returns_path, columns=sedols)"
+src/tp_research/workflows/run_eu_small_factor_extension.py,463,read,read_csv,False,"old_legs = pd.read_csv(old_synergy_dir / ""selected_legs.csv"")"
+src/tp_research/workflows/run_eu_small_factor_extension.py,478,read,read_parquet,False,"old = pd.read_parquet(old_synergy_dir / ""eu_small_relative_synergy_screen.parquet"")"
+src/tp_research/workflows/run_eu_small_factor_extension.py,525,write,to_parquet,False,"screen.to_parquet(output_dir / ""eu_small_extension_theme_screen.parquet"", index=False)"
+src/tp_research/workflows/run_eu_small_factor_extension.py,610,read,read_csv,False,"definitions = pd.read_csv(output_dir / ""candidate_definitions.csv"")"
+src/tp_research/workflows/run_eu_small_multifactor_research.py,160,read,ParquetFile,False,return set(pq.ParquetFile(path).schema_arrow.names)
+src/tp_research/workflows/run_eu_small_multifactor_research.py,342,read,read_parquet,False,screen = pd.read_parquet(output_path)
+src/tp_research/workflows/run_eu_small_multifactor_research.py,345,read,ParquetFile,False,"checks = construction_checks(screen, returns, pq.ParquetFile(screen_path).metadata.num_rows)"
+src/tp_research/workflows/run_eu_small_multifactor_research.py,358,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=read_columns)"
+src/tp_research/workflows/run_eu_small_multifactor_research.py,452,write,to_parquet,False,"screen.to_parquet(output_path, index=False)"
+src/tp_research/workflows/run_eu_small_multifactor_research.py,454,read,ParquetFile,False,"checks = construction_checks(screen, returns, pq.ParquetFile(screen_path).metadata.num_rows)"
+src/tp_research/workflows/run_eu_small_multifactor_research.py,693,read,read_parquet;read_csv,False,"data = pd.read_parquet(path) if path.suffix.lower() == "".parquet"" else pd.read_csv(path)"
+src/tp_research/workflows/run_eu_small_multifactor_research.py,760,read,read_parquet;read_csv,False,"sec = pd.read_parquet(path) if path.suffix.lower() == "".parquet"" else pd.read_csv(path)"
+src/tp_research/workflows/run_eu_small_multifactor_research.py,770,read,read_parquet;read_csv,False,"sec = pd.read_parquet(path) if path.suffix.lower() == "".parquet"" else pd.read_csv(path)"
+src/tp_research/workflows/run_eu_small_multifactor_research.py,1054,read,read_csv,False,existing_results = pd.read_csv(existing_results_path)
+src/tp_research/workflows/run_eu_small_relative_synergy_research.py,215,read,read_parquet;ParquetFile,False,"raw_screen = pd.read_parquet(raw_screen_path, columns=[col for col in raw_cols if col in pq.ParquetFile(raw_screen_path).schema_arrow.names])"
+src/tp_research/workflows/run_eu_small_relative_synergy_research.py,216,read,read_parquet;ParquetFile,False,"rel_screen = pd.read_parquet(rel_screen_path, columns=[col for col in rel_cols if col in pq.ParquetFile(rel_screen_path).schema_arrow.names])"
+src/tp_research/workflows/run_eu_small_relative_synergy_research.py,294,read,read_csv,False,"raw_gate = pd.read_csv(raw_dir / ""raw_validation_gate.csv"")"
+src/tp_research/workflows/run_eu_small_relative_synergy_research.py,295,read,read_csv,False,"rel_gate = pd.read_csv(relative_dir / ""relative_validation_gate.csv"")"
+src/tp_research/workflows/run_eu_small_relative_synergy_research.py,299,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_research/workflows/run_eu_small_relative_synergy_research.py,301,read,read_csv,False,candidate_map = pd.read_csv(map_path)
+src/tp_research/workflows/run_eu_small_relative_synergy_research.py,302,read,ParquetFile,False,"checks = base.construction_checks(screen, returns, pq.ParquetFile(base.DEFAULT_SCREEN).metadata.num_rows)"
+src/tp_research/workflows/run_eu_small_relative_synergy_research.py,304,read,read_csv,False,"return screen, checks, diag, specs, pd.read_csv(legs_path), candidate_map"
+src/tp_research/workflows/run_eu_small_relative_synergy_research.py,308,read,ParquetFile,False,"checks = base.construction_checks(screen, returns, pq.ParquetFile(base.DEFAULT_SCREEN).metadata.num_rows)"
+src/tp_research/workflows/run_eu_small_relative_synergy_research.py,335,write,to_parquet,False,"screen.to_parquet(screen_path, index=False)"
+src/tp_research/workflows/run_eu_small_relative_synergy_research.py,378,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_research/workflows/run_eu_small_relative_synergy_research.py,416,read,read_csv,False,"pd.read_csv(raw_dir / ""performance_summary.csv""),"
+src/tp_research/workflows/run_eu_small_relative_synergy_research.py,417,read,read_csv,False,"pd.read_csv(relative_dir / ""performance_summary.csv""),"
+src/tp_research/workflows/run_eu_small_relative_variable_parallel.py,65,read,read_csv,False,frames.append(pd.read_csv(path))
+src/tp_research/workflows/run_eu_small_relative_variable_parallel.py,113,read,read_csv,False,existing_frames.append(pd.read_csv(existing_results_path))
+src/tp_research/workflows/run_eu_small_relative_variable_parallel.py,118,read,read_csv,False,existing_frames.append(pd.read_csv(shard_results_path))
+src/tp_research/workflows/run_eu_small_relative_variable_parallel.py,136,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=columns)"
+src/tp_research/workflows/run_eu_small_relative_variable_parallel.py,264,read,read_csv,False,"metric_diag = pd.read_csv(output_dir / ""metric_diagnostics.csv"")"
+src/tp_research/workflows/run_eu_small_relative_variable_parallel.py,265,read,read_csv,False,"meta = pd.read_csv(output_dir / ""relative_variable_definitions.csv"")"
+src/tp_research/workflows/run_eu_small_relative_variable_parallel.py,266,read,read_csv,False,"checks = pd.read_csv(output_dir / ""data_construction_checks.csv"")"
+src/tp_research/workflows/run_eu_small_relative_variable_research.py,140,read,read_parquet,False,screen = pd.read_parquet(output_path)
+src/tp_research/workflows/run_eu_small_relative_variable_research.py,143,read,read_csv,False,meta = pd.read_csv(meta_path)
+src/tp_research/workflows/run_eu_small_relative_variable_research.py,144,read,ParquetFile,False,"checks = base.construction_checks(screen, returns, pq.ParquetFile(screen_path).metadata.num_rows)"
+src/tp_research/workflows/run_eu_small_relative_variable_research.py,164,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=read_columns)"
+src/tp_research/workflows/run_eu_small_relative_variable_research.py,244,read,ParquetFile,False,"checks = base.construction_checks(screen, returns, pq.ParquetFile(screen_path).metadata.num_rows)"
+src/tp_research/workflows/run_eu_small_relative_variable_research.py,268,write,to_parquet,False,"screen.to_parquet(output_path, index=False)"
+src/tp_research/workflows/run_eu_small_relative_variable_research.py,301,read,read_csv,False,level = pd.read_csv(level_gate_path)
+src/tp_research/workflows/run_eu_small_relative_variable_research.py,561,read,read_csv,False,existing_results = pd.read_csv(existing_results_path)
+src/tp_research/workflows/run_eu_small_validated_gate_research.py,37,read,read_csv,False,"summary = pd.read_csv(raw_run_dir / ""performance_summary.csv"")"
+src/tp_research/workflows/run_eu_small_validated_gate_research.py,38,read,read_csv,False,"diag = pd.read_csv(raw_run_dir / ""metric_diagnostics.csv"")"
+src/tp_research/workflows/run_eu_small_validated_gate_research.py,428,read,read_parquet,False,"screen = pd.read_parquet(raw_run_dir / ""eu_small_multifactor_screen.parquet"")"
+src/tp_research/workflows/run_eu_small_validated_gate_research.py,431,write,to_parquet,False,"screen.to_parquet(research_screen_path, index=False)"
+src/tp_research/workflows/run_eu_small_validated_gate_research.py,455,read,read_csv,False,existing_results = pd.read_csv(existing_results_path)
+src/tp_research/workflows/run_lowvol_multifactor_residual_research.py,102,read,read_parquet,True,"available = pd.read_parquet(TP_ROOT / ""00_screen"" / ""screen_aggregate.parquet"", engine=""pyarrow"").columns"
+src/tp_research/workflows/run_lowvol_multifactor_residual_research.py,104,read,read_parquet,True,"screen = pd.read_parquet(TP_ROOT / ""00_screen"" / ""screen_aggregate.parquet"", columns=cols)"
+src/tp_research/workflows/run_lowvol_multifactor_residual_research.py,108,read,read_parquet,True,"returns = pd.read_parquet(TP_ROOT / ""00_screen"" / ""returns.parquet"")"
+src/tp_research/workflows/run_lowvol_multifactor_residual_research.py,366,read,read_csv,False,benchmark_nav = pd.read_csv(
+src/tp_research/workflows/run_lowvol_multifactor_residual_research.py,406,write,to_parquet,False,"factors.to_parquet(output_dir / ""multifactor_residual_scores.parquet"", index=False)"
+src/tp_research/workflows/run_lowvol_multifactor_residual_research.py,432,write,to_parquet,False,"merged.to_parquet(output_dir / ""screen_with_multifactor_candidates.parquet"", index=False)"
+src/tp_research/workflows/run_lowvol_resvol_research.py,117,read,read_parquet,True,"available = pd.read_parquet(TP_ROOT / ""00_screen"" / ""screen_aggregate.parquet"", engine=""pyarrow"").columns"
+src/tp_research/workflows/run_lowvol_resvol_research.py,119,read,read_parquet,True,"screen = pd.read_parquet(TP_ROOT / ""00_screen"" / ""screen_aggregate.parquet"", columns=cols)"
+src/tp_research/workflows/run_lowvol_resvol_research.py,123,read,read_parquet,True,"returns = pd.read_parquet(TP_ROOT / ""00_screen"" / ""returns.parquet"")"
+src/tp_research/workflows/run_lowvol_resvol_research.py,546,read,read_csv,False,benchmark_nav = pd.read_csv(
+src/tp_research/workflows/run_lowvol_resvol_research.py,560,write,to_parquet,False,"factors.to_parquet(output_dir / ""lowvol_resvol_factor_table.parquet"", index=False)"
+src/tp_research/workflows/run_lowvol_resvol_research.py,564,write,to_parquet,False,"screen_with_candidates.to_parquet(output_dir / ""screen_with_candidates.parquet"", index=False)"
+src/tp_research/workflows/run_monthly_factor_recommendation_research.py,196,read,read_parquet,False,"return pd.read_parquet(path), source"
+src/tp_research/workflows/run_monthly_factor_recommendation_research.py,198,read,read_csv,False,"return pd.read_csv(path), source"
+src/tp_research/workflows/run_monthly_factor_recommendation_research.py,413,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_research/workflows/run_monthly_factor_recommendation_research.py,414,read,read_parquet,False,returns = pd.read_parquet(returns_path)
+src/tp_research/workflows/run_monthly_factor_recommendation_research.py,1321,write,to_parquet,False,(frame if frame is not None else pd.DataFrame()).to_parquet(
+src/tp_research/workflows/run_monthly_factor_recommendation_research.py,1426,write,to_parquet,False,"pd.DataFrame().to_parquet(output_dir / name, index=False)"
+src/tp_research/workflows/run_monthly_factor_recommendation_research.py,1516,write,to_parquet,False,"factor_frame.to_parquet(output_dir / ""feature_matrix.parquet"", index=False)"
+src/tp_research/workflows/run_monthly_factor_recommendation_research.py,1517,write,to_parquet,False,"target_frame.to_parquet(output_dir / ""target_frame.parquet"", index=False)"
+src/tp_research/workflows/run_monthly_factor_recommendation_research.py,1521,write,to_parquet,False,"predictions.to_parquet(output_dir / ""fold_predictions.parquet"", index=False)"
+src/tp_research/workflows/run_monthly_factor_recommendation_v2_research.py,131,write,to_parquet,False,"safe.to_parquet(path, index=False)"
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,173,read,ParquetFile,False,return set(pq.ParquetFile(path).schema_arrow.names)
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,354,read,read_parquet,False,screen = pd.read_parquet(output_path)
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,357,read,ParquetFile,False,"checks = construction_checks(screen, returns, pq.ParquetFile(screen_path).metadata.num_rows)"
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,370,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=read_columns)"
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,477,write,to_parquet,False,"screen.to_parquet(output_path, index=False)"
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,479,read,ParquetFile,False,"checks = construction_checks(screen, returns, pq.ParquetFile(screen_path).metadata.num_rows)"
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,574,read,read_csv,False,return pd.read_csv(gate_path)
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,575,read,read_csv,False,"summary = pd.read_csv(path / ""performance_summary.csv"")"
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,576,read,read_csv,False,"metric_diag = pd.read_csv(path / ""metric_diagnostics.csv"")"
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,654,read,read_csv,False,pairs = pd.read_csv(pair_file)
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,922,read,read_parquet;read_csv,False,"data = pd.read_parquet(path) if path.suffix.lower() == "".parquet"" else pd.read_csv(path)"
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,989,read,read_parquet;read_csv,False,"sec = pd.read_parquet(path) if path.suffix.lower() == "".parquet"" else pd.read_csv(path)"
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,999,read,read_parquet;read_csv,False,"sec = pd.read_parquet(path) if path.suffix.lower() == "".parquet"" else pd.read_csv(path)"
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,1195,read,read_csv,False,gate = pd.read_csv(gate_path)
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,1324,write,to_parquet,False,"screen.to_parquet(output_dir / ""nasdaq_multifactor_screen.parquet"", index=False)"
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,1328,write,to_parquet,False,"screen.to_parquet(output_dir / ""nasdaq_multifactor_screen.parquet"", index=False)"
+src/tp_research/workflows/run_nasdaq_multifactor_research.py,1365,read,read_csv,False,existing_results = pd.read_csv(existing_results_path)
+src/tp_research/workflows/run_nasdaq_relative_variable_parallel.py,64,read,read_csv,False,frames.append(pd.read_csv(path))
+src/tp_research/workflows/run_nasdaq_relative_variable_parallel.py,116,read,read_csv,False,existing_frames.append(pd.read_csv(path))
+src/tp_research/workflows/run_nasdaq_relative_variable_parallel.py,124,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_research/workflows/run_nasdaq_relative_variable_parallel.py,227,read,read_csv,False,"metric_diag = pd.read_csv(output_dir / ""metric_diagnostics.csv"")"
+src/tp_research/workflows/run_nasdaq_relative_variable_parallel.py,228,read,read_csv,False,"meta = pd.read_csv(output_dir / ""relative_variable_definitions.csv"")"
+src/tp_research/workflows/run_nasdaq_relative_variable_parallel.py,229,read,read_csv,False,"checks = pd.read_csv(output_dir / ""data_construction_checks.csv"")"
+src/tp_research/workflows/run_nasdaq_relative_variable_research.py,125,read,read_parquet,False,screen = pd.read_parquet(output_path)
+src/tp_research/workflows/run_nasdaq_relative_variable_research.py,128,read,read_csv,False,meta = pd.read_csv(meta_path)
+src/tp_research/workflows/run_nasdaq_relative_variable_research.py,129,read,ParquetFile,False,"checks = base.construction_checks(screen, returns, pq.ParquetFile(screen_path).metadata.num_rows)"
+src/tp_research/workflows/run_nasdaq_relative_variable_research.py,149,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=read_columns)"
+src/tp_research/workflows/run_nasdaq_relative_variable_research.py,229,read,ParquetFile,False,"checks = base.construction_checks(screen, returns, pq.ParquetFile(screen_path).metadata.num_rows)"
+src/tp_research/workflows/run_nasdaq_relative_variable_research.py,249,write,to_parquet,False,"screen.to_parquet(output_path, index=False)"
+src/tp_research/workflows/run_nasdaq_relative_variable_research.py,293,read,read_csv,False,level = pd.read_csv(level_gate_path)
+src/tp_research/workflows/run_nasdaq_relative_variable_research.py,551,read,read_csv,False,existing_results = pd.read_csv(existing_results_path)
+src/tp_research/workflows/run_nasdaq_tech_factor_extension.py,80,read,read_parquet,False,"available = set(pd.read_parquet(returns_path, columns=[]).columns)"
+src/tp_research/workflows/run_nasdaq_tech_factor_extension.py,85,read,ParquetFile,False,available = set(pq.ParquetFile(returns_path).schema.names)
+src/tp_research/workflows/run_nasdaq_tech_factor_extension.py,87,read,read_parquet,False,"returns = pd.read_parquet(returns_path, columns=sedols)"
+src/tp_research/workflows/run_nasdaq_tech_factor_extension.py,153,read,read_parquet,False,"screen = pd.read_parquet(raw_dir / ""nasdaq_multifactor_screen.parquet"")"
+src/tp_research/workflows/run_nasdaq_tech_factor_extension.py,164,read,read_parquet,False,"extra = pd.read_parquet(source_screen_path, columns=extra_columns)"
+src/tp_research/workflows/run_nasdaq_tech_factor_extension.py,257,write,to_parquet,False,"screen.to_parquet(screen_path, index=False)"
+src/tp_research/workflows/run_nasdaq_tech_factor_extension.py,348,read,read_csv,False,legacy = ext.read_csv(legacy_results_path)
+src/tp_research/workflows/run_nasdaq_tech_factor_extension.py,385,read,read_parquet,False,"relative_screen = pd.read_parquet(relative_dir / ""nasdaq_relative_variable_screen.parquet"", columns=columns)"
+src/tp_research/workflows/run_nasdaq_tech_factor_extension.py,408,write,to_parquet,False,"synergy_screen.to_parquet(screen_path, index=False)"
+src/tp_research/workflows/run_nasdaq_tech_factor_extension.py,446,read,read_csv,False,"ext.read_csv(raw_dir / ""data_construction_checks.csv"").assign(source_run=""raw_level""),"
+src/tp_research/workflows/run_nasdaq_tech_factor_extension.py,447,read,read_csv,False,"ext.read_csv(relative_dir / ""data_construction_checks.csv"").assign(source_run=""relative_raw""),"
+src/tp_research/workflows/run_nasdaq_tech_factor_extension.py,452,read,read_csv,False,"comparison = ext.read_csv(relative_dir / ""relative_vs_level_comparison.csv"")"
+src/tp_research/workflows/run_nasdaq_tech_factor_extension.py,518,read,read_csv,False,"definitions = pd.read_csv(output_dir / ""tech_candidate_definitions.csv"")"
+src/tp_research/workflows/run_regime_direct_risk_challengers.py,339,read,read_parquet,False,"states = pd.read_parquet(states_path)[""state""].sort_index()"
+src/tp_research/workflows/run_regime_direct_risk_challengers.py,720,read,read_parquet,False,parent_features = pd.read_parquet(parent_features_path)
+src/tp_research/workflows/run_regime_direct_risk_challengers.py,813,write,to_parquet,False,features_frame.to_parquet(
+src/tp_research/workflows/run_regime_direct_risk_challengers.py,817,write,to_parquet,False,predictions.to_parquet(
+src/tp_research/workflows/run_regime_direct_risk_challengers_v2.py,656,read,read_parquet,False,parent_features = pd.read_parquet(parent_features_path)
+src/tp_research/workflows/run_regime_direct_risk_challengers_v2.py,790,write,to_parquet,False,features_frame.to_parquet(
+src/tp_research/workflows/run_regime_direct_risk_challengers_v2.py,794,write,to_parquet,False,predictions.to_parquet(
+src/tp_research/workflows/run_regime_sector_factor_rotation_deep_dive.py,230,read,read_csv,False,frame = pd.read_csv(
+src/tp_research/workflows/run_regime_sector_factor_rotation_deep_dive.py,775,read,read_parquet,False,panel = pd.read_parquet(
+src/tp_research/workflows/run_regime_sector_factor_rotation_deep_dive.py,1150,read,read_parquet,False,market_features = pd.read_parquet(
+src/tp_research/workflows/run_regime_sector_factor_rotation_deep_dive.py,1153,read,read_parquet,False,sector_features = pd.read_parquet(
+src/tp_research/workflows/run_regime_sector_factor_rotation_research.py,984,read,read_parquet,False,screen = pd.read_parquet(
+src/tp_research/workflows/run_regime_sector_factor_rotation_research.py,1036,read,read_parquet,False,"panel = pd.read_parquet(Path(config[""sector_panel""]))"
+src/tp_research/workflows/run_regime_sector_factor_rotation_research.py,1137,write,to_parquet,False,market_features.to_parquet(
+src/tp_research/workflows/run_regime_sector_factor_rotation_research.py,1141,write,to_parquet,False,sector_features.to_parquet(
+src/tp_research/workflows/run_sp500_factor_extension.py,102,read,ParquetFile,False,available = set(pq.ParquetFile(returns_path).schema.names)
+src/tp_research/workflows/run_sp500_factor_extension.py,104,read,read_parquet,False,"returns = pd.read_parquet(returns_path, columns=sedols)"
+src/tp_research/workflows/run_sp500_factor_extension.py,169,read,read_parquet,False,"screen = pd.read_parquet(raw_dir / ""sp500_multifactor_screen.parquet"")"
+src/tp_research/workflows/run_sp500_factor_extension.py,185,read,read_parquet,False,"extra = pd.read_parquet(source_path, columns=extra_columns)"
+src/tp_research/workflows/run_sp500_factor_extension.py,304,write,to_parquet,False,"screen.to_parquet(output_dir / ""sp500_extension_screen.parquet"", index=False)"
+src/tp_research/workflows/run_sp500_factor_extension.py,394,read,read_csv,False,"old_legs = pd.read_csv(old_synergy_dir / ""selected_legs.csv"")"
+src/tp_research/workflows/run_sp500_factor_extension.py,409,read,read_parquet,False,"old = pd.read_parquet(old_synergy_dir / ""sp500_relative_synergy_screen.parquet"")"
+src/tp_research/workflows/run_sp500_factor_extension.py,410,read,read_csv,False,"old = ext.materialize_candidate_columns(old, pd.read_csv(old_synergy_dir / ""candidate_map.csv""), list(old_columns.values()))"
+src/tp_research/workflows/run_sp500_factor_extension.py,457,write,to_parquet,False,"screen.to_parquet(output_dir / ""sp500_extension_theme_screen.parquet"", index=False)"
+src/tp_research/workflows/run_sp500_factor_extension.py,541,read,read_csv,False,"definitions = pd.read_csv(output_dir / ""candidate_definitions.csv"")"
+src/tp_research/workflows/run_sp500_multifactor_research.py,206,read,read_csv,False,validation = pd.read_csv(validation_summary_path)
+src/tp_research/workflows/run_sp500_multifactor_research.py,421,write,to_parquet,False,"screen.to_parquet(research_screen_path, index=False)"
+src/tp_research/workflows/run_sp500_multifactor_research.py,450,read,read_csv,False,existing_results = pd.read_csv(existing_results_path)
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,298,read,read_parquet;ParquetFile,False,"raw_screen = pd.read_parquet(raw_screen_path, columns=[col for col in raw_cols if col in pq.ParquetFile(raw_screen_path).schema_arrow.names])"
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,299,read,read_parquet;ParquetFile,False,"rel_screen = pd.read_parquet(rel_screen_path, columns=[col for col in rel_cols if col in pq.ParquetFile(rel_screen_path).schema_arrow.names])"
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,533,read,read_csv,False,raw_gate = pd.read_csv(raw_gate_path)
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,534,read,read_csv,False,"rel_gate = pd.read_csv(relative_dir / ""relative_validation_gate.csv"")"
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,537,read,read_csv,False,pd.read_csv(map_path)
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,557,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,560,read,ParquetFile,False,"checks = base.construction_checks(screen, returns, pq.ParquetFile(base.DEFAULT_SCREEN).metadata.num_rows)"
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,562,read,read_csv,False,"diag = pd.read_csv(diag_path) if diag_path.exists() else candidate_metric_diagnostics(candidate_map, specs)"
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,563,read,read_csv,False,"return screen, checks, diag, specs, pd.read_csv(legs_path), candidate_map"
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,567,read,ParquetFile,False,"checks = base.construction_checks(screen, returns, pq.ParquetFile(base.DEFAULT_SCREEN).metadata.num_rows)"
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,613,write,to_parquet,False,"screen.to_parquet(screen_path, index=False)"
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,662,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,663,read,read_csv,False,candidate_map = pd.read_csv(map_path)
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,666,write,to_parquet,False,"screen.to_parquet(shard_screen_path, index=False)"
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,706,read,read_csv,False,"pd.read_csv(raw_dir / ""performance_summary.csv""),"
+src/tp_research/workflows/run_sp500_relative_synergy_research.py,707,read,read_csv,False,"pd.read_csv(relative_dir / ""performance_summary.csv""),"
+src/tp_research/workflows/run_sp500_relative_variable_parallel.py,63,read,read_csv,False,frames.append(pd.read_csv(path))
+src/tp_research/workflows/run_sp500_relative_variable_parallel.py,108,read,read_csv,False,existing_frames.append(pd.read_csv(path))
+src/tp_research/workflows/run_sp500_relative_variable_parallel.py,116,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_research/workflows/run_sp500_relative_variable_parallel.py,218,read,read_csv,False,"metric_diag = pd.read_csv(output_dir / ""metric_diagnostics.csv"")"
+src/tp_research/workflows/run_sp500_relative_variable_parallel.py,219,read,read_csv,False,"meta = pd.read_csv(output_dir / ""relative_variable_definitions.csv"")"
+src/tp_research/workflows/run_sp500_relative_variable_parallel.py,220,read,read_csv,False,"checks = pd.read_csv(output_dir / ""data_construction_checks.csv"")"
+src/tp_research/workflows/run_stoxx600_factor_extension.py,99,read,ParquetFile,False,available = set(pq.ParquetFile(returns_path).schema.names)
+src/tp_research/workflows/run_stoxx600_factor_extension.py,101,read,read_parquet,False,"returns = pd.read_parquet(returns_path, columns=sedols)"
+src/tp_research/workflows/run_stoxx600_factor_extension.py,166,read,read_parquet,False,"screen = pd.read_parquet(raw_dir / ""stoxx600_multifactor_screen.parquet"")"
+src/tp_research/workflows/run_stoxx600_factor_extension.py,178,read,read_parquet,False,"extra = pd.read_parquet(source_path, columns=extra_columns)"
+src/tp_research/workflows/run_stoxx600_factor_extension.py,279,write,to_parquet,False,"screen.to_parquet(output_dir / ""stoxx600_extension_screen.parquet"", index=False)"
+src/tp_research/workflows/run_stoxx600_factor_extension.py,367,read,read_csv,False,"old_legs = pd.read_csv(old_synergy_dir / ""selected_legs.csv"")"
+src/tp_research/workflows/run_stoxx600_factor_extension.py,382,read,read_parquet,False,"old = pd.read_parquet(old_synergy_dir / ""stoxx600_relative_synergy_screen.parquet"", columns=[*id_columns, *old_columns.values()])"
+src/tp_research/workflows/run_stoxx600_factor_extension.py,428,write,to_parquet,False,"screen.to_parquet(output_dir / ""stoxx600_extension_theme_screen.parquet"", index=False)"
+src/tp_research/workflows/run_stoxx600_factor_extension.py,512,read,read_csv,False,"definitions = pd.read_csv(output_dir / ""candidate_definitions.csv"")"
+src/tp_research/workflows/run_stoxx600_lag6_relative_research.py,163,read,read_parquet;read_csv,False,"return pd.read_parquet(output_path), pd.read_csv(registry_path)"
+src/tp_research/workflows/run_stoxx600_lag6_relative_research.py,165,read,ParquetFile,False,available = set(pq.ParquetFile(screen_path).schema_arrow.names)
+src/tp_research/workflows/run_stoxx600_lag6_relative_research.py,180,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=list(dict.fromkeys(required)))"
+src/tp_research/workflows/run_stoxx600_lag6_relative_research.py,250,write,to_parquet,False,"screen.to_parquet(output_path, index=False)"
+src/tp_research/workflows/run_stoxx600_multifactor_research.py,185,read,ParquetFile,False,return set(pq.ParquetFile(path).schema_arrow.names)
+src/tp_research/workflows/run_stoxx600_multifactor_research.py,363,read,read_parquet,False,screen = pd.read_parquet(output_path)
+src/tp_research/workflows/run_stoxx600_multifactor_research.py,366,read,ParquetFile,False,"checks = construction_checks(screen, returns, pq.ParquetFile(screen_path).metadata.num_rows)"
+src/tp_research/workflows/run_stoxx600_multifactor_research.py,379,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=read_columns)"
+src/tp_research/workflows/run_stoxx600_multifactor_research.py,489,write,to_parquet,False,"screen.to_parquet(output_path, index=False)"
+src/tp_research/workflows/run_stoxx600_multifactor_research.py,491,read,ParquetFile,False,"checks = construction_checks(screen, returns, pq.ParquetFile(screen_path).metadata.num_rows)"
+src/tp_research/workflows/run_stoxx600_multifactor_research.py,896,read,read_parquet;read_csv,False,"data = pd.read_parquet(path) if path.suffix.lower() == "".parquet"" else pd.read_csv(path)"
+src/tp_research/workflows/run_stoxx600_multifactor_research.py,963,read,read_parquet;read_csv,False,"sec = pd.read_parquet(path) if path.suffix.lower() == "".parquet"" else pd.read_csv(path)"
+src/tp_research/workflows/run_stoxx600_multifactor_research.py,973,read,read_parquet;read_csv,False,"sec = pd.read_parquet(path) if path.suffix.lower() == "".parquet"" else pd.read_csv(path)"
+src/tp_research/workflows/run_stoxx600_multifactor_research.py,1164,read,read_csv,False,gate = pd.read_csv(gate_path)
+src/tp_research/workflows/run_stoxx600_multifactor_research.py,1280,read,read_csv,False,raw_summary = pd.read_csv(raw_summary_path)
+src/tp_research/workflows/run_stoxx600_multifactor_research.py,1303,write,to_parquet,False,"screen.to_parquet(research_screen_path, index=False)"
+src/tp_research/workflows/run_stoxx600_multifactor_research.py,1342,read,read_csv,False,existing_results = pd.read_csv(existing_results_path)
+src/tp_research/workflows/run_stoxx600_relative_synergy_research.py,201,read,read_parquet;ParquetFile,False,"raw_screen = pd.read_parquet(raw_screen_path, columns=[col for col in raw_cols if col in pq.ParquetFile(raw_screen_path).schema_arrow.names])"
+src/tp_research/workflows/run_stoxx600_relative_synergy_research.py,202,read,read_parquet;ParquetFile,False,"rel_screen = pd.read_parquet(rel_screen_path, columns=[col for col in rel_cols if col in pq.ParquetFile(rel_screen_path).schema_arrow.names])"
+src/tp_research/workflows/run_stoxx600_relative_synergy_research.py,280,read,read_csv,False,"raw_gate = pd.read_csv(raw_dir / ""raw_validation_gate.csv"")"
+src/tp_research/workflows/run_stoxx600_relative_synergy_research.py,281,read,read_csv,False,"rel_gate = pd.read_csv(relative_dir / ""relative_validation_gate.csv"")"
+src/tp_research/workflows/run_stoxx600_relative_synergy_research.py,285,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_research/workflows/run_stoxx600_relative_synergy_research.py,287,read,read_csv,False,candidate_map = pd.read_csv(map_path)
+src/tp_research/workflows/run_stoxx600_relative_synergy_research.py,289,read,read_csv,False,"return screen, pd.DataFrame(), pd.DataFrame(), specs, pd.read_csv(legs_path), candidate_map"
+src/tp_research/workflows/run_stoxx600_relative_synergy_research.py,290,read,ParquetFile,False,"checks = base.construction_checks(screen, returns, pq.ParquetFile(base.DEFAULT_SCREEN).metadata.num_rows)"
+src/tp_research/workflows/run_stoxx600_relative_synergy_research.py,292,read,read_csv,False,"return screen, checks, diag, specs, pd.read_csv(legs_path), candidate_map"
+src/tp_research/workflows/run_stoxx600_relative_synergy_research.py,296,read,ParquetFile,False,"checks = base.construction_checks(screen, returns, pq.ParquetFile(base.DEFAULT_SCREEN).metadata.num_rows)"
+src/tp_research/workflows/run_stoxx600_relative_synergy_research.py,314,write,to_parquet,False,"screen.to_parquet(screen_path, index=False)"
+src/tp_research/workflows/run_stoxx600_relative_synergy_research.py,394,read,read_csv,False,"pd.read_csv(RAW_DIR / ""performance_summary.csv""),"
+src/tp_research/workflows/run_stoxx600_relative_synergy_research.py,395,read,read_csv,False,"pd.read_csv(RELATIVE_DIR / ""performance_summary.csv""),"
+src/tp_research/workflows/run_stoxx600_relative_variable_parallel.py,52,read,read_csv,False,frames.append(pd.read_csv(path))
+src/tp_research/workflows/run_stoxx600_relative_variable_parallel.py,110,read,read_csv,False,existing_frames.append(pd.read_csv(existing_results_path))
+src/tp_research/workflows/run_stoxx600_relative_variable_parallel.py,115,read,read_csv,False,existing_frames.append(pd.read_csv(shard_results_path))
+src/tp_research/workflows/run_stoxx600_relative_variable_parallel.py,227,read,read_csv,False,"metric_diag = pd.read_csv(output_dir / ""metric_diagnostics.csv"")"
+src/tp_research/workflows/run_stoxx600_relative_variable_parallel.py,228,read,read_csv,False,"meta = pd.read_csv(output_dir / ""relative_variable_definitions.csv"")"
+src/tp_research/workflows/run_stoxx600_relative_variable_parallel.py,229,read,read_csv,False,"checks = pd.read_csv(output_dir / ""data_construction_checks.csv"")"
+src/tp_research/workflows/run_stoxx600_relative_variable_research.py,93,read,read_parquet,False,screen = pd.read_parquet(output_path)
+src/tp_research/workflows/run_stoxx600_relative_variable_research.py,96,read,read_csv,False,meta = pd.read_csv(meta_path)
+src/tp_research/workflows/run_stoxx600_relative_variable_research.py,97,read,ParquetFile,False,"checks = base.construction_checks(screen, returns, pq.ParquetFile(screen_path).metadata.num_rows)"
+src/tp_research/workflows/run_stoxx600_relative_variable_research.py,117,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=read_columns)"
+src/tp_research/workflows/run_stoxx600_relative_variable_research.py,198,read,ParquetFile,False,"checks = base.construction_checks(screen, returns, pq.ParquetFile(screen_path).metadata.num_rows)"
+src/tp_research/workflows/run_stoxx600_relative_variable_research.py,218,write,to_parquet,False,"screen.to_parquet(output_path, index=False)"
+src/tp_research/workflows/run_stoxx600_relative_variable_research.py,280,read,read_csv,False,level = pd.read_csv(level_gate_path)
+src/tp_research/workflows/run_stoxx600_relative_variable_research.py,537,read,read_csv,False,existing_results = pd.read_csv(existing_results_path)
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,201,read,ParquetFile,False,parquet = pq.ParquetFile(path)
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,410,read,ParquetFile,False,available = set(pq.ParquetFile(screen_path).schema_arrow.names)
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,424,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=required)"
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,441,read,read_parquet;read_csv,False,"return pd.read_parquet(research_path), pd.read_csv(registry_path)"
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,500,write,to_parquet,False,"benchmark.to_parquet(research_path, index=False)"
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,576,read,read_parquet,False,canonical = pd.read_parquet(
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,613,read,ParquetFile,False,return_columns = set(pq.ParquetFile(returns_path).schema_arrow.names)
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,617,read,read_parquet,False,"returns = pd.read_parquet(returns_path, columns=matched_sedols)"
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,828,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,842,write,to_parquet,False,output.to_frame().to_parquet(path)
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,915,write,to_parquet,False,").to_parquet(record[""sec_list""], index=False)"
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,916,write,to_parquet,False,"safe_frame(builder.buy_list).to_parquet(record[""weights""])"
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,917,write,to_parquet,False,safe_frame(builder.list_exclusion_histo).to_parquet(
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,1081,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,1110,read,read_parquet,False,frame = pd.read_parquet(path)
+src/tp_research/workflows/run_stoxx600_sparse_core_sleeve_research.py,1357,read,read_parquet,False,"sec = pd.read_parquet(preferred.iloc[-1][""sec_list""])"
+src/tp_research/workflows/run_stoxx600_sparse_lag_extension_research.py,443,read,read_parquet;read_csv,False,"return pd.read_parquet(output_path), pd.read_csv(registry_path)"
+src/tp_research/workflows/run_stoxx600_sparse_lag_extension_research.py,445,read,ParquetFile,False,available = set(pq.ParquetFile(screen_path).schema_arrow.names)
+src/tp_research/workflows/run_stoxx600_sparse_lag_extension_research.py,461,read,read_parquet,False,"screen = pd.read_parquet(screen_path, columns=required)"
+src/tp_research/workflows/run_stoxx600_sparse_lag_extension_research.py,547,write,to_parquet,False,"screen.to_parquet(output_path, index=False)"
+src/tp_research/workflows/run_stoxx600_sparse_lag_extension_research.py,873,read,read_parquet,False,target = pd.read_parquet(
+src/tp_research/workflows/run_stoxx600_sparse_lag_extension_research.py,918,read,ParquetFile,False,available = set(pq.ParquetFile(source_screen_path).schema_arrow.names)
+src/tp_research/workflows/run_stoxx600_sparse_lag_extension_research.py,922,read,read_parquet,False,source = pd.read_parquet(
+src/tp_research/workflows/run_technical_top_worst_research.py,85,read,ParquetFile,False,names = pq.ParquetFile(screen_path).schema_arrow.names
+src/tp_research/workflows/run_technical_top_worst_research.py,90,read,read_parquet,False,"patterns = pd.read_parquet(patterns_path, columns=[DATE_COL, *PATTERN_COLUMNS])"
+src/tp_research/workflows/run_technical_top_worst_research.py,147,read,read_parquet,False,"screen_keys = pd.read_parquet(screen_path, columns=[DATE_COL, SEDOL_COL])[[DATE_COL, SEDOL_COL]].copy()"
+src/tp_research/workflows/run_technical_top_worst_research.py,151,read,read_parquet,False,returns = pd.read_parquet(returns_path)
+src/tp_research/workflows/run_technical_top_worst_research.py,216,read,ParquetFile,False,source_rows = pq.ParquetFile(screen_path).metadata.num_rows
+src/tp_research/workflows/run_technical_top_worst_research.py,218,read,read_parquet,False,screen = pd.read_parquet(output_path)
+src/tp_research/workflows/run_technical_top_worst_research.py,223,read,read_parquet,False,screen = pd.read_parquet(screen_path)
+src/tp_research/workflows/run_technical_top_worst_research.py,231,write,to_parquet,False,screen.to_parquet(output_path)
+src/tp_research/workflows/run_technical_top_worst_research.py,384,read,read_parquet;read_csv,False,"data = pd.read_parquet(path) if path.suffix.lower() == "".parquet"" else pd.read_csv(path)"
+src/tp_research/workflows/run_technical_top_worst_research.py,439,read,read_parquet,False,sec_list = pd.read_parquet(path)
+src/tp_research/workflows/run_technical_top_worst_research.py,712,read,ParquetFile,False,if len(screen) != pq.ParquetFile(screen_path).metadata.num_rows:
+src/tp_research/workflows/write_eu_small_extended_factor_report.py,103,read,read_csv,False,def read_csv(path: Path) -> pd.DataFrame:
+src/tp_research/workflows/write_eu_small_extended_factor_report.py,105,read,read_csv,False,return pd.read_csv(path)
+src/tp_research/workflows/write_eu_small_extended_factor_report.py,185,read,read_csv,False,"raw_gate = read_csv(raw_dir / ""raw_validation_gate.csv"")"
+src/tp_research/workflows/write_eu_small_extended_factor_report.py,186,read,read_csv,False,"raw_summary = read_csv(raw_dir / ""performance_summary.csv"")"
+src/tp_research/workflows/write_eu_small_extended_factor_report.py,187,read,read_csv,False,"rotation = read_csv(rotation_dir / ""period_rotation_stats.csv"")"
+src/tp_research/workflows/write_eu_small_extended_factor_report.py,188,read,read_csv,False,"raw_pair = read_csv(rotation_dir / ""pair_synergy_summary.csv"")"
+src/tp_research/workflows/write_eu_small_extended_factor_report.py,189,read,read_csv,False,"rel_gate = read_csv(relative_dir / ""relative_validation_gate.csv"")"
+src/tp_research/workflows/write_eu_small_extended_factor_report.py,190,read,read_csv,False,"rel_summary = read_csv(relative_dir / ""performance_summary.csv"")"
+src/tp_research/workflows/write_eu_small_extended_factor_report.py,191,read,read_csv,False,"rel_compare = read_csv(relative_dir / ""relative_vs_level_comparison.csv"")"
+src/tp_research/workflows/write_eu_small_extended_factor_report.py,192,read,read_csv,False,"rel_checks = read_csv(relative_dir / ""data_construction_checks.csv"")"
+src/tp_research/workflows/write_eu_small_extended_factor_report.py,193,read,read_csv,False,"pair = read_csv(synergy_dir / ""pair_synergy_results.csv"")"
+src/tp_research/workflows/write_eu_small_extended_factor_report.py,194,read,read_csv,False,"subset = read_csv(synergy_dir / ""family_subset_results.csv"")"
+src/tp_research/workflows/write_eu_small_extended_factor_report.py,195,read,read_csv,False,"loo = read_csv(synergy_dir / ""leave_one_out_results.csv"")"
+src/tp_research/workflows/write_eu_small_extended_factor_report.py,196,read,read_csv,False,"claims = read_csv(synergy_dir / ""synergy_claims.csv"")"
+src/tp_research/workflows/write_sp500_factor_research_vault_report.py,29,read,read_csv,False,def read_csv(path: Path) -> pd.DataFrame:
+src/tp_research/workflows/write_sp500_factor_research_vault_report.py,33,read,read_csv,False,return pd.read_csv(path)
+src/tp_research/workflows/write_sp500_factor_research_vault_report.py,40,read,read_csv,False,frame = read_csv(path)
+src/tp_research/workflows/write_sp500_factor_research_vault_report.py,63,read,read_csv,False,frames = [read_csv(path) for path in paths]
+src/tp_research/workflows/write_sp500_factor_research_vault_report.py,117,read,read_csv,False,frame = read_csv(path)
+src/tp_research/workflows/write_sp500_factor_research_vault_report.py,542,read,read_csv,False,"pair = read_csv(RUN_ROOT / ""pair_synergy_results.csv"")"
+src/tp_research/workflows/write_sp500_factor_research_vault_report.py,543,read,read_csv,False,"subset = read_csv(RUN_ROOT / ""family_subset_results.csv"")"
+src/tp_research/workflows/write_sp500_factor_research_vault_report.py,544,read,read_csv,False,"loo = read_csv(RUN_ROOT / ""leave_one_out_results.csv"")"
+src/tp_research/workflows/write_sp500_factor_research_vault_report.py,545,read,read_csv,False,"claims = read_csv(RUN_ROOT / ""synergy_claims.csv"")"
+src/tp_research/workflows/write_sp500_factor_research_vault_report.py,546,read,read_csv,False,"selected = read_csv(RUN_ROOT / ""selected_legs.csv"")"
+src/tp_research/workflows/write_sp500_factor_research_vault_report.py,547,read,read_csv,False,"candidate_map = read_csv(RUN_ROOT / ""candidate_map.csv"")"
+tests/test_monthly_factor_recommendation_research.py,134,read,read_csv,False,"costs = pd.read_csv(output_dir / ""cost_sensitivity.csv"")"
+tests/test_monthly_factor_recommendation_research.py,136,read,read_csv,False,"folds = pd.read_csv(output_dir / ""walk_forward_folds.csv"")"
+tests/test_monthly_factor_recommendation_research.py,138,read,read_csv,False,"candidates = pd.read_csv(output_dir / ""model_candidate_registry.csv"")"
+tests/test_monthly_factor_recommendation_v2.py,43,read,read_parquet,False,"panel = pd.read_parquet(output_dir / ""factor_panel.parquet"")"
+tests/test_monthly_factor_recommendation_v2.py,46,read,read_csv,False,"gates = pd.read_csv(output_dir / ""promotion_gate.csv"")"
+tests/test_regime_direct_risk_challengers.py,45,write,to_parquet,False,"states.to_parquet(output_dir / ""regime_oos_US.parquet"")"
+tests/test_research_artifacts.py,62,write,to_parquet,False,"_holdings().to_parquet(target, index=False)"
+tests/test_research_artifacts.py,70,read,read_parquet,False,stored = pd.read_parquet(target)
+tests/test_research_registry.py,83,write,to_parquet,False,").to_parquet(output_dir / ""sec_list.parquet"", index=False)"
+tests/test_research_registry.py,99,read,read_parquet,False,"holdings = pd.read_parquet(run_card.parent / ""results"" / ""sec_list.parquet"")"
+tests/backtest/manual_refactored_system_smoke.py,32,read,read_parquet,False,screen_agg = pd.read_parquet(path_screen)
+tests/backtest/manual_refactored_system_smoke.py,33,read,read_parquet,False,returns = pd.read_parquet(path_returns)
+tests/backtest/test_latest_engine_features.py,323,write,to_parquet,False,"screen.to_parquet(screen_path, index=False)"
+tests/backtest/test_latest_engine_features.py,324,write,to_parquet,False,returns.to_parquet(returns_path)
+tests/backtest/test_latest_engine_features.py,360,write,to_parquet,False,"screen.to_parquet(screen_path, index=False)"
+tests/backtest/test_latest_engine_features.py,361,write,to_parquet,False,returns.to_parquet(returns_path)
+tests/backtest/test_latest_engine_features.py,426,write,to_parquet,False,"screen.to_parquet(screen_path, index=False)"
+tests/backtest/test_latest_engine_features.py,427,write,to_parquet,False,returns.to_parquet(returns_path)
+tests/backtest/test_stoxx600_sparse_core_sleeve_research.py,105,write,to_parquet,False,").to_parquet(security_list, index=False)"
+tests/models/factor_recommendation/test_audit_and_official.py,90,write,to_parquet,False,screen.to_parquet(screen_path)
+tests/models/factor_recommendation/test_audit_and_official.py,92,write,to_parquet,False,returns.to_parquet(returns_path)
+tests/models/factor_recommendation/test_audit_and_official.py,110,read,read_csv,False,"universe = pd.read_csv(output / ""universe_audit.csv"")"
+tests/models/news/test_news_market_signal.py,471,write,to_parquet,False,"pd.DataFrame(rows).to_parquet(screen_path, index=False)"
+tests/models/news/test_news_market_signal.py,501,write,to_parquet,False,returns.to_parquet(returns_path)
+tests/models/sector/test_sector_score_model.py,43,read,read_csv,False,"latest = pd.read_csv(tmp_path / ""sector_scores_latest.csv"", encoding=""utf-8-sig"")"
+tests/pipelines/test_refresh_factor_recommendation.py,91,write,to_parquet,False,"screen.to_parquet(tmp_path / ""screen.parquet"", index=False)"
+tests/pipelines/test_refresh_factor_recommendation.py,92,write,to_parquet,False,"pd.DataFrame({""Date"": dates, ""SEDOL"": [""A"", ""A""]}).to_parquet("
+tests/pipelines/test_refresh_factor_recommendation.py,112,read,read_parquet,False,signal = pd.read_parquet(signal_path)
+tests/pipelines/test_refresh_factor_recommendation.py,122,read,read_parquet,False,"assert set(pd.read_parquet(panel_path)[""region""]) == {""US"", ""EU"", ""ASIA""}"
+tests/pipelines/test_refresh_supplemental_data.py,526,write,to_parquet,False,").set_index(""ISIN"").to_parquet(screen_path, index=True)"
+tests/pipelines/test_refresh_supplemental_data.py,553,read,read_parquet,False,promoted = pd.read_parquet(screen_path)
+tests/presentation/test_factor_recommendation_api.py,27,write,to_parquet,False,"frame.to_parquet(panel_path, index=False)"
+tests/presentation/test_factor_recommendation_api.py,28,write,to_parquet,False,"frame.to_parquet(history_path, index=False)"
+tests/presentation/test_factor_recommendation_api.py,29,write,to_parquet,False,"frame.to_parquet(signal_path, index=False)"
+tests/presentation/test_presentation_layer_entrypoints.py,126,write,to_parquet,False,"frame.to_parquet(panel_path, index=False)"
+tests/presentation/test_presentation_layer_entrypoints.py,148,write,to_parquet,False,"frame.to_parquet(panel_path, index=False)"
+tests/presentation/test_presentation_layer_entrypoints.py,609,write,to_parquet,False,).to_parquet(regime_path)
+tests/presentation/test_presentation_layer_entrypoints.py,618,write,to_parquet,False,").to_parquet(regime_output_dir / f""regime_{region}.parquet"")"
+tests/presentation/test_presentation_layer_entrypoints.py,623,write,to_parquet,False,").to_parquet(regime_output_dir / f""regime_oos_{region}.parquet"")"
+tests/presentation/test_system_backtests.py,51,read,read_parquet,False,"read_frame=lambda path: pd.read_parquet(path) if path.exists() else None,"
+tests/presentation/test_system_backtests.py,65,write,to_parquet,False,").to_parquet(run_dir / ""perf_ptf.parquet"")"
+tests/presentation/test_system_backtests.py,68,write,to_parquet,False,").to_parquet(run_dir / ""perf_bench.parquet"")"
+tests/presentation/test_system_backtests.py,87,write,to_parquet,False,"pd.DataFrame({""Contrib"": [100.0]}).to_parquet("
+tools/duckdb_migration_audit.py,76,read,read_parquet,False,"r""read_parquet"","
+tools/duckdb_migration_audit.py,77,read,read_table,False,"r""read_table"","
+tools/duckdb_migration_audit.py,78,read,ParquetFile,False,"r""ParquetFile"","
+tools/duckdb_migration_audit.py,79,read,read_screen_aggregate,True,"r""read_screen_aggregate"","
+tools/duckdb_migration_audit.py,80,read,read_last_screen,True,"r""read_last_screen"","
+tools/duckdb_migration_audit.py,81,read,read_screen_5y,False,"r""read_screen_5y"","
+tools/duckdb_migration_audit.py,82,read,read_returns,False,"r""read_returns"","
+tools/duckdb_migration_audit.py,83,read,read_csv,False,"r""read_csv"","
+tools/duckdb_migration_audit.py,84,read,read_excel,False,"r""read_excel"","
+tools/duckdb_migration_audit.py,87,write,to_parquet,False,"r""to_parquet"","
+tools/duckdb_migration_audit.py,88,write,write_table,False,"r""write_table"","
+tools/duckdb_migration_audit.py,89,write,write_to_dataset,False,"r""write_to_dataset"","
+tools/duckdb_migration_audit.py,90,write,_atomic_write_parquet,False,"r""_atomic_write_parquet"","
+tools/duckdb_migration_audit.py,181,read,ParquetFile,False,parquet = pq.ParquetFile(path)
+tools/duckdb_migration_audit.py,198,read,read_parquet,False,"frame = pd.read_parquet(path, columns=[date_name])"
+tools/duckdb_migration_audit.py,217,read,read_parquet,False,"keys = pd.read_parquet(path, columns=[""Date""]).reset_index()"
+tools/duckdb_migration_audit.py,232,read,ParquetFile,False,parquet = pq.ParquetFile(path)
+tools/duckdb_migration_audit.py,291,read,ParquetFile,False,screen_names = list(pq.ParquetFile(screen).schema_arrow.names) if screen.exists() else []
+tools/duckdb_migration_audit.py,297,read,ParquetFile,False,return_names = list(pq.ParquetFile(returns).schema_arrow.names) if returns.exists() else []
+tools/duckdb_migration_audit.py,302,read,read_parquet,False,"frame = pd.read_parquet(screen, columns=screen_columns)"
+tools/duckdb_migration_audit.py,310,read,read_parquet,False,"sample = pd.read_parquet(screen, columns=[date_name] if date_name else None).index"
+tools/duckdb_migration_audit.py,315,read,read_parquet,False,"return pd.read_parquet(screen, filters=[(""ISIN"", ""=="", isin)], columns=screen_columns)"
+tools/duckdb_migration_audit.py,320,read,read_parquet,False,"return pd.read_parquet(returns, columns=return_columns)"

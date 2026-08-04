@@ -1,0 +1,5 @@
+file,line,operation,api_matches,canonical_reference,text
+src/tp_data/import_benchmark_weights.py,389,write,to_parquet,True,"latest.to_parquet(LAST_SCREEN_PATH, index=True)"
+src/tp_data/monthly_update.py,339,write,to_parquet,True,latest_screen.to_parquet(last_screen_path)
+src/tp_models/ml/production.py,252,write,to_parquet,True,"screen.set_index(""ISIN"").to_parquet(SCREEN_AGGREGATE_PATH)"
+src/tp_pipelines/refresh_supplemental_data.py,619,write,_atomic_write_parquet,True,"_atomic_write_parquet(SCREEN_AGGREGATE_PATH, output_screen, index=isin_was_index)"

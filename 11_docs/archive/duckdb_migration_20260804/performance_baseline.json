@@ -1,0 +1,59 @@
+{
+  "status": "measured",
+  "engine": "legacy_pandas_pyarrow",
+  "root": "C:\\GoogleDrive\\TP",
+  "workloads": [
+    {
+      "label": "legacy_screen_latest_projection",
+      "status": "passed",
+      "elapsed_seconds": 0.891101,
+      "rows": 11114,
+      "columns": 3,
+      "result_fingerprint": "cb1a69f6756c0113c8c9be6c9a11d5415b8f341f4353e17eef375baa149c7d1f"
+    },
+    {
+      "label": "legacy_screen_latest_projection_warm",
+      "status": "passed",
+      "elapsed_seconds": 0.858286,
+      "rows": 11114,
+      "columns": 3,
+      "result_fingerprint": "cb1a69f6756c0113c8c9be6c9a11d5415b8f341f4353e17eef375baa149c7d1f"
+    },
+    {
+      "label": "legacy_screen_company_filter",
+      "status": "passed",
+      "elapsed_seconds": 0.107109,
+      "rows": 320,
+      "columns": 3,
+      "result_fingerprint": "624eeec55aa92cbb31f455b77e7ceaff78459f0fa5ab0b2568ef35446d6c72fb"
+    },
+    {
+      "label": "legacy_screen_company_filter_warm",
+      "status": "passed",
+      "elapsed_seconds": 0.105405,
+      "rows": 320,
+      "columns": 3,
+      "result_fingerprint": "624eeec55aa92cbb31f455b77e7ceaff78459f0fa5ab0b2568ef35446d6c72fb"
+    },
+    {
+      "label": "legacy_returns_projection",
+      "status": "passed",
+      "elapsed_seconds": 0.435183,
+      "rows": 5533,
+      "columns": 5,
+      "result_fingerprint": "1f0b2c7f0799aad0f2debcaef3675e3ad3aca16796f0ff3e71b5a589f4426ab6"
+    },
+    {
+      "label": "legacy_returns_projection_warm",
+      "status": "passed",
+      "elapsed_seconds": 0.446843,
+      "rows": 5533,
+      "columns": 5,
+      "result_fingerprint": "1f0b2c7f0799aad0f2debcaef3675e3ad3aca16796f0ff3e71b5a589f4426ab6"
+    }
+  ],
+  "notes": [
+    "Cold/warm are process-level repeated reads; the OS filesystem cache is not forcibly evicted.",
+    "DuckDB timings are intentionally absent until Phase 1 installs the dependency."
+  ]
+}

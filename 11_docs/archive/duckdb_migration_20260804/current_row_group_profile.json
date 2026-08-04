@@ -1,0 +1,82 @@
+{
+  "screen_aggregate": {
+    "path": "00_screen/screen_aggregate.parquet",
+    "exists": true,
+    "row_groups": [
+      {
+        "row_group": 0,
+        "rows": 1048576,
+        "total_byte_size": 248435452,
+        "date_min": "1999-12-31 00:00:00",
+        "date_max": "2007-11-30 00:00:00",
+        "date_null_count": 0
+      },
+      {
+        "row_group": 1,
+        "rows": 1048576,
+        "total_byte_size": 369629999,
+        "date_min": "2007-11-30 00:00:00",
+        "date_max": "2015-12-31 00:00:00",
+        "date_null_count": 0
+      },
+      {
+        "row_group": 2,
+        "rows": 1048576,
+        "total_byte_size": 443777651,
+        "date_min": "2015-12-31 00:00:00",
+        "date_max": "2024-02-29 00:00:00",
+        "date_null_count": 0
+      },
+      {
+        "row_group": 3,
+        "rows": 319728,
+        "total_byte_size": 153226185,
+        "date_min": "2024-02-29 00:00:00",
+        "date_max": "2026-07-31 00:00:00",
+        "date_null_count": 0
+      }
+    ]
+  },
+  "returns": {
+    "path": "00_screen/returns.parquet",
+    "exists": true,
+    "row_groups": [
+      {
+        "row_group": 0,
+        "rows": 5533,
+        "total_byte_size": 379457653,
+        "date_min": "2005-01-03 00:00:00",
+        "date_max": "2026-08-03 00:00:00",
+        "date_null_count": 0
+      }
+    ]
+  },
+  "last_screen": {
+    "path": "00_screen/last_screen.parquet",
+    "exists": true,
+    "row_groups": [
+      {
+        "row_group": 0,
+        "rows": 11114,
+        "total_byte_size": 7356316,
+        "date_min": "2026-07-31 00:00:00",
+        "date_max": "2026-07-31 00:00:00",
+        "date_null_count": 0
+      }
+    ]
+  },
+  "screen_aggregate_5y": {
+    "path": "00_screen/screen_aggregate_5Y.parquet",
+    "exists": true,
+    "row_groups": [
+      {
+        "row_group": 0,
+        "rows": 654451,
+        "total_byte_size": 297055095,
+        "date_min": "2021-07-31 00:00:00",
+        "date_max": "2026-07-31 00:00:00",
+        "date_null_count": 0
+      }
+    ]
+  }
+}

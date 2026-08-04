@@ -1,0 +1,8 @@
+{
+  "status": "not_comparable",
+  "workspace_path": "C:\\GoogleDrive\\TP",
+  "workspace_volume": "C:",
+  "comparison_path": null,
+  "reason": "No independent local-disk copy of the canonical dataset was provided; no fabricated A/B result is recorded.",
+  "same_volume_observation": "All measured baseline reads use the current Google Drive workspace path."
+}

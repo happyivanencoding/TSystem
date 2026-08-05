@@ -126,7 +126,9 @@ def refresh_presentation_marts(
     else:
         connection.execute(
             "CREATE OR REPLACE TABLE signals.all_signals AS "
-            "SELECT CAST(NULL AS DATE) AS \"Date\", CAST(NULL AS VARCHAR) AS signal_family WHERE FALSE"
+            "SELECT CAST(NULL AS DATE) AS \"Date\", "
+            "CAST(NULL AS VARCHAR) AS signal_family, "
+            "CAST(NULL AS VARCHAR) AS signal_name WHERE FALSE"
         )
         connection.execute("CREATE OR REPLACE TABLE signals.latest_signals AS SELECT * FROM signals.all_signals")
     tables.extend(("signals.all_signals", "signals.latest_signals"))

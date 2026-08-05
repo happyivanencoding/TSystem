@@ -42,6 +42,9 @@ class RefreshDataConfig(StepConfig):
     inspect_only: bool
     qa_report: str | None
     run_type: str
+    apply: bool = False
+    partition_writer: bool = False
+    compatibility_exports: bool | None = None
 
 
 @dataclass
@@ -383,6 +386,7 @@ class PipelineRunConfig:
             inspect_only=bool(get("inspect_only_refresh_data", False)),
             qa_report=None,
             run_type=run_type,
+            apply=True,
         )
         supplemental_config = str(
             get("supplemental_config", Path(__file__).with_name("supplemental_sources.json"))

@@ -215,6 +215,8 @@ def _returns_index_max_date() -> str | None:
 
 
 def run_refresh_data(args: RefreshDataConfig) -> Path:
+    if not args.inspect_only and not args.dry_run and not args.apply:
+        raise ValueError("refresh_data 写入必须显式传入 --apply；dry-run/inspect-only 不需要")
     parameters = vars(args).copy()
     manifest = StepManifest("refresh_data", parameters)
     manifest.inputs = {
@@ -264,6 +266,7 @@ def run_refresh_data(args: RefreshDataConfig) -> Path:
             input_month=args.input_month,
             dry_run=args.dry_run,
             partition_writer=args.partition_writer,
+            compatibility_exports=args.compatibility_exports,
         )
         data_source_status = validate_data_sources()
         returns_audit = _run_returns_extreme_audit()
@@ -347,11 +350,26 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ciq-dir", help="显式指定 CIQ parquet 文件或目录")
     parser.add_argument("--skip-ciq", action="store_true", help="跳过 CIQ merge")
     parser.add_argument("--dry-run", action="store_true", help="只校验和生成 QA，不写 canonical parquet")
+    parser.add_argument("--apply", action="store_true", help="确认执行真实月更写入")
     parser.add_argument(
         "--partition-writer",
         action="store_true",
         help="使用 immutable 分区 writer 发布 Screen/Returns，并生成 compatibility exports",
     )
+    compatibility_group = parser.add_mutually_exclusive_group()
+    compatibility_group.add_argument(
+        "--compatibility-exports",
+        dest="compatibility_exports",
+        action="store_true",
+        help="显式启用 partition writer 的 compatibility exports",
+    )
+    compatibility_group.add_argument(
+        "--no-compatibility-exports",
+        dest="compatibility_exports",
+        action="store_false",
+        help="仅在 Phase 8 readiness 后停用 partition writer 的 compatibility exports",
+    )
+    parser.set_defaults(compatibility_exports=None)
     parser.add_argument("--inspect-only", action="store_true", help="只检查 canonical 路径和输入目录，不执行月更重计算")
     parser.add_argument("--qa-report", help="显式指定 QA JSON 输出路径")
     parser.add_argument("--run-type", choices=["production", "smoke", "inspect"], default="production")

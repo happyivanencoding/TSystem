@@ -1,0 +1,48 @@
+{
+  "schema_version": "tp.duckdb-authority-evidence.v1",
+  "phase": "phase7_8",
+  "release_id": "presentation-20260805-screen-returns-v2",
+  "decision": "WRITER_CUTOVER_READY",
+  "authority_status": "not_active",
+  "full_real_data_parity": true,
+  "complete_production_chain_parity": false,
+  "rollback_drill": false,
+  "monthly_cycles": [],
+  "external_approval": false,
+  "evidence": {
+    "screen_returns_full_parity": "passed in phase2_parity.json",
+    "catalog_release_health": "passed",
+    "presentation_marts_real_release": "passed in phase6_marts_qa.json",
+    "writer_fixture_apply_rollback": "passed in phase5_writer_qa.json",
+    "authority_guard_fixture": "passed in tests/analytics/test_authority.py",
+    "production_chain": "not completed; only bounded read/model/candidate smokes were run",
+    "production_rollback": "not completed against a real production month",
+    "monthly_replays": "none claimed",
+    "external_approval": "not supplied in this session"
+  },
+  "guard_validation": {
+    "authority_status_command": "blocked as expected; exit code 1",
+    "retirement_status_command": "blocked as expected; exit code 1",
+    "catalog_rollback_dry_run": "passed; exit code 0; no pointer written"
+  },
+  "required_before_activation": [
+    "complete real-data export_signals/build_candidates/optimize_portfolio/run_backtest/generate_report parity",
+    "one real release rollback drill with evidence",
+    "two independent historical monthly replays or two completed production monthly cycles",
+    "explicit outer-user approval of the authority switch"
+  ],
+  "formal_activation_command": "tp-duckdb-activate-authority --database artifacts/analytics/duckdb/releases/<release>/tp_analytics.duckdb --catalog-release-id <release> --evidence <approved-evidence-json> --approve-authority-switch --apply",
+  "retirement_command_after_readiness_only": "$env:TP_COMPAT_EXPORTS='false'; tp-pipeline-refresh-data --input-month YYYYMM --partition-writer --no-compatibility-exports --apply",
+  "compatibility_exports": {
+    "default": "enabled",
+    "source_role": "compatibility_export",
+    "retired": false
+  },
+  "limitations": [
+    "production default TP_DATA_ENGINE remains legacy_parquet",
+    "latest catalog pointer was not updated",
+    "old monolith and compatibility exports were not deleted",
+    "Google Drive and local SSD storage benchmark is not a production SLA",
+    "existing full-suite presentation OOM errors remain pre-existing"
+  ]
+}

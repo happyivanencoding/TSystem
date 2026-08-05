@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
+from tp_core.analytics.config import DuckDBConfig
 from tp_core.analytics.writers import PartitionWriterResult, update_dataset_partitions
 
 from .fs_sector_history import (
@@ -651,8 +652,14 @@ def run_monthly_update(
     input_month: Optional[str] = None,
     dry_run: bool = False,
     partition_writer: bool = False,
+    compatibility_exports: bool | None = None,
 ) -> Dict[str, Any]:
     paths = build_default_paths(base_dir)
+    compatibility_exports_enabled = (
+        DuckDBConfig.from_env().compat_exports
+        if compatibility_exports is None
+        else bool(compatibility_exports)
+    )
     update_mode = _resolve_update_mode(update_mode)
     update_screen = update_mode in {"both", "screen_only"}
     update_returns = update_mode in {"both", "returns_only"}
@@ -719,6 +726,7 @@ def run_monthly_update(
         "screen_idempotency": None,
         "write_actions": [],
         "partition_writer": bool(partition_writer),
+        "compatibility_exports": compatibility_exports_enabled,
     }
 
     if returns_updated is not None:
@@ -739,7 +747,9 @@ def run_monthly_update(
                 affected_dates=returns_affected_dates,
                 apply=True,
                 source_run_id=f"monthly-update-{result.get('input_month') or 'returns'}",
-                compatibility_export_paths=(paths["returns_path"],),
+                compatibility_export_paths=(paths["returns_path"],)
+                if compatibility_exports_enabled
+                else (),
             )
             result["partition_writer_returns"] = returns_result.as_dict()
             result["write_actions"].append("partition-writer: returns_wide")
@@ -894,6 +904,8 @@ def run_monthly_update(
         result["write_actions"].append("dry-run: 未写入 last_screen.parquet / screen_aggregate_5Y.parquet")
 
     if partition_writer and not dry_run:
+        if not compatibility_exports_enabled:
+            result["write_actions"].append("partition-writer: compatibility exports disabled by policy")
         root = paths["base_dir"].parent
         screen_result = _publish_partitioned_frame(
             final_screen,
@@ -903,9 +915,15 @@ def run_monthly_update(
             apply=True,
             source_run_id=f"monthly-update-{result.get('input_month') or date_last.strftime('%Y%m')}",
             compatibility_export_paths=(
-                paths["screen_path"],
-                paths["last_screen_path"],
-                paths["screen_path"].with_name(f"{paths['screen_path'].stem}_5Y{paths['screen_path'].suffix}"),
+                (
+                    paths["screen_path"],
+                    paths["last_screen_path"],
+                    paths["screen_path"].with_name(
+                        f"{paths['screen_path'].stem}_5Y{paths['screen_path'].suffix}"
+                    ),
+                )
+                if compatibility_exports_enabled
+                else ()
             ),
         )
         result["partition_writer_screen"] = screen_result.as_dict()
@@ -917,7 +935,9 @@ def run_monthly_update(
                 affected_dates=returns_affected_dates,
                 apply=True,
                 source_run_id=f"monthly-update-{result.get('input_month') or date_last.strftime('%Y%m')}",
-                compatibility_export_paths=(paths["returns_path"],),
+                compatibility_export_paths=(paths["returns_path"],)
+                if compatibility_exports_enabled
+                else (),
             )
             result["partition_writer_returns"] = returns_result.as_dict()
         result["write_actions"].append("partition-writer: screen")

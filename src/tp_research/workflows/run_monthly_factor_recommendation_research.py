@@ -9,20 +9,19 @@ the TP Registry.  It deliberately does not write production model artifacts.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import asdict, dataclass, is_dataclass
 import hashlib
 import importlib
 import inspect
 import json
 import math
-from pathlib import Path
 import sys
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import asdict, dataclass, is_dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
-
 
 WORKFLOW_ID = "monthly-factor-recommendation-v1"
 CORE_PACKAGE = "tp_models.factor_recommendation"
@@ -396,6 +395,7 @@ def _load_core_contract(
         # aggregate loader.  Keep this adapter here so the workflow still has
         # one deterministic calling boundary and never imports core internals.
         from tp_core.data_sources import RETURNS_PATH, SCREEN_AGGREGATE_PATH
+        from tp_core.io import read_returns, read_screen_aggregate
         from tp_models.factor_recommendation import (
             build_security_feature_panel,
             load_factor_definitions,
@@ -410,12 +410,34 @@ def _load_core_contract(
         regions = load_region_universes(runtime_config.region_universes_path)
         screen_path = Path(SCREEN_AGGREGATE_PATH)
         returns_path = Path(RETURNS_PATH)
-        screen = pd.read_parquet(screen_path)
-        returns = pd.read_parquet(returns_path)
+        requested_columns = {"Date", "ISIN", "Company SEDOL"}
+        for definition in definitions:
+            requested_columns.update(definition.source_columns)
+        for spec in regions.values():
+            for component in spec.components:
+                requested_columns.add(component.weight_column)
+                if component.country_column:
+                    requested_columns.add(component.country_column)
+        try:
+            import pyarrow.parquet as pq
+
+            available = set(pq.ParquetFile(screen_path).schema_arrow.names)
+            screen_columns = sorted(requested_columns.intersection(available))
+        except (ImportError, OSError, ValueError):
+            screen_columns = None
+        screen = read_screen_aggregate(screen_path, columns=screen_columns)
         if max_months:
             dates = sorted(pd.to_datetime(screen["Date"], errors="coerce").dropna().unique())
             keep = dates[-(max_months + runtime_config.pit_lag_months + 1) :]
             screen = screen[pd.to_datetime(screen["Date"], errors="coerce").isin(keep)].copy()
+        sedols = sorted(screen["Company SEDOL"].dropna().astype(str).unique())
+        screen_dates = pd.to_datetime(screen["Date"], errors="coerce").dropna()
+        returns = read_returns(
+            returns_path,
+            columns=sedols,
+            date_from=screen_dates.min() if not screen_dates.empty else None,
+            date_to=(screen_dates.max() + pd.DateOffset(months=2)) if not screen_dates.empty else None,
+        )
 
         panels: list[pd.DataFrame] = []
         region_status: dict[str, Any] = {}

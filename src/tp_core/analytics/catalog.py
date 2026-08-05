@@ -267,14 +267,26 @@ def _load_manifest_reference(path: str | Path, *, root: Path) -> DatasetManifest
 
 
 def _read_parquet_expression(manifest: DatasetManifest, *, root: Path) -> str:
-    files = [resolve_partition_path(manifest, partition, root=root).resolve() for partition in manifest.partitions]
-    if not files:
+    partitions = list(manifest.partitions)
+    if not partitions:
         raise ValueError(f"manifest has no partitions: {manifest.path}")
+    files = [resolve_partition_path(manifest, partition, root=root).resolve() for partition in partitions]
     missing = [str(path) for path in files if not path.exists()]
     if missing:
         raise FileNotFoundError(f"manifest partitions are missing: {missing[:3]}")
-    literals = ", ".join(_sql_string(str(path).replace("\\", "/")) for path in files)
-    return f"read_parquet([{literals}], union_by_name=true, hive_partitioning=true)"
+    branches: list[str] = []
+    for partition, path in zip(partitions, files, strict=True):
+        year = int(partition["year"])
+        partition_columns = f", {year} AS year"
+        if partition.get("month") is not None:
+            partition_columns += f", {int(partition['month'])} AS month"
+        normalized_path = _sql_string(str(path).replace("\\", "/"))
+        branches.append(
+            "SELECT *"
+            f"{partition_columns} FROM read_parquet([{normalized_path}], "
+            "union_by_name=true, hive_partitioning=false)"
+        )
+    return "(" + " UNION ALL BY NAME ".join(branches) + ")"
 
 
 def _sql_string(value: str) -> str:

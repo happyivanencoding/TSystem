@@ -8,15 +8,37 @@
 import numpy as np
 import pandas as pd
 
+from tp_core.data_sources import RETURNS_PATH
+from tp_core.io import read_returns, resolve_return_columns
+
 from . import config
 
 CORR_WINDOW = 63   # 约3个月交易日，用于波动与相关性
 DOWN_WINDOW = 21   # 约1个月交易日，用于下跌频率
 
 
-def load_returns() -> pd.DataFrame:
+def load_returns(
+    *,
+    columns: list[str] | tuple[str, ...] | None = None,
+    date_from: str | pd.Timestamp | None = None,
+    date_to: str | pd.Timestamp | None = None,
+    engine: str | None = None,
+) -> pd.DataFrame:
     """加载日度收益，列名去掉 '-R' 后缀以对齐 SEDOL 前6位。"""
-    r = pd.read_parquet(config.RETURNS_PATH)
+    requested = resolve_return_columns(
+        config.RETURNS_PATH,
+        columns,
+        engine=engine,
+    )
+    if columns is not None and not requested:
+        return pd.DataFrame(index=pd.DatetimeIndex([], name="Date"))
+    r = read_returns(
+        RETURNS_PATH if RETURNS_PATH else config.RETURNS_PATH,
+        columns=requested,
+        date_from=pd.Timestamp(date_from) if date_from is not None else None,
+        date_to=pd.Timestamp(date_to) if date_to is not None else None,
+        engine=engine,
+    )
     r.columns = [c[:-2] if str(c).endswith("-R") else c for c in r.columns]
     return r
 

@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
-
 
 from tp_core.backtesting import calculate_return_series_nav
 from tp_core.data_sources import (
@@ -18,7 +17,7 @@ from tp_core.data_sources import (
     SCREEN_AGGREGATE_PATH,
     TP_ROOT,
 )
-
+from tp_core.io import read_returns, read_screen_aggregate
 
 PROJECT_DIR = TP_ROOT / "13_sector_score_model"
 DEFAULT_OUTPUT_DIR = PROJECT_DIR / "outputs"
@@ -187,13 +186,24 @@ def _load_sector_mapping(path: Path = FACTSET_ICB_MAPPING_PATH) -> dict[int, str
     }
 
 
-def load_screen_universe(screen_path: Path, start_date: str, market: str = "US") -> pd.DataFrame:
+def load_screen_universe(
+    screen_path: Path,
+    start_date: str,
+    market: str = "US",
+    *,
+    engine: str | None = None,
+) -> pd.DataFrame:
     config = _market_config(market)
     source_weight_column = str(config["benchmark_weight_column"])
     fs_market = str(config["fs_market"])
     available_columns = _available_parquet_columns(screen_path)
     columns = [column for column in [*SCREEN_COLUMNS, *FS_SECTOR_SCREEN_COLUMNS] if column in available_columns]
-    screen = pd.read_parquet(screen_path, columns=columns)
+    screen = read_screen_aggregate(
+        screen_path,
+        columns=columns,
+        date_from=pd.Timestamp(start_date),
+        engine=engine,
+    )
     screen["Date"] = pd.to_datetime(screen["Date"], errors="coerce")
     screen = screen[screen["Date"].ge(pd.Timestamp(start_date))].copy()
     screen[BENCHMARK_WEIGHT_COLUMN] = pd.to_numeric(screen[source_weight_column], errors="coerce")
@@ -387,13 +397,23 @@ def compute_sector_forward_returns(
     scored: pd.DataFrame,
     sector_scores: pd.DataFrame,
     returns_path: Path,
+    *,
+    engine: str | None = None,
 ) -> pd.DataFrame:
     securities = _available_return_columns(returns_path, scored[SECURITY_ID_COLUMN].dropna())
-    returns = pd.read_parquet(returns_path, columns=securities)
+    dates = sorted(sector_scores["Date"].dropna().unique())
+    if not securities or not dates:
+        return pd.DataFrame(columns=["Date", "sector_code", "sector_forward_return"])
+    returns = read_returns(
+        returns_path,
+        columns=securities,
+        date_from=pd.Timestamp(dates[0]),
+        date_to=pd.Timestamp(dates[-1]),
+        engine=engine,
+    )
     returns.index = pd.to_datetime(returns.index, errors="coerce")
     returns = returns.sort_index()
 
-    dates = sorted(sector_scores["Date"].dropna().unique())
     records: list[dict[str, object]] = []
     for idx, date in enumerate(dates[:-1]):
         next_date = dates[idx + 1]
@@ -441,9 +461,10 @@ def _build_scored_and_sector_scores(
     mapping_path: Path = FACTSET_ICB_MAPPING_PATH,
     start_date: str = "2010-01-01",
     market: str = "US",
+    engine: str | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     sector_mapping = _load_sector_mapping(mapping_path)
-    screen = load_screen_universe(screen_path, start_date=start_date, market=market)
+    screen = load_screen_universe(screen_path, start_date=start_date, market=market, engine=engine)
     scored = add_stock_scores(screen)
     sector_scores = aggregate_sector_scores(scored, sector_mapping, market=market)
     return scored, sector_scores
@@ -455,14 +476,16 @@ def build_panel(
     mapping_path: Path = FACTSET_ICB_MAPPING_PATH,
     start_date: str = "2010-01-01",
     market: str = "US",
+    engine: str | None = None,
 ) -> pd.DataFrame:
     scored, sector_scores = _build_scored_and_sector_scores(
         screen_path=screen_path,
         mapping_path=mapping_path,
         start_date=start_date,
         market=market,
+        engine=engine,
     )
-    sector_returns = compute_sector_forward_returns(scored, sector_scores, returns_path)
+    sector_returns = compute_sector_forward_returns(scored, sector_scores, returns_path, engine=engine)
     panel = sector_scores.merge(sector_returns, on=["Date", "sector_code"], how="inner")
     panel = panel.sort_values(["Date", "sector_code"]).reset_index(drop=True)
     return panel
@@ -740,14 +763,16 @@ def run_model(
     top_n: int = 3,
     bottom_n: int = 3,
     market: str = "US",
+    engine: str | None = None,
 ) -> dict[str, object]:
     scored, sector_scores = _build_scored_and_sector_scores(
         screen_path=screen_path,
         mapping_path=mapping_path,
         start_date=start_date,
         market=market,
+        engine=engine,
     )
-    sector_returns = compute_sector_forward_returns(scored, sector_scores, returns_path)
+    sector_returns = compute_sector_forward_returns(scored, sector_scores, returns_path, engine=engine)
     panel = sector_scores.merge(sector_returns, on=["Date", "sector_code"], how="inner")
     panel = panel.sort_values(["Date", "sector_code"]).reset_index(drop=True)
     paths = write_outputs(panel, output_dir, score_column, top_n, bottom_n, latest_scores=sector_scores)
@@ -773,6 +798,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument("--score-column", default="score_final", help="score column for final backtest")
     parser.add_argument("--top-n", type=int, default=3, help="number of positive sectors")
     parser.add_argument("--bottom-n", type=int, default=3, help="number of negative sectors")
+    parser.add_argument("--engine", choices=("legacy_parquet", "duckdb", "shadow_compare"), default=None)
     args = parser.parse_args(list(argv) if argv is not None else None)
     output_dir = (
         Path(args.output_dir)
@@ -790,6 +816,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         top_n=args.top_n,
         bottom_n=args.bottom_n,
         market=args.market,
+        engine=args.engine,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

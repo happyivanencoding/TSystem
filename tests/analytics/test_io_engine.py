@@ -1,0 +1,133 @@
+from __future__ import annotations
+
+from datetime import date
+from pathlib import Path
+
+import pandas as pd
+
+from presentation_layer.data_repository import PresentationDataRepository
+from tp_backtest.runner.input_loader import load_pruned_backtest_inputs
+from tp_core.analytics.catalog import build_catalog_release
+from tp_core.analytics.config import DuckDBConfig
+from tp_core.analytics.partitioning import migrate_dataset
+from tp_core.io import read_last_screen, read_returns, read_screen_aggregate
+
+
+def _fixture_release(tmp_path: Path) -> tuple[Path, Path, Path]:
+    screen_path = tmp_path / "00_screen" / "screen_aggregate.parquet"
+    returns_path = tmp_path / "00_screen" / "returns.parquet"
+    screen_path.parent.mkdir(parents=True)
+    pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2026-01-31", "2026-01-31", "2026-02-28"]),
+            "Company SEDOL": ["SED1", "SED2", "SED1"],
+            "Benchmark Market Value Millions in EUR": [100.0, 200.0, 110.0],
+            "Weight in TEST": [0.5, 0.5, 0.6],
+            "score": [1.0, 2.0, 3.0],
+            "value": [1.0, 2.0, 3.0],
+        },
+        index=pd.Index(["ISIN1", "ISIN2", "ISIN1"], name="ISIN"),
+    ).to_parquet(screen_path)
+    pd.DataFrame(
+        {"SED1": [0.1, 0.2], "SED2": [0.3, 0.4]},
+        index=pd.DatetimeIndex(["2025-12-31", "2026-01-02"], name="Date"),
+    ).to_parquet(returns_path)
+    screen = migrate_dataset(screen_path, dataset_name="screen", root=tmp_path, apply=True)
+    returns = migrate_dataset(returns_path, dataset_name="returns_wide", root=tmp_path, apply=True)
+    config = DuckDBConfig(
+        database_path=tmp_path / "artifacts" / "analytics" / "duckdb" / "tp_analytics.duckdb",
+        temp_directory=tmp_path / "artifacts" / "analytics" / "duckdb" / "temp",
+        data_root=tmp_path,
+        artifact_root=tmp_path / "artifacts",
+        latest_pointer=tmp_path / "artifacts" / "analytics" / "duckdb" / "latest.json",
+    )
+    summary = build_catalog_release(
+        config,
+        release_id="io-engine-test",
+        screen_manifest_path=screen.current_pointer or "",
+        returns_manifest_path=returns.current_pointer or "",
+    )
+    return Path(str(summary["database_path"])), screen_path, returns_path
+
+
+def test_io_reads_duckdb_and_shadow_engines_without_changing_default_contract(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    database, screen_path, returns_path = _fixture_release(tmp_path)
+    monkeypatch.setenv("TP_DUCKDB_PATH", str(database))
+    monkeypatch.setenv("TP_DATA_ENGINE", "duckdb")
+
+    screen = read_screen_aggregate(
+        screen_path,
+        columns=("Date", "ISIN", "Company SEDOL", "value"),
+        date_from=date(2026, 1, 31),
+        date_to=date(2026, 2, 28),
+        engine="duckdb",
+    )
+    latest = read_last_screen(
+        screen_path,
+        columns=("Date", "ISIN", "value"),
+        engine="duckdb",
+    )
+    returns = read_returns(
+        returns_path,
+        columns=("SED1",),
+        date_from=date(2025, 12, 31),
+        date_to=date(2026, 1, 2),
+        engine="duckdb",
+    )
+    assert len(screen) == 3
+    assert len(latest) == 1
+    assert latest.iloc[0]["ISIN"] == "ISIN1"
+    assert returns.index.name == "Date"
+    assert returns["SED1"].tolist() == [0.1, 0.2]
+
+    shadow_screen = read_screen_aggregate(
+        screen_path,
+        columns=("Date", "ISIN", "Company SEDOL", "value"),
+        date_from=date(2026, 1, 31),
+        date_to=date(2026, 2, 28),
+        engine="shadow_compare",
+    )
+    legacy_screen = read_screen_aggregate(
+        screen_path,
+        columns=("Date", "ISIN", "Company SEDOL", "value"),
+        date_from=date(2026, 1, 31),
+        date_to=date(2026, 2, 28),
+        engine="legacy_parquet",
+    )
+    shadow_returns = read_returns(
+        returns_path,
+        columns=("SED1",),
+        date_from=date(2025, 12, 31),
+        date_to=date(2026, 1, 2),
+        engine="shadow_compare",
+    )
+    legacy_returns = read_returns(
+        returns_path,
+        columns=("SED1",),
+        date_from=date(2025, 12, 31),
+        date_to=date(2026, 1, 2),
+        engine="legacy_parquet",
+    )
+    pd.testing.assert_frame_equal(shadow_screen, legacy_screen)
+    pd.testing.assert_frame_equal(shadow_returns, legacy_returns)
+
+    presentation = PresentationDataRepository(root=tmp_path, engine="duckdb")
+    presentation_latest = presentation.screen(last_only=True, columns=("Date", "ISIN", "value"))
+    presentation_returns = presentation.returns(columns=("SED1",), date_from=date(2025, 12, 31), date_to=date(2026, 1, 2))
+    assert len(presentation_latest) == 1
+    assert presentation_latest.iloc[0]["ISIN"] == "ISIN1"
+    pd.testing.assert_frame_equal(presentation_returns, returns)
+
+    loaded_screen, loaded_returns = load_pruned_backtest_inputs(
+        screen_path,
+        returns_path,
+        metrics=("score",),
+        benchmarks=("TEST",),
+        start_date=date(2026, 1, 1),
+        engine="duckdb",
+    )
+    assert loaded_screen["score"].tolist() == [1.0, 2.0, 3.0]
+    assert loaded_returns.columns.tolist() == ["SED1", "SED2"]

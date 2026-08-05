@@ -2,8 +2,9 @@
 import numpy as np
 import pandas as pd
 
-from . import config, data_loader
+from tp_core.io import read_screen_aggregate
 
+from . import config, data_loader
 
 SOURCE_COLS = {
     "v60": "Daily Vol 60J",
@@ -127,7 +128,11 @@ def load_region_screen_vol(region: str, target_index: pd.Index | None = None) ->
     ]
     cols += list(SOURCE_COLS.values())
     cols += list(config.REGION_WEIGHT_COL.values())
-    screen = pd.read_parquet(config.SCREEN_PATH, columns=list(dict.fromkeys(cols)))
+    screen = read_screen_aggregate(
+        config.SCREEN_PATH,
+        columns=list(dict.fromkeys(cols)),
+        date_from=pd.Timestamp(config.START_DATE),
+    )
     screen["Date"] = pd.to_datetime(screen["Date"]).dt.to_period("M").dt.to_timestamp("M")
     screen = screen[screen["Date"] >= pd.Timestamp(config.START_DATE)].copy()
     out = build_region_screen_vol(screen, region)

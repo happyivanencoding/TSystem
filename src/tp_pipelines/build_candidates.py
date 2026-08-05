@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import pandas as pd
 
@@ -14,7 +14,6 @@ from tp_core.workspace import SIGNALS_DIR
 
 from .common import CANDIDATES_DIR, StepManifest, latest_on_or_before, path_profile, summarize_frame
 from .configs import BuildCandidatesConfig
-
 
 DEFAULT_OUTPUT = CANDIDATES_DIR / "latest_candidates.parquet"
 SECTOR_OUTPUTS = [
@@ -34,6 +33,7 @@ EMU_COUNTRIES = {
     "SPAIN",
 }
 SCREEN_COLUMNS = [
+    "Date",
     "Company SEDOL",
     "ISIN",
     "Company Name",
@@ -193,12 +193,23 @@ def _screen_snapshot(
     repo: PresentationDataRepository,
     as_of: pd.Timestamp | None,
 ) -> tuple[pd.DataFrame, pd.Timestamp | None]:
+    projection = _available_screen_projection(repo)
     cutoff = pd.Timestamp(as_of).normalize() if as_of is not None and pd.notna(as_of) else None
-    screen = repo.screen(last_only=True).copy()
+    try:
+        screen = repo.screen(last_only=True, columns=projection).copy()
+    except TypeError:
+        screen = repo.screen(last_only=True).copy()
     dates = pd.to_datetime(screen["Date"], errors="coerce") if "Date" in screen.columns else pd.Series(dtype="datetime64[ns]")
     snapshot_date = pd.Timestamp(dates.max()).normalize() if not dates.dropna().empty else None
     if cutoff is not None and (snapshot_date is None or snapshot_date > cutoff):
-        screen = repo.screen(last_only=False).copy()
+        try:
+            screen = repo.screen(
+                last_only=False,
+                columns=projection,
+                date_to=cutoff,
+            ).copy()
+        except TypeError:
+            screen = repo.screen(last_only=False).copy()
         dates = pd.to_datetime(screen["Date"], errors="coerce") if "Date" in screen.columns else pd.Series(dtype="datetime64[ns]")
         eligible_dates = dates[dates <= cutoff].dropna()
         if eligible_dates.empty:
@@ -211,6 +222,21 @@ def _screen_snapshot(
     if "Company SEDOL" not in keep:
         keep.insert(0, "Company SEDOL")
     return screen[keep].drop_duplicates(subset=["Company SEDOL"], keep="first"), snapshot_date
+
+
+def _available_screen_projection(repo: PresentationDataRepository) -> tuple[str, ...]:
+    root = Path(getattr(repo, "root", TP_ROOT))
+    path = root / "00_screen" / "screen_aggregate.parquet"
+    try:
+        import pyarrow.parquet as pq
+
+        available = set(pq.ParquetFile(path).schema_arrow.names)
+        projection = tuple(column for column in SCREEN_COLUMNS if column in available)
+    except (ImportError, OSError, ValueError):
+        projection = tuple(SCREEN_COLUMNS)
+    if "Company SEDOL" not in projection:
+        raise KeyError("canonical screen must contain Company SEDOL")
+    return projection
 
 
 def _regime_region_key(region: object) -> str | None:

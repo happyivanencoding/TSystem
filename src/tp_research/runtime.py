@@ -13,6 +13,7 @@ from typing import Any, ParamSpec, TypeVar
 import pandas as pd
 
 from tp_core.data_sources import RETURNS_PATH, SCREEN_AGGREGATE_PATH
+from tp_core.io import read_returns_dates, read_screen_aggregate
 from tp_core.security_nav_engine import NAV_ENGINE_ID, NAV_ENGINE_VERSION
 from tp_experiments import ExperimentRecorder, ExperimentSpec
 from tp_portfolio import OPTIMIZER_ID, OPTIMIZER_VERSION
@@ -66,7 +67,7 @@ def _canonical_sample_scope() -> tuple[str | None, str | None]:
     minima: list[pd.Timestamp] = []
     maxima: list[pd.Timestamp] = []
     try:
-        screen = pd.read_parquet(SCREEN_AGGREGATE_PATH, columns=["Date"])
+        screen = read_screen_aggregate(SCREEN_AGGREGATE_PATH, columns=["Date"])
         dates = pd.to_datetime(screen["Date"], errors="coerce").dropna()
         if not dates.empty:
             minima.append(pd.Timestamp(dates.min()))
@@ -74,8 +75,7 @@ def _canonical_sample_scope() -> tuple[str | None, str | None]:
     except Exception:
         pass
     try:
-        returns = pd.read_parquet(RETURNS_PATH, columns=[])
-        dates = pd.to_datetime(returns.index, errors="coerce")
+        dates = read_returns_dates(RETURNS_PATH)
         dates = dates[~pd.isna(dates)]
         if len(dates):
             minima.append(pd.Timestamp(dates.min()))

@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import pandas as pd
 
 from tp_core.data_sources import SCREEN_AGGREGATE_PATH
+from tp_core.io import read_screen_aggregate
 
 from .production import DEFAULT_UNIVERSES, produce_score_ml
 from .signals import DEFAULT_OUTPUT, export_ml_signals
@@ -32,9 +33,9 @@ def _json_default(value):
 def _score_ml_status() -> dict[str, object]:
     columns = ["Date", "Score ML"]
     try:
-        screen = pd.read_parquet(SCREEN_AGGREGATE_PATH, columns=columns)
-    except Exception:
-        screen = pd.read_parquet(SCREEN_AGGREGATE_PATH)
+        screen = read_screen_aggregate(SCREEN_AGGREGATE_PATH, columns=columns)
+    except (KeyError, OSError, ValueError):
+        screen = read_screen_aggregate(SCREEN_AGGREGATE_PATH)
         screen = screen[[col for col in columns if col in screen.columns]].copy()
     if "Date" not in screen.columns or "Score ML" not in screen.columns:
         raise KeyError("canonical screen must contain Date and Score ML")
@@ -76,6 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
     export = sub.add_parser("export-signals", help="导出 ML 统一信号表")
     export.add_argument("--output", default=str(DEFAULT_OUTPUT), help="输出 parquet 路径")
     export.add_argument("--all-history", action="store_true", help="导出全历史；默认只导出最新日期")
+    export.add_argument("--engine", choices=("legacy_parquet", "duckdb", "shadow_compare"), default=None)
 
     produce = sub.add_parser("produce-score-ml", help="生成并写入缺失的生产 Score ML")
     produce.add_argument("--date", action="append", help="目标月末日期，可重复")
@@ -102,7 +104,11 @@ def main(argv: Iterable[str] | None = None) -> int:
         return 0
 
     if args.command == "export-signals":
-        output = export_ml_signals(output=Path(args.output), latest_only=not args.all_history)
+        output = export_ml_signals(
+            output=Path(args.output),
+            latest_only=not args.all_history,
+            engine=args.engine,
+        )
         _print_json({"action": "exported", "output": output})
         return 0
 

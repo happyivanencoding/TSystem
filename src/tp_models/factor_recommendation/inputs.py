@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Mapping
 
 import pandas as pd
 
@@ -36,6 +36,9 @@ def load_research_inputs(
     region_universes_path: str | Path | None = None,
     screen_columns: Iterable[str] | None = None,
     return_columns: Iterable[str] | None = None,
+    date_from: str | pd.Timestamp | None = None,
+    date_to: str | pd.Timestamp | None = None,
+    engine: str | None = None,
 ) -> ResearchInputs:
     """读取 canonical 输入并装配版本化配置。
 
@@ -63,12 +66,24 @@ def load_research_inputs(
 
             available = set(pq.ParquetFile(Path(screen_path)).schema.names)
             screen_columns = sorted(requested.intersection(available))
-        except Exception:
+        except (ImportError, KeyError, OSError, ValueError):
             # The canonical reader remains the fallback when a parquet schema
             # inspector is unavailable; no synthetic or copied data is used.
             screen_columns = None
-    screen = read_screen_aggregate(Path(screen_path), columns=screen_columns)
-    returns = read_returns(Path(returns_path), columns=return_columns)
+    screen = read_screen_aggregate(
+        Path(screen_path),
+        columns=screen_columns,
+        date_from=_coerce_date(date_from),
+        date_to=_coerce_date(date_to),
+        engine=engine,
+    )
+    returns = read_returns(
+        Path(returns_path),
+        columns=return_columns,
+        date_from=_coerce_date(date_from),
+        date_to=_coerce_date(date_to),
+        engine=engine,
+    )
     components = {name: tuple(spec.components) for name, spec in universe.items()}
     return ResearchInputs(
         screen=screen,
@@ -78,6 +93,15 @@ def load_research_inputs(
         model=config,
         components=components,
     )
+
+
+def _coerce_date(value: str | pd.Timestamp | None) -> pd.Timestamp | None:
+    if value is None:
+        return None
+    parsed = pd.to_datetime(value, errors="coerce")
+    if pd.isna(parsed):
+        raise ValueError(f"invalid date value: {value!r}")
+    return pd.Timestamp(parsed)
 
 
 __all__ = ["ResearchInputs", "load_research_inputs"]

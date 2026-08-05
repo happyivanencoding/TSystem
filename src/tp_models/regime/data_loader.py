@@ -2,12 +2,19 @@
 import numpy as np
 import pandas as pd
 
+from tp_core.io import read_screen_aggregate
+
 from . import config
 
 
-def load_screen() -> pd.DataFrame:
+def load_screen(*, engine: str | None = None) -> pd.DataFrame:
     """加载 screen 所需列，按起始日期截断。"""
-    df = pd.read_parquet(config.SCREEN_PATH, columns=config.screen_columns())
+    df = read_screen_aggregate(
+        config.SCREEN_PATH,
+        columns=config.screen_columns(),
+        date_from=pd.Timestamp(config.START_DATE),
+        engine=engine,
+    )
     df["Date"] = pd.to_datetime(df["Date"])
     df = df[df["Date"] >= pd.Timestamp(config.START_DATE)].copy()
     return df
@@ -35,7 +42,7 @@ def get_region_panel(df: pd.DataFrame, region: str) -> pd.DataFrame:
     return pd.concat([real, proxy]).sort_values("Date")
 
 
-def constituents(region: str) -> dict:
+def constituents(region: str, *, engine: str | None = None) -> dict:
     """{月末日期: [成分6位SEDOL]}，复用 get_region_panel(真实指数/代理池)。
 
     供 returns 侧目标(前瞻收益/波动)与特征侧共用同一成分口径。
@@ -43,7 +50,12 @@ def constituents(region: str) -> dict:
     cols = ["Date", config.ID_COL, config.RETURN_COL,
             config.REGION_NEUTRAL_COL, config.MKT_CAP_COL]
     cols += list(config.REGION_WEIGHT_COL.values())
-    df = pd.read_parquet(config.SCREEN_PATH, columns=list(dict.fromkeys(cols)))
+    df = read_screen_aggregate(
+        config.SCREEN_PATH,
+        columns=list(dict.fromkeys(cols)),
+        date_from=pd.Timestamp(config.START_DATE),
+        engine=engine,
+    )
     df["Date"] = pd.to_datetime(df["Date"])
     df = df[df["Date"] >= pd.Timestamp(config.START_DATE)].copy()
     panel = get_region_panel(df, region)

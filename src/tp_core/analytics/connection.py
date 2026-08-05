@@ -6,6 +6,7 @@ connection for the lifetime of a request, test, or single-process writer.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -46,7 +47,8 @@ def connect(
             database_path or config.database_path,
             read_only=config.read_only if read_only is None else read_only,
         )
-    target = str(resolved.database_path)
+    database_path = _resolve_read_only_database_path(resolved)
+    target = str(database_path)
     if target != ":memory:" and not resolved.read_only:
         resolved.database_path.parent.mkdir(parents=True, exist_ok=True)
         resolved.temp_directory.mkdir(parents=True, exist_ok=True)
@@ -68,7 +70,7 @@ def connection_info(connection: Any, config: DuckDBConfig | None = None) -> dict
     version = connection.execute("SELECT version() AS version").fetchone()[0]
     return {
         "duckdb_version": str(version),
-        "database_path": str(resolved.database_path),
+        "database_path": str(_resolve_read_only_database_path(resolved)),
         "read_only": resolved.read_only,
         "memory_limit": resolved.memory_limit,
         "threads": resolved.threads,
@@ -76,6 +78,24 @@ def connection_info(connection: Any, config: DuckDBConfig | None = None) -> dict
         "parquet_metadata_cache": resolved.parquet_metadata_cache,
         "access_mode": resolved.access_mode,
     }
+
+
+def _resolve_read_only_database_path(config: DuckDBConfig) -> Path:
+    if not config.read_only or str(config.database_path) == ":memory:":
+        return config.database_path
+    if config.database_path.exists():
+        return config.database_path
+    pointer = config.latest_pointer
+    if not pointer.exists():
+        return config.database_path
+    try:
+        payload = json.loads(pointer.read_text(encoding="utf-8"))
+        candidate = Path(str(payload["database_path"]))
+    except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError):
+        return config.database_path
+    if not candidate.is_absolute():
+        candidate = pointer.parent / candidate
+    return candidate if candidate.exists() else config.database_path
 
 
 __all__ = ["connect", "connection_info"]

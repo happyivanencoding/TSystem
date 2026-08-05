@@ -9,11 +9,13 @@
 """
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Ridge
-from sklearn.ensemble import HistGradientBoostingRegressor
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import roc_auc_score
 from scipy.stats import spearmanr
+from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.linear_model import Ridge
+from sklearn.metrics import roc_auc_score
+from sklearn.preprocessing import StandardScaler
+
+from tp_core.backtesting import calculate_return_series_nav
 
 from . import (
     config,
@@ -23,7 +25,6 @@ from . import (
     returns_loader,
     screen_vol_features,
 )
-from tp_core.backtesting import calculate_return_series_nav
 
 MIN_TRAIN = 60
 
@@ -36,7 +37,8 @@ def _join_new_columns(base: pd.DataFrame, extra: pd.DataFrame, cols: list[str]) 
 def fwd_risk(region: str) -> pd.DataFrame:
     """各月真实下月已实现波动(年化)与最大回撤(等权市场，来自日度收益)。"""
     members = data_loader.constituents(region)
-    r = returns_loader.load_returns()
+    requested = sorted({identifier for values in members.values() for identifier in values})
+    r = returns_loader.load_returns(columns=requested)
     r = r.loc[:, ~r.columns.duplicated()]
     dates = sorted(members)
 
@@ -84,7 +86,6 @@ def _hmm_pred(region: str, index, target: pd.Series) -> np.ndarray:
 
 
 def evaluate(region: str, tgt: str) -> pd.DataFrame:
-    feats = model.load_features(region).ffill().dropna()
     risk = fwd_risk(region)[tgt]
     ridge_feats = model.load_features(region)
     ridge_cols = screen_vol_features.vol_ridge_cols(region, tgt)

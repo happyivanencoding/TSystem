@@ -48,7 +48,10 @@ def _selected_macro2_features(region: str, target_index: pd.Index) -> pd.DataFra
 def main() -> None:
     config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     df = data_loader.load_screen()
-    daily = returns_loader.load_returns()
+    requested = sorted(
+        set(df[config.ID_COL].dropna().astype(str).str[:6])
+    )
+    daily = returns_loader.load_returns(columns=requested)
 
     for region in config.REGION_WEIGHT_COL:
         feats = features.build_region_features(df, region)

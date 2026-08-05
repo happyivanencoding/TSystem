@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import pandas as pd
 
-from tp_core.data_sources import SCREEN_AGGREGATE_PATH
+from tp_core.data_sources import LAST_SCREEN_PATH, SCREEN_AGGREGATE_PATH
+from tp_core.io import read_last_screen, read_screen_aggregate
 from tp_core.signals import make_security_signal_frame, write_signal_frame
 from tp_core.workspace import SIGNALS_DIR
 
@@ -16,9 +17,10 @@ DEFAULT_OUTPUT = SIGNALS_DIR / "ml_signals.parquet"
 DEFAULT_SCORE_COLUMN = "Score ML"
 
 
-def _read_screen_for_ml() -> pd.DataFrame:
+def _read_screen_for_ml(*, latest_only: bool, engine: str | None = None) -> pd.DataFrame:
     columns = [
         "Date",
+        "ISIN",
         "Company SEDOL",
         DEFAULT_SCORE_COLUMN,
         "Exchange Country Region",
@@ -26,15 +28,18 @@ def _read_screen_for_ml() -> pd.DataFrame:
         "Weight in SP500",
         "Weight in MSCI WORLD",
     ]
-    try:
-        return pd.read_parquet(SCREEN_AGGREGATE_PATH, columns=columns)
-    except Exception:
-        # 有些 parquet engine 对 index/columns 子集较挑剔，失败时退回完整读取。
-        return pd.read_parquet(SCREEN_AGGREGATE_PATH)
+    if latest_only:
+        return read_last_screen(LAST_SCREEN_PATH, columns=columns, engine=engine)
+    return read_screen_aggregate(SCREEN_AGGREGATE_PATH, columns=columns, engine=engine)
 
 
-def export_ml_signals(*, output: Path = DEFAULT_OUTPUT, latest_only: bool = True) -> Path:
-    screen = _read_screen_for_ml()
+def export_ml_signals(
+    *,
+    output: Path = DEFAULT_OUTPUT,
+    latest_only: bool = True,
+    engine: str | None = None,
+) -> Path:
+    screen = _read_screen_for_ml(latest_only=latest_only, engine=engine)
     screen["Date"] = pd.to_datetime(screen["Date"], errors="coerce")
     scored = screen[screen[DEFAULT_SCORE_COLUMN].notna()].copy()
     if latest_only:

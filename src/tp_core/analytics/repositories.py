@@ -184,8 +184,15 @@ class ReturnsRepository:
         projection = _select_columns(available, tuple(selected) if spec.securities else ())
         parameters: list[Any] = []
         predicates = _date_predicates(available, spec.date_from, spec.date_to, None, parameters)
-        predicates.extend(_partition_date_predicates(available, spec.date_from, spec.date_to, None, parameters))
-        query = f"SELECT {projection} FROM {_relation_sql(self.relation)}"
+        partition_source = _returns_partition_source(
+            self.connection,
+            date_from=spec.date_from,
+            date_to=spec.date_to,
+        )
+        if partition_source is None:
+            predicates.extend(_partition_date_predicates(available, spec.date_from, spec.date_to, None, parameters))
+        source = partition_source or _relation_sql(self.relation)
+        query = f"SELECT {projection} FROM {source}"
         if predicates:
             query += " WHERE " + " AND ".join(predicates)
         query += " ORDER BY " + quote_identifier("Date")
@@ -293,6 +300,69 @@ def _normalize_screen_dates(frame: pd.DataFrame) -> pd.DataFrame:
     if "Date" in frame.columns:
         frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce").astype("datetime64[ns]")
     return frame
+
+
+def _returns_partition_source(
+    connection: Any,
+    *,
+    date_from: Any,
+    date_to: Any,
+) -> str | None:
+    """Build a narrow external relation from the current Returns manifest."""
+
+    try:
+        rows = connection.execute(
+            """
+            SELECT partition_key, path
+            FROM "meta"."partition_registry"
+            WHERE dataset_name = 'returns_wide'
+              AND dataset_version = (
+                  SELECT returns_dataset_version
+                  FROM "meta"."catalog_releases"
+                  ORDER BY created_at DESC
+                  LIMIT 1
+              )
+            ORDER BY partition_key
+            """
+        ).fetchall()
+    except Exception:
+        return None
+    if not rows:
+        return None
+    lower_year = _date_year(date_from)
+    upper_year = _date_year(date_to)
+    paths: list[str] = []
+    for partition_key, path in rows:
+        year = _partition_year(str(partition_key))
+        if lower_year is not None and year is not None and year < lower_year:
+            continue
+        if upper_year is not None and year is not None and year > upper_year:
+            continue
+        paths.append(str(path).replace("\\", "/"))
+    if not paths:
+        return None
+    literals = ", ".join(_sql_string(path) for path in paths)
+    return f"read_parquet([{literals}], union_by_name=true, hive_partitioning=false)"
+
+
+def _partition_year(partition_key: str) -> int | None:
+    for part in partition_key.split("/"):
+        if part.startswith("year="):
+            try:
+                return int(part.removeprefix("year="))
+            except ValueError:
+                return None
+    return None
+
+
+def _date_year(value: Any) -> int | None:
+    if value is None:
+        return None
+    return pd.Timestamp(value).year
+
+
+def _sql_string(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
 
 
 __all__ = [

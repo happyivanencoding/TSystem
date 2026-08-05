@@ -2,8 +2,9 @@
 import numpy as np
 import pandas as pd
 
-from . import config, data_loader
+from tp_core.io import read_screen_aggregate
 
+from . import config, data_loader
 
 SCORE_COL = "Score ML_IF"
 MLIF_COLS = [
@@ -54,7 +55,11 @@ def load_region_mlif(region: str, target_index: pd.Index | None = None) -> pd.Da
         SCORE_COL,
     ]
     cols += list(config.REGION_WEIGHT_COL.values())
-    screen = pd.read_parquet(config.SCREEN_PATH, columns=list(dict.fromkeys(cols)))
+    screen = read_screen_aggregate(
+        config.SCREEN_PATH,
+        columns=list(dict.fromkeys(cols)),
+        date_from=pd.Timestamp(config.START_DATE),
+    )
     screen["Date"] = pd.to_datetime(screen["Date"]).dt.to_period("M").dt.to_timestamp("M")
     screen = screen[screen["Date"] >= pd.Timestamp(config.START_DATE)].copy()
     screen[SCORE_COL] = pd.to_numeric(screen[SCORE_COL], errors="coerce").astype(float)

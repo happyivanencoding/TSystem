@@ -1,6 +1,4 @@
 from __future__ import annotations
-from tp_experiments.artifacts import experiment_plots_enabled, holdings_for_storage
-from tp_research.runtime import recorded_workflow
 
 import argparse
 import json
@@ -13,8 +11,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from tp_research.paths import BACKTEST_ROOT, TP_ROOT
-
 from tp_backtest.utils.constants import (
     COL_DATE,
     COL_ISIN,
@@ -25,12 +21,15 @@ from tp_backtest.utils.constants import (
 )
 from tp_backtest.utils.plotting import PlotlyVisualizer
 from tp_core.backtesting import TargetWeightSchema, calculate_security_nav
+from tp_core.io import read_returns, read_screen_aggregate
 from tp_core.portfolio_weights import (
     cap_weights_preserving_group_totals,
     match_group_weight_targets,
     normalize_long_only_weights,
 )
-
+from tp_experiments.artifacts import experiment_plots_enabled, holdings_for_storage
+from tp_research.paths import BACKTEST_ROOT, TP_ROOT
+from tp_research.runtime import recorded_workflow
 
 BENCH = "STOXX EUROPE 600"
 WEIGHT_COL = f"Weight in {BENCH}"
@@ -116,13 +115,21 @@ def load_inputs() -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
     ]
     available = pd.read_parquet(TP_ROOT / "00_screen" / "screen_aggregate.parquet", engine="pyarrow").columns
     cols = [col for col in cols if col in available]
-    screen = pd.read_parquet(TP_ROOT / "00_screen" / "screen_aggregate.parquet", columns=cols)
+    screen = read_screen_aggregate(
+        TP_ROOT / "00_screen" / "screen_aggregate.parquet",
+        columns=cols,
+        date_from=EFFECTIVE_START,
+    )
     screen[COL_DATE] = pd.to_datetime(screen[COL_DATE])
     screen = screen.reset_index()
     screen = screen[(screen[WEIGHT_COL].fillna(0) > 0) & (screen[COL_DATE] >= EFFECTIVE_START)].copy()
-    returns = pd.read_parquet(TP_ROOT / "00_screen" / "returns.parquet")
-    returns.index = pd.to_datetime(returns.index)
-    sedols = sorted(set(screen[COL_SEDOL].dropna()).intersection(returns.columns))
+    sedols = sorted(set(screen[COL_SEDOL].dropna()))
+    returns = read_returns(
+        TP_ROOT / "00_screen" / "returns.parquet",
+        columns=sedols,
+        date_from=EFFECTIVE_START,
+    )
+    sedols = sorted(set(sedols).intersection(returns.columns))
     return screen, returns, sedols
 
 
@@ -177,7 +184,6 @@ def rolling_factor_table(
             continue
         ids = month[COL_SEDOL].tolist()
         y_all = returns_sub.loc[:date, ids].tail(252)
-        x_all = benchmark_returns.loc[y_all.index]
         if len(y_all) < 126:
             continue
 

@@ -7,13 +7,15 @@ from pathlib import Path
 
 import pandas as pd
 
+from tp_core.analytics.config import DuckDBConfig
+from tp_core.io import read_returns, read_screen_aggregate, resolve_return_columns
+
 from .validators import (
     CANONICAL_COLUMN_ALIASES,
     WEIGHT_PREFIX,
     load_tabular_file,
     prepare_returns_dataframe,
 )
-
 
 MULTI_AVG_SOURCE_COLUMNS = (
     "Growth Avg Percentile",
@@ -67,6 +69,29 @@ def _read_screen_parquet(
     include_esg: bool,
     extra_screen_columns: Iterable[str],
 ) -> pd.DataFrame:
+    columns = _screen_query_columns(
+        path,
+        metrics=metrics,
+        benchmarks=benchmarks,
+        include_esg=include_esg,
+        extra_screen_columns=extra_screen_columns,
+    )
+    filters = [("Date", ">=", start_date)] if start_date is not None else None
+    frame = pd.read_parquet(path, columns=columns, filters=filters)
+    if start_date is not None:
+        dates = pd.to_datetime(frame["Date"], errors="coerce")
+        frame = frame.loc[dates >= start_date]
+    return frame
+
+
+def _screen_query_columns(
+    path: Path,
+    *,
+    metrics: list[str],
+    benchmarks: list[str],
+    include_esg: bool,
+    extra_screen_columns: Iterable[str],
+) -> list[str]:
     import pyarrow.parquet as pq
 
     available_order = list(pq.ParquetFile(path).schema_arrow.names)
@@ -106,13 +131,7 @@ def _read_screen_parquet(
             required.append(alias)
 
     requested = set(dict.fromkeys(required))
-    columns = [column for column in available_order if column in requested]
-    filters = [("Date", ">=", start_date)] if start_date is not None else None
-    frame = pd.read_parquet(path, columns=columns, filters=filters)
-    if start_date is not None:
-        dates = pd.to_datetime(frame["Date"], errors="coerce")
-        frame = frame.loc[dates >= start_date]
-    return frame
+    return [column for column in available_order if column in requested]
 
 
 def _read_screen_fallback(
@@ -246,6 +265,7 @@ def load_pruned_backtest_inputs(
     start_date: str | pd.Timestamp | None = None,
     include_esg: bool = False,
     extra_screen_columns: Iterable[str] = (),
+    engine: str | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Charge uniquement la periode, les facteurs et les titres necessaires."""
 
@@ -254,6 +274,37 @@ def load_pruned_backtest_inputs(
     metric_columns = _expanded_metric_columns(metrics)
     benchmark_names = _unique_strings(benchmarks)
     parsed_start_date = _normalise_start_date(start_date)
+    resolved_engine = engine or DuckDBConfig.from_env().data_engine
+
+    if resolved_engine != "legacy_parquet" and screen_file.suffix.lower() == ".parquet" and returns_file.suffix.lower() == ".parquet":
+        if resolved_engine == "shadow_compare" and parsed_start_date is None:
+            raise ValueError("shadow_compare backtest input loads require start_date")
+        screen_columns = _screen_query_columns(
+            screen_file,
+            metrics=metric_columns,
+            benchmarks=benchmark_names,
+            include_esg=include_esg,
+            extra_screen_columns=extra_screen_columns,
+        )
+        screen = read_screen_aggregate(
+            screen_file,
+            columns=screen_columns,
+            date_from=parsed_start_date,
+            engine=resolved_engine,
+        )
+        sedols = _screen_sedols(screen, benchmark_names)
+        return_columns = resolve_return_columns(
+            returns_file,
+            sorted(sedols),
+            engine=resolved_engine,
+        )
+        returns = read_returns(
+            returns_file,
+            columns=return_columns,
+            date_from=parsed_start_date,
+            engine=resolved_engine,
+        )
+        return screen, prepare_returns_dataframe(returns)
 
     if screen_file.suffix.lower() == ".parquet":
         screen = _read_screen_parquet(

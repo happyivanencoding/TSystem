@@ -617,6 +617,7 @@ def load_official_inputs(
     screen_path: str | Path = SCREEN_AGGREGATE_PATH,
     returns_path: str | Path = RETURNS_PATH,
     start_date: str | pd.Timestamp = "2013-12-31",
+    engine: str | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Load the minimum canonical columns needed by all v2 official sleeves."""
 
@@ -628,6 +629,7 @@ def load_official_inputs(
         metrics=metrics,
         benchmarks=benchmarks,
         start_date=start_date,
+        engine=engine,
         extra_screen_columns=("Exchange Country Iso2", " Benchmark ICB Supersector ", " Benchmark ICB Industry "),
     )
     if "Date" not in screen.columns or "Company SEDOL" not in screen.columns:
@@ -641,6 +643,7 @@ def run_official_factor_sleeve_database(
     returns_path: str | Path = RETURNS_PATH,
     start_date: str | pd.Timestamp = "2013-12-31",
     end_date: str | pd.Timestamp = "2026-07-31",
+    engine: str | None = None,
     sleeve_percentiles: Iterable[float] = (0.2,),
     components: Iterable[Mapping[str, Any]] = V2_COMPONENTS,
     factors: Iterable[Mapping[str, Any]] = V2_FACTOR_DEFINITIONS,
@@ -653,6 +656,7 @@ def run_official_factor_sleeve_database(
         screen_path=screen_path,
         returns_path=returns_path,
         start_date=start_date,
+        engine=engine,
     )
     monthly_frames: list[pd.DataFrame] = []
     holdings_frames: list[pd.DataFrame] = []

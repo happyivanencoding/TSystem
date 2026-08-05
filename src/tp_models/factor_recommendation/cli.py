@@ -12,13 +12,13 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import pandas as pd
 
-from tp_core.data_sources import LAST_SCREEN_PATH, RETURNS_PATH, SCREEN_AGGREGATE_PATH
-from tp_core.io import read_screen_aggregate
+from tp_core.data_sources import RETURNS_PATH, SCREEN_AGGREGATE_PATH
+from tp_core.io import read_last_screen, read_screen_aggregate
 
 from .audit import DEFAULT_AUDIT_DIR, write_audit_artifacts
 from .config import load_runtime_config
@@ -45,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     features.add_argument("--pit-lag-months", type=int, default=1)
     features.add_argument("--include-unlabeled-latest", action="store_true")
     features.add_argument("--factor-definitions", default=None)
+    features.add_argument("--engine", choices=("legacy_parquet", "duckdb", "shadow_compare"), default=None)
 
     latest = subparsers.add_parser("latest", help="输出最新可用的 PIT 特征 JSON")
     latest.add_argument("--screen", default=str(SCREEN_AGGREGATE_PATH))
@@ -52,6 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     latest.add_argument("--output", required=True)
     latest.add_argument("--pit-lag-months", type=int, default=1)
     latest.add_argument("--factor-definitions", default=None)
+    latest.add_argument("--engine", choices=("legacy_parquet", "duckdb", "shadow_compare"), default=None)
 
     return parser
 
@@ -103,6 +105,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         screen = read_screen_aggregate(
             Path(args.screen),
             columns=_model_screen_columns(args.screen, args.region, definitions),
+            engine=args.engine,
         )
         result = build_monthly_features(
             screen,
@@ -114,12 +117,23 @@ def main(argv: Iterable[str] | None = None) -> int:
         output = Path(args.output)
         output.parent.mkdir(parents=True, exist_ok=True)
         result.to_parquet(output, index=False)
-        print(json.dumps({"output": str(output), "rows": int(len(result))}, ensure_ascii=False))
+        print(json.dumps({"output": str(output), "rows": len(result)}, ensure_ascii=False))
         return 0
     if args.command == "latest":
+        latest_anchor = read_last_screen(
+            Path(args.screen),
+            columns=("Date", "ISIN"),
+            engine=args.engine,
+        )
+        if latest_anchor.empty:
+            raise ValueError("canonical screen has no latest snapshot")
+        latest_date = pd.Timestamp(latest_anchor["Date"].max())
         screen = read_screen_aggregate(
             Path(args.screen),
             columns=_model_screen_columns(args.screen, args.region, definitions),
+            date_from=latest_date - pd.DateOffset(months=args.pit_lag_months + 2),
+            date_to=latest_date,
+            engine=args.engine,
         )
         result = latest_month_features(
             screen,
@@ -132,7 +146,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         output.write_text(
             result.to_json(orient="records", date_format="iso"), encoding="utf-8"
         )
-        print(json.dumps({"output": str(output), "rows": int(len(result))}, ensure_ascii=False))
+        print(json.dumps({"output": str(output), "rows": len(result)}, ensure_ascii=False))
         return 0
     raise AssertionError(f"unhandled command: {args.command}")
 

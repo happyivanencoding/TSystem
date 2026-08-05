@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path
-from typing import Iterable
 
 import pandas as pd
 
-from tp_core.data_sources import SCREEN_AGGREGATE_PATH, TP_ROOT
+from tp_core.analytics.config import DuckDBConfig
+from tp_core.data_sources import TP_ROOT
 from tp_core.io import read_last_screen, read_returns, read_screen_aggregate
 from tp_core.signals import read_signal_frame, standardize_signal_frame
 
@@ -18,6 +20,7 @@ class PresentationDataRepository:
     """为展示、报告和公司分析提供统一数据入口。"""
 
     root: Path = TP_ROOT
+    engine: str | None = None
 
     def __post_init__(self) -> None:
         self.root = Path(self.root)
@@ -26,15 +29,47 @@ class PresentationDataRepository:
     def signals_dir(self) -> Path:
         return self.root / "artifacts" / "signals"
 
-    def screen(self, *, last_only: bool = False) -> pd.DataFrame:
+    @property
+    def data_engine(self) -> str:
+        return self.engine or DuckDBConfig.from_env().data_engine
+
+    def screen(
+        self,
+        *,
+        last_only: bool = False,
+        columns: Iterable[str] | None = None,
+        date_from: date | datetime | None = None,
+        date_to: date | datetime | None = None,
+    ) -> pd.DataFrame:
         """读取 screen 主表或最新截面。"""
 
-        return read_last_screen() if last_only else read_screen_aggregate()
+        screen_path = self.root / "00_screen" / "screen_aggregate.parquet"
+        if last_only:
+            return read_last_screen(screen_path, columns=columns, engine=self.engine)
+        return read_screen_aggregate(
+            screen_path,
+            columns=columns,
+            date_from=date_from,
+            date_to=date_to,
+            engine=self.engine,
+        )
 
-    def returns(self) -> pd.DataFrame:
+    def returns(
+        self,
+        *,
+        columns: Iterable[str] | None = None,
+        date_from: date | datetime | None = None,
+        date_to: date | datetime | None = None,
+    ) -> pd.DataFrame:
         """读取 canonical returns。"""
 
-        return read_returns()
+        return read_returns(
+            self.root / "00_screen" / "returns.parquet",
+            columns=columns,
+            date_from=date_from,
+            date_to=date_to,
+            engine=self.engine,
+        )
 
     def signal_path(self, name: str) -> Path:
         """返回 signals 目录下的 parquet 路径。"""
@@ -82,7 +117,18 @@ class PresentationDataRepository:
     def company_history(self, isin: str) -> pd.DataFrame:
         """按 ISIN 读取单公司历史 screen 面板，供公司分析和报告层复用。"""
 
-        frame = pd.read_parquet(SCREEN_AGGREGATE_PATH, filters=[("ISIN", "==", isin)])
+        if self.data_engine in {"duckdb", "shadow_compare"}:
+            frame = read_screen_aggregate(
+                self.root / "00_screen" / "screen_aggregate.parquet",
+                isins=(isin,),
+                columns=None,
+                engine=self.engine,
+            )
+        else:
+            frame = pd.read_parquet(
+                self.root / "00_screen" / "screen_aggregate.parquet",
+                filters=[("ISIN", "==", isin)],
+            )
         if frame.empty:
             return frame
         if "ISIN" not in frame.columns:

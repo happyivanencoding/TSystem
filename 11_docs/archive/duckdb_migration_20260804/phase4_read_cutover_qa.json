@@ -1,0 +1,77 @@
+{
+  "phase": "phase4_read_cutover",
+  "status": "READ_CUTOVER_READY",
+  "production_cutover": false,
+  "default_engine": "legacy_parquet",
+  "activation": {
+    "engine": "duckdb",
+    "database_release": "artifacts/analytics/duckdb/releases/shadow-20260804-screen-returns-v3/tp_analytics.duckdb",
+    "reason_default_remains_legacy": "The release pointer and writer cutover are not yet the production authority. The read path is selectable through TP_DATA_ENGINE and remains reversible."
+  },
+  "catalog_release": {
+    "release_id": "shadow-20260804-screen-returns-v3",
+    "database_path": "artifacts/analytics/duckdb/releases/shadow-20260804-screen-returns-v3/tp_analytics.duckdb",
+    "read_only": true,
+    "screen_latest_rows": 11114,
+    "screen_latest_fingerprint": "69eb6b92576002f8d99ff4450aea00b668e7c12e63a1df0b973660bbd43899e4",
+    "models_latest_fingerprint": "52b648e4c436389b53757de472e2b639b977ae83170ecbae89222279383fb4ec",
+    "returns_selected_rows": 153,
+    "returns_selected_fingerprint": "990fc1aacae50313b0acd7cf2859f01306464e0a73854c395a8c215e376a0482"
+  },
+  "surfaces": {
+    "presentation": {
+      "status": "passed",
+      "latest_rows": 11114,
+      "selected_returns_rows": 153
+    },
+    "research": {
+      "status": "passed",
+      "bounded_screen_rows": 76875,
+      "screen_columns": 4,
+      "bounded_returns_rows": 152,
+      "returns_columns": 3
+    },
+    "backtest_input_loader": {
+      "status": "passed",
+      "screen_rows": 76875,
+      "screen_columns": 9,
+      "returns_rows": 153,
+      "returns_columns": 1368,
+      "date_from": "2026-01-01",
+      "date_to": "2026-08-03"
+    },
+    "factor_recommendation": {
+      "status": "passed",
+      "latest_rows": 1,
+      "latest_screen_date": "2026-07-31",
+      "feature_as_of": "2026-06-30",
+      "n_securities": 503
+    },
+    "ml_signals": {
+      "status": "passed",
+      "rows": 2715,
+      "columns": 21,
+      "output": "artifacts/dashboard_work/system_checks/outputs/ml_signals_smoke.parquet"
+    },
+    "candidate_builder": {
+      "status": "passed",
+      "rows": 3824,
+      "selected_rows": 10,
+      "as_of": "2026-07-31",
+      "output": "local smoke output outside the repository"
+    }
+  },
+  "tests": {
+    "focused_regression": "50 passed",
+    "io_engine": "1 passed",
+    "backtest_and_io": "13 passed",
+    "ruff_targeted": "passed",
+    "mypy_targeted": "sector model has 4 pre-existing typing errors; other touched targets passed"
+  },
+  "guardrails": {
+    "bounded_screen_and_selected_returns": "passed",
+    "unbounded_wide_returns": "not enabled; resource guardrail retained after full-union memory pressure",
+    "writer_cutover": "not started",
+    "monolith_retirement": "not started"
+  }
+}

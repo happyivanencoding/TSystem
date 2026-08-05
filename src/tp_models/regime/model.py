@@ -1,10 +1,10 @@
 """Regime 识别：预处理 + GaussianHMM(K=4) + 状态标注与前瞻验证。"""
-from functools import lru_cache
+from functools import cache
 
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler, RobustScaler
 from hmmlearn.hmm import GaussianHMM
+from sklearn.preprocessing import RobustScaler, StandardScaler
 
 from . import config, data_loader, returns_loader
 
@@ -64,10 +64,12 @@ def fit_hmm(Z: np.ndarray, k: int, n_init: int = N_INIT) -> tuple[GaussianHMM, n
         m.fit(Z)
         try:
             ll = m.score(Z)
-        except Exception:
+        except (FloatingPointError, RuntimeError, ValueError):
             continue
         if best is None or ll > best[0]:
             best = (ll, m)
+    if best is None:
+        raise RuntimeError("HMM fitting failed for every initialization")
     model = best[1]
     return model, model.predict(Z)
 
@@ -99,7 +101,7 @@ def label_states(feats: pd.DataFrame, states: np.ndarray) -> dict[int, int]:
     return {orig: rank for rank, orig in enumerate(order)}
 
 
-@lru_cache(maxsize=None)
+@cache
 def market_fwd_return(region: str) -> pd.Series:
     """各月成分等权的【真实】未来1月已实现收益，由 returns.parquet 日度收益计算。
 
@@ -107,7 +109,8 @@ def market_fwd_return(region: str) -> pd.Series:
     """
     members = data_loader.constituents(region)
 
-    r = returns_loader.load_returns()
+    requested = sorted({identifier for values in members.values() for identifier in values})
+    r = returns_loader.load_returns(columns=requested)
     r = r.loc[:, ~r.columns.duplicated()]
     dates = sorted(members)
 
@@ -133,7 +136,7 @@ def run(region: str, k: int | None = None) -> tuple[pd.DataFrame, int, pd.Series
         k, bic = select_k(Z)
     else:
         bic = pd.Series(dtype=float)
-    model, states = fit_hmm(Z, k)
+    _model, states = fit_hmm(Z, k)
     rank = label_states(f, states)
     zh, _ = state_names(k)
 

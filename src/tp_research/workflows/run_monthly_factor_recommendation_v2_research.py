@@ -428,6 +428,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--returns", default=str(RETURNS_PATH))
     parser.add_argument("--as-of")
     parser.add_argument("--from-date")
+    parser.add_argument("--engine", choices=("legacy_parquet", "duckdb", "shadow_compare"), default=None)
     parser.add_argument("--max-months", type=int)
     parser.add_argument("--max-factors", type=int)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
@@ -466,6 +467,7 @@ def run_v2_research(args: argparse.Namespace) -> Path:
             returns_path=args.returns,
             start_date=sample_start,
             end_date=sample_end,
+            engine=args.engine,
             sleeve_percentiles=(0.13, 0.2, 0.3),
             factors=factors,
             max_months=args.max_months,

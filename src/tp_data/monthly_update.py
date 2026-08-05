@@ -4,21 +4,25 @@ import argparse
 import datetime as dt
 import json
 import shutil
+import tempfile
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Optional
 
 import pandas as pd
 
+from tp_core.analytics.writers import PartitionWriterResult, update_dataset_partitions
+
+from .fs_sector_history import (
+    DEFAULT_FS_SECTOR_WORKBOOK_DIR,
+    apply_fs_sector_history_to_frame,
+)
 from .screen_func import (
     PERF_WINDOWS,
     RISK_COLUMN_MAPPING,
     ScreenProcessor,
     drop_deprecated_em_cluster_columns,
     get_latest_modified_file,
-)
-from .fs_sector_history import (
-    DEFAULT_FS_SECTOR_WORKBOOK_DIR,
-    apply_fs_sector_history_to_frame,
 )
 
 VALID_UPDATE_MODES = {"both", "screen_only", "returns_only"}
@@ -605,6 +609,35 @@ def build_monthly_qa_report(
     }
 
 
+def _publish_partitioned_frame(
+    frame: pd.DataFrame,
+    *,
+    dataset_name: str,
+    root: Path,
+    affected_dates: Sequence[Any],
+    apply: bool,
+    source_run_id: str,
+    compatibility_export_paths: Sequence[Path],
+) -> PartitionWriterResult:
+    """Send a post-update frame through the immutable partition writer."""
+
+    with tempfile.TemporaryDirectory(prefix=f"tp-{dataset_name}-writer-") as temporary_dir:
+        snapshot = Path(temporary_dir) / f"{dataset_name}.parquet"
+        if dataset_name == "screen":
+            _ensure_isin_column(frame).to_parquet(snapshot, index=False)
+        else:
+            frame.to_parquet(snapshot, index=True)
+        return update_dataset_partitions(
+            snapshot,
+            dataset_name=dataset_name,
+            root=root,
+            affected_dates=affected_dates,
+            apply=apply,
+            source_run_id=source_run_id,
+            compatibility_export_paths=tuple(compatibility_export_paths),
+        )
+
+
 def run_monthly_update(
     base_dir: Optional[str] = None,
     screen_excel: Optional[str] = None,
@@ -617,6 +650,7 @@ def run_monthly_update(
     qa_report: Optional[str] = None,
     input_month: Optional[str] = None,
     dry_run: bool = False,
+    partition_writer: bool = False,
 ) -> Dict[str, Any]:
     paths = build_default_paths(base_dir)
     update_mode = _resolve_update_mode(update_mode)
@@ -641,12 +675,14 @@ def run_monthly_update(
 
     returns_updated = None
     returns_delta_path = None
+    returns_affected_dates: Sequence[Any] = ()
     returns_idempotency = None
     if update_returns:
         returns_history = pd.read_parquet(paths["returns_path"])
         input_returns_dir = (input_batch_dir / "returns") if input_batch_dir is not None else paths["incoming_dir"]
         returns_delta_path = _resolve_returns_delta(input_returns_dir, returns_delta)
         returns_delta_df = pd.read_parquet(returns_delta_path)
+        returns_affected_dates = tuple(pd.to_datetime(returns_delta_df.index, errors="coerce").dropna())
         returns_updated = processor.merge_returns_history(returns_history, returns_delta_df)
         returns_idempotency = build_returns_idempotency_report(
             returns_history,
@@ -682,6 +718,7 @@ def run_monthly_update(
         "returns_idempotency": returns_idempotency,
         "screen_idempotency": None,
         "write_actions": [],
+        "partition_writer": bool(partition_writer),
     }
 
     if returns_updated is not None:
@@ -694,6 +731,18 @@ def run_monthly_update(
     if not update_screen:
         if dry_run:
             result["write_actions"].append("dry-run: 未写入 returns.parquet")
+        elif partition_writer:
+            returns_result = _publish_partitioned_frame(
+                returns_updated,
+                dataset_name="returns_wide",
+                root=paths["base_dir"].parent,
+                affected_dates=returns_affected_dates,
+                apply=True,
+                source_run_id=f"monthly-update-{result.get('input_month') or 'returns'}",
+                compatibility_export_paths=(paths["returns_path"],),
+            )
+            result["partition_writer_returns"] = returns_result.as_dict()
+            result["write_actions"].append("partition-writer: returns_wide")
         else:
             print("Saving returns update only...")
             returns_backup_path = create_file_backup(paths["returns_path"], operation="before_returns_update")
@@ -760,7 +809,7 @@ def run_monthly_update(
     processor.validate_unique_keys(df_combined)
 
     print("Saving results..." if not dry_run else "Dry-run: validating outputs without writing...")
-    if update_returns:
+    if update_returns and not partition_writer:
         if dry_run:
             result["write_actions"].append("dry-run: 未写入 returns.parquet")
         else:
@@ -771,7 +820,9 @@ def run_monthly_update(
             returns_updated.to_parquet(paths["returns_path"])
             result["write_actions"].append(str(paths["returns_path"]))
 
-    if dry_run:
+    if partition_writer:
+        result["write_actions"].append("partition-writer: deferred screen manifest publish")
+    elif dry_run:
         result["write_actions"].append("dry-run: 未写入 screen_aggregate.parquet")
     else:
         processor.save_results(df_combined, str(paths["screen_path"]))
@@ -780,12 +831,16 @@ def run_monthly_update(
     ciq_result = None
     if skip_ciq:
         print("Skipping CIQ merge...")
-        final_screen = df_combined if dry_run else pd.read_parquet(paths["screen_path"])
+        final_screen = df_combined if (dry_run or partition_writer) else pd.read_parquet(paths["screen_path"])
     else:
         print("Merging CIQ history..." if not dry_run else "Dry-run: validating CIQ merge without writing...")
-        if dry_run:
+        if dry_run or partition_writer:
             final_screen, ciq_result = apply_ciq_history_to_frame(df_combined, ciq_path, processor=processor)
-            result["write_actions"].append("dry-run: 未写入 CIQ 合并结果")
+            result["write_actions"].append(
+                "partition-writer: CIQ merge held in post-update snapshot"
+                if partition_writer and not dry_run
+                else "dry-run: 未写入 CIQ 合并结果"
+            )
         else:
             ciq_result = merge_ciq_history(paths["screen_path"], ciq_path, processor=processor)
             final_screen = pd.read_parquet(paths["screen_path"])
@@ -801,13 +856,17 @@ def run_monthly_update(
             if not dry_run
             else "Dry-run: validating FactSet sector history merge without writing..."
         )
-        if dry_run:
+        if dry_run or partition_writer:
             final_screen, fs_sector_result = apply_fs_sector_history_to_frame(
                 final_screen,
                 fs_sector_path,
                 processor=processor,
             )
-            result["write_actions"].append("dry-run: 未写入 FS sector 合并结果")
+            result["write_actions"].append(
+                "partition-writer: FS sector merge held in post-update snapshot"
+                if partition_writer and not dry_run
+                else "dry-run: 未写入 FS sector 合并结果"
+            )
         else:
             fs_sector_backup_path = create_file_backup(
                 paths["screen_path"],
@@ -829,10 +888,39 @@ def run_monthly_update(
         final_screen,
         paths["screen_path"],
         paths["last_screen_path"],
-        write=not dry_run,
+        write=not dry_run and not partition_writer,
     )
     if dry_run:
         result["write_actions"].append("dry-run: 未写入 last_screen.parquet / screen_aggregate_5Y.parquet")
+
+    if partition_writer and not dry_run:
+        root = paths["base_dir"].parent
+        screen_result = _publish_partitioned_frame(
+            final_screen,
+            dataset_name="screen",
+            root=root,
+            affected_dates=month_dates,
+            apply=True,
+            source_run_id=f"monthly-update-{result.get('input_month') or date_last.strftime('%Y%m')}",
+            compatibility_export_paths=(
+                paths["screen_path"],
+                paths["last_screen_path"],
+                paths["screen_path"].with_name(f"{paths['screen_path'].stem}_5Y{paths['screen_path'].suffix}"),
+            ),
+        )
+        result["partition_writer_screen"] = screen_result.as_dict()
+        if update_returns:
+            returns_result = _publish_partitioned_frame(
+                returns_updated,
+                dataset_name="returns_wide",
+                root=root,
+                affected_dates=returns_affected_dates,
+                apply=True,
+                source_run_id=f"monthly-update-{result.get('input_month') or date_last.strftime('%Y%m')}",
+                compatibility_export_paths=(paths["returns_path"],),
+            )
+            result["partition_writer_returns"] = returns_result.as_dict()
+        result["write_actions"].append("partition-writer: screen")
 
     result.update(
         {
@@ -877,6 +965,11 @@ def main() -> None:
     parser.add_argument("--fs-sector-dir", help="显式指定 Score_Sectoriel_US/EU.xlsm 所在目录")
     parser.add_argument("--skip-fs-sector", action="store_true", help="跳过 FactSet 行业历史补字段合并")
     parser.add_argument("--dry-run", action="store_true", help="只执行读取、合并和 QA 校验，不写入 canonical parquet")
+    parser.add_argument(
+        "--partition-writer",
+        action="store_true",
+        help="将 post-update snapshot 写入 immutable 分区并 atomic swap manifest；默认仍走兼容导出",
+    )
     parser.add_argument("--qa-report", help="显式指定 QA JSON 输出路径")
     parser.add_argument(
         "--update-mode",
@@ -898,6 +991,7 @@ def main() -> None:
         qa_report=args.qa_report,
         input_month=args.input_month,
         dry_run=args.dry_run,
+        partition_writer=args.partition_writer,
     )
     for key, value in result.items():
         print(f"{key}: {value}")

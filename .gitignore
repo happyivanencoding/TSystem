@@ -27,6 +27,7 @@ artifacts/analytics/duckdb/releases/
 artifacts/analytics/duckdb/staging/
 artifacts/analytics/duckdb/temp/
 00_screen/datasets/staging/
+00_screen/datasets/.partition-writer.lock
 
 # Local environments and caches
 .venv_tp/

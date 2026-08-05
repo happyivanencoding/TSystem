@@ -26,6 +26,7 @@ from .partitioning import (
 from .profiling import parquet_profile, timed_frame
 from .queries import ReturnsQuery, ScreenQuery
 from .shadow import shadow_compare_returns, shadow_compare_returns_partitions, shadow_compare_screen
+from .writers import rollback_dataset, update_dataset_partitions
 
 
 def _json_dump(payload: Any) -> None:
@@ -178,6 +179,48 @@ def migrate_returns_main(argv: Iterable[str] | None = None) -> int:
     return _migrate_main(argv, dataset_name="returns_wide")
 
 
+def update_partitions_main(argv: Iterable[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="按受影响月份/年份增量更新 canonical 分区")
+    parser.add_argument("--dataset", choices=("screen", "returns_wide"), required=True)
+    parser.add_argument("--root", default=str(DuckDBConfig.from_env().data_root))
+    parser.add_argument("--source", required=True, help="已完成业务计算的 post-update snapshot")
+    parser.add_argument("--date", action="append", dest="dates", default=[])
+    parser.add_argument("--source-run-id")
+    parser.add_argument("--compatibility-export", action="append", default=[])
+    parser.add_argument("--apply", action="store_true", help="发布分区与 current pointer；默认只检查")
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    dates = tuple(date.fromisoformat(value) for value in args.dates)
+    result = update_dataset_partitions(
+        args.source,
+        dataset_name=args.dataset,
+        root=args.root,
+        affected_dates=dates,
+        apply=args.apply,
+        source_run_id=args.source_run_id,
+        compatibility_export_paths=tuple(args.compatibility_export),
+    )
+    _json_dump(result.as_dict())
+    return 0
+
+
+def rollback_dataset_main(argv: Iterable[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="把 dataset current pointer 回滚到指定 immutable manifest")
+    parser.add_argument("--dataset", choices=("screen", "returns_wide"), required=True)
+    parser.add_argument("--dataset-version", required=True)
+    parser.add_argument("--root", default=str(DuckDBConfig.from_env().data_root))
+    parser.add_argument("--apply", action="store_true", help="实际切换 current pointer；默认只检查")
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    _json_dump(
+        rollback_dataset(
+            dataset_name=args.dataset,
+            root=args.root,
+            dataset_version=args.dataset_version,
+            apply=args.apply,
+        )
+    )
+    return 0
+
+
 def compatibility_export_main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="从明确 Dataset Manifest 原子重建兼容导出")
     parser.add_argument("--dataset", choices=("screen", "returns_wide"), required=True)
@@ -293,5 +336,7 @@ __all__ = [
     "migrate_screen_main",
     "parity_main",
     "shadow_compare_main",
+    "rollback_dataset_main",
+    "update_partitions_main",
     "validate_release_main",
 ]

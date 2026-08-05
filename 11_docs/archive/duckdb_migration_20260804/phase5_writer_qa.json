@@ -1,0 +1,62 @@
+{
+  "phase": "phase5_writer_cutover",
+  "status": "WRITER_CUTOVER_READY",
+  "production_writer_default": false,
+  "implementation": {
+    "screen_partition_writer": "src/tp_core/analytics/writers.py:update_dataset_partitions",
+    "returns_year_writer": "src/tp_core/analytics/writers.py:update_dataset_partitions",
+    "monthly_update_switch": "src/tp_data/monthly_update.py --partition-writer",
+    "pipeline_switch": "src/tp_pipelines/refresh_data.py --partition-writer",
+    "rollback": "tp-data-rollback-dataset --dataset ... --dataset-version ... --apply",
+    "atomicity": [
+      "single partition writer lock",
+      "staging partition objects",
+      "immutable content-addressed part names",
+      "manifest validation before pointer swap",
+      "atomic current.json replacement"
+    ]
+  },
+  "real_data_dry_run": {
+    "screen": {
+      "status": "passed",
+      "source_rows": 3465456,
+      "affected_partition_keys": ["year=2026/month=07"],
+      "reused_partition_count": 319,
+      "current_dataset_version": "screen-96c8d5c34745e10ea66f-c2617f016131"
+    },
+    "returns_wide": {
+      "status": "passed",
+      "source_rows": 5533,
+      "affected_partition_keys": ["year=2026"],
+      "reused_partition_count": 21,
+      "source_date_field": "__index_level_0__",
+      "current_dataset_version": "returns_wide-d35c79288886d0e83316-22965e8cffbb"
+    }
+  },
+  "fixture_apply": {
+    "status": "passed",
+    "screen_target_partition": "year=2026/month=02",
+    "screen_unaffected_hash_preserved": true,
+    "returns_target_partition": "year=2026",
+    "returns_unaffected_hash_preserved": true,
+    "compatibility_exports": [
+      "screen_aggregate.parquet",
+      "last_screen.parquet",
+      "screen_aggregate_5Y.parquet",
+      "returns.parquet"
+    ],
+    "rollback_pointer_test": "passed"
+  },
+  "tests": {
+    "writer_tests": "2 passed",
+    "partitioning_regression": "4 passed",
+    "writer_mypy": "passed",
+    "writer_targeted_ruff": "passed"
+  },
+  "safety": {
+    "production_apply": "not run; no current month input batch was replayed",
+    "legacy_monoliths": "preserved as compatibility exports",
+    "two_month_cycles": "not claimed",
+    "authority_switch": "not activated"
+  }
+}

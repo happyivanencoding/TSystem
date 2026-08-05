@@ -23,11 +23,13 @@ from .shadow import (
     shadow_compare_returns_partitions,
     shadow_compare_screen,
 )
+from .writers import PartitionWriterResult, rollback_dataset, update_dataset_partitions
 
 __all__ = [
     "DuckDBConfig",
     "FrameParityResult",
     "MigrationResult",
+    "PartitionWriterResult",
     "ReturnsQuery",
     "ScreenQuery",
     "ShadowCompareResult",
@@ -42,6 +44,8 @@ __all__ = [
     "shadow_compare_returns",
     "shadow_compare_returns_partitions",
     "shadow_compare_screen",
+    "rollback_dataset",
     "validate_mirror",
     "write_compatibility_export_from_manifest",
+    "update_dataset_partitions",
 ]

@@ -203,6 +203,34 @@ def _experiment_artifacts(child_manifests: list[str], run_all_manifest: Path) ->
     return artifacts
 
 
+def _write_approval(config: PipelineRunConfig) -> dict[str, object]:
+    """Return the machine-readable approval state for refresh_data writes."""
+
+    if config.controls.skip_refresh_data:
+        return {
+            "status": "not_required",
+            "source": "skip_refresh_data",
+            "approved": False,
+        }
+    if config.refresh_data.dry_run or config.refresh_data.inspect_only:
+        return {
+            "status": "not_required",
+            "source": "non_writing_mode",
+            "approved": False,
+        }
+    if config.refresh_data.apply:
+        return {
+            "status": "approved",
+            "source": "explicit_cli_apply",
+            "approved": True,
+        }
+    return {
+        "status": "blocked",
+        "source": "missing_explicit_cli_apply",
+        "approved": False,
+    }
+
+
 def run_all(args: argparse.Namespace | PipelineRunConfig) -> Path:
     config = (
         args
@@ -212,6 +240,18 @@ def run_all(args: argparse.Namespace | PipelineRunConfig) -> Path:
     manifest_parameters = config.cli_parameters.copy()
     manifest_parameters["_experiment_managed_externally"] = True
     manifest = StepManifest("run_all", manifest_parameters)
+    write_approval = _write_approval(config)
+    manifest.details["write_approval"] = write_approval
+    manifest.add_validation(
+        "write_approval",
+        write_approval["status"] != "blocked",
+        "数据写入已由显式 --apply 授权"
+        if write_approval["status"] == "approved"
+        else "当前模式不执行数据写入"
+        if write_approval["status"] == "not_required"
+        else "数据刷新必须显式传入 --apply",
+        write_approval,
+    )
     context = PipelineContext.from_args(config)
     experiment = ExperimentRecorder(
         root=config.experiment.root,
@@ -231,6 +271,8 @@ def run_all(args: argparse.Namespace | PipelineRunConfig) -> Path:
     manifest.details["experiment_record"] = str(experiment.path)
 
     try:
+        if write_approval["status"] == "blocked":
+            raise ValueError("run_all 数据刷新写入必须显式传入 --apply；请使用 --dry-run-data、--inspect-only-refresh-data 或 --skip-refresh-data 进行非写入运行")
         previous_parent = os.environ.get("TP_PARENT_EXPERIMENT_RUN_ID")
         os.environ["TP_PARENT_EXPERIMENT_RUN_ID"] = experiment.run_id
         try:
@@ -323,6 +365,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run-data", action="store_true", help="数据刷新只 dry-run")
     parser.add_argument("--inspect-only-refresh-data", action="store_true", help="数据刷新只检查入口和 canonical 路径")
     parser.add_argument("--skip-refresh-data", action="store_true", help="跳过数据刷新")
+    parser.add_argument("--apply", action="store_true", help="确认本次 run_all 允许数据刷新写入")
     parser.add_argument(
         "--refresh-supplemental-data",
         action="store_true",

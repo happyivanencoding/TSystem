@@ -15,6 +15,7 @@ from .manifests import load_manifest, resolve_partition_path
 from .parity import FrameParityResult, compare_frames
 from .queries import QuerySpecError, ReturnsQuery, ScreenQuery, quote_identifier
 from .repositories import ReturnsRepository, ScreenRepository
+from .returns_io import read_returns_matrix
 
 
 @dataclass(frozen=True)
@@ -206,20 +207,12 @@ def _read_legacy_screen(path: str | Path, spec: ScreenQuery) -> pd.DataFrame:
 def _read_legacy_returns(path: str | Path, spec: ReturnsQuery) -> pd.DataFrame:
     if not spec.securities:
         raise QuerySpecError("shadow returns queries require an explicit securities projection")
-    physical_names = pq.ParquetFile(path).schema_arrow.names
-    physical_date = "Date" if "Date" in physical_names else "__index_level_0__"
-    columns = list(dict.fromkeys(spec.securities))
-    filters: list[tuple[str, str, Any]] = []
-    if spec.date_from is not None:
-        filters.append((physical_date, ">=", _timestamp(spec.date_from)))
-    if spec.date_to is not None:
-        filters.append((physical_date, "<=", _timestamp(spec.date_to)))
-    frame = pd.read_parquet(path, columns=columns, filters=filters or None)
-    if physical_date in frame.columns:
-        frame = frame.set_index(physical_date)
-    frame.index = pd.to_datetime(frame.index, errors="coerce")
-    frame.index.name = "Date"
-    return frame.sort_index()
+    return read_returns_matrix(
+        path,
+        columns=spec.securities,
+        date_from=spec.date_from,
+        date_to=spec.date_to,
+    )
 
 
 def _timestamp(value: date | datetime) -> pd.Timestamp:

@@ -15,7 +15,12 @@ from .authority import (
 from .catalog import build_catalog_release, create_canonical_views
 from .config import DuckDBConfig
 from .connection import connect, connection_info
-from .parity import FrameParityResult, compare_frames
+from .parity import (
+    DEFAULT_PARITY_ATOL,
+    DEFAULT_PARITY_RTOL,
+    FrameParityResult,
+    compare_frames,
+)
 from .partitioning import (
     MigrationResult,
     load_current_manifest,
@@ -24,6 +29,12 @@ from .partitioning import (
     write_compatibility_export_from_manifest,
 )
 from .queries import ReturnsQuery, ScreenQuery, SignalQuery
+from .returns_io import (
+    ReturnsReadError,
+    available_return_columns,
+    read_returns_dates,
+    read_returns_matrix,
+)
 from .shadow import (
     ShadowCompareResult,
     shadow_compare_returns,
@@ -34,15 +45,19 @@ from .writers import PartitionWriterResult, rollback_dataset, update_dataset_par
 
 __all__ = [
     "AUTHORITY_EVIDENCE_SCHEMA",
+    "DEFAULT_PARITY_ATOL",
+    "DEFAULT_PARITY_RTOL",
     "DuckDBConfig",
     "FrameParityResult",
     "MigrationResult",
     "PartitionWriterResult",
     "ReturnsQuery",
+    "ReturnsReadError",
     "ScreenQuery",
     "ShadowCompareResult",
     "SignalQuery",
     "activate_catalog_release",
+    "available_return_columns",
     "build_catalog_release",
     "check_authority_readiness",
     "compare_frames",
@@ -51,6 +66,8 @@ __all__ = [
     "create_canonical_views",
     "load_current_manifest",
     "migrate_dataset",
+    "read_returns_dates",
+    "read_returns_matrix",
     "retirement_readiness",
     "rollback_catalog_release",
     "rollback_dataset",

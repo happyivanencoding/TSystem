@@ -13,6 +13,12 @@ from .analytics.config import DuckDBConfig
 from .analytics.connection import connect
 from .analytics.queries import QuerySpecError, ReturnsQuery, ScreenQuery
 from .analytics.repositories import ReturnsRepository, ScreenRepository
+from .analytics.returns_io import (
+    read_returns_dates as read_legacy_returns_dates,
+)
+from .analytics.returns_io import (
+    read_returns_matrix,
+)
 from .analytics.shadow import shadow_compare_returns, shadow_compare_screen
 from .data_contract import drop_deprecated_screen_columns, normalize_screen_dates
 from .data_sources import (
@@ -179,9 +185,9 @@ def read_returns(
     resolved_engine = _resolve_engine(engine)
     projection = tuple(columns) if columns is not None else None
     if resolved_engine == "legacy_parquet":
-        return _read_legacy_returns(
+        return read_returns_matrix(
             path,
-            projection,
+            columns=projection,
             date_from=date_from,
             date_to=date_to,
         )
@@ -197,7 +203,12 @@ def read_returns(
             if date_from is None and date_to is None:
                 raise QuerySpecError("shadow_compare returns reads require a bounded date window")
             shadow_compare_returns(connection, path, spec, surface="tp_core.io")
-            returns = _read_legacy_returns(path, projection, date_from=date_from, date_to=date_to)
+            returns = read_returns_matrix(
+                path,
+                columns=projection,
+                date_from=date_from,
+                date_to=date_to,
+            )
         else:
             returns = ReturnsRepository(connection).matrix(spec)
     return returns.sort_index()
@@ -212,15 +223,14 @@ def read_returns_dates(
 
     resolved_engine = _resolve_engine(engine)
     if resolved_engine == "legacy_parquet":
-        legacy = _read_legacy_return_dates(path)
-        return legacy
+        return read_legacy_returns_dates(path)
     with connect(_read_only_config()) as connection:
         duck = connection.execute(
             'SELECT "Date" FROM "canonical"."returns_wide" ORDER BY "Date"'
         ).df()
     dates = pd.DatetimeIndex(pd.to_datetime(duck["Date"], errors="coerce"), name="Date")
     if resolved_engine == "shadow_compare":
-        legacy = _read_legacy_return_dates(path)
+        legacy = read_legacy_returns_dates(path)
         if not dates.equals(legacy):
             raise QuerySpecError("shadow_compare returns date index mismatch")
     return dates
@@ -362,39 +372,8 @@ def _read_legacy_screen_spec(path: str | Path, spec: ScreenQuery) -> pd.DataFram
     return _restore_projection_order(frame, spec.columns)
 
 
-def _read_legacy_returns(
-    path: str | Path,
-    columns: tuple[str, ...] | None,
-    *,
-    date_from: DateLike | None,
-    date_to: DateLike | None,
-) -> pd.DataFrame:
-    import pyarrow.parquet as pq
-
-    physical_names = set(pq.ParquetFile(path).schema_arrow.names)
-    physical_date = "Date" if "Date" in physical_names else "__index_level_0__"
-    filters: list[tuple[str, str, Any]] = []
-    if date_from is not None:
-        filters.append((physical_date, ">=", pd.Timestamp(date_from)))
-    if date_to is not None:
-        filters.append((physical_date, "<=", pd.Timestamp(date_to)))
-    returns = read_parquet_dataset(path, columns, filters=filters or None)
-    if physical_date in returns.columns:
-        returns[physical_date] = pd.to_datetime(returns[physical_date], errors="coerce")
-        returns = returns.set_index(physical_date)
-    returns.index = pd.to_datetime(returns.index, errors="coerce")
-    returns.index.name = "Date"
-    return returns.sort_index()
-
-
 def _read_legacy_return_dates(path: str | Path) -> pd.DatetimeIndex:
-    import pyarrow.parquet as pq
-
-    physical_names = set(pq.ParquetFile(path).schema_arrow.names)
-    physical_date = "Date" if "Date" in physical_names else "__index_level_0__"
-    table = pq.read_table(path, columns=[physical_date])
-    dates = pd.to_datetime(table[physical_date].to_pandas(), errors="coerce")
-    return pd.DatetimeIndex(dates, name="Date").sort_values()
+    return read_legacy_returns_dates(path)
 
 
 def _coerce_date_value(value: Any) -> Any:
@@ -419,7 +398,7 @@ __all__ = [
     "read_parquet_dataset",
     "read_returns",
     "read_returns_dates",
-    "resolve_return_columns",
     "read_screen_5y",
     "read_screen_aggregate",
+    "resolve_return_columns",
 ]

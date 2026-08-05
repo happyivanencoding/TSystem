@@ -1,0 +1,8 @@
+# CI lock for the Python 3.11 clean environment verified on 2026-08-05.
+# Keep this file small: it locks the data-contract boundary while allowing
+# unrelated optional packages to resolve normally.
+numpy==2.4.6
+pandas==3.0.5
+pyarrow==24.0.0
+duckdb==1.5.5
+pytest==9.1.1

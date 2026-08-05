@@ -1,0 +1,82 @@
+{
+  "schema_version": "tp.duckdb-authority-evidence.v2",
+  "phase": "phase7_8",
+  "release_id": "presentation-20260805-screen-returns-v2",
+  "authority_status": "not_active",
+  "decision": "WRITER_CUTOVER_READY",
+  "dataset_versions": {
+    "screen": "screen-96c8d5c34745e10ea66f-c2617f016131",
+    "returns_wide": "returns_wide-d35c79288886d0e83316-22965e8cffbb"
+  },
+  "clean_ci": {
+    "status": "blocked",
+    "run_id": "30965056956",
+    "workflow": "CI",
+    "head_sha": "01c2c9486f085df8d3395d10df68fad923cd92d9",
+    "jobs": {
+      "python": "failed",
+      "dashboard": "passed"
+    },
+    "reason": "旧 CI run 的 Python job 在 pandas 3 Returns shadow 索引单位差异上失败；修复后的分拆 jobs 尚未运行。"
+  },
+  "full_real_data_parity": {
+    "status": "passed",
+    "path": "phase2_parity.json",
+    "sha256": "b32381410c17da470163f9191d3a09a4d22b4e1ce8382088c51cd527dfc16407",
+    "commit_sha": "01c2c9486f085df8d3395d10df68fad923cd92d9",
+    "release_id": "presentation-20260805-screen-returns-v2",
+    "source_release_id": "phase2-partitioned-mirror",
+    "dataset_versions": {
+      "screen": "screen-96c8d5c34745e10ea66f-c2617f016131",
+      "returns_wide": "returns_wide-d35c79288886d0e83316-22965e8cffbb"
+    }
+  },
+  "complete_production_chain_parity": {
+    "status": "blocked",
+    "reason": "real export_signals/build_candidates/optimize_portfolio/run_backtest/generate_report parity has not been completed"
+  },
+  "rollback_drill": {
+    "status": "blocked",
+    "reason": "no real production-month rollback drill was claimed"
+  },
+  "deployment_smoke": {
+    "status": "blocked",
+    "reason": "DuckDB read-engine deployment smoke is pending the clean CI run"
+  },
+  "monthly_cycles": [],
+  "external_approval": {
+    "status": "blocked",
+    "reason": "explicit authority approval was not supplied"
+  },
+  "compatibility_exports": {
+    "default": "enabled",
+    "retired": false,
+    "source_role": "compatibility_export"
+  },
+  "evidence": {
+    "full_real_data_parity": "phase2_parity.json; SHA256 verified above",
+    "presentation_marts": "phase6_marts_qa.json; release is not activated",
+    "writer_fixture_apply_rollback": "phase5_writer_qa.json; production apply was not run",
+    "authority_guard": "tests/analytics/test_authority.py",
+    "production_chain": "not completed",
+    "production_rollback": "not completed",
+    "monthly_replays": "none claimed",
+    "external_approval": "not supplied"
+  },
+  "required_before_activation": [
+    "new clean CI run with python-core, duckdb-unit, migration-parity-small-fixture and dashboard green",
+    "complete real-data production-chain parity",
+    "one real release rollback drill",
+    "two independent historical monthly replays or completed monthly cycles",
+    "DuckDB read-engine deployment smoke",
+    "explicit outer-user approval"
+  ],
+  "formal_activation_command": "tp-duckdb-activate-authority --database artifacts/analytics/duckdb/releases/<release>/tp_analytics.duckdb --catalog-release-id <release> --evidence <approved-evidence-json> --approve-authority-switch --apply",
+  "retirement_command_after_readiness_only": "$env:TP_COMPAT_EXPORTS='false'; tp-pipeline-refresh-data --input-month YYYYMM --partition-writer --no-compatibility-exports --apply",
+  "limitations": [
+    "production default TP_DATA_ENGINE remains legacy_parquet",
+    "latest catalog pointer was not updated",
+    "old monolith and compatibility exports were not deleted",
+    "authority activation was not run"
+  ]
+}

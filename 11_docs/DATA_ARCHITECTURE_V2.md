@@ -45,7 +45,8 @@ Dataset version 由源快照、schema fingerprint 和分区内容决定。Manife
 - Screen 的逻辑键是 `(ISIN, Date)`，分区键是 `(year, month)`；PIT 和日期语义不改变。
 - Returns 的逻辑键是 `Date`，分区键是 `year`；宽表读出时恢复为 Pandas `Date` index。
 - `tp_core.io` 保留 `legacy_parquet` 默认值，可显式使用 `TP_DATA_ENGINE=duckdb` 或 `shadow_compare`。
-- Dashboard/API 读取已物化 mart；latest 查询不扫描完整 canonical view。`company_master_latest` 构建时使用 manifest 日期对应的年/月分区谓词。
+- Dashboard/API 的 latest hot path 采用 `MartRepository` 优先；没有 current catalog release、mart 为空或请求属于 history/detail 时，才使用 allowlisted compatibility artifact fallback，且 artifact fallback 有 80MB 上限。完整 read-path 证据见 `11_docs/archive/duckdb_migration_20260804/presentation_read_path_audit.csv`。这不等同于 dashboard 已完成全量 SQL cutover。
+- `company_master_latest` 构建时使用 manifest 日期对应的年/月分区谓词；Screen/Returns 全量文件不会被 overview latest 查询隐式 materialize。
 - 业务模块不得接受任意 SQL；QuerySpec/repository 负责列、日期、证券和 PIT 过滤。
 
 ## 并发与存储

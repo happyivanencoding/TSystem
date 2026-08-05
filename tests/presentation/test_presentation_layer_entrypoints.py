@@ -482,7 +482,11 @@ def test_system_jobs_runner_writes_and_reads_records(tmp_path: Path) -> None:
 
 
 def test_system_registry_declares_control_tower_projects() -> None:
-    from presentation_layer.apps.system_registry import DATA_ASSET_REGISTRY, PIPELINE_STEPS, PROJECT_REGISTRY
+    from presentation_layer.apps.system_registry import (
+        DATA_ASSET_REGISTRY,
+        PIPELINE_STEPS,
+        PROJECT_REGISTRY,
+    )
 
     project_ids = {entry.project_id for entry in PROJECT_REGISTRY}
     assert {
@@ -510,41 +514,41 @@ def test_system_registry_declares_control_tower_projects() -> None:
 def test_system_dashboard_monitoring_rows_are_structured(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from presentation_layer.apps import system_dashboard as dashboard
     from presentation_layer.apps.system_dashboard import (
-        _audit_filter_options,
-        _audit_detail_payload,
-        _audit_rows,
-        _asset_filter_options,
-        _alert_rows,
         _active_job_card,
         _active_job_payload,
+        _alert_rows,
+        _asset_filter_options,
+        _audit_detail_payload,
+        _audit_filter_options,
+        _audit_rows,
         _backtest_rows,
         _build_project_command,
+        _build_regime_signal_command,
         _build_system_checks_command,
-        _client_job_api_fallback_message,
         _check_rows,
+        _client_job_api_fallback_message,
         _command_from_callback,
         _config_rows,
         _core_database_rows,
         _data_quality_rows,
         _filter_asset_rows,
         _is_ignored_asset,
+        _latest_launch_record,
+        _latest_manifest,
+        _latest_project_launch,
         _launch,
         _launch_rows,
-        _latest_manifest,
-        _latest_launch_record,
-        _latest_project_launch,
         _lineage_edge_rows,
         _lineage_node_from_click,
         _lineage_node_payload,
         _overview_card_payloads,
+        _production_rows,
+        _project_asset_summary_rows,
         _project_card_button_id,
         _project_card_selection,
-        _project_asset_summary_rows,
         _project_context_payload,
         _project_has_registered_command,
-        _production_rows,
         _project_options,
-        _build_regime_signal_command,
         _read_dashboard_config,
         _regime_signal_payload,
         _write_dashboard_config,
@@ -962,6 +966,19 @@ def test_system_dashboard_monitoring_rows_are_structured(tmp_path: Path, monkeyp
     )
     assert sector_command[:3] == [sys.executable, "-m", "tp_pipelines.run_backtest"]
     assert "--sector-neutral" in sector_command
+
+    safe_pipeline = _command_from_callback(
+        "run_all", None, None, "both", 0.1, 0.7, 0.3, 0.05, "constrained", "", "default", "", None, None, []
+    )
+    approved_pipeline = _command_from_callback(
+        "run_all", None, None, "both", 0.1, 0.7, 0.3, 0.05, "constrained", "", "default", "", None, None, ["apply_data"]
+    )
+    dry_run_pipeline = _command_from_callback(
+        "run_all", None, None, "both", 0.1, 0.7, 0.3, 0.05, "constrained", "", "default", "", None, None, ["apply_data", "dry_run_data"]
+    )
+    assert "--apply" not in safe_pipeline
+    assert "--apply" in approved_pipeline
+    assert "--apply" not in dry_run_pipeline
 
     lineage = _lineage_node_payload("候选池")
     assert lineage["upstream"] == "统一信号"

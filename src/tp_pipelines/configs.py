@@ -386,8 +386,16 @@ class PipelineRunConfig:
             inspect_only=bool(get("inspect_only_refresh_data", False)),
             qa_report=None,
             run_type=run_type,
-            apply=True,
+            apply=bool(get("apply", False)),
         )
+        if refresh_data.apply:
+            values["write_approval"] = "explicit_cli_apply"
+        elif bool(get("skip_refresh_data", False)):
+            values["write_approval"] = "not_required_skip_refresh_data"
+        elif refresh_data.dry_run or refresh_data.inspect_only:
+            values["write_approval"] = "not_required_non_writing_mode"
+        else:
+            values["write_approval"] = "blocked_missing_explicit_cli_apply"
         supplemental_config = str(
             get("supplemental_config", Path(__file__).with_name("supplemental_sources.json"))
         )

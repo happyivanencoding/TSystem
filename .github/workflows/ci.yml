@@ -43,7 +43,7 @@ on:
       - "scratch/**"
 
 jobs:
-  python:
+  python-core:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,16 +51,120 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - name: Install
-        run: python -m pip install -e ".[ml,screen,backtest,optimizer,web,test]"
+          cache-dependency-path: constraints/ci-py311.txt
+      - name: Install locked Python environment
+        run: python -m pip install -c constraints/ci-py311.txt -e ".[ml,screen,backtest,optimizer,web,test]"
       - name: Verify installed package boundaries
         run: >-
           python -P -c
           "import presentation_layer,tp_backtest,tp_core,tp_data,tp_experiments,tp_models,tp_pipelines,tp_portfolio,tp_reporting,tp_research"
+      - name: Test non-DuckDB suite
+        run: python -m pytest -q --ignore=tests/analytics
+
+  duckdb-unit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: constraints/ci-py311.txt
+      - name: Install locked Python environment
+        run: python -m pip install -c constraints/ci-py311.txt -e ".[web,test]"
+      - name: Run DuckDB analytics tests
+        run: python -m pytest tests/analytics -q
+
+  migration-parity-small-fixture:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: constraints/ci-py311.txt
+      - name: Install locked Python environment
+        run: python -m pip install -c constraints/ci-py311.txt -e ".[web,test]"
+      - name: Run migration, shadow, writer and authority fixture checks
+        run: >-
+          python -m pytest -q
+          tests/analytics/test_partitioning.py
+          tests/analytics/test_shadow_catalog.py
+          tests/analytics/test_writers.py
+          tests/analytics/test_authority.py
+      - name: Upload migration and parity diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-parity-small-fixture-${{ github.run_id }}
+          path: |
+            artifacts/analytics/query_profiles/**
+            artifacts/analytics/duckdb/**
+            11_docs/archive/duckdb_migration_20260804/**/phase7_8_readiness*.json
+          if-no-files-found: warn
+
+  legacy-policy:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: constraints/ci-py311.txt
+      - name: Install package boundary checker
+        run: python -m pip install -c constraints/ci-py311.txt -e .
       - name: Reject retired entrypoints and frozen paths
         run: tp-check-legacy-references --root .
-      - name: Test
-        run: python -m pytest -q
+
+  duckdb-compatibility:
+    name: duckdb-compatibility (${{ matrix.profile }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: minimum-supported
+            numpy: "1.26.4"
+            pandas: "2.0.3"
+            pyarrow: "14.0.2"
+            duckdb: "0.10.3"
+            pytest: "8.4.2"
+          - profile: locked-current
+            numpy: "2.4.6"
+            pandas: "3.0.5"
+            pyarrow: "24.0.0"
+            duckdb: "1.5.5"
+            pytest: "9.1.1"
+          - profile: latest-supported
+            numpy: ""
+            pandas: ""
+            pyarrow: ""
+            duckdb: ""
+            pytest: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install compatibility environment
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          if ("${{ matrix.profile }}" -eq "latest-supported") {
+            python -m pip install --upgrade "numpy>=1.24" "pandas>=2.0" "pyarrow>=14" "duckdb>=0.10" "pytest>=8"
+          } else {
+            python -m pip install --upgrade `
+              "numpy==${{ matrix.numpy }}" `
+              "pandas==${{ matrix.pandas }}" `
+              "pyarrow==${{ matrix.pyarrow }}" `
+              "duckdb==${{ matrix.duckdb }}" `
+              "pytest==${{ matrix.pytest }}"
+          }
+      - name: Run compatibility surface
+        run: python -m pytest tests/analytics -q
 
   dashboard:
     runs-on: ubuntu-latest

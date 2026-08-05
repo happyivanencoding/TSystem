@@ -9,7 +9,7 @@ from tp_pipelines.common import StepManifest, path_profile
 from tp_pipelines.configs import PipelineRunConfig, RefreshDataConfig
 from tp_pipelines.dag import PipelineDAG, PipelineStep
 from tp_pipelines.orchestration import pipeline_dag
-from tp_pipelines.run_all import build_parser
+from tp_pipelines.run_all import _write_approval, build_parser
 
 
 def _noop(_context) -> Path:
@@ -21,8 +21,22 @@ def test_cli_namespace_is_adapted_to_typed_step_configs() -> None:
 
     assert isinstance(config.refresh_data, RefreshDataConfig)
     assert config.refresh_data.update_mode == "both"
+    assert config.refresh_data.apply is False
+    assert _write_approval(config)["status"] == "blocked"
     assert config.optimize_portfolio.candidates == config.build_candidates.output
     assert config.run_backtest.hypothesis_id == "production-pipeline-backtest"
+
+
+def test_run_all_apply_is_an_explicit_write_approval() -> None:
+    config = PipelineRunConfig.from_namespace(build_parser().parse_args(["--apply"]))
+
+    assert config.refresh_data.apply is True
+    assert config.cli_parameters["write_approval"] == "explicit_cli_apply"
+    assert _write_approval(config) == {
+        "status": "approved",
+        "source": "explicit_cli_apply",
+        "approved": True,
+    }
 
 
 def test_production_dag_exposes_cross_step_dependencies() -> None:

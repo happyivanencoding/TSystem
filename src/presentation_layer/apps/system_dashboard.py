@@ -21,35 +21,24 @@ from dash import ALL, Dash, Input, Output, State, ctx, dash_table, dcc, html
 from dash.exceptions import PreventUpdate
 
 from presentation_layer.apps import system_jobs
-from presentation_layer.company_browser.settings import (
-    DES_PARQUET as COMPANY_DES_PATH,
-    NEWS_PARQUET as COMPANY_NEWS_PATH,
-)
 from presentation_layer.apps.system_api import (
     DashboardStaticAssets,
     register_dashboard_routes,
 )
 from presentation_layer.apps.system_backtests import (
     BacktestDashboardContext,
+)
+from presentation_layer.apps.system_backtests import (
     backtest_rows as build_backtest_rows,
+)
+from presentation_layer.apps.system_backtests import (
     outputs_summary as _outputs_summary,
+)
+from presentation_layer.apps.system_backtests import (
     validation_summary as _validation_summary,
 )
 from presentation_layer.apps.system_checks import CHECK_LATEST, project_checks
 from presentation_layer.apps.system_domain import DashboardDomainService
-from presentation_layer.apps.system_repository import SystemDashboardRepository
-from presentation_layer.apps.system_view_models import (
-    JobViewModelContext,
-    format_bytes as _format_bytes,
-    format_date as _fmt_date,
-    format_int as _fmt_int,
-    format_number as _fmt_number,
-    format_pct as _fmt_pct,
-    job_payload_from_record,
-    relative_path,
-    status_class as _status_class,
-    status_label as _status_label,
-)
 from presentation_layer.apps.system_registry import (
     DATA_ASSET_REGISTRY,
     FLOW_EDGES,
@@ -57,6 +46,39 @@ from presentation_layer.apps.system_registry import (
     PIPELINE_STEPS,
     PROJECT_REGISTRY,
     DataAssetEntry,
+)
+from presentation_layer.apps.system_repository import SystemDashboardRepository
+from presentation_layer.apps.system_view_models import (
+    JobViewModelContext,
+    job_payload_from_record,
+    relative_path,
+)
+from presentation_layer.apps.system_view_models import (
+    format_bytes as _format_bytes,
+)
+from presentation_layer.apps.system_view_models import (
+    format_date as _fmt_date,
+)
+from presentation_layer.apps.system_view_models import (
+    format_int as _fmt_int,
+)
+from presentation_layer.apps.system_view_models import (
+    format_number as _fmt_number,
+)
+from presentation_layer.apps.system_view_models import (
+    format_pct as _fmt_pct,
+)
+from presentation_layer.apps.system_view_models import (
+    status_class as _status_class,
+)
+from presentation_layer.apps.system_view_models import (
+    status_label as _status_label,
+)
+from presentation_layer.company_browser.settings import (
+    DES_PARQUET as COMPANY_DES_PATH,
+)
+from presentation_layer.company_browser.settings import (
+    NEWS_PARQUET as COMPANY_NEWS_PATH,
 )
 from tp_core.data_sources import (
     PRODUCTION_INCOMING_DIR,
@@ -74,7 +96,6 @@ from tp_core.workspace import (
     SIGNALS_DIR,
 )
 from tp_pipelines.common import path_profile
-
 
 PORT = 8060
 LAUNCH_DIR = DASHBOARD_WORK_DIR / "launches"
@@ -719,6 +740,13 @@ html, body, #_dash-app-content {
   color: var(--tp-text);
   font-size: 12px;
   line-height: 1.25;
+}
+
+.tp-warning {
+  margin-top: 8px;
+  color: var(--tp-rose);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .tp-command {
@@ -1413,13 +1441,17 @@ def _quality_profile_cached(
     key_columns = tuple(column for column in QUALITY_KEYS.get(asset_name, ()) if column in schema_names)
     is_full_scan = size_bytes <= QUALITY_FULL_SCAN_MAX_BYTES
     if is_full_scan:
-        frame = pd.read_parquet(path)
+        frame = pq.read_table(path, use_pandas_metadata=False).to_pandas(ignore_metadata=True)
         quality_scope = "full table"
     else:
         read_columns = list(dict.fromkeys(column for column in (*key_columns, date_column or "") if column in schema_names))
         if not read_columns:
             return {"quality_scope": "metadata only"}
-        frame = pd.read_parquet(path, columns=read_columns)
+        frame = pq.read_table(
+            path,
+            columns=read_columns,
+            use_pandas_metadata=False,
+        ).to_pandas(ignore_metadata=True)
         quality_scope = "key columns"
 
     cell_count = int(frame.shape[0] * frame.shape[1])
@@ -1901,41 +1933,37 @@ def _read_frame(path: Path) -> pd.DataFrame | None:
     return _system_repository().read_frame(path)
 
 
-@lru_cache(maxsize=4)
-def _score_ml_screen_cached(path_text: str, mtime_ns: int) -> pd.DataFrame:
-    del mtime_ns
-    frame = pd.read_parquet(path_text, columns=SCORE_ML_COMPONENT_COLUMNS)
-    if "ISIN" not in frame.columns:
-        frame = frame.reset_index()
-    frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
-    return frame
+def _read_history_frame(path: Path) -> pd.DataFrame | None:
+    return _system_repository().read_frame(path, purpose="history")
 
 
 def _score_ml_screen_frame() -> pd.DataFrame | None:
     if not SCORE_ML_SCREEN_PATH.exists():
         return None
     try:
-        return _score_ml_screen_cached(str(SCORE_ML_SCREEN_PATH), SCORE_ML_SCREEN_PATH.stat().st_mtime_ns)
+        frame = _system_repository().read_frame(SCORE_ML_SCREEN_PATH, purpose="latest")
+        if frame is None:
+            return None
+        if "ISIN" not in frame.columns:
+            frame = frame.reset_index()
+        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+        return frame
     except Exception:
         return None
-
-
-@lru_cache(maxsize=2)
-def _technical_screen_cached(path_text: str, mtime_ns: int) -> pd.DataFrame:
-    del mtime_ns
-    frame = pd.read_parquet(path_text)
-    if "ISIN" not in frame.columns:
-        frame = frame.reset_index()
-    if "Date" in frame.columns:
-        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
-    return frame
 
 
 def _technical_screen_frame() -> pd.DataFrame | None:
     if not TECHNICAL_SCREEN_PATH.exists():
         return None
     try:
-        return _technical_screen_cached(str(TECHNICAL_SCREEN_PATH), TECHNICAL_SCREEN_PATH.stat().st_mtime_ns)
+        frame = _system_repository().read_frame(TECHNICAL_SCREEN_PATH, purpose="latest")
+        if frame is None:
+            return None
+        if "ISIN" not in frame.columns:
+            frame = frame.reset_index()
+        if "Date" in frame.columns:
+            frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+        return frame
     except Exception:
         return None
 
@@ -1943,7 +1971,9 @@ def _technical_screen_frame() -> pd.DataFrame | None:
 @lru_cache(maxsize=2)
 def _company_des_cached(path_text: str, mtime_ns: int) -> pd.DataFrame:
     del mtime_ns
-    frame = pd.read_parquet(path_text)
+    frame = _system_repository().read_frame(Path(path_text), purpose="detail")
+    if frame is None:
+        return pd.DataFrame()
     if "Date" in frame.columns:
         frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
     return frame
@@ -1952,7 +1982,9 @@ def _company_des_cached(path_text: str, mtime_ns: int) -> pd.DataFrame:
 @lru_cache(maxsize=2)
 def _company_news_cached(path_text: str, mtime_ns: int) -> pd.DataFrame:
     del mtime_ns
-    frame = pd.read_parquet(path_text)
+    frame = _system_repository().read_frame(Path(path_text), purpose="detail")
+    if frame is None:
+        return pd.DataFrame()
     if "Date" in frame.columns:
         frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
     return frame
@@ -2063,7 +2095,9 @@ def _score_ml_date_options() -> list[str]:
         if run_dir is None:
             continue
         try:
-            sec_list = pd.read_parquet(run_dir / "sec_list.parquet", columns=["Date"])
+            sec_list = _system_repository().read_frame(run_dir / "sec_list.parquet", purpose="detail")
+            if sec_list is None or "Date" not in sec_list.columns:
+                continue
         except Exception:
             continue
         values = pd.to_datetime(sec_list["Date"], errors="coerce").dropna()
@@ -2101,7 +2135,10 @@ def _score_ml_components_payload(date: str | None = None, side: str = "top") -> 
         payload["message"] = "screen_aggregate parquet missing or unreadable"
         return payload
     try:
-        sec_list = pd.read_parquet(run_dir / "sec_list.parquet")
+        sec_list = _system_repository().read_frame(run_dir / "sec_list.parquet", purpose="detail")
+        if sec_list is None:
+            payload["message"] = "Score ML backtest sec_list unreadable"
+            return payload
     except Exception as exc:
         payload.update({"status": "error", "message": str(exc)})
         return payload
@@ -2299,7 +2336,7 @@ def _technical_signal_payload() -> dict[str, Any]:
         "security_rows": [],
         "message": "",
     }
-    signal_frame = _read_frame(TECHNICAL_SIGNAL_PATH)
+    signal_frame = _read_history_frame(TECHNICAL_SIGNAL_PATH)
     screen = _technical_screen_frame()
     if signal_frame is None or signal_frame.empty:
         payload["message"] = "technical_signals parquet missing or empty"
@@ -2774,7 +2811,7 @@ def _regime_signal_payload() -> dict[str, Any]:
         payload["message"] = "regime signal parquet missing"
         return payload
     try:
-        frame = _read_frame(path)
+        frame = _read_history_frame(path)
     except Exception as exc:
         payload.update({"status": "error", "message": str(exc)})
         return payload
@@ -2840,7 +2877,7 @@ def _country_signal_payload() -> dict[str, Any]:
         payload["message"] = "country model signal parquet missing"
         return payload
     try:
-        frame = _read_frame(path)
+        frame = _read_history_frame(path)
     except Exception as exc:
         payload.update({"status": "error", "message": str(exc)})
         return payload
@@ -2883,7 +2920,7 @@ def _country_signal_payload() -> dict[str, Any]:
     single_country_history_rows: list[dict[str, str]] = []
     if COUNTRY_SINGLE_COUNTRY_SCORE_PATH.exists():
         try:
-            single_country = _read_frame(COUNTRY_SINGLE_COUNTRY_SCORE_PATH)
+            single_country = _read_history_frame(COUNTRY_SINGLE_COUNTRY_SCORE_PATH)
             if single_country is not None and not single_country.empty and "Date" in single_country.columns:
                 single_data = single_country.copy()
                 single_data["_Date"] = pd.to_datetime(single_data["Date"], errors="coerce")
@@ -2965,7 +3002,7 @@ def _small_cap_signal_payload() -> dict[str, Any]:
         payload["message"] = "small-cap model signal parquet missing"
         return payload
     try:
-        frame = _read_frame(path)
+        frame = _read_history_frame(path)
     except Exception as exc:
         payload.update({"status": "error", "message": str(exc)})
         return payload
@@ -3284,7 +3321,10 @@ def _sector_rotation_market_payload(
         "sector_weight",
         "sector_forward_return",
     ]
-    frame = pd.read_parquet(path, columns=columns)
+    frame = _read_history_frame(path)
+    if frame is None:
+        raise ValueError("sector panel parquet is missing or exceeds the bounded artifact fallback")
+    frame = frame.loc[:, [column for column in columns if column in frame.columns]]
     if frame.empty:
         raise ValueError("empty sector panel")
 
@@ -5145,7 +5185,7 @@ def _factor_recommendation_payload() -> dict[str, Any]:
         if not path.exists():
             artifact_states[name] = "missing"
             continue
-        frame = _read_frame(path)
+        frame = _read_history_frame(path) if name in {"panel", "history"} else _read_frame(path)
         if frame is None:
             artifact_states[name] = "corrupt"
             errors.append(f"{name}: unreadable")
@@ -5540,6 +5580,7 @@ def _build_pipeline_command(
     start_date: str | None,
     percentile: float | None,
     sector_neutral: bool,
+    apply_data: bool = False,
 ) -> list[str]:
     command = [sys.executable, "-m", f"tp_pipelines.{step}"]
     if step == "run_all":
@@ -5552,6 +5593,8 @@ def _build_pipeline_command(
             command.append("--inspect-only-refresh-data")
         if skip_refresh:
             command.append("--skip-refresh-data")
+        if apply_data and not (dry_run_data or inspect_refresh or skip_refresh):
+            command.append("--apply")
         if skip_backtest:
             command.append("--skip-backtest")
         if skip_report:
@@ -5585,6 +5628,8 @@ def _build_pipeline_command(
             command.append("--dry-run")
         if inspect_refresh:
             command.append("--inspect-only")
+        if apply_data and not (dry_run_data or inspect_refresh):
+            command.append("--apply")
         return command
 
     if step == "refresh_ml":
@@ -5791,6 +5836,7 @@ def _control_panel() -> html.Div:
                             {"label": "数据 dry-run", "value": "dry_run_data"},
                             {"label": "数据 inspect-only", "value": "inspect_refresh"},
                             {"label": "跳过数据刷新", "value": "skip_refresh"},
+                            {"label": "⚠ 确认生产数据写入 (--apply)", "value": "apply_data"},
                             {"label": "跳过回测", "value": "skip_backtest"},
                             {"label": "跳过报告", "value": "skip_report"},
                             {"label": "信号全历史", "value": "all_history_signals"},
@@ -5802,6 +5848,10 @@ def _control_panel() -> html.Div:
                         value=config.get("flags") or DEFAULT_DASHBOARD_CONFIG["flags"],
                     )
                 ],
+            ),
+            html.Div(
+                "⚠ 只有明确勾选“确认生产数据写入”才会传入 --apply；默认配置不写入生产数据。",
+                className="tp-warning",
             ),
             html.Div(id="tp-command-preview", className="tp-command"),
             html.Div(
@@ -6365,6 +6415,7 @@ def _command_from_callback(
     start_date: str | None,
     percentile: float | None,
     flag_values: list[str] | None,
+    apply_data: bool = False,
 ) -> list[str]:
     flags = _flags(flag_values)
     return _build_pipeline_command(
@@ -6392,6 +6443,7 @@ def _command_from_callback(
         start_date=start_date,
         percentile=percentile,
         sector_neutral="sector_neutral" in flags,
+        apply_data=apply_data or "apply_data" in flags,
     )
 
 

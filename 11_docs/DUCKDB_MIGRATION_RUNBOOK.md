@@ -31,24 +31,29 @@ MIGRATION_REJECTED
 
 ## Authority evidence contract
 
-`tp-duckdb-activate-authority` 只接受如下语义的 JSON；字段必须来自真实运行，不能用 smoke 结果冒充 production cycle：
+`tp-duckdb-activate-authority` 只接受如下语义的 JSON；v2 字段必须是可打开、可校验 SHA256 的 evidence reference，不能用 smoke 结果冒充 production cycle：
 
 ```json
 {
-  "schema_version": "tp.duckdb-authority-evidence.v1",
+  "schema_version": "tp.duckdb-authority-evidence.v2",
   "release_id": "<catalog-release>",
-  "full_real_data_parity": true,
-  "complete_production_chain_parity": true,
-  "rollback_drill": true,
+  "authority_status": "not_active",
+  "dataset_versions": {"screen": "<screen-version>", "returns_wide": "<returns-version>"},
+  "clean_ci": {"status": "passed", "run_id": "<run>", "commit_sha": "<sha>", "path": "<ci-evidence>", "sha256": "<sha256>", "release_id": "<catalog-release>", "jobs": {"python-core": "passed", "duckdb-unit": "passed", "migration-parity-small-fixture": "passed", "dashboard": "passed"}},
+  "full_real_data_parity": {"status": "passed", "path": "<parity-evidence>", "sha256": "<sha256>", "commit_sha": "<sha>", "release_id": "<catalog-release>"},
+  "complete_production_chain_parity": {"status": "passed", "path": "<chain-evidence>", "sha256": "<sha256>", "commit_sha": "<sha>", "release_id": "<catalog-release>"},
+  "rollback_drill": {"status": "passed", "path": "<rollback-evidence>", "sha256": "<sha256>", "commit_sha": "<sha>", "release_id": "<catalog-release>"},
+  "deployment_smoke": {"status": "passed", "path": "<smoke-evidence>", "sha256": "<sha256>", "commit_sha": "<sha>", "release_id": "<catalog-release>"},
   "monthly_cycles": [
     {"cycle_id": "2026-06-replay", "status": "passed"},
     {"cycle_id": "2026-07-replay", "status": "passed"}
   ],
-  "external_approval": true
+  "external_approval": {"status": "passed", "path": "<approval-evidence>", "sha256": "<sha256>", "commit_sha": "<sha>", "release_id": "<catalog-release>"},
+  "compatibility_exports": {"default": "enabled", "retired": false}
 }
 ```
 
-还必须能打开目标 release，`catalog_health.ok` 为 true，且 `meta.catalog_releases.validation_status = marts_ready`。CLI 会检查 release id 一致性、两次不同 cycle id、显式批准和所有布尔条件；失败时不会写 pointer。
+还必须能打开目标 release，`catalog_health.ok` 为 true，且 `meta.catalog_releases.validation_status = marts_ready`。CLI 会检查 reference 文件存在性与 SHA256、commit/release/dataset version 一致性、clean CI jobs、DuckDB deployment smoke、两次不同 cycle id、显式批准和 compatibility export 边界；失败时不会写 pointer。当前 v2 evidence 见 `11_docs/archive/duckdb_migration_20260804/phase7_8_readiness_v2.json`，质量门禁仍为 `CI_BLOCKED`。
 
 ## 正式 activation 命令
 

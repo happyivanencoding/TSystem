@@ -261,16 +261,25 @@ class _RelationRepository:
         self.connection = connection
         self.relation = f"{schema}.{validate_relation_name(relation)}"
 
-    def query(self, *, columns: tuple[str, ...] = (), limit: int | None = None) -> pd.DataFrame:
+    def query(
+        self,
+        *,
+        columns: tuple[str, ...] = (),
+        limit: int | None = None,
+        where: str | None = None,
+        parameters: tuple[Any, ...] = (),
+    ) -> pd.DataFrame:
         available = _available_columns(self.connection, self.relation)
         selected = _select_columns(available, columns)
         query = f"SELECT {selected} FROM {_relation_sql(self.relation)}"
-        parameters: list[Any] = []
+        query_parameters = list(parameters)
+        if where:
+            query += f" WHERE {where}"
         if limit is not None:
             _validate_limit(limit)
             query += " LIMIT ?"
-            parameters.append(limit)
-        return self.connection.execute(query, parameters).df()
+            query_parameters.append(limit)
+        return self.connection.execute(query, query_parameters).df()
 
 
 class ArtifactRepository(_RelationRepository):
@@ -292,8 +301,21 @@ class MartRepository:
     def __init__(self, connection: Any) -> None:
         self.connection = connection
 
-    def query(self, name: str, *, columns: tuple[str, ...] = (), limit: int | None = None) -> pd.DataFrame:
-        return _RelationRepository(self.connection, "marts", name).query(columns=columns, limit=limit)
+    def query(
+        self,
+        name: str,
+        *,
+        columns: tuple[str, ...] = (),
+        limit: int | None = None,
+        where: str | None = None,
+        parameters: tuple[Any, ...] = (),
+    ) -> pd.DataFrame:
+        return _RelationRepository(self.connection, "marts", name).query(
+            columns=columns,
+            limit=limit,
+            where=where,
+            parameters=parameters,
+        )
 
 
 def _normalize_screen_dates(frame: pd.DataFrame) -> pd.DataFrame:

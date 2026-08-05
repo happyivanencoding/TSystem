@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
+import duckdb
 from test_io_engine import _fixture_release
 
 from tp_core.analytics.authority import (
@@ -35,18 +37,71 @@ def _authority_fixture(tmp_path: Path) -> tuple[Path, str, Path]:
     return Path(str(summary["database_path"])), "authority-fixture", evidence
 
 
-def _write_evidence(path: Path, release_id: str, *, complete_chain: bool, cycles: list[dict[str, str]], approval: bool) -> None:
+def _write_evidence(
+    path: Path,
+    database: Path,
+    release_id: str,
+    *,
+    complete_chain: bool,
+    cycles: list[dict[str, str]],
+    approval: bool,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    with duckdb.connect(str(database), read_only=True) as connection:
+        versions = connection.execute(
+            "SELECT screen_dataset_version, returns_dataset_version "
+            "FROM meta.catalog_releases WHERE release_id = ?",
+            [release_id],
+        ).fetchone()
+    assert versions is not None
+
+    def reference(name: str, status: str = "passed") -> dict[str, object]:
+        reference_path = path.parent / f"{name}.json"
+        reference_path.write_text(
+            json.dumps({"name": name, "release_id": release_id, "status": status}),
+            encoding="utf-8",
+        )
+        digest = hashlib.sha256(reference_path.read_bytes()).hexdigest()
+        payload: dict[str, object] = {
+            "status": status,
+            "path": str(reference_path),
+            "sha256": digest,
+            "commit_sha": "a" * 40,
+            "release_id": release_id,
+        }
+        if name == "clean_ci":
+            payload.update(
+                {
+                    "run_id": "fixture-ci",
+                    "jobs": {"python-core": "passed", "duckdb-unit": "passed"},
+                }
+            )
+        return payload
+
     path.write_text(
         json.dumps(
             {
-                "schema_version": "tp.duckdb-authority-evidence.v1",
+                "schema_version": "tp.duckdb-authority-evidence.v2",
                 "release_id": release_id,
-                "full_real_data_parity": True,
-                "complete_production_chain_parity": complete_chain,
-                "rollback_drill": True,
+                "authority_status": "not_active",
+                "dataset_versions": {
+                    "screen": versions[0],
+                    "returns_wide": versions[1],
+                },
+                "clean_ci": reference("clean_ci"),
+                "full_real_data_parity": reference("full_real_data_parity"),
+                "complete_production_chain_parity": reference(
+                    "complete_production_chain_parity",
+                    "passed" if complete_chain else "blocked",
+                ),
+                "rollback_drill": reference("rollback_drill"),
+                "deployment_smoke": reference("deployment_smoke"),
                 "monthly_cycles": cycles,
-                "external_approval": approval,
+                "external_approval": reference(
+                    "external_approval",
+                    "passed" if approval else "blocked",
+                ),
+                "compatibility_exports": {"default": "enabled", "retired": False},
             }
         ),
         encoding="utf-8",
@@ -57,6 +112,7 @@ def test_authority_switch_is_blocked_without_required_evidence(tmp_path: Path) -
     database, release_id, evidence = _authority_fixture(tmp_path)
     _write_evidence(
         evidence,
+        database,
         release_id,
         complete_chain=False,
         cycles=[{"cycle_id": "fixture-1", "status": "passed"}],
@@ -87,6 +143,7 @@ def test_authority_activation_and_rollback_preserve_previous_pointer(tmp_path: P
     database, release_id, evidence = _authority_fixture(tmp_path)
     _write_evidence(
         evidence,
+        database,
         release_id,
         complete_chain=True,
         cycles=[

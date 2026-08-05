@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,8 +18,18 @@ from .connection import connect
 from .locking import FileLock
 from .manifests import write_json_atomic
 
-AUTHORITY_EVIDENCE_SCHEMA = "tp.duckdb-authority-evidence.v1"
+AUTHORITY_EVIDENCE_SCHEMA = "tp.duckdb-authority-evidence.v2"
 _PASSED_CYCLE_STATUSES = frozenset({"passed", "completed"})
+_REFERENCE_NAMES = (
+    "clean_ci",
+    "full_real_data_parity",
+    "complete_production_chain_parity",
+    "rollback_drill",
+    "deployment_smoke",
+    "external_approval",
+)
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_COMMIT_RE = re.compile(r"^[0-9a-f]{7,64}$")
 
 
 def check_authority_readiness(
@@ -37,6 +49,12 @@ def check_authority_readiness(
         database_target,
         release_id=target_release_id,
     )
+    reference_conditions, reference_errors = _reference_conditions(
+        evidence,
+        evidence_target.parent,
+        target_release_id=target_release_id,
+        catalog_release=release_snapshot,
+    )
 
     cycles = evidence.get("monthly_cycles")
     cycle_ids: list[str] = []
@@ -53,12 +71,16 @@ def check_authority_readiness(
 
     conditions: dict[str, bool] = {
         "evidence_schema": evidence.get("schema_version") == AUTHORITY_EVIDENCE_SCHEMA,
-        "full_real_data_parity": evidence.get("full_real_data_parity") is True,
-        "complete_production_chain_parity": evidence.get("complete_production_chain_parity") is True,
-        "rollback_drill": evidence.get("rollback_drill") is True,
+        "clean_ci": reference_conditions["clean_ci"],
+        "full_real_data_parity": reference_conditions["full_real_data_parity"],
+        "complete_production_chain_parity": reference_conditions["complete_production_chain_parity"],
+        "rollback_drill": reference_conditions["rollback_drill"],
+        "deployment_smoke": reference_conditions["deployment_smoke"],
         "two_independent_monthly_cycles": len(set(passed_cycle_ids)) >= 2
         and len(passed_cycle_ids) == len(set(passed_cycle_ids)),
-        "external_approval": evidence.get("external_approval") is True,
+        "external_approval": reference_conditions["external_approval"],
+        "authority_not_active": evidence.get("authority_status", "not_active") == "not_active",
+        "compatibility_exports_enabled": _compatibility_exports_enabled(evidence),
         "catalog_health": catalog_conditions["catalog_health"],
         "release_present": catalog_conditions["release_present"],
         "release_marts_ready": catalog_conditions["release_marts_ready"],
@@ -67,8 +89,12 @@ def check_authority_readiness(
     }
     blockers = [name for name, passed in conditions.items() if not passed]
     blockers.extend(evidence_errors)
+    blockers.extend(reference_errors)
     blockers.extend(catalog_errors)
     ready = not blockers and all(conditions.values())
+    quality_gate = "READY" if ready else "EVIDENCE_BLOCKED"
+    if not conditions["clean_ci"]:
+        quality_gate = "CI_BLOCKED"
     return {
         "status": "ready" if ready else "blocked",
         "decision": "CANONICAL_V2_ACTIVE" if ready else "WRITER_CUTOVER_READY",
@@ -77,6 +103,8 @@ def check_authority_readiness(
         "release_id": target_release_id,
         "conditions": conditions,
         "blockers": sorted(set(blockers)),
+        "quality_gate": quality_gate,
+        "evidence_references": reference_conditions,
         "monthly_cycles": {
             "observed": cycle_ids,
             "passed": passed_cycle_ids,
@@ -223,6 +251,132 @@ def _load_evidence(path: Path) -> tuple[dict[str, Any], list[str]]:
     if not isinstance(payload, dict):
         return {}, ["evidence_not_object"]
     return payload, []
+
+
+def _reference_conditions(
+    evidence: Mapping[str, Any],
+    evidence_root: Path,
+    *,
+    target_release_id: str | None,
+    catalog_release: Mapping[str, Any] | None,
+) -> tuple[dict[str, bool], list[str]]:
+    conditions = {name: False for name in _REFERENCE_NAMES}
+    errors: list[str] = []
+    expected_versions = evidence.get("dataset_versions")
+    catalog_versions = {
+        "screen": catalog_release.get("screen_dataset_version") if catalog_release else None,
+        "returns_wide": catalog_release.get("returns_dataset_version") if catalog_release else None,
+    }
+    if not isinstance(expected_versions, Mapping):
+        errors.append("evidence_dataset_versions_missing")
+    elif catalog_release:
+        for name, expected in catalog_versions.items():
+            if expected and expected_versions.get(name) != expected:
+                errors.append(f"evidence_dataset_version_mismatch:{name}")
+
+    for name in _REFERENCE_NAMES:
+        reference = evidence.get(name)
+        if isinstance(reference, bool):
+            errors.append(f"evidence_reference_required:{name}")
+            continue
+        if not isinstance(reference, Mapping):
+            errors.append(f"evidence_reference_missing:{name}")
+            continue
+        status = str(reference.get("status", "")).lower()
+        if status not in _PASSED_CYCLE_STATUSES:
+            errors.append(f"evidence_reference_not_passed:{name}")
+            continue
+        errors.extend(
+            _validate_reference(
+                name,
+                reference,
+                evidence_root,
+                target_release_id=target_release_id,
+            )
+        )
+        if not _reference_has_valid_shape(
+            reference,
+            evidence_root,
+            target_release_id=target_release_id,
+        ):
+            continue
+        conditions[name] = True
+        if name == "clean_ci" and not _clean_ci_green(reference):
+            conditions[name] = False
+            errors.append("clean_ci_not_green")
+    return conditions, errors
+
+
+def _validate_reference(
+    name: str,
+    reference: Mapping[str, Any],
+    evidence_root: Path,
+    *,
+    target_release_id: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    path_value = reference.get("path")
+    if not path_value:
+        errors.append(f"evidence_reference_path_missing:{name}")
+    else:
+        target = Path(str(path_value))
+        if not target.is_absolute():
+            target = evidence_root / target
+        if not target.exists():
+            errors.append(f"evidence_reference_file_missing:{name}")
+        else:
+            expected_hash = str(reference.get("sha256") or "").lower()
+            if not _SHA256_RE.fullmatch(expected_hash):
+                errors.append(f"evidence_reference_sha256_missing:{name}")
+            elif _sha256(target) != expected_hash:
+                errors.append(f"evidence_reference_sha256_mismatch:{name}")
+    commit_sha = str(reference.get("commit_sha") or "").lower()
+    if not _COMMIT_RE.fullmatch(commit_sha):
+        errors.append(f"evidence_reference_commit_missing:{name}")
+    if target_release_id and reference.get("release_id") != target_release_id:
+        errors.append(f"evidence_reference_release_mismatch:{name}")
+    return errors
+
+
+def _reference_has_valid_shape(
+    reference: Mapping[str, Any],
+    evidence_root: Path,
+    *,
+    target_release_id: str | None,
+) -> bool:
+    return not _validate_reference(
+        "shape",
+        reference,
+        evidence_root,
+        target_release_id=target_release_id,
+    )
+
+
+def _clean_ci_green(reference: Mapping[str, Any]) -> bool:
+    jobs = reference.get("jobs")
+    if not isinstance(jobs, Mapping) or not jobs:
+        return False
+    return bool(reference.get("run_id")) and all(
+        str(status).lower() in _PASSED_CYCLE_STATUSES for status in jobs.values()
+    )
+
+
+def _compatibility_exports_enabled(evidence: Mapping[str, Any]) -> bool:
+    value = evidence.get("compatibility_exports")
+    if isinstance(value, Mapping):
+        return (
+            str(value.get("default", "enabled")).lower() == "enabled"
+            and not bool(value.get("retired", False))
+        )
+    return value in (None, True, "enabled")
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _catalog_snapshot(

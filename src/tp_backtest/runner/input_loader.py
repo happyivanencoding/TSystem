@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 from tp_core.analytics.config import DuckDBConfig
+from tp_core.analytics.returns_io import available_return_columns, read_returns_matrix
 from tp_core.io import read_returns, read_screen_aggregate, resolve_return_columns
 
 from .validators import (
@@ -231,14 +232,12 @@ def _read_returns_parquet(
     sedols: set[str],
     start_date: pd.Timestamp | None,
 ) -> pd.DataFrame:
-    import pyarrow.parquet as pq
-
-    available_order = list(pq.ParquetFile(path).schema_arrow.names)
-    columns = [column for column in available_order if column in sedols]
-    filters = None
-    if start_date is not None and "__index_level_0__" in available_order:
-        filters = [("__index_level_0__", ">=", start_date)]
-    frame = pd.read_parquet(path, columns=columns, filters=filters)
+    columns = available_return_columns(path, sedols)
+    frame = read_returns_matrix(
+        path,
+        columns=columns,
+        date_from=start_date,
+    )
     return prepare_returns_dataframe(frame)
 
 

@@ -51,15 +51,18 @@ def build_catalog_main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="创建或检查 TP DuckDB catalog foundation")
     parser.add_argument("--database", help="目标 DuckDB 文件；默认读取 TP_DUCKDB_PATH")
     parser.add_argument("--release-id")
+    parser.add_argument("--catalog-release-id", dest="catalog_release_id")
     parser.add_argument("--screen-manifest")
     parser.add_argument("--returns-manifest")
     parser.add_argument("--update-latest", action="store_true")
     parser.add_argument("--refresh-marts", action="store_true")
+    parser.add_argument("--inspect-only", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--apply", action="store_true", help="创建/更新 catalog；默认只检查配置")
     args = parser.parse_args(list(argv) if argv is not None else None)
     if args.update_latest:
         parser.error("--update-latest 已禁用；请使用 tp-duckdb-activate-authority 通过证据门禁切换")
-    if not args.apply:
+    if args.inspect_only or args.dry_run or not args.apply:
         config = _database_config(args, read_only=True)
         _json_dump({"status": "inspect_only", "config": config.as_dict()})
         return 0
@@ -69,7 +72,7 @@ def build_catalog_main(argv: Iterable[str] | None = None) -> int:
         returns_manifest = args.returns_manifest or config.returns_dataset_manifest
         if screen_manifest is None or returns_manifest is None:
             parser.error("release build requires both screen and returns manifests")
-        release_id = args.release_id or f"shadow-{datetime.now(UTC):%Y%m%dT%H%M%SZ}"
+        release_id = args.release_id or args.catalog_release_id or f"shadow-{datetime.now(UTC):%Y%m%dT%H%M%SZ}"
         payload = build_catalog_release(
             config,
             release_id=release_id,
@@ -82,7 +85,7 @@ def build_catalog_main(argv: Iterable[str] | None = None) -> int:
         return 0
     health = initialize_database(
         config,
-        release_id=args.release_id or f"foundation-{datetime.now(UTC):%Y%m%dT%H%M%SZ}",
+        release_id=args.release_id or args.catalog_release_id or f"foundation-{datetime.now(UTC):%Y%m%dT%H%M%SZ}",
     )
     _json_dump({"status": "applied", "config": config.as_dict(), "health": health.as_dict()})
     return 0 if health.ok else 1
@@ -224,12 +227,38 @@ def parity_main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="比较两个 Parquet DataFrame 的基础 parity")
     parser.add_argument("--left")
     parser.add_argument("--right")
+    parser.add_argument("--full", action="store_true", help="验证当前 Screen/Returns mirror 的完整数据 parity")
+    parser.add_argument("--inspect-only", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--dataset", choices=("screen", "returns_wide"))
     parser.add_argument("--source")
     parser.add_argument("--manifest")
     parser.add_argument("--root", default=str(DuckDBConfig.from_env().data_root))
     parser.add_argument("--key", action="append", default=[])
     args = parser.parse_args(list(argv) if argv is not None else None)
+    if args.full:
+        root = Path(args.root)
+        datasets = {
+            "screen": (
+                root / "00_screen" / "screen_aggregate.parquet",
+                root / "00_screen" / "datasets" / "manifests" / "screen" / "current.json",
+            ),
+            "returns_wide": (
+                root / "00_screen" / "returns.parquet",
+                root / "00_screen" / "datasets" / "manifests" / "returns_wide" / "current.json",
+            ),
+        }
+        results = {}
+        for name, (source, pointer) in datasets.items():
+            manifest = load_current_manifest(pointer, root=root)
+            results[name] = validate_mirror(source, manifest.path, root=root)
+        payload = {
+            "status": "passed" if all(item["status"] == "passed" for item in results.values()) else "failed",
+            "mode": "full",
+            "datasets": results,
+        }
+        _json_dump(payload)
+        return 0 if payload["status"] == "passed" else 1
     if args.dataset:
         if not args.source or not args.manifest:
             parser.error("--dataset requires --source and --manifest")
@@ -246,17 +275,23 @@ def parity_main(argv: Iterable[str] | None = None) -> int:
 def _migrate_main(argv: Iterable[str] | None, *, dataset_name: str) -> int:
     parser = argparse.ArgumentParser(description=f"为 {dataset_name} 创建不可变 Parquet 分区镜像")
     parser.add_argument("--root", default=str(DuckDBConfig.from_env().data_root))
-    parser.add_argument("--source", required=True)
+    parser.add_argument("--source")
     parser.add_argument("--source-run-id")
+    parser.add_argument("--inspect-only", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--apply", action="store_true", help="实际写入；默认只审计源文件")
     parser.add_argument("--write-compatibility-export", action="store_true")
     parser.add_argument("--compatibility-export")
     args = parser.parse_args(list(argv) if argv is not None else None)
+    root = Path(args.root)
+    default_source = root / "00_screen" / (
+        "screen_aggregate.parquet" if dataset_name == "screen" else "returns.parquet"
+    )
     result = migrate_dataset(
-        args.source,
+        args.source or default_source,
         dataset_name=dataset_name,
-        root=args.root,
-        apply=args.apply,
+        root=root,
+        apply=args.apply and not args.dry_run and not args.inspect_only,
         source_run_id=args.source_run_id,
         write_compatibility_export=args.write_compatibility_export,
         compatibility_export_path=args.compatibility_export,

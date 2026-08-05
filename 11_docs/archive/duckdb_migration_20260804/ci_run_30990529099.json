@@ -1,0 +1,17 @@
+{
+  "schema_version": "tp.ci-run-evidence.v1",
+  "run_id": "30990529099",
+  "workflow": "CI",
+  "head_sha": "6dde51c748854f1fbcc7a410fb73b6605a813336",
+  "status": "passed",
+  "jobs": {
+    "python-core": "passed",
+    "duckdb-unit": "passed",
+    "migration-parity-small-fixture": "passed",
+    "dashboard": "passed",
+    "legacy-policy": "passed",
+    "duckdb-compatibility (minimum-supported)": "passed",
+    "duckdb-compatibility (locked-current)": "passed",
+    "duckdb-compatibility (latest-supported)": "passed"
+  }
+}

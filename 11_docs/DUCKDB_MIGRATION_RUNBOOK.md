@@ -53,7 +53,7 @@ MIGRATION_REJECTED
 }
 ```
 
-还必须能打开目标 release，`catalog_health.ok` 为 true，且 `meta.catalog_releases.validation_status = marts_ready`。CLI 会检查 reference 文件存在性与 SHA256、commit/release/dataset version 一致性、clean CI jobs、DuckDB deployment smoke、两次不同 cycle id、显式批准和 compatibility export 边界；失败时不会写 pointer。当前 v2 evidence 见 `11_docs/archive/duckdb_migration_20260804/phase7_8_readiness_v2.json`，质量门禁仍为 `CI_BLOCKED`。
+还必须能打开目标 release，`catalog_health.ok` 为 true，且 `meta.catalog_releases.validation_status = marts_ready`。CLI 会检查 reference 文件存在性与 SHA256、commit/release/dataset version 一致性、clean CI jobs、DuckDB deployment smoke、两次不同 cycle id、显式批准和 compatibility export 边界；失败时不会写 pointer。当前 v2 evidence 见 `11_docs/archive/duckdb_migration_20260804/phase7_8_readiness_v2.json`，GitHub Actions run `30990529099` 已通过全部 CI gates；质量门禁为 `EVIDENCE_BLOCKED`，剩余阻断项是完整生产链 parity、rollback drill、deployment smoke、两次独立月更与外部批准。
 
 ## 正式 activation 命令
 

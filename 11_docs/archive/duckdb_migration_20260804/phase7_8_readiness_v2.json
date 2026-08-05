@@ -9,15 +9,25 @@
     "returns_wide": "returns_wide-d35c79288886d0e83316-22965e8cffbb"
   },
   "clean_ci": {
-    "status": "blocked",
-    "run_id": "30965056956",
+    "status": "passed",
+    "path": "ci_run_30990529099.json",
+    "sha256": "a68db9714bd11e7f56ba1ece1ed8a995bb2d5572c17265b90e0a6761ae422033",
+    "commit_sha": "6dde51c748854f1fbcc7a410fb73b6605a813336",
+    "release_id": "presentation-20260805-screen-returns-v2",
+    "run_id": "30990529099",
     "workflow": "CI",
-    "head_sha": "01c2c9486f085df8d3395d10df68fad923cd92d9",
+    "head_sha": "6dde51c748854f1fbcc7a410fb73b6605a813336",
     "jobs": {
-      "python": "failed",
-      "dashboard": "passed"
+      "python-core": "passed",
+      "duckdb-unit": "passed",
+      "migration-parity-small-fixture": "passed",
+      "dashboard": "passed",
+      "legacy-policy": "passed",
+      "duckdb-compatibility (minimum-supported)": "passed",
+      "duckdb-compatibility (locked-current)": "passed",
+      "duckdb-compatibility (latest-supported)": "passed"
     },
-    "reason": "旧 CI run 的 Python job 在 pandas 3 Returns shadow 索引单位差异上失败；修复后的分拆 jobs 尚未运行。"
+    "reason": "GitHub Actions run 30990529099 在当前提交上所有 Python、DuckDB、迁移 parity、兼容矩阵、legacy policy 和 dashboard jobs 均通过。"
   },
   "full_real_data_parity": {
     "status": "passed",
@@ -41,7 +51,7 @@
   },
   "deployment_smoke": {
     "status": "blocked",
-    "reason": "DuckDB read-engine deployment smoke is pending the clean CI run"
+    "reason": "DuckDB read-engine deployment smoke is not yet completed"
   },
   "monthly_cycles": [],
   "external_approval": {
@@ -64,7 +74,6 @@
     "external_approval": "not supplied"
   },
   "required_before_activation": [
-    "new clean CI run with python-core, duckdb-unit, migration-parity-small-fixture and dashboard green",
     "complete real-data production-chain parity",
     "one real release rollback drill",
     "two independent historical monthly replays or completed monthly cycles",

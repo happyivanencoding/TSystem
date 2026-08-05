@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections.abc import Iterable
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -47,6 +48,7 @@ def build_catalog_main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument("--screen-manifest")
     parser.add_argument("--returns-manifest")
     parser.add_argument("--update-latest", action="store_true")
+    parser.add_argument("--refresh-marts", action="store_true")
     parser.add_argument("--apply", action="store_true", help="创建/更新 catalog；默认只检查配置")
     args = parser.parse_args(list(argv) if argv is not None else None)
     if not args.apply:
@@ -54,7 +56,7 @@ def build_catalog_main(argv: Iterable[str] | None = None) -> int:
         _json_dump({"status": "inspect_only", "config": config.as_dict()})
         return 0
     config = _database_config(args, read_only=False)
-    if args.screen_manifest or args.returns_manifest:
+    if args.refresh_marts or args.screen_manifest or args.returns_manifest:
         screen_manifest = args.screen_manifest or config.screen_dataset_manifest
         returns_manifest = args.returns_manifest or config.returns_dataset_manifest
         if screen_manifest is None or returns_manifest is None:
@@ -66,6 +68,7 @@ def build_catalog_main(argv: Iterable[str] | None = None) -> int:
             screen_manifest_path=screen_manifest,
             returns_manifest_path=returns_manifest,
             update_latest=args.update_latest,
+            refresh_marts=args.refresh_marts,
         )
         _json_dump(payload)
         return 0
@@ -75,6 +78,15 @@ def build_catalog_main(argv: Iterable[str] | None = None) -> int:
     )
     _json_dump({"status": "applied", "config": config.as_dict(), "health": health.as_dict()})
     return 0 if health.ok else 1
+
+
+def refresh_marts_main(argv: Iterable[str] | None = None) -> int:
+    """Build a catalog release and refresh its dashboard-facing marts."""
+
+    values = list(argv) if argv is not None else list(sys.argv[1:])
+    if "--refresh-marts" not in values:
+        values.append("--refresh-marts")
+    return build_catalog_main(values)
 
 
 def validate_release_main(argv: Iterable[str] | None = None) -> int:
@@ -335,8 +347,9 @@ __all__ = [
     "migrate_returns_main",
     "migrate_screen_main",
     "parity_main",
-    "shadow_compare_main",
+    "refresh_marts_main",
     "rollback_dataset_main",
+    "shadow_compare_main",
     "update_partitions_main",
     "validate_release_main",
 ]

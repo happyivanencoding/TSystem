@@ -177,6 +177,7 @@ def build_catalog_release(
     screen_manifest_path: str | Path,
     returns_manifest_path: str | Path,
     update_latest: bool = False,
+    refresh_marts: bool = False,
 ) -> dict[str, Any]:
     """Build one immutable catalog release without changing production defaults."""
 
@@ -210,6 +211,19 @@ def build_catalog_release(
                 returns_manifest=returns_manifest,
                 data_root=root,
             )
+            mart_summary: dict[str, Any] | None = None
+            if refresh_marts:
+                from .materializations import refresh_presentation_marts
+
+                mart_summary = refresh_presentation_marts(
+                    connection,
+                    data_root=root,
+                    artifact_root=config.artifact_root,
+                    release_id=release_id,
+                    latest_screen_date=str(screen_manifest.payload.get("date_max"))
+                    if screen_manifest.payload.get("date_max")
+                    else None,
+                ).as_dict()
             register_release(
                 connection,
                 CatalogRelease(
@@ -217,7 +231,7 @@ def build_catalog_release(
                     database_path=str(final_database),
                     screen_dataset_version=screen_manifest.dataset_version,
                     returns_dataset_version=returns_manifest.dataset_version,
-                    validation_status="shadow_ready",
+                    validation_status="marts_ready" if refresh_marts else "shadow_ready",
                     manifest_path=str(screen_manifest.path),
                 ),
             )
@@ -234,6 +248,7 @@ def build_catalog_release(
             "returns_manifest_path": str(returns_manifest.path),
             "catalog_health": health.as_dict(),
             "read_only_shadow": True,
+            "marts": mart_summary,
         }
         if update_latest:
             write_json_atomic(

@@ -1,0 +1,61 @@
+{
+  "schema_version": "tp.duckdb-phase6-marts-qa.v1",
+  "status": "MARTS_READY",
+  "release_id": "presentation-20260805-screen-returns-v2",
+  "database_path": "artifacts/analytics/duckdb/releases/presentation-20260805-screen-returns-v2/tp_analytics.duckdb",
+  "production_cutover": false,
+  "latest_pointer_updated": false,
+  "screen_dataset_version": "screen-96c8d5c34745e10ea66f-c2617f016131",
+  "returns_dataset_version": "returns_wide-d35c79288886d0e83316-22965e8cffbb",
+  "latest_screen_date": "2026-07-31",
+  "materialized_rows": {
+    "marts.company_master_latest": 11114,
+    "marts.latest_screen_summary": 1,
+    "signals.all_signals": 22798,
+    "signals.latest_signals": 2840,
+    "marts.latest_signals": 2840,
+    "marts.latest_regime": 2,
+    "marts.latest_country_scores": 5,
+    "marts.latest_sector_scores": 0,
+    "marts.latest_factor_recommendation": 80,
+    "marts.latest_candidates": 3584,
+    "marts.latest_portfolio": 358,
+    "marts.pipeline_run_summary": 33,
+    "marts.research_run_summary": 0,
+    "marts.latest_backtest_summary": 1,
+    "marts.backtest_run_catalog": 3,
+    "marts.data_health": 2,
+    "marts.dashboard_overview": 1
+  },
+  "latest_family_dates": {
+    "regime": "2026-06-30",
+    "country_scores": "2026-07-31",
+    "factor_recommendation": "2026-07-31",
+    "sector_scores": null
+  },
+  "registry_rows": {
+    "meta.artifact_registry": 43,
+    "meta.run_registry": 33,
+    "meta.materialization_registry": 17
+  },
+  "catalog_health": {
+    "ok": true,
+    "schemas": 8,
+    "catalog_tables": 14,
+    "partition_registry_rows": 342,
+    "data_quality_rows": 2
+  },
+  "guardrails": {
+    "latest_screen_build_predicate": "canonical.screen.__tp_partition_year=2026 AND __tp_partition_month=7 AND Date=2026-07-31",
+    "latest_dashboard_query": "reads marts.dashboard_overview and other materialized marts",
+    "canonical_full_scan_for_latest_queries": false,
+    "unbounded_wide_returns_read": "not used"
+  },
+  "validation": {
+    "release_validation": "passed",
+    "analytics_tests": "15 passed",
+    "ruff": "passed for touched analytics and materialization test files",
+    "production_default_engine": "legacy_parquet",
+    "authority_switch": "not active; requires separate approval and two complete monthly cycles"
+  }
+}

@@ -12,6 +12,9 @@
 | 数据权威文档 | [`../DATA_SOURCES.md`](../DATA_SOURCES.md)、[`../DATA_CONTRACT.md`](../DATA_CONTRACT.md) | canonical 路径、主键、日期、字段族、共享 API |
 | Screen 生产文档 | [`../00_screen/README.md`](../00_screen/README.md)、[`../00_screen/production_inputs/README.md`](../00_screen/production_inputs/README.md) | 数据边界、输入归档、QA、回滚边界 |
 | 流水线文档 | [`PIPELINE_OPERATIONS.md`](PIPELINE_OPERATIONS.md) | 单环入口、总入口、manifest 和标准产物 |
+| V2 数据架构 | [`DATA_ARCHITECTURE_V2.md`](DATA_ARCHITECTURE_V2.md) | Canonical Lake、catalog、mart、artifact、Run Card 与存储边界 |
+| DuckDB 运维 | [`DUCKDB_OPERATIONS.md`](DUCKDB_OPERATIONS.md) | release、marts、writer、并发、回滚和 retention |
+| DuckDB 迁移 runbook | [`DUCKDB_MIGRATION_RUNBOOK.md`](DUCKDB_MIGRATION_RUNBOOK.md) | Phase 状态、authority evidence、activation 与 retirement 门禁 |
 | 项目文档 | 各项目 `README.md` 或 `11_docs/README.md` | 只描述本项目用途、入口和与 canonical 数据的关系 |
 | 历史审计 | `11_docs/archive/`、旧 summary、quarantine 中的 manifest | 只保留证据，不作为当前操作步骤 |
 | 根目录文件规则 | [`DOCUMENTATION_GOVERNANCE.md`](DOCUMENTATION_GOVERNANCE.md) | 规定根目录允许保留哪些非文件夹文件 |

@@ -90,3 +90,15 @@ python -m tp_core.returns_audit --report-path C:\GoogleDrive\TP\00_screen\qa\ret
 ```
 
 默认阈值会标记 `abs(return) >= 100%`、`return >= 200%` 或 `return <= -95%` 的日收益。
+
+## DuckDB V2 的存储角色
+
+`00_screen/datasets/` 下的 Screen 月分区与 Returns 年分区是版本化 Canonical Lake；manifest 的
+`dataset_version`、schema fingerprint、logical key 和日期范围属于本契约的一部分。DuckDB
+catalog 只对 manifest 指定的 Parquet 分区建立 canonical view，不构成第二份事实源；
+`marts.*` 是可重建的展示/模型派生表。现有 `screen_aggregate.parquet`、`returns.parquet`、
+`last_screen.parquet` 和 `screen_aggregate_5Y.parquet` 在 authority switch 前均标记为
+`compatibility_export`，不能被当作新的权威数据集。
+
+任何迁移或回滚都必须保持 `(ISIN, Date)`、Returns `Date`、PIT 可用性、NaN 位置和 Pandas
+宽表 index 语义；只改变存储路径或查询后端，不改变业务契约。

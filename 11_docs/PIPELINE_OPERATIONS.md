@@ -143,3 +143,24 @@ python -m tp_pipelines.refresh_factor_recommendation --as-of 2026-07-31 --minimu
 ASIA 永远显示为 `research_only_benchmark_unapproved`；其缺少 benchmark approval 或
 12 个月 forward shadow 时不得 promotion。完整研究使用已注册
 `monthly-factor-recommendation-v1` Run Card，smoke 结果不能冒充 full evidence。
+
+## DuckDB V2 发布与回滚
+
+V2 的分层、并发边界和 retention 见 [`DATA_ARCHITECTURE_V2.md`](DATA_ARCHITECTURE_V2.md)。
+月更在确认输入、QA 和非受影响分区 hash 后才可显式使用：
+
+```powershell
+tp-pipeline-refresh-data --input-month YYYYMM --partition-writer --dry-run
+tp-pipeline-refresh-data --input-month YYYYMM --partition-writer --apply
+```
+
+该 writer 发布 immutable Screen/Returns manifest，并按 `TP_COMPAT_EXPORTS` 控制兼容出口；
+Phase 8 前保持默认开启。Dashboard 使用 `tp-duckdb-refresh-marts --apply` 生成 release
+内的 latest screen/signals、candidate、portfolio、backtest、health 和 run summaries，
+不直接扫描完整 Canonical 历史。日常命令与 lock/staging 处理见 [`DUCKDB_OPERATIONS.md`](DUCKDB_OPERATIONS.md)。
+
+`tp-duckdb-activate-authority` 是唯一正式的 catalog authority pointer 切换入口；它要求
+full real-data parity、完整 production-chain parity、rollback drill、两个独立月更 replay
+和外层批准。未满足时保持 `WRITER_CUTOVER_READY`，旧 compatibility export 和 legacy
+default 不得退役。回滚使用 `tp-duckdb-rollback` 或 `tp-data-rollback-dataset`，两者证据
+都必须进入本次 Run Card/QA。

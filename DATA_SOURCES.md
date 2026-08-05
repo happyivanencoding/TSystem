@@ -87,3 +87,16 @@ from tp_core.data_contract import validate_returns_contract, validate_screen_con
 ## 月度因子推荐研究源
 
 `16_factor_recommendation_model` 只读取本表登记的 `screen_aggregate.parquet`、`returns.parquet` 和版本化配置 `config/region_universes_v1.json`、`config/factor_definitions_v1.json`、`config/model_v1.json`。成员资格按 PIT benchmark weight 选择；ASIA 仅是固定 `JAPAN(NIKKEI) + ASIA_EX_JAPAN(MSCI EM allowlist)` 的 0.5/0.5 research-only union，不把 `Univ ML OTHER` 或整张 MSCI EM 改名为 Asia。
+
+## V2 Canonical Lake 与查询层
+
+V2 的事实存储位于 `00_screen/datasets/screen/` 与 `00_screen/datasets/returns_wide/`，分别按
+`year/month` 与 `year` 保存 immutable partition，并由 `00_screen/datasets/manifests/` 的
+manifest 与 atomic `current.json` 指向。根目录下的四个宽表继续作为
+`compatibility_export`，服务尚未迁移的 legacy consumer，不是新的数据源。
+
+DuckDB release、dashboard mart、signals、candidates、portfolio 和 pipeline/run registry
+属于查询或产物层，详见 [`11_docs/DATA_ARCHITECTURE_V2.md`](11_docs/DATA_ARCHITECTURE_V2.md)。
+在 `WRITER_CUTOVER_READY` 阶段默认 engine 仍是 `legacy_parquet`；需要验证时显式设置
+`TP_DATA_ENGINE=duckdb`、`TP_DUCKDB_PATH` 和 catalog release，不能通过复制文件制造私有
+Canonical。

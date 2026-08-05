@@ -13,6 +13,12 @@ from typing import Any
 import duckdb
 import pandas as pd
 
+from .authority import (
+    activate_catalog_release,
+    check_authority_readiness,
+    retirement_readiness,
+    rollback_catalog_release,
+)
 from .catalog import build_catalog_release, catalog_health, initialize_database
 from .config import DuckDBConfig
 from .connection import connect, connection_info
@@ -51,6 +57,8 @@ def build_catalog_main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument("--refresh-marts", action="store_true")
     parser.add_argument("--apply", action="store_true", help="创建/更新 catalog；默认只检查配置")
     args = parser.parse_args(list(argv) if argv is not None else None)
+    if args.update_latest:
+        parser.error("--update-latest 已禁用；请使用 tp-duckdb-activate-authority 通过证据门禁切换")
     if not args.apply:
         config = _database_config(args, read_only=True)
         _json_dump({"status": "inspect_only", "config": config.as_dict()})
@@ -87,6 +95,80 @@ def refresh_marts_main(argv: Iterable[str] | None = None) -> int:
     if "--refresh-marts" not in values:
         values.append("--refresh-marts")
     return build_catalog_main(values)
+
+
+def authority_status_main(argv: Iterable[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="检查 DuckDB authority switch readiness")
+    parser.add_argument("--database", required=True, help="待评估的 catalog release")
+    parser.add_argument("--evidence", required=True, help="authority evidence JSON")
+    parser.add_argument("--catalog-release-id")
+    parser.add_argument("--inspect-only", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    payload = check_authority_readiness(
+        database_path=args.database,
+        evidence_path=args.evidence,
+        release_id=args.catalog_release_id,
+    )
+    _json_dump(payload)
+    return 0 if payload["status"] == "ready" else 1
+
+
+def activate_authority_main(argv: Iterable[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="在完整证据和显式批准后激活 DuckDB catalog authority")
+    parser.add_argument("--database", required=True, help="待激活的 catalog release")
+    parser.add_argument("--evidence", required=True, help="authority evidence JSON")
+    parser.add_argument("--catalog-release-id", required=True)
+    parser.add_argument("--pointer", default=str(DuckDBConfig.from_env().latest_pointer))
+    parser.add_argument("--approve-authority-switch", action="store_true")
+    parser.add_argument("--apply", action="store_true", help="原子更新 catalog pointer；默认只检查")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    payload = activate_catalog_release(
+        database_path=args.database,
+        pointer_path=args.pointer,
+        evidence_path=args.evidence,
+        release_id=args.catalog_release_id,
+        approve_authority_switch=args.approve_authority_switch,
+        apply=args.apply and not args.dry_run,
+    )
+    _json_dump(payload)
+    return 0 if payload["status"] in {"ready", "applied"} else 1
+
+
+def rollback_catalog_main(argv: Iterable[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="把 DuckDB catalog pointer 回滚到已验证 release")
+    parser.add_argument("--database", required=True, help="目标 immutable catalog release")
+    parser.add_argument("--catalog-release-id")
+    parser.add_argument("--pointer", default=str(DuckDBConfig.from_env().latest_pointer))
+    parser.add_argument("--apply", action="store_true", help="原子切换 catalog pointer；默认只检查")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    payload = rollback_catalog_release(
+        database_path=args.database,
+        pointer_path=args.pointer,
+        release_id=args.catalog_release_id,
+        apply=args.apply and not args.dry_run,
+    )
+    _json_dump(payload)
+    return 0 if payload["status"] in {"dry_run", "applied"} else 1
+
+
+def retirement_status_main(argv: Iterable[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="检查 Phase 8 compatibility export retirement readiness")
+    parser.add_argument("--database", required=True)
+    parser.add_argument("--evidence", required=True)
+    parser.add_argument("--catalog-release-id")
+    parser.add_argument("--inspect-only", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    payload = retirement_readiness(
+        database_path=args.database,
+        evidence_path=args.evidence,
+        release_id=args.catalog_release_id,
+    )
+    _json_dump(payload)
+    return 0 if payload["status"] == "ready" else 1
 
 
 def validate_release_main(argv: Iterable[str] | None = None) -> int:
@@ -340,6 +422,8 @@ def _parse_optional_date(value: str | None) -> date | None:
 
 
 __all__ = [
+    "activate_authority_main",
+    "authority_status_main",
     "benchmark_main",
     "build_catalog_main",
     "compatibility_export_main",
@@ -348,6 +432,8 @@ __all__ = [
     "migrate_screen_main",
     "parity_main",
     "refresh_marts_main",
+    "retirement_status_main",
+    "rollback_catalog_main",
     "rollback_dataset_main",
     "shadow_compare_main",
     "update_partitions_main",

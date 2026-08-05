@@ -115,3 +115,25 @@ production_inputs
 - 历史回测库已按逐文件 inventory 和抽样内容哈希无损迁至 `artifacts/research/runs/historical/`；该目录只读并受保留策略保护。
 - 各模型资源目录中的 `outputs/runs` 是专项工作区，不属于标准跨项目产物；它们必须继续排除在 pytest、ruff、mypy、CRG 和 CI discovery 之外。
 - Archive 和 handoff 可以保留旧路径作为历史证据，但不得提供可复制的旧运行命令。
+
+## V2 数据架构边界
+
+主线数据流现在还包括不可变分区 Canonical Lake、版本化 DuckDB catalog release 和只读
+presentation marts：
+
+```text
+incoming/raw -> Canonical Lake partitions + manifests
+             -> DuckDB canonical views/catalog release
+             -> QuerySpec repositories / materialized marts
+             -> models, backtest, candidates, portfolio, presentation
+```
+
+Canonical Lake 保存事实，DuckDB 保存 catalog metadata 与可重建 mart；signals、candidates、
+portfolio、reports 仍属于 Artifact，研究过程和决定理由仍属于 Run Card。`screen_aggregate.parquet`
+和 `returns.parquet` 在 authority switch 前是 `compatibility_export`，不是第二个权威数据集。
+单 writer lock、read-only web、atomic manifest/pointer、release rollback 和 retention 规则见
+[`DATA_ARCHITECTURE_V2.md`](DATA_ARCHITECTURE_V2.md)、[`DUCKDB_OPERATIONS.md`](DUCKDB_OPERATIONS.md)
+和 [`DUCKDB_MIGRATION_RUNBOOK.md`](DUCKDB_MIGRATION_RUNBOOK.md)。
+
+当前决策是 `WRITER_CUTOVER_READY`：生产默认仍 legacy，Phase 7/8 只允许通过 evidence gate
+和显式用户批准逐步激活，不能因 catalog release 已生成就提前退役旧入口。

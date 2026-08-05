@@ -14,7 +14,7 @@ from .config import DuckDBConfig
 from .connection import connect
 from .contracts import CATALOG_SCHEMA_VERSION, CATALOG_SCHEMAS, CatalogHealth, CatalogRelease
 from .locking import FileLock
-from .manifests import DatasetManifest, load_manifest, resolve_partition_path, write_json_atomic
+from .manifests import DatasetManifest, load_manifest, resolve_partition_path
 
 CATALOG_TABLES: tuple[str, ...] = (
     "meta.schema_migrations",
@@ -183,6 +183,11 @@ def build_catalog_release(
 
     if config.read_only:
         raise ValueError("build_catalog_release requires read_only=False")
+    if update_latest:
+        raise ValueError(
+            "direct latest-pointer updates are disabled; use "
+            "tp-duckdb-activate-authority after the evidence gate"
+        )
     root = config.data_root.resolve()
     screen_manifest = _load_manifest_reference(screen_manifest_path, root=root)
     returns_manifest = _load_manifest_reference(returns_manifest_path, root=root)
@@ -250,19 +255,6 @@ def build_catalog_release(
             "read_only_shadow": True,
             "marts": mart_summary,
         }
-        if update_latest:
-            write_json_atomic(
-                config.latest_pointer,
-                {
-                    "schema_version": "tp.catalog-pointer.v1",
-                    "release_id": release_id,
-                    "database_path": str(final_database),
-                    "screen_dataset_version": screen_manifest.dataset_version,
-                    "returns_dataset_version": returns_manifest.dataset_version,
-                    "updated_at": datetime.now(UTC).isoformat(),
-                },
-            )
-            summary["latest_pointer"] = str(config.latest_pointer)
         return summary
     finally:
         shutil.rmtree(staging_dir, ignore_errors=True)

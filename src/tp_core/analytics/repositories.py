@@ -353,18 +353,26 @@ def _returns_partition_source(
         return None
     lower_year = _date_year(date_from)
     upper_year = _date_year(date_to)
-    paths: list[str] = []
+    paths: list[tuple[int | None, str]] = []
     for partition_key, path in rows:
         year = _partition_year(str(partition_key))
         if lower_year is not None and year is not None and year < lower_year:
             continue
         if upper_year is not None and year is not None and year > upper_year:
             continue
-        paths.append(str(path).replace("\\", "/"))
+        paths.append((year, str(path).replace("\\", "/")))
     if not paths:
         return None
-    literals = ", ".join(_sql_string(path) for path in paths)
-    return f"read_parquet([{literals}], union_by_name=true, hive_partitioning=false)"
+    branches = []
+    for year, path in paths:
+        year_column = (
+            f", CAST({year} AS INTEGER) AS __tp_partition_year" if year is not None else ""
+        )
+        branches.append(
+            f"SELECT *{year_column} FROM read_parquet([{_sql_string(path)}], "
+            "union_by_name=true, hive_partitioning=false)"
+        )
+    return "(" + " UNION ALL BY NAME ".join(branches) + ")"
 
 
 def _partition_year(partition_key: str) -> int | None:

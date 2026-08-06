@@ -1,0 +1,314 @@
+{
+  "schema_version": "tp.duckdb-authority-evidence.v3-candidate",
+  "phase": "phase7_8",
+  "run_id": "authority_pre_activation_20260805T221955Z",
+  "release_id": "presentation-20260805-screen-returns-v2",
+  "authority_status": "not_active",
+  "decision": "WRITER_CUTOVER_READY_PERFORMANCE_REVIEW_REQUIRED",
+  "dataset_versions": {
+    "screen": "screen-96c8d5c34745e10ea66f-c2617f016131",
+    "returns_wide": "returns_wide-d35c79288886d0e83316-22965e8cffbb"
+  },
+  "clean_ci": {
+    "status": "passed",
+    "evidence_path": "C:\\GoogleDrive\\TP\\11_docs\\archive\\duckdb_migration_20260804\\phase7_8_readiness_v2.json",
+    "commit": "de219effca5c065a541e4420d87cad5d7a55e3c6",
+    "release_id": "presentation-20260805-screen-returns-v2",
+    "run_id": "30990529099"
+  },
+  "full_real_data_parity": {
+    "status": "passed",
+    "evidence_path": "C:\\GoogleDrive\\TP\\11_docs\\archive\\duckdb_migration_20260804\\phase2_parity.json",
+    "commit": "de219effca5c065a541e4420d87cad5d7a55e3c6",
+    "release_id": "presentation-20260805-screen-returns-v2",
+    "run_id": "authority_pre_activation_20260805T221955Z"
+  },
+  "complete_production_chain_parity": {
+    "status": "blocked",
+    "evidence_path": "C:\\GoogleDrive\\TP\\artifacts\\analytics\\benchmarks\\authority_pre_activation_20260805_full\\pipeline_parity.json",
+    "commit": "de219effca5c065a541e4420d87cad5d7a55e3c6",
+    "release_id": "presentation-20260805-screen-returns-v2",
+    "run_id": "authority_pre_activation_20260805T221955Z"
+  },
+  "deployment_smoke": {
+    "status": "blocked",
+    "evidence_path": "C:\\GoogleDrive\\TP\\artifacts\\analytics\\benchmarks\\authority_pre_activation_20260805_full\\deployment_smoke.json",
+    "commit": "de219effca5c065a541e4420d87cad5d7a55e3c6",
+    "release_id": "presentation-20260805-screen-returns-v2",
+    "run_id": "authority_pre_activation_20260805T221955Z"
+  },
+  "rollback_drill": {
+    "status": "passed",
+    "evidence_path": "C:\\GoogleDrive\\TP\\artifacts\\analytics\\benchmarks\\authority_pre_activation_20260805_full\\rollback_drill.json",
+    "commit": "de219effca5c065a541e4420d87cad5d7a55e3c6",
+    "release_id": "presentation-20260805-screen-returns-v2",
+    "run_id": "authority_pre_activation_20260805T221955Z"
+  },
+  "monthly_cycles": [
+    {
+      "cycle_id": "2026-06-replay",
+      "status": "blocked",
+      "evidence_path": "C:\\GoogleDrive\\TP\\artifacts\\analytics\\benchmarks\\authority_pre_activation_20260805_full\\monthly_replay_1.json"
+    },
+    {
+      "cycle_id": "2026-07-replay",
+      "status": "blocked",
+      "evidence_path": "C:\\GoogleDrive\\TP\\artifacts\\analytics\\benchmarks\\authority_pre_activation_20260805_full\\monthly_replay_2.json"
+    }
+  ],
+  "performance_benchmark": {
+    "status": "review_required",
+    "evidence_path": "C:\\GoogleDrive\\TP\\artifacts\\analytics\\benchmarks\\authority_pre_activation_20260805_full\\engine_comparison.csv",
+    "commit": "de219effca5c065a541e4420d87cad5d7a55e3c6",
+    "release_id": "presentation-20260805-screen-returns-v2",
+    "run_id": "authority_pre_activation_20260805T221955Z",
+    "regressions": [
+      {
+        "workload_id": "R01",
+        "category": "Returns",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.468171100015752,
+        "new_median_seconds": 14.40661970002111,
+        "speedup_x": 0.03249694305563337,
+        "time_saved_pct": -2977.212518999226,
+        "memory_reduction_pct": -1614.0985176639604,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "R02",
+        "category": "Returns",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.4803242000052705,
+        "new_median_seconds": 8.626526199979708,
+        "speedup_x": 0.05567990971921007,
+        "time_saved_pct": -1695.9799235360308,
+        "memory_reduction_pct": -206.87639315304708,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "R03",
+        "category": "Returns",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.510788900020998,
+        "new_median_seconds": 217.7752007000381,
+        "speedup_x": 0.0023454869901580514,
+        "time_saved_pct": -42535.06914325774,
+        "memory_reduction_pct": -1011.8470651588584,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "R04",
+        "category": "Returns",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.5809074999997392,
+        "new_median_seconds": 295.5512913999846,
+        "speedup_x": 0.001965504861264732,
+        "time_saved_pct": -50777.51344234965,
+        "memory_reduction_pct": -403.720559913065,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "R05",
+        "category": "Backtest input",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 1.841873699973803,
+        "new_median_seconds": 168.76934669999173,
+        "speedup_x": 0.010913555903300141,
+        "time_saved_pct": -9062.916366219471,
+        "memory_reduction_pct": -290.42262606051435,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "R06",
+        "category": "Returns",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.5007866999949329,
+        "new_median_seconds": 29.318685900012497,
+        "speedup_x": 0.017080803065417042,
+        "time_saved_pct": -5754.525669373638,
+        "memory_reduction_pct": -192.81851649609837,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "R07",
+        "category": "Returns",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 1.8244856999954209,
+        "new_median_seconds": 129.14073760004248,
+        "speedup_x": 0.014127886628973541,
+        "time_saved_pct": -6978.1994948147085,
+        "memory_reduction_pct": -257.2332258845889,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "R08",
+        "category": "Returns",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.4689855999895371,
+        "new_median_seconds": 7.557414199982304,
+        "speedup_x": 0.062056357846660734,
+        "time_saved_pct": -1511.438432256962,
+        "memory_reduction_pct": -309.7098425943486,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "S01",
+        "category": "Screen",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 3.859244399995077,
+        "new_median_seconds": 69.79730159998871,
+        "speedup_x": 0.0552921719253929,
+        "time_saved_pct": -1708.5742794645955,
+        "memory_reduction_pct": -106.52084986451689,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "S02",
+        "category": "Screen",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.1089053999749012,
+        "new_median_seconds": 29.93785699998261,
+        "speedup_x": 0.003637715283861649,
+        "time_saved_pct": -27389.781963871592,
+        "memory_reduction_pct": -998.250223947447,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "S03",
+        "category": "Screen",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.0842040000134147,
+        "new_median_seconds": 9.993718300014734,
+        "speedup_x": 0.008425692768755605,
+        "time_saved_pct": -11768.460285048946,
+        "memory_reduction_pct": -583.0381365785598,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "S04",
+        "category": "Screen",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.2687358999974094,
+        "new_median_seconds": 8.75764619995607,
+        "speedup_x": 0.030685859403495587,
+        "time_saved_pct": -3158.83002607411,
+        "memory_reduction_pct": -131.15968634444414,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "S05",
+        "category": "Screen",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.0867964999633841,
+        "new_median_seconds": 10.927842399978545,
+        "speedup_x": 0.007942693240484005,
+        "time_saved_pct": -12490.187858483414,
+        "memory_reduction_pct": -795.3397910151781,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "S06",
+        "category": "Screen",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.0834560000221245,
+        "new_median_seconds": 10.217944899981376,
+        "speedup_x": 0.008167591510723122,
+        "time_saved_pct": -12143.511427905196,
+        "memory_reduction_pct": -793.6654569449028,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "S07",
+        "category": "Screen",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.0869396000052802,
+        "new_median_seconds": 9.195055199961644,
+        "speedup_x": 0.009455038399948143,
+        "time_saved_pct": -10476.371641235053,
+        "memory_reduction_pct": -789.4233196990355,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "S08",
+        "category": "Screen",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.1488414999912493,
+        "new_median_seconds": 18.0238692999701,
+        "speedup_x": 0.00825802148884292,
+        "time_saved_pct": -12009.438094234312,
+        "memory_reduction_pct": -175.23602256007845,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "S09",
+        "category": "Screen",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.1103913999977521,
+        "new_median_seconds": 11.643038899987005,
+        "speedup_x": 0.009481321925144072,
+        "time_saved_pct": -10447.052487987372,
+        "memory_reduction_pct": -303.3736574335783,
+        "write_reduction_pct": null
+      },
+      {
+        "workload_id": "S10",
+        "category": "Screen",
+        "storage": "google_drive",
+        "old_engine": "current_legacy",
+        "new_engine": "current_duckdb",
+        "old_median_seconds": 0.0941601999802514,
+        "new_median_seconds": 7.49641540000448,
+        "speedup_x": 0.012560696673798936,
+        "time_saved_pct": -7861.341842494742,
+        "memory_reduction_pct": -590.316577204874,
+        "write_reduction_pct": null
+      }
+    ]
+  },
+  "external_approval": {
+    "status": "blocked",
+    "reason": "explicit outer-user approval was not supplied"
+  },
+  "compatibility_exports": {
+    "default": "enabled",
+    "retired": false
+  },
+  "production_pointer": {
+    "status": "unchanged",
+    "path": "C:\\GoogleDrive\\TP\\artifacts\\analytics\\duckdb\\latest.json"
+  }
+}

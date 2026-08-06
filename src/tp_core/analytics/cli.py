@@ -19,9 +19,10 @@ from .authority import (
     retirement_readiness,
     rollback_catalog_release,
 )
+from .benchmarking.cli import benchmark_main as benchmark_suite_main
 from .catalog import build_catalog_release, catalog_health, initialize_database
 from .config import DuckDBConfig
-from .connection import connect, connection_info
+from .connection import connect
 from .manifests import load_manifest
 from .parity import compare_frames
 from .partitioning import (
@@ -30,7 +31,7 @@ from .partitioning import (
     validate_mirror,
     write_compatibility_export_from_manifest,
 )
-from .profiling import parquet_profile, timed_frame
+from .profiling import parquet_profile
 from .queries import ReturnsQuery, ScreenQuery
 from .shadow import shadow_compare_returns, shadow_compare_returns_partitions, shadow_compare_screen
 from .writers import rollback_dataset, update_dataset_partitions
@@ -208,19 +209,7 @@ def data_audit_main(argv: Iterable[str] | None = None) -> int:
 
 
 def benchmark_main(argv: Iterable[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="运行 DuckDB foundation smoke benchmark")
-    parser.add_argument("--database", help="DuckDB 文件；默认读取 TP_DUCKDB_PATH")
-    args = parser.parse_args(list(argv) if argv is not None else None)
-    config = _database_config(args, read_only=True)
-    try:
-        with connect(config) as connection:
-            smoke = timed_frame("duckdb_select_one", lambda: connection.execute("SELECT 1 AS value").df())
-            payload = {"status": smoke.status, "connection": connection_info(connection, config), "workload": smoke.as_dict()}
-    except (duckdb.Error, OSError, ValueError) as exc:
-        _json_dump({"status": "failed", "error": repr(exc)})
-        return 1
-    _json_dump(payload)
-    return 0
+    return benchmark_suite_main(argv)
 
 
 def parity_main(argv: Iterable[str] | None = None) -> int:

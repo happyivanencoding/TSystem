@@ -223,9 +223,23 @@ def _refresh_technical(context: PipelineContext) -> Path:
 
 
 def _export_signals(context: PipelineContext) -> Path:
+    states = context.step_states
+    context.config.export_signals.skip_ml = (
+        context.config.export_signals.skip_ml or states.get("refresh_ml") == "disabled"
+    )
+    context.config.export_signals.skip_technical = (
+        context.config.export_signals.skip_technical
+        or states.get("refresh_technical") == "disabled"
+    )
     context.config.export_signals.skip_regime = context.regime_refreshed
+    context.config.export_signals.skip_regime = (
+        context.config.export_signals.skip_regime
+        or states.get("refresh_regime") == "disabled"
+    )
     context.config.export_signals.skip_country = (
-        context.config.export_signals.skip_country or context.country_model_refreshed
+        context.config.export_signals.skip_country
+        or context.country_model_refreshed
+        or states.get("refresh_country_model") == "disabled"
     )
     return run_export_signals(context.config.export_signals)
 
@@ -388,6 +402,10 @@ def execute_pipeline_steps(context: PipelineContext) -> list[str]:
                 for dependency in step.dependencies
                 if context.step_states.get(dependency)
                 not in {"produced_this_run", "explicitly_reused"}
+                and not (
+                    step.name == "export_signals"
+                    and context.step_states.get(dependency) == "disabled"
+                )
             ]
             if blocked:
                 context.mark(step.name, "blocked_by_dependency")

@@ -1080,6 +1080,29 @@ def test_run_all_refresh_regime_uses_dedicated_regime_step(tmp_path: Path, monke
     monkeypatch.setattr(orchestration, "run_refresh_regime", fake_refresh_regime)
     monkeypatch.setattr(orchestration, "run_export_signals", fake_export_signals)
 
+    reused_output = tmp_path / "reused-canonical.parquet"
+    reused_output.write_bytes(b"reused")
+    reused_manifest = tmp_path / "reused-refresh-data.json"
+    reused_manifest.write_text(
+        json.dumps(
+            {
+                "step": "refresh_data",
+                "run_type": "production",
+                "production_run_id": "prod-old",
+                "parameters": {"run_type": "production"},
+                "outputs": {"canonical": {"path": str(reused_output)}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    reuse_mapping = tmp_path / "reuse.json"
+    reuse_mapping.write_text(
+        json.dumps(
+            {"refresh_data": {"manifest": str(reused_manifest), "reason": "test reuse"}}
+        ),
+        encoding="utf-8",
+    )
+
     manifest = run_all_module.run_all(
         SimpleNamespace(
             skip_refresh_data=True,
@@ -1093,8 +1116,9 @@ def test_run_all_refresh_regime_uses_dedicated_regime_step(tmp_path: Path, monke
             skip_optimize_portfolio=True,
             skip_backtest=True,
             skip_report=True,
-            as_of=None,
-            all_history_signals=False,
+                as_of=None,
+                reuse_manifest=str(reuse_mapping),
+                all_history_signals=False,
             regime_oos=True,
             regime_region=None,
             experiment_root=str(tmp_path / "experiments"),

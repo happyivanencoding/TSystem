@@ -32,6 +32,7 @@ from .lineage import (
     resolve_catalog_release_id,
     resolve_data_release_id,
 )
+from .freshness import generated_at_freshness, market_data_freshness
 from .refresh_small_cap import DEFAULT_OUTPUT_DIR as DEFAULT_SMALL_CAP_OUTPUT_DIR
 from .refresh_small_cap import DEFAULT_SIGNAL_OUTPUT as DEFAULT_SMALL_CAP_SIGNAL_OUTPUT
 from .refresh_supplemental_data import (
@@ -78,77 +79,49 @@ def _max_returns_date(path: Path) -> pd.Timestamp | None:
     return pd.Timestamp(dates.max()).normalize() if len(dates) else None
 
 
-def _report_generated_date(path: Path) -> pd.Timestamp | None:
+def _report_generated_at(path: Path) -> pd.Timestamp | None:
     if not path.exists():
         return None
-    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines()[:20]:
-        if line.startswith("生成时间："):
-            value = pd.to_datetime(line.split("：", 1)[1].strip(), errors="coerce")
-            return pd.Timestamp(value).normalize() if pd.notna(value) else None
-    return pd.Timestamp.fromtimestamp(path.stat().st_mtime).normalize()
+    return pd.Timestamp.fromtimestamp(path.stat().st_mtime, tz="UTC")
 
 
-def _latest_manifest_date(step: str, run_type: str) -> pd.Timestamp | None:
+def _latest_manifest_generated_at(step: str, run_type: str) -> pd.Timestamp | None:
     suffix = "" if run_type == "production" else f"_{run_type}"
     path = PIPELINE_MANIFESTS_DIR / step / f"{step}{suffix}_latest.json"
     if not path.exists():
         return None
     payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("status") != "success":
+        return None
     value = pd.to_datetime(payload.get("finished_at"), errors="coerce")
-    return pd.Timestamp(value).normalize() if pd.notna(value) else None
+    return pd.Timestamp(value) if pd.notna(value) else None
 
 
-def _freshness_entry(name: str, date: pd.Timestamp | None, anchor: pd.Timestamp, window_days: int) -> dict[str, object]:
-    if date is None:
-        return {"name": name, "date": None, "lag_days": None, "ok": False}
-    lag_days = int((date - anchor).days)
-    return {
-        "name": name,
-        "date": date.date().isoformat(),
-        "lag_days": lag_days,
-        "ok": abs(lag_days) <= window_days,
-    }
-
-
-def _check_freshness(config: PipelineRunConfig) -> dict[str, object]:
+def _check_freshness(
+    config: PipelineRunConfig,
+    *,
+    production_run_started_at: object,
+    explicit_reuse_manifests: dict[str, dict[str, object]] | None = None,
+) -> dict[str, object]:
     window_days = config.freshness_window_days
     screen_date = _max_parquet_date(SCREEN_AGGREGATE_PATH, "Date")
     if screen_date is None:
         raise ValueError(f"无法读取 canonical screen 日期: {SCREEN_AGGREGATE_PATH}")
     anchor = pd.Timestamp(config.as_of).normalize() if config.as_of else screen_date
     run_type = config.run_type
+    reuse = explicit_reuse_manifests or {}
     candidates_output = Path(config.candidates_output)
     portfolio_output = Path(config.portfolio_output)
     report_output = Path(config.report_output)
-    checks = [
-        _freshness_entry("canonical_screen", screen_date, anchor, window_days),
-        _freshness_entry("canonical_returns", _max_returns_date(RETURNS_PATH), anchor, window_days),
-        _freshness_entry("signal_ml", _max_parquet_date(SIGNALS_DIR / "ml_signals.parquet", "Date"), anchor, window_days),
-        _freshness_entry(
-            "signal_technical",
-            _max_parquet_date(SIGNALS_DIR / "technical_signals.parquet", "Date"),
-            anchor,
-            window_days,
-        ),
-        _freshness_entry(
-            "signal_regime",
-            _max_parquet_date(SIGNALS_DIR / "regime_risk_budget.parquet", "Date"),
-            anchor,
-            window_days,
-        ),
-        _freshness_entry(
-            "signal_country",
-            _max_parquet_date(SIGNALS_DIR / "country_model_signals.parquet", "Date"),
-            anchor,
-            window_days,
-        ),
-        _freshness_entry(
-            "signal_small_cap",
-            _max_parquet_date(Path(config.refresh_small_cap.signal_output), "Date"),
-            anchor,
-            window_days,
-        ),
-        _freshness_entry(
+    market_dates = [
+        ("canonical_screen", screen_date),
+        ("canonical_returns", _max_returns_date(RETURNS_PATH)),
+        ("signal_ml", _max_parquet_date(SIGNALS_DIR / "ml_signals.parquet", "Date")),
+        ("signal_technical", _max_parquet_date(SIGNALS_DIR / "technical_signals.parquet", "Date")),
+        ("signal_regime", _max_parquet_date(SIGNALS_DIR / "regime_risk_budget.parquet", "Date")),
+        ("signal_country", _max_parquet_date(SIGNALS_DIR / "country_model_signals.parquet", "Date")),
+        ("signal_small_cap", _max_parquet_date(Path(config.refresh_small_cap.signal_output), "Date")),
+        (
             "signal_sector",
             _min_existing_date(
                 [
@@ -159,14 +132,41 @@ def _check_freshness(config: PipelineRunConfig) -> dict[str, object]:
                     _max_csv_date(TP_ROOT / "13_sector_score_model" / "outputs_eu" / "sector_scores_latest.csv", "Date"),
                 ]
             ),
-            anchor,
-            window_days,
         ),
-        _freshness_entry("candidates", _max_parquet_date(candidates_output, "candidate_date"), anchor, window_days),
-        _freshness_entry("target_weights", _max_parquet_date(portfolio_output, "candidate_date"), anchor, window_days),
-        _freshness_entry("report", _report_generated_date(report_output), anchor, window_days),
-        _freshness_entry("backtest_manifest", _latest_manifest_date("run_backtest", run_type), anchor, window_days),
+        ("candidates", _max_parquet_date(candidates_output, "candidate_date")),
+        ("target_weights", _max_parquet_date(portfolio_output, "candidate_date")),
     ]
+    checks = [
+        market_data_freshness(
+            name,
+            date,
+            as_of_date=anchor,
+            allowed_lag_days=window_days,
+        )
+        for name, date in market_dates
+    ]
+    report_reuse = reuse.get("generate_report")
+    checks.append(
+        generated_at_freshness(
+            "report",
+            _report_generated_at(report_output),
+            production_run_started_at=production_run_started_at,
+            reused=report_reuse is not None,
+            reuse_source=str(report_reuse.get("manifest_path")) if report_reuse else None,
+            reuse_reason=str(report_reuse.get("reason")) if report_reuse else None,
+        )
+    )
+    backtest_reuse = reuse.get("run_backtest")
+    checks.append(
+        generated_at_freshness(
+            "backtest_manifest",
+            _latest_manifest_generated_at("run_backtest", run_type),
+            production_run_started_at=production_run_started_at,
+            reused=backtest_reuse is not None,
+            reuse_source=str(backtest_reuse.get("manifest_path")) if backtest_reuse else None,
+            reuse_reason=str(backtest_reuse.get("reason")) if backtest_reuse else None,
+        )
+    )
     failed = [item for item in checks if not item["ok"]]
     return {
         "anchor_date": anchor.date().isoformat(),
@@ -346,7 +346,11 @@ def run_all(args: argparse.Namespace | PipelineRunConfig) -> Path:
             ]
         )
         if should_check_freshness:
-            freshness = _check_freshness(config)
+            freshness = _check_freshness(
+                config,
+                production_run_started_at=bundle.started_at,
+                explicit_reuse_manifests=context.explicit_reuse_manifests,
+            )
             manifest.details["freshness"] = freshness
             manifest.add_validation(
                 "freshness_gate",
@@ -358,7 +362,8 @@ def run_all(args: argparse.Namespace | PipelineRunConfig) -> Path:
             )
             if freshness["status"] != "passed":
                 failed = ", ".join(
-                    f"{item['name']}={item['date']}" for item in freshness["failed"]
+                    f"{item['name']}={item.get('artifact_date', item.get('generated_at'))}: {item['message']}"
+                    for item in freshness["failed"]
                 )
                 raise RuntimeError(f"freshness gate failed: {failed}")
         else:

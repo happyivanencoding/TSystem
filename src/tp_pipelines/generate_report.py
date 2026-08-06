@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import pandas as pd
 
@@ -22,7 +22,7 @@ from .common import (
     path_profile,
 )
 from .configs import GenerateReportConfig
-
+from .freshness import market_data_freshness
 
 DEFAULT_OUTPUT = REPORTS_DIR / "latest_pipeline_report.md"
 DEFAULT_STEPS = [
@@ -107,8 +107,14 @@ def _freshness_rows(window_days: int = FRESHNESS_WINDOW_DAYS) -> tuple[pd.Timest
     ]
     rows: list[dict[str, object]] = []
     for name, date in items:
-        lag = int((date - anchor).days) if date is not None else None
-        ok = lag is not None and abs(lag) <= window_days
+        gate = market_data_freshness(
+            name,
+            date,
+            as_of_date=anchor,
+            allowed_lag_days=window_days,
+        )
+        lag = gate["lag_days"]
+        ok = bool(gate["ok"])
         rows.append({"name": name, "date": date, "lag": lag, "ok": ok})
     return anchor, rows
 

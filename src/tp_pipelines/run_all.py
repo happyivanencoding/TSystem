@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import pandas as pd
 
@@ -19,6 +19,13 @@ from tp_portfolio import OPTIMIZER_ID, OPTIMIZER_VERSION
 from .build_candidates import DEFAULT_OUTPUT as DEFAULT_CANDIDATES
 from .common import REPORTS_DIR, StepManifest
 from .configs import PipelineRunConfig
+from .freshness import generated_at_freshness, market_data_freshness
+from .lineage import (
+    ProductionRunBundle,
+    new_production_run_id,
+    resolve_catalog_release_id,
+    resolve_data_release_id,
+)
 from .optimize_portfolio import DEFAULT_OUTPUT as DEFAULT_PORTFOLIO
 from .orchestration import (
     PipelineContext,
@@ -26,13 +33,6 @@ from .orchestration import (
     pipeline_dag,
     pipeline_steps,
 )
-from .lineage import (
-    ProductionRunBundle,
-    new_production_run_id,
-    resolve_catalog_release_id,
-    resolve_data_release_id,
-)
-from .freshness import generated_at_freshness, market_data_freshness
 from .refresh_small_cap import DEFAULT_OUTPUT_DIR as DEFAULT_SMALL_CAP_OUTPUT_DIR
 from .refresh_small_cap import DEFAULT_SIGNAL_OUTPUT as DEFAULT_SMALL_CAP_SIGNAL_OUTPUT
 from .refresh_supplemental_data import (

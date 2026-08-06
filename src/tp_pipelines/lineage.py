@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -170,15 +170,14 @@ def _release_id_from_pointer(path: Path) -> str | None:
 
 def resolve_data_release_id(root: str | Path = TP_ROOT) -> str:
     base = Path(root)
-    values = [
-        _release_id_from_pointer(
-            base / "00_screen" / "datasets" / "manifests" / "screen" / "current.json"
-        ),
-        _release_id_from_pointer(
-            base / "00_screen" / "datasets" / "manifests" / "returns_wide" / "current.json"
-        ),
-    ]
-    values = [value for value in values if value]
+    values: list[str] = []
+    for pointer in (
+        base / "00_screen" / "datasets" / "manifests" / "screen" / "current.json",
+        base / "00_screen" / "datasets" / "manifests" / "returns_wide" / "current.json",
+    ):
+        value = _release_id_from_pointer(pointer)
+        if value:
+            values.append(value)
     return "|".join(values) if values else "legacy-canonical"
 
 
@@ -278,8 +277,8 @@ class ProductionRunBundle:
         self,
         status: str,
         *,
-        validations: list[Mapping[str, Any]] = (),
-        rollback_targets: list[str] = (),
+        validations: Sequence[Mapping[str, Any]] = (),
+        rollback_targets: Sequence[str] = (),
         bundle_root: str | Path | None = None,
     ) -> Path:
         self.status = status

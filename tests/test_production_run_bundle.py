@@ -50,6 +50,22 @@ def test_bundle_contains_releases_parents_outputs_and_step_states(tmp_path) -> N
     assert payload["retention_class"] == "recent_operational"
 
 
+def test_bundle_rejects_a_child_manifest_from_another_production_run(tmp_path) -> None:
+    child = tmp_path / "refresh_data.json"
+    _manifest(child, production_run_id="prod-other")
+    bundle = ProductionRunBundle.start(
+        run_type="production",
+        as_of_date="2026-08-01",
+        input_month="202608",
+        data_release_id="screen-v1|returns-v1",
+        catalog_release_id=None,
+        production_run_id="prod-current",
+    )
+
+    with pytest.raises(ValueError, match="production_run_id mismatch"):
+        bundle.record_manifest("refresh_data", child)
+
+
 def test_failed_dependency_blocks_downstream(monkeypatch) -> None:
     args = build_parser().parse_args([])
     context = orchestration.PipelineContext.from_args(args)

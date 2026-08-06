@@ -1,6 +1,6 @@
 # TP 统一数据源
 
-最后更新：2026-07-26
+最后更新：2026-08-06
 
 ## Canonical 数据
 
@@ -48,6 +48,7 @@ from tp_core.io import read_returns, read_screen_aggregate
 | `TP_SCREEN_AGGREGATE_5Y_PATH` | 近五年 Screen |
 | `TP_PRODUCTION_INPUTS_DIR` | 生产输入根目录 |
 | `TP_SUPPLEMENTAL_DIR` | 补充数据根目录 |
+| `TP_DATA_ENGINE`、`TP_DUCKDB_PATH` | 仅供 `inspect`、`shadow`、`migration`、`benchmark` 诊断覆盖；生产 Repository 拒绝显式 engine override |
 
 环境覆盖必须在运行配置和 Run Card 中记录；不得以 `sys.path`、文件复制或修改源码常量实现数据分叉。
 
@@ -87,7 +88,7 @@ from tp_core.data_contract import validate_returns_contract, validate_screen_con
 
 ## 月度因子推荐研究源
 
-`16_factor_recommendation_model` 只读取本表登记的 `screen_aggregate.parquet`、`returns.parquet` 和版本化配置 `config/region_universes_v1.json`、`config/factor_definitions_v1.json`、`config/model_v1.json`。成员资格按 PIT benchmark weight 选择；ASIA 仅是固定 `JAPAN(NIKKEI) + ASIA_EX_JAPAN(MSCI EM allowlist)` 的 0.5/0.5 research-only union，不把 `Univ ML OTHER` 或整张 MSCI EM 改名为 Asia。
+`16_factor_recommendation_model` 只读取本表登记的 `screen_aggregate.parquet`、`returns.parquet` 和版本化配置 `16_factor_recommendation_model/config/region_universes_v1.json`、`16_factor_recommendation_model/config/factor_definitions_v1.json`、`16_factor_recommendation_model/config/model_v1.json`。成员资格按 PIT benchmark weight 选择；ASIA 仅是固定 `JAPAN(NIKKEI) + ASIA_EX_JAPAN(MSCI EM allowlist)` 的 0.5/0.5 research-only union，不把 `Univ ML OTHER` 或整张 MSCI EM 改名为 Asia。
 
 ## V2 Canonical Lake 与查询层
 
@@ -98,6 +99,6 @@ manifest 与 atomic `current.json` 指向。根目录下的四个宽表继续作
 
 DuckDB release、dashboard mart、signals、candidates、portfolio 和 pipeline/run registry
 属于查询或产物层，详见 [`11_docs/DATA_ARCHITECTURE_V2.md`](11_docs/DATA_ARCHITECTURE_V2.md)。
-在 `WRITER_CUTOVER_READY` 阶段默认 engine 仍是 `legacy_parquet`；需要验证时显式设置
-`TP_DATA_ENGINE=duckdb`、`TP_DUCKDB_PATH` 和 catalog release，不能通过复制文件制造私有
-Canonical。
+在 `WRITER_CUTOVER_READY` 阶段默认 engine 仍是 `legacy_parquet`；诊断验证可以显式设置
+`TP_DATA_ENGINE=duckdb`、`TP_DUCKDB_PATH` 和 catalog release，但不能让环境变量静默改变
+生产 workload routing，也不能通过复制文件制造私有 Canonical。

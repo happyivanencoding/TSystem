@@ -9,7 +9,7 @@ authority_status = not_active
 default_engine = legacy_parquet
 compatibility_exports = enabled
 
-唯一 policy 文件是 config/data_backend_routing.json；Repository 根据查询类型选择后端，业务调用方不需要传递 Parquet 路径。TP_DATA_ENGINE 保留为底层 reader 的显式诊断覆盖，不作为生产全局切换。
+唯一 policy 文件是 config/data_backend_routing.json；生产 Repository 根据 workload 查询类型选择后端，业务调用方不需要传递 Parquet 路径。`TP_DATA_ENGINE` 不再作为生产全局切换：只有 `inspect`、`shadow`、`migration` 和 `benchmark` 运行可以显式覆盖。
 
 ## 生产路由
 
@@ -39,6 +39,17 @@ compatibility_exports = enabled
 Transco_FactSet_ICB.xlsx 由 tp_core.data_sources.TRANSCO_FACTSET_ICB_PATH 统一注册，默认位于 00_screen/，可由 TP_TRANSCO_FACTSET_ICB_PATH 覆盖。正式流程、inspect-only 和未来 scratch 都使用同一注册表；文件不进入 Git。
 
 月度 writer 状态继续由真实月更验证，当前不启动 2026-07 replay，也不因单次 smoke 改变 Authority 状态。
+
+当前生产 bundle 只引用精确 data/catalog manifest 和 artifact 路径，不以 latest 指针作为
+唯一 lineage。
+
+## 运行级 override 规则
+
+`PresentationDataRepository(run_type="production")` 和 Official Backtest input loader 会拒绝
+显式 `engine` override；生产读路径始终经过本 policy。研究、inspect、shadow、migration
+和 benchmark 可以显式传入 engine，并必须在调用上下文中标明对应 run type。通用
+`tp_core.io` 是研究/兼容读取 seam，省略 engine 时固定使用 legacy，不读取全局
+`TP_DATA_ENGINE`。
 
 ## 明确边界
 

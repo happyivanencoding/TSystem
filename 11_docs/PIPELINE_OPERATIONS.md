@@ -1,6 +1,6 @@
 # TP 生产流水线运行手册
 
-最后更新：2026-08-04
+最后更新：2026-08-06
 
 本文档是月更数据、主流水线命令、标准产物和运行证据的唯一操作手册。所有生产操作从已安装的 `tp-*` 控制台入口进入，不执行编号资源目录中的 Python 文件。
 
@@ -39,7 +39,11 @@
 .\.venv_tp\Scripts\tp-pipeline-refresh-data.exe --input-month YYYYMM --update-mode both --dry-run
 ```
 
-5. 确认输入、目标月份和 QA 后，去掉 `--dry-run` 正式运行。
+5. 确认输入、目标月份和 QA 后，使用显式 `--apply` 正式运行：
+
+```powershell
+.\.venv_tp\Scripts\tp-pipeline-refresh-data.exe --input-month YYYYMM --update-mode both --apply
+```
 6. 检查月更 QA、`artifacts/pipeline_runs/manifests/refresh_data/refresh_data_latest.json` 及最新数据库 profile。
 7. 成功消费的 incoming 输入按清单归档；不要长期把已消费文件留在 incoming。
 
@@ -68,6 +72,12 @@
 .\.venv_tp\Scripts\tp-pipeline-run-all.exe --input-month YYYYMM --as-of YYYY-MM-DD
 ```
 
+上面的生产示例会写入 Canonical，因此必须显式补上 `--apply`：
+
+```powershell
+.\.venv_tp\Scripts\tp-pipeline-run-all.exe --input-month YYYYMM --as-of YYYY-MM-DD --apply
+```
+
 安全调试示例：
 
 ```powershell
@@ -76,6 +86,13 @@
 ```
 
 `run_all` 只做 typed step config、registry/DAG 和顺序编排；业务规则仍由各公共包负责。默认在 `refresh_data` 后刷新行业、国家、Regime、technical，并重新导出信号；需要临时跳过时使用对应的 `--skip-refresh-*` 参数。
+
+每次 `run_all` 都会生成唯一 `production_run_id` 和
+`artifacts/pipeline_runs/bundles/<production_run_id>.json`。Bundle 记录本次生成、显式复用、
+禁用、失败和依赖阻止状态，并把每个 child manifest 反向连到 data release、model release
+和父 manifest。复用旧结果时必须使用统一的 `--reuse-manifest` JSON 映射；不能因 step 被
+skip 而静默读取任意 `latest`。生产模型如需绑定 release，使用一个或多个
+`--model-release-id`，系统不会从 research 目录自动推断。
 
 ## 幂等与写入规则
 
@@ -105,6 +122,10 @@ artifacts/pipeline_runs/manifests/<step>/
 ```
 
 Smoke/inspect 使用独立 latest 指针，不覆盖 production latest。记录至少包括配置与代码版本、输入 fingerprint、PIT 截止时间、universe、样本与成本假设、引擎/信号/优化器版本、指标、产物、状态、lineage 和决定理由。
+
+研究 Run Card 完成后仍可为 `review_required`；正式审批必须通过 `tp-experiments decide` 追加
+`PromotionDecision`。Model release 由同一 CLI 创建、激活、退役或撤销；生产运行只消费
+仍有效的 approved/active release。
 
 ## QA、备份与保留策略
 

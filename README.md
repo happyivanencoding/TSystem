@@ -36,6 +36,23 @@ returns = read_returns()
 
 生产默认是 legacy_parquet。最新 Screen 的少量选列查询使用 Partitioned Parquet/PyArrow；Company History、Returns 和 Official Backtest 保持 Legacy，DuckDB 只负责 Catalog、metadata 和小型 Marts。完整路由见 11_docs/DATA_BACKEND_ROUTING.md。
 
+## Experiment 到 Production 的治理链
+
+研究运行写入不可变 Run Card；完成后必须追加独立的 `PromotionDecision`，再由
+`ModelRelease` 解析配置和 artifact。`run_all` 不直接读取任意 research 目录，而是生成带
+唯一 `production_run_id` 的 `ProductionRunBundle`，记录 data release、model release、父子
+manifest、显式复用和回滚目标。研究运行可以保持 `review_required`，生产运行使用
+`operational_success`/`operational_failure`。
+
+如果本次执行会刷新 Canonical 数据，必须显式授权写入：
+
+```powershell
+.\.venv_tp\Scripts\tp-pipeline-run-all.exe --input-month YYYYMM --as-of YYYY-MM-DD --apply
+```
+
+`--reuse-manifest` 是唯一的旧产物复用入口；`--model-release-id` 可重复传入并会校验
+release 仍为可生产状态。research-only 因子推荐不会进入 candidates 或 optimizer。
+
 ## 当前代码主线
 
 - 流水线主线：`tp_pipelines`（源码位于 [`src/tp_pipelines/`](src/tp_pipelines/)）提供数据刷新、信号、候选池、组合、回测和报告入口。

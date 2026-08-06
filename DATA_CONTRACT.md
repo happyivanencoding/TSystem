@@ -1,6 +1,6 @@
 # TP 数据契约
 
-最后更新：2026-07-25
+最后更新：2026-08-06
 
 本文档定义 TP 项目中两张核心 canonical 数据集的统一契约：
 
@@ -94,6 +94,24 @@ python -m tp_core.returns_audit --report-path C:\GoogleDrive\TP\00_screen\qa\ret
 ## Backend routing contract
 
 生产采用选择性 Hybrid：最新 Screen 选列使用 Partitioned Parquet/PyArrow；Company latest 使用 latest snapshot；Company History、Returns、Official Backtest 和完整 materialization 使用 Legacy Parquet；Catalog、metadata 和小型 Dashboard marts 使用 DuckDB。权威 policy 见 11_docs/DATA_BACKEND_ROUTING.md。
+
+## Run、晋升与生产 lineage contract
+
+运行治理链固定为：
+
+```text
+ExperimentRun -> PromotionDecision -> ModelRelease -> ProductionRunBundle
+```
+
+`ExperimentRun`/Run Card 记录研究输入和结果，完成后保持不可修改；正式批准、拒绝或撤销
+必须追加独立 `PromotionDecision`。只有仍然有效的 `approved` decision 才能创建或激活
+生产可用 `ModelRelease`。`ProductionRunBundle` 以唯一 `production_run_id` 绑定本次
+运行的 data/model release、child manifest、输出和回滚目标；`latest` 只是指针，不是
+lineage 依据。research-only 模型和月度因子推荐不得通过 candidates/optimizer 进入生产。
+
+市场数据 freshness 必须满足 `artifact_data_date <= as_of_date` 且不超过允许 lag；报告、QA、
+pipeline manifest 和回测执行证据使用 `generated_at >= production_run_started_at`。旧产物
+只能通过显式 reuse manifest 复用，并记录来源、运行类型、数据日期、适用范围和批准理由。
 
 ## DuckDB V2 的存储角色
 

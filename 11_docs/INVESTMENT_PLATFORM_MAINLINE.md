@@ -1,6 +1,6 @@
 # TP 已部署架构与项目地图
 
-最后更新：2026-07-26
+最后更新：2026-08-06
 
 本文档是 TP 当前架构和项目职责的唯一总览。它合并了原 `PROJECTS.md`、`CORE_LIBRARY.md` 和旧版“项目整合计划”；路线图、迁移过程和历史审计不再作为生产操作依据。
 
@@ -27,7 +27,7 @@
 | `tp_pipelines` | typed step config、registry/DAG、单环及总流水线编排 |
 | `tp_portfolio` | universe、权重、约束、求解器和组合优化公共 API |
 | `tp_backtest` | 唯一代码版回测引擎、配置、运行和产物 |
-| `tp_experiments` | Run Card、lineage、指标、产物和晋升/否决记录 |
+| `tp_experiments` | Run Card、PromotionDecision、ModelRelease、lineage、指标和产物记录 |
 | `tp_research` | 可复现研究 workflow |
 | `tp_reporting` | 研究报告和可视化构建 |
 | `tp_data.providers` | Provider protocol、StandardModel 和 shadow adapter |
@@ -46,6 +46,19 @@ production_inputs
   -> run_backtest
   -> generate_report
 ```
+
+研究与生产治理链独立于 step 拓扑：
+
+```text
+ExperimentRun
+  -> PromotionDecision
+  -> ModelRelease
+  -> ProductionRunBundle
+```
+
+Run Card 是研究证据；ProductionRunBundle 是一次生产运行的批次边界。下游只能消费本次
+生成的 child manifest，或消费经过数据日期、运行类型、release 和适用范围校验的显式复用
+manifest。生产完成使用 operational success 语义，不再等待 research promotion。
 
 | 环节 | 实现 | 标准产物 |
 | --- | --- | --- |

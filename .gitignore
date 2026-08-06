@@ -16,6 +16,7 @@
 07_backtest_code/runs/
 08_presentation_layer/legacy_apps/dashboard_analysis/outputs/
 13_sector_score_model/outputs_qualitative/
+16_factor_recommendation_model/outputs/factor_exposure_snapshot_*
 **/optimizer_debug/
 *.log
 *.egg-info/

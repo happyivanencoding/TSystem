@@ -17,6 +17,7 @@ from .recorder import (
     RunRecorder,
     fingerprint_path,
 )
+from .runs import RUN_KINDS, ProductionRun, ResearchRun
 
 __all__ = [
     "DECISION_STATUSES",
@@ -24,12 +25,15 @@ __all__ = [
     "MODEL_RELEASES_DIR",
     "MODEL_RELEASE_STATUSES",
     "PROMOTION_DECISIONS",
+    "RUN_KINDS",
     "ExperimentRecorder",
     "ExperimentSpec",
     "ModelRelease",
     "ModelReleaseStore",
+    "ProductionRun",
     "PromotionDecision",
     "PromotionDecisionStore",
+    "ResearchRun",
     "RunRecorder",
     "fingerprint_path",
 ]

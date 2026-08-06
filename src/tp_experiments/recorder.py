@@ -18,7 +18,10 @@ from typing import Any
 from tp_core.data_sources import TP_ROOT
 from tp_core.workspace import EXPERIMENTS_DIR
 
+from .runs import RUN_KINDS, ProductionRun, ResearchRun
+
 EXPERIMENT_SCHEMA_VERSION = 3
+RUN_SCHEMA_VERSION = 1
 FINAL_STATUSES = {"success", "failed", "cancelled"}
 DECISION_STATUSES = {"promote", "reject", "review_required"}
 IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
@@ -149,11 +152,15 @@ class ExperimentRecorder:
         run_id: str | None = None,
         config: Mapping[str, Any] | None = None,
         config_path: str | Path | None = None,
+        run_kind: str = "research",
+        production_run: Mapping[str, Any] | ProductionRun | None = None,
     ) -> "RunRecorder":
         if parent_run_id is not None:
             _validate_identifier(parent_run_id, field_name="parent_run_id")
         if run_id is not None:
             _validate_identifier(run_id, field_name="run_id")
+        if run_kind not in RUN_KINDS:
+            raise ValueError(f"run_kind must be one of {sorted(RUN_KINDS)}")
         return RunRecorder(
             recorder=self,
             spec=spec,
@@ -162,6 +169,8 @@ class ExperimentRecorder:
             run_id=run_id,
             config=dict(config or {}),
             config_path=Path(config_path).resolve() if config_path is not None else None,
+            run_kind=run_kind,
+            production_run=production_run,
         )
 
     def query_runs(
@@ -226,6 +235,8 @@ class RunRecorder:
         run_id: str | None,
         config: Mapping[str, Any],
         config_path: Path | None,
+        run_kind: str,
+        production_run: Mapping[str, Any] | ProductionRun | None,
     ):
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         self.recorder = recorder
@@ -234,8 +245,22 @@ class RunRecorder:
         self.experiment_dir = recorder.root / spec.hypothesis_id
         self.run_dir = self.experiment_dir / self.run_id
         self.path = self.run_dir / "run.json"
+        if isinstance(production_run, ProductionRun):
+            production_payload = production_run.to_dict()
+        else:
+            production_payload = dict(production_run or {})
+        if run_kind == "production" and not production_payload.get("production_run_id"):
+            production_payload["production_run_id"] = self.run_id
+        production_payload.setdefault("operational_status", "running")
+        research_payload = ResearchRun(
+            hypothesis=asdict(spec),
+            trial_family=spec.trial_family,
+            effective_trial_count=spec.effective_trial_count,
+        ).to_dict()
         self._record: dict[str, Any] = {
             "schema_version": EXPERIMENT_SCHEMA_VERSION,
+            "run_schema_version": RUN_SCHEMA_VERSION,
+            "run_kind": run_kind,
             "hypothesis": asdict(spec),
             "run": {
                 "run_id": self.run_id,
@@ -262,6 +287,8 @@ class RunRecorder:
             "decision": None,
             "provenance": {},
             "error": None,
+            "research_run": research_payload if run_kind == "research" else None,
+            "production_run": production_payload if run_kind == "production" else None,
         }
         self._write()
 
@@ -324,6 +351,9 @@ class RunRecorder:
     def log_metrics(self, metrics: Mapping[str, Any]) -> "RunRecorder":
         self._ensure_running()
         self._record["metrics"].update(dict(metrics))
+        research_run = self._record.get("research_run")
+        if isinstance(research_run, dict):
+            research_run.setdefault("research_metrics", {}).update(dict(metrics))
         self._write()
         return self
 
@@ -391,17 +421,33 @@ class RunRecorder:
         self._ensure_running()
         if self._record["decision"] is None:
             successful = status == "success"
-            self._record["decision"] = {
-                "status": "review_required" if successful else "reject",
-                "reason": (
+            if self._record.get("run_kind") == "production":
+                decision_status = "operational_success" if successful else "operational_failure"
+                reason = f"Production run finished with status={status}."
+            else:
+                decision_status = "review_required" if successful else "reject"
+                reason = (
                     "Run completed; promotion requires an explicit review decision."
                     if successful
                     else f"Run finished with status={status}."
-                ),
+                )
+            self._record["decision"] = {
+                "status": decision_status,
+                "reason": reason,
                 "decided_by": "system",
                 "decided_at": _utc_now(),
             }
         self._record["run"].update({"status": status, "finished_at": _utc_now()})
+        if self._record.get("run_kind") == "production":
+            production_run = self._record.get("production_run")
+            if isinstance(production_run, dict):
+                production_run["operational_status"] = (
+                    "operational_success" if status == "success" else "operational_failure"
+                )
+        else:
+            research_run = self._record.get("research_run")
+            if isinstance(research_run, dict):
+                research_run["review_state"] = "review_required" if status == "success" else status
         self._write()
         return self.path
 

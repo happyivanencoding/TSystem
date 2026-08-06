@@ -2,25 +2,25 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
 import importlib
 import json
 import os
-from pathlib import Path
 import time
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from tp_core.data_sources import RETURNS_PATH, SCREEN_AGGREGATE_PATH
 from tp_core.security_nav_engine import NAV_ENGINE_ID, NAV_ENGINE_VERSION
 from tp_core.workspace import CONFIG_ROOT, RESEARCH_RUNS_DIR
-from tp_experiments import ExperimentRecorder, ExperimentSpec
-from tp_portfolio import OPTIMIZER_ID, OPTIMIZER_VERSION
 from tp_experiments.artifacts import (
     ExperimentArtifactPolicy,
     compact_experiment_holdings,
     experiment_artifact_environment,
 )
+from tp_experiments import ExperimentRecorder, ExperimentSpec
+from tp_portfolio import OPTIMIZER_ID, OPTIMIZER_VERSION
 from tp_research.runtime import RESEARCH_SIGNAL_ID, RESEARCH_SIGNAL_VERSION
 
 REGISTRY_SCHEMA_VERSION = 1
@@ -149,6 +149,7 @@ def run_definition(
         parent_run_id=parent_run_id,
         config=definition.payload,
         config_path=definition.path,
+        run_kind="research",
     )
     run.log_inputs({"hypothesis_definition": definition.path}, hash_content=True)
     run.log_inputs(

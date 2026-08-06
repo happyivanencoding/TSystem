@@ -221,6 +221,18 @@ class StepManifest:
                 ),
                 parameters=self.parameters,
                 parent_run_id=str(parent_run_id) if parent_run_id else None,
+                run_kind="production" if self.run_type == "production" else "research",
+                production_run={
+                    "production_run_id": self.parameters.get("production_run_id"),
+                    "data_release_id": self.parameters.get("data_release_id"),
+                    "model_release_ids": list(self.parameters.get("model_release_ids") or ()),
+                    "parent_step_manifests": list(
+                        self.parameters.get("parent_manifests") or ()
+                    ),
+                    "reuse_decisions": list(self.parameters.get("reuse_decisions") or ()),
+                    "write_approval": dict(self.parameters.get("write_approval") or {}),
+                    "rollback_target": self.parameters.get("rollback_target"),
+                },
             )
 
     def add_validation(self, name: str, ok: bool, message: str = "", details: Mapping[str, Any] | None = None) -> None:
@@ -235,6 +247,11 @@ class StepManifest:
             "finished_at": finished_at,
             "duration_seconds": round(time.perf_counter() - self.started_timer, 3),
             "run_type": self.run_type,
+            "run_kind": "production" if self.run_type == "production" else "research",
+            "production_run_id": self.parameters.get("production_run_id"),
+            "parent_manifests": list(self.parameters.get("parent_manifests") or ()),
+            "data_release_id": self.parameters.get("data_release_id"),
+            "model_release_ids": list(self.parameters.get("model_release_ids") or ()),
             "parameters": self.parameters,
             "inputs": self.inputs,
             "outputs": self.outputs,

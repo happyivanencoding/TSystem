@@ -193,6 +193,7 @@ def test_r03_and_r05_legacy_routes_preserve_full_numeric_matrix(tmp_path: Path, 
     database, screen_path, returns_path = _fixture_release(tmp_path)
     monkeypatch.setenv("TP_DUCKDB_PATH", str(database))
     expected_full = pd.read_parquet(returns_path)
+    expected_full.index = pd.DatetimeIndex(expected_full.index).astype("datetime64[ns]")
 
     r03 = read_returns(
         returns_path,

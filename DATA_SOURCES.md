@@ -39,6 +39,7 @@ from tp_core.io import read_returns, read_screen_aggregate
 
 | 环境变量 | 含义 |
 | --- | --- |
+| TP_TRANSCO_FACTSET_ICB_PATH | 月更使用的 Transco_FactSet_ICB.xlsx |
 | `TP_ROOT` | TP 工作区根目录 |
 | `TP_SCREEN_DIR` | Screen 数据目录 |
 | `TP_SCREEN_AGGREGATE_PATH` | Screen 历史面板 |

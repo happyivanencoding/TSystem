@@ -6,6 +6,7 @@
 
 | 目的 | 文档 |
 | --- | --- |
+| 生产后端路由 | 11_docs/DATA_BACKEND_ROUTING.md |
 | 全目录文档地图 | [`11_docs/README.md`](11_docs/README.md) |
 | 已部署架构与项目职责 | [`11_docs/INVESTMENT_PLATFORM_MAINLINE.md`](11_docs/INVESTMENT_PLATFORM_MAINLINE.md) |
 | 项目 Python 环境 | [`11_docs/ENVIRONMENT.md`](11_docs/ENVIRONMENT.md) |
@@ -32,6 +33,8 @@ screen = read_screen_aggregate()
 returns = read_returns()
 ```
 
+
+生产默认是 legacy_parquet。最新 Screen 的少量选列查询使用 Partitioned Parquet/PyArrow；Company History、Returns 和 Official Backtest 保持 Legacy，DuckDB 只负责 Catalog、metadata 和小型 Marts。完整路由见 11_docs/DATA_BACKEND_ROUTING.md。
 
 ## 当前代码主线
 

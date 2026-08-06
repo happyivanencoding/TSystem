@@ -91,6 +91,10 @@ python -m tp_core.returns_audit --report-path C:\GoogleDrive\TP\00_screen\qa\ret
 
 默认阈值会标记 `abs(return) >= 100%`、`return >= 200%` 或 `return <= -95%` 的日收益。
 
+## Backend routing contract
+
+生产采用选择性 Hybrid：最新 Screen 选列使用 Partitioned Parquet/PyArrow；Company latest 使用 latest snapshot；Company History、Returns、Official Backtest 和完整 materialization 使用 Legacy Parquet；Catalog、metadata 和小型 Dashboard marts 使用 DuckDB。权威 policy 见 11_docs/DATA_BACKEND_ROUTING.md。
+
 ## DuckDB V2 的存储角色
 
 `00_screen/datasets/` 下的 Screen 月分区与 Returns 年分区是版本化 Canonical Lake；manifest 的

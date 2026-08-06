@@ -21,6 +21,7 @@ from tp_core.data_sources import (
     RETURNS_PATH,
     SCREEN_AGGREGATE_PATH,
     TP_ROOT,
+    TRANSCO_FACTSET_ICB_PATH,
     validate_data_sources,
 )
 from tp_core.returns_audit import audit_returns_file
@@ -226,6 +227,21 @@ def _write_stage_timing(path: str | None, *, status: str, stages: dict[str, floa
     )
 
 
+def _inspect_transco_factset_icb() -> dict[str, Any]:
+    path = TRANSCO_FACTSET_ICB_PATH
+    if not path.exists():
+        raise FileNotFoundError(f"Transco FactSet ICB workbook does not exist: {path}")
+    with pd.ExcelFile(path) as workbook:
+        if "Mapping" not in workbook.sheet_names:
+            raise ValueError(f"Transco FactSet ICB workbook has no Mapping sheet: {path}")
+        frame = pd.read_excel(workbook, sheet_name="Mapping", nrows=1)
+        return {
+            "path": str(path),
+            "sheet_names": workbook.sheet_names,
+            "mapping_columns": [str(column) for column in frame.columns],
+        }
+
+
 def run_refresh_data(args: RefreshDataConfig) -> Path:
     if not args.inspect_only and not args.dry_run and not args.apply:
         raise ValueError("refresh_data 写入必须显式传入 --apply；dry-run/inspect-only 不需要")
@@ -242,8 +258,13 @@ def run_refresh_data(args: RefreshDataConfig) -> Path:
     try:
         if getattr(args, "inspect_only", False):
             started = time.perf_counter()
-            data_source_status = validate_data_sources()
+            data_source_status = validate_data_sources(
+                required=("screen_aggregate", "returns", "transco_factset_icb")
+            )
             stage_seconds["validate_data_sources"] = time.perf_counter() - started
+            started = time.perf_counter()
+            transco_status = _inspect_transco_factset_icb()
+            stage_seconds["inspect_transco_factset_icb"] = time.perf_counter() - started
             started = time.perf_counter()
             returns_audit = _run_returns_extreme_audit()
             stage_seconds["returns_extreme_audit"] = time.perf_counter() - started
@@ -251,16 +272,24 @@ def run_refresh_data(args: RefreshDataConfig) -> Path:
                 "screen_after": path_profile(SCREEN_AGGREGATE_PATH, parquet=True),
                 "returns_after": path_profile(RETURNS_PATH, parquet=True),
                 "last_screen": path_profile(LAST_SCREEN_PATH, parquet=True),
+                "transco_factset_icb": path_profile(TRANSCO_FACTSET_ICB_PATH),
                 "returns_extreme_audit": path_profile(RETURNS_AUDIT_LATEST),
                 "returns_extreme_flags": path_profile(RETURNS_FLAGS_LATEST),
                 "returns_review_template": path_profile(RETURNS_REVIEW_TEMPLATE_LATEST),
             }
             manifest.details["returns_extreme_audit"] = returns_audit
+            manifest.details["transco_factset_icb"] = transco_status
             manifest.add_validation(
                 "canonical_data_sources_exist",
                 all(data_source_status.values()),
                 "screen_aggregate 和 returns 均存在" if all(data_source_status.values()) else "canonical 数据源缺失",
                 data_source_status,
+            )
+            manifest.add_validation(
+                "transco_factset_icb_parsable",
+                True,
+                "Transco_FactSet_ICB.xlsx 的 Mapping sheet 可解析",
+                transco_status,
             )
             manifest.add_validation(
                 "returns_extreme_audit_current",

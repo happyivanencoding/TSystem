@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from tp_core.analytics.config import DuckDBConfig
+from tp_core.analytics.backend_routing import reader_engine
 from tp_core.analytics.returns_io import available_return_columns, read_returns_matrix
-from tp_core.io import read_returns, read_screen_aggregate, resolve_return_columns
+from tp_core.io import read_returns, read_screen_aggregate
 
 from .validators import (
     CANONICAL_COLUMN_ALIASES,
@@ -273,7 +273,7 @@ def load_pruned_backtest_inputs(
     metric_columns = _expanded_metric_columns(metrics)
     benchmark_names = _unique_strings(benchmarks)
     parsed_start_date = _normalise_start_date(start_date)
-    resolved_engine = engine or DuckDBConfig.from_env().data_engine
+    resolved_engine = reader_engine("screen_full", explicit_engine=engine)
 
     if resolved_engine != "legacy_parquet" and screen_file.suffix.lower() == ".parquet" and returns_file.suffix.lower() == ".parquet":
         if resolved_engine == "shadow_compare" and parsed_start_date is None:
@@ -292,19 +292,12 @@ def load_pruned_backtest_inputs(
             engine=resolved_engine,
         )
         sedols = _screen_sedols(screen, benchmark_names)
-        if resolved_engine == "hybrid":
-            return_columns = available_return_columns(returns_file, sorted(sedols))
-        else:
-            return_columns = resolve_return_columns(
-                returns_file,
-                sorted(sedols),
-                engine=resolved_engine,
-            )
+        return_columns = available_return_columns(returns_file, sorted(sedols))
         returns = read_returns(
             returns_file,
             columns=return_columns,
             date_from=parsed_start_date,
-            engine=resolved_engine,
+            engine=reader_engine("official_backtest_input"),
         )
         return screen, prepare_returns_dataframe(returns)
 

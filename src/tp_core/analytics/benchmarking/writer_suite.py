@@ -108,6 +108,7 @@ def _replay_one(
             "TP_ARTIFACT_ROOT": str(root / "artifacts"),
             "TP_DATA_ENGINE": "legacy_parquet",
             "TP_COMPAT_EXPORTS": "true",
+            "TP_TRANSCO_FACTSET_ICB_PATH": str(source_root / "00_screen" / "Transco_FactSet_ICB.xlsx"),
             "PYTHONUTF8": "1",
             "PYTHONPATH": str(code_root / "src") + os.pathsep + env.get("PYTHONPATH", ""),
         }

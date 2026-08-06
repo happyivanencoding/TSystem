@@ -2,6 +2,8 @@
 
 ## 状态枚举
 
+当前生产状态是 SELECTIVE_HYBRID_PRODUCTION_READY。这表示 DuckDB 负责 Catalog、metadata 和小型 marts，Partitioned Parquet 负责最新 Screen 选列与增量 writer，Legacy Parquet 负责 Returns、回测输入、Company History 和完整大表读取；DuckDB authority 仍未激活。
+
 迁移报告只能使用以下状态：
 
 ```text

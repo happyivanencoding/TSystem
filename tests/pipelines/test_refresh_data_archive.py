@@ -3,8 +3,24 @@ from __future__ import annotations
 from importlib import import_module
 from pathlib import Path
 
+import pandas as pd
 
 refresh_data = import_module("tp_pipelines.refresh_data")
+
+
+def test_transco_factset_icb_inspect_reads_mapping_sheet(tmp_path: Path, monkeypatch) -> None:
+    workbook = tmp_path / "Transco_FactSet_ICB.xlsx"
+    pd.DataFrame({"FactSet Ind": [1], "ICB19": [2]}).to_excel(
+        workbook,
+        sheet_name="Mapping",
+        index=False,
+    )
+    monkeypatch.setattr(refresh_data, "TRANSCO_FACTSET_ICB_PATH", workbook)
+
+    inspected = refresh_data._inspect_transco_factset_icb()
+
+    assert inspected["path"] == str(workbook)
+    assert "Mapping" in inspected["sheet_names"]
 
 
 def test_archive_processed_input_batch_moves_batch_and_matching_loose_original(

@@ -2,6 +2,8 @@
 
 ## 当前状态
 
+生产化读取决策已收口为 SELECTIVE_HYBRID_PRODUCTION_READY：按查询类型选择后端，而不是把 TP_DATA_ENGINE 作为所有模块的全局切换。权威路由见 11_docs/DATA_BACKEND_ROUTING.md；Authority 仍是 not_active，默认 engine 是 legacy_parquet，Compatibility exports 继续开启。
+
 当前迁移状态是 `WRITER_CUTOVER_READY`。分区 Canonical Lake、DuckDB catalog release、只读 repositories、增量 writer、presentation marts 和回滚 CLI 已经可运行；生产默认读取仍是 legacy Parquet，旧单文件没有被删除或降级。Phase 7 的 authority switch 只有在证据门禁和外层批准同时满足后才允许执行。
 
 ## 分层与职责

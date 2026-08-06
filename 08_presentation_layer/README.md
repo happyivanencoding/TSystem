@@ -14,6 +14,7 @@ signals = repo.signals()
 ```
 
 UI、callback 和 API 不自行读取 Canonical 文件，统一经过 repository/domain service。
+Repository 的生产路由见 11_docs/DATA_BACKEND_ROUTING.md：最新 Screen 选列使用分区 PyArrow，Company latest 使用 latest snapshot，Company History 与完整数据读取保持 Legacy；小型 Dashboard marts 继续走 DuckDB。
 
 ## 公共应用入口
 

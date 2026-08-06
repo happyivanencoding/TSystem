@@ -10,19 +10,28 @@ from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
+import pyarrow.parquet as pq
 
 from presentation_layer import PresentationDataRepository
-
 from presentation_layer.company_browser import settings
 from presentation_layer.company_browser.data.schemas import COL_DATE, EXPECTED_COLUMNS
 from presentation_layer.company_browser.data.schemas_ciq import (
     CIQ_COL_BENCHMARK_ICB_SUPERSECTOR,
     CIQ_COL_DATE,
+    CIQ_COL_FACTSET_ECONOMY,
+    CIQ_COL_FACTSET_IND,
     CIQ_COL_ICB_SUPERSECTOR,
     CIQ_COL_ISIN,
+    CIQ_COL_REGION,
     CIQ_MIN_REQUIRED,
+    WEIGHT_IN_PREFIX,
 )
-from presentation_layer.company_browser.data.schemas_ptf import PTF_COL_DATE, PTF_COL_ISIN, PTF_COL_PTF, PTF_COL_WEIGHT
+from presentation_layer.company_browser.data.schemas_ptf import (
+    PTF_COL_DATE,
+    PTF_COL_ISIN,
+    PTF_COL_PTF,
+    PTF_COL_WEIGHT,
+)
 
 
 def _ciq_col_by_stripped(cols: list, want: str) -> str | None:
@@ -46,7 +55,7 @@ def _icb_benchmark_code_to_label(path: Path) -> dict[int, str]:
         lab = r.get("icb19_supersector")
         if pd.isna(lab):
             continue
-        k = int(round(float(c)))
+        k = round(float(c))
         out[k] = str(lab).strip()
     return out
 
@@ -107,7 +116,24 @@ def load_screen_aggregate_ciq() -> pd.DataFrame:
     Raw parquet has ``ISIN`` as index; we reset to have it as a regular column
     and normalize the Date column. Other columns are passed through.
     """
-    df = PresentationDataRepository().screen(last_only=False)
+    schema_names = pq.ParquetFile(settings.SCREEN_AGG_CIQ_PARQUET).schema_arrow.names
+    wanted = {
+        *CIQ_MIN_REQUIRED,
+        CIQ_COL_BENCHMARK_ICB_SUPERSECTOR,
+        CIQ_COL_FACTSET_IND,
+        CIQ_COL_FACTSET_ECONOMY,
+        CIQ_COL_ISIN,
+        CIQ_COL_REGION,
+        *settings.MULTIFACTOR_BASE_COLUMNS,
+        *settings.FACTOR_SCORE_COLUMNS_CONFIG,
+        *(column for _, column in settings.FACTOR_TRACES),
+        *(column for group in settings.PTF_METRIC_GROUPS for _, column in group["entries"]),
+    }
+    wanted.update(name for name in schema_names if name.startswith(WEIGHT_IN_PREFIX))
+    columns = tuple(
+        name for name in schema_names if name in wanted or name.strip() in wanted
+    )
+    df = PresentationDataRepository().screen(last_only=False, columns=columns)
     if df.index.name == CIQ_COL_ISIN or CIQ_COL_ISIN not in df.columns:
         df = df.reset_index()
     missing = [c for c in CIQ_MIN_REQUIRED if c not in df.columns]

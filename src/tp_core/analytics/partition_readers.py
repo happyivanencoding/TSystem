@@ -64,9 +64,13 @@ def read_latest_screen_partitioned(
     if not partitions:
         selected = tuple(str(value) for value in columns) if columns is not None else ()
         return pd.DataFrame(columns=list(selected))
-    latest = max(pd.Timestamp(str(item.get("date_max"))) for item, _ in partitions)
-    return _read_screen_partitions(
+    latest_partition = max(
         partitions,
+        key=lambda item: pd.Timestamp(str(item[0].get("date_max"))),
+    )
+    latest = pd.Timestamp(str(latest_partition[0].get("date_max")))
+    return _read_screen_partitions(
+        [latest_partition],
         columns=columns,
         lower=latest,
         upper=latest,

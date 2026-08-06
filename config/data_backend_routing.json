@@ -1,0 +1,17 @@
+{
+  "schema_version": "tp.data-backend-routing.v1",
+  "production_default_engine": "legacy_parquet",
+  "compatibility_exports": true,
+  "routes": {
+    "screen_latest_selected": "partitioned_parquet",
+    "company_latest": "latest_snapshot",
+    "company_history": "legacy_parquet",
+    "returns_matrix": "legacy_parquet",
+    "official_backtest_input": "legacy_parquet",
+    "screen_full": "legacy_parquet",
+    "returns_full": "legacy_parquet",
+    "dashboard_marts": "duckdb",
+    "catalog": "duckdb",
+    "monthly_writer": "partitioned_parquet"
+  }
+}

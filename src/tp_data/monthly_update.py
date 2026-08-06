@@ -13,6 +13,7 @@ import pandas as pd
 
 from tp_core.analytics.config import DuckDBConfig
 from tp_core.analytics.writers import PartitionWriterResult, update_dataset_partitions
+from tp_core.data_sources import TRANSCO_FACTSET_ICB_PATH
 
 from .fs_sector_history import (
     DEFAULT_FS_SECTOR_WORKBOOK_DIR,
@@ -69,7 +70,7 @@ def build_default_paths(base_dir: Optional[str] = None) -> Dict[str, Path]:
         "screen_path": base_path / "screen_aggregate.parquet",
         "last_screen_path": base_path / "last_screen.parquet",
         "returns_path": base_path / "returns.parquet",
-        "mapping_path": base_path / "Transco_FactSet_ICB.xlsx",
+        "mapping_path": TRANSCO_FACTSET_ICB_PATH,
     }
 
 

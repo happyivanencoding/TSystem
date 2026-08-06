@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from tp_core.analytics.config import DuckDBConfig
+from tp_core.analytics.backend_routing import reader_engine
 from tp_core.data_sources import TP_ROOT
 from tp_core.io import read_last_screen, read_returns, read_screen_aggregate
 from tp_core.signals import read_signal_frame, standardize_signal_frame
@@ -31,7 +31,7 @@ class PresentationDataRepository:
 
     @property
     def data_engine(self) -> str:
-        return self.engine or DuckDBConfig.from_env().data_engine
+        return self.engine or reader_engine("screen_full")
 
     def screen(
         self,
@@ -45,17 +45,18 @@ class PresentationDataRepository:
 
         screen_path = self.root / "00_screen" / "screen_aggregate.parquet"
         if last_only:
+            query_type = "screen_latest_selected" if columns is not None else "company_latest"
             return read_last_screen(
                 self.root / "00_screen" / "last_screen.parquet",
                 columns=columns,
-                engine=self.engine,
+                engine=reader_engine(query_type, explicit_engine=self.engine),
             )
         return read_screen_aggregate(
             screen_path,
             columns=columns,
             date_from=date_from,
             date_to=date_to,
-            engine=self.engine,
+            engine=reader_engine("screen_full", explicit_engine=self.engine),
         )
 
     def returns(
@@ -72,7 +73,7 @@ class PresentationDataRepository:
             columns=columns,
             date_from=date_from,
             date_to=date_to,
-            engine=self.engine,
+            engine=reader_engine("returns_matrix", explicit_engine=self.engine),
         )
 
     def signal_path(self, name: str) -> Path:
@@ -108,15 +109,10 @@ class PresentationDataRepository:
     def latest_company_snapshot(self, sedol: str | None = None, isin: str | None = None) -> pd.DataFrame:
         """读取最新公司截面，可按 SEDOL 或 ISIN 过滤。"""
 
-        if self.data_engine == "hybrid":
-            # The immutable partition mirror preserves Arrow half-float values;
-            # use the compatibility latest file for the all-column company payload.
-            frame = read_last_screen(
-                self.root / "00_screen" / "last_screen.parquet",
-                engine="legacy_parquet",
-            ).copy()
-        else:
-            frame = self.screen(last_only=True).copy()
+        frame = read_last_screen(
+            self.root / "00_screen" / "last_screen.parquet",
+            engine=reader_engine("company_latest"),
+        ).copy()
         if sedol is not None and "Company SEDOL" in frame.columns:
             frame = frame[frame["Company SEDOL"].astype(str).eq(str(sedol))].copy()
         if isin is not None:
@@ -137,57 +133,20 @@ class PresentationDataRepository:
         """按 ISIN 读取单公司历史 screen 面板，供公司分析和报告层复用。"""
 
         screen_path = self.root / "00_screen" / "screen_aggregate.parquet"
-        if self.data_engine in {"duckdb", "hybrid", "shadow_compare"}:
-            frame = read_screen_aggregate(
-                screen_path,
-                isins=(isin,),
-                columns=columns,
-                date_from=date_from,
-                date_to=date_to,
-                engine=self.engine,
-            )
-        else:
-            filters: list[tuple[str, str, object]] = [("ISIN", "==", isin)]
-            if date_from is not None:
-                filters.append(("Date", ">=", pd.Timestamp(date_from)))
-            if date_to is not None:
-                filters.append(("Date", "<=", pd.Timestamp(date_to)))
-            frame = pd.read_parquet(
-                screen_path,
-                columns=list(columns) if columns is not None else None,
-                filters=filters,
-            )
+        frame = read_screen_aggregate(
+            screen_path,
+            isins=(isin,),
+            columns=columns,
+            date_from=date_from,
+            date_to=date_to,
+            engine=reader_engine("company_history"),
+        )
         if frame.empty:
             return frame
         if "ISIN" not in frame.columns:
             frame = frame.reset_index()
         if "ISIN" in frame.columns:
             frame = frame.loc[:, ["ISIN", *[column for column in frame.columns if column != "ISIN"]]]
-        if self.data_engine == "hybrid" and columns is None:
-            # Some legacy half-float fields were written as nulls in the existing
-            # mirror. Rehydrate only the degraded columns from the read-only
-            # compatibility export while retaining partition routing for the query.
-            compatibility_filters: list[tuple[str, str, object]] = [("ISIN", "==", isin)]
-            if date_from is not None:
-                compatibility_filters.append(("Date", ">=", pd.Timestamp(date_from)))
-            if date_to is not None:
-                compatibility_filters.append(("Date", "<=", pd.Timestamp(date_to)))
-            compatibility = pd.read_parquet(screen_path, filters=compatibility_filters)
-            if compatibility.index.name == "ISIN":
-                compatibility = compatibility.reset_index()
-            if "ISIN" in compatibility.columns and "Date" in compatibility.columns:
-                keys = ["ISIN", "Date"]
-                frame_keys = frame.loc[:, keys].astype({"ISIN": str})
-                compatible = compatibility.set_index(keys).reindex(
-                    pd.MultiIndex.from_frame(frame_keys)
-                )
-                for column in frame.columns:
-                    if column in keys or column not in compatible.columns:
-                        continue
-                    if not frame[column].reset_index(drop=True).equals(
-                        compatible[column].reset_index(drop=True)
-                    ):
-                        frame[column] = compatible[column].to_numpy()
         if "Date" in frame.columns:
             frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
             frame = frame.sort_values("Date")

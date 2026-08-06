@@ -7,6 +7,7 @@ import pandas as pd
 
 from presentation_layer.data_repository import PresentationDataRepository
 from tp_backtest.runner.input_loader import load_pruned_backtest_inputs
+from tp_core.analytics import partition_readers
 from tp_core.analytics.catalog import build_catalog_release
 from tp_core.analytics.config import DuckDBConfig
 from tp_core.analytics.partitioning import migrate_dataset
@@ -165,3 +166,48 @@ def test_hybrid_engine_reads_partitioned_screen_returns_and_company_history(tmp_
     assert latest.iloc[0]["ISIN"] == "ISIN1"
     assert returns["SED1"].tolist() == [0.1, 0.2]
     assert history["ISIN"].tolist() == ["ISIN1", "ISIN1"]
+
+
+def test_hybrid_latest_reads_only_the_latest_screen_partition(tmp_path: Path, monkeypatch) -> None:
+    _, screen_path, _ = _fixture_release(tmp_path)
+    read_paths: list[Path] = []
+    original_read_table = partition_readers.pq.read_table
+
+    def tracking_read_table(path, *args, **kwargs):
+        read_paths.append(Path(path).resolve())
+        return original_read_table(path, *args, **kwargs)
+
+    monkeypatch.setattr(partition_readers.pq, "read_table", tracking_read_table)
+
+    latest = read_last_screen(
+        screen_path,
+        columns=("Date", "ISIN", "value"),
+        engine="hybrid",
+    )
+
+    assert len(set(read_paths)) == 1
+    assert latest["Date"].max() == pd.Timestamp("2026-02-28")
+
+
+def test_r03_and_r05_legacy_routes_preserve_full_numeric_matrix(tmp_path: Path, monkeypatch) -> None:
+    database, screen_path, returns_path = _fixture_release(tmp_path)
+    monkeypatch.setenv("TP_DUCKDB_PATH", str(database))
+    expected_full = pd.read_parquet(returns_path)
+
+    r03 = read_returns(
+        returns_path,
+        columns=("SED1", "SED2"),
+        engine="legacy_parquet",
+    )
+    pd.testing.assert_frame_equal(r03, expected_full)
+
+    _, r05 = load_pruned_backtest_inputs(
+        screen_path,
+        returns_path,
+        metrics=("score",),
+        benchmarks=("TEST",),
+        start_date=date(2026, 1, 1),
+        engine="duckdb",
+    )
+    expected_r05 = expected_full.loc[expected_full.index >= pd.Timestamp("2026-01-01")]
+    pd.testing.assert_frame_equal(r05, expected_r05)

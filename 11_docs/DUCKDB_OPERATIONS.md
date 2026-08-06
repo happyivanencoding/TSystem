@@ -15,6 +15,10 @@ $env:TP_COMPAT_EXPORTS = 'true'         # Phase 8 前保持开启
 
 `TP_DUCKDB_PATH` 可以指向本地 SSD 上的 catalog release；不能把多个 writer 指向同一个文件。Web/API 使用 read-only connection，pipeline 构建使用自己的 staging database。
 
+## 生产读取路由
+
+DuckDB 只承担 catalog、metadata 和小型 marts。S03 的最新 Screen 选列使用 Partitioned Parquet/PyArrow；M09 使用 latest snapshot；Company History、Returns、Official Backtest 和完整 Screen/Returns 读取统一走 Legacy。不要把 TP_DATA_ENGINE=duckdb 或 hybrid 设置成所有模块的生产默认。详见 DATA_BACKEND_ROUTING.md。
+
 ## 构建 catalog 与 marts
 
 先确认两个 current pointer 指向通过 QA 的 manifest：

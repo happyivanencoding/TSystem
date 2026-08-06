@@ -26,6 +26,11 @@ artifacts/**
 artifacts/analytics/duckdb/releases/
 artifacts/analytics/duckdb/staging/
 artifacts/analytics/duckdb/temp/
+artifacts/analytics/query_profiles/
+artifacts/analytics/benchmarks/*/raw_measurements*
+artifacts/analytics/benchmarks/*/pipeline_runs/
+artifacts/analytics/benchmarks/*/writer_replays/
+artifacts/analytics/benchmarks/*/writer_smoke/
 00_screen/datasets/staging/
 00_screen/datasets/.partition-writer.lock
 
@@ -37,6 +42,10 @@ node_modules/
 __pycache__/
 *.pyc
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
 .ipython/
 .jupyter/
 .idea/

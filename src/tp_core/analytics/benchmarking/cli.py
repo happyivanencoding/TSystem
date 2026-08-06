@@ -815,12 +815,12 @@ def _deployment_smoke(
         "company_latest": [
             python,
             "-c",
-            f"from presentation_layer.data_repository import PresentationDataRepository; f=PresentationDataRepository(engine='duckdb').latest_company_snapshot(isin='{company_isin}'); print('ROWS='+str(len(f)))",
+            f"from presentation_layer.data_repository import PresentationDataRepository; f=PresentationDataRepository(engine='duckdb', run_type='benchmark').latest_company_snapshot(isin='{company_isin}'); print('ROWS='+str(len(f)))",
         ],
         "company_history": [
             python,
             "-c",
-            f"from presentation_layer.data_repository import PresentationDataRepository; f=PresentationDataRepository(engine='duckdb').company_history('{company_isin}'); print('ROWS='+str(len(f)))",
+            f"from presentation_layer.data_repository import PresentationDataRepository; f=PresentationDataRepository(engine='duckdb', run_type='benchmark').company_history('{company_isin}'); print('ROWS='+str(len(f)))",
         ],
         "signals_latest": [
             python,
@@ -840,7 +840,7 @@ def _deployment_smoke(
         "backtest_input_inspect": [
             python,
             "-c",
-            f"from tp_backtest.runner.input_loader import load_pruned_backtest_inputs; s,r=load_pruned_backtest_inputs(r'{screen}',r'{returns}',metrics=('Quality Avg Percentile',),benchmarks=('STOXX EUROPE 600',),start_date='2020-01-31',engine='duckdb'); print('ROWS='+str(len(r)))",
+            f"from tp_backtest.runner.input_loader import load_pruned_backtest_inputs; s,r=load_pruned_backtest_inputs(r'{screen}',r'{returns}',metrics=('Quality Avg Percentile',),benchmarks=('STOXX EUROPE 600',),start_date='2020-01-31',engine='duckdb',run_type='benchmark'); print('ROWS='+str(len(r)))",
         ],
         "research_read_only": [
             python,

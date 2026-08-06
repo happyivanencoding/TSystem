@@ -115,7 +115,7 @@ def test_io_reads_duckdb_and_shadow_engines_without_changing_default_contract(
     pd.testing.assert_frame_equal(shadow_screen, legacy_screen)
     pd.testing.assert_frame_equal(shadow_returns, legacy_returns)
 
-    presentation = PresentationDataRepository(root=tmp_path, engine="duckdb")
+    presentation = PresentationDataRepository(root=tmp_path, engine="duckdb", run_type="benchmark")
     presentation_latest = presentation.screen(last_only=True, columns=("Date", "ISIN", "value"))
     presentation_returns = presentation.returns(columns=("SED1",), date_from=date(2025, 12, 31), date_to=date(2026, 1, 2))
     assert len(presentation_latest) == 1
@@ -129,6 +129,7 @@ def test_io_reads_duckdb_and_shadow_engines_without_changing_default_contract(
         benchmarks=("TEST",),
         start_date=date(2026, 1, 1),
         engine="duckdb",
+        run_type="benchmark",
     )
     assert loaded_screen["score"].tolist() == [1.0, 2.0, 3.0]
     assert loaded_returns.columns.tolist() == ["SED1", "SED2"]
@@ -156,7 +157,7 @@ def test_hybrid_engine_reads_partitioned_screen_returns_and_company_history(tmp_
         date_to=date(2026, 1, 2),
         engine="hybrid",
     )
-    history = PresentationDataRepository(root=tmp_path, engine="hybrid").company_history(
+    history = PresentationDataRepository(root=tmp_path, engine="hybrid", run_type="benchmark").company_history(
         "ISIN1",
         columns=("Date", "ISIN", "value"),
     )
@@ -209,6 +210,7 @@ def test_r03_and_r05_legacy_routes_preserve_full_numeric_matrix(tmp_path: Path, 
         benchmarks=("TEST",),
         start_date=date(2026, 1, 1),
         engine="duckdb",
+        run_type="benchmark",
     )
     expected_r05 = expected_full.loc[expected_full.index >= pd.Timestamp("2026-01-01")]
     pd.testing.assert_frame_equal(r05, expected_r05)

@@ -5,6 +5,7 @@ import pandas as pd
 from presentation_layer import data_repository
 from presentation_layer.data_repository import PresentationDataRepository
 from tp_core.analytics.backend_routing import backend_for, reader_engine
+from tp_core.io import _resolve_engine
 
 
 def test_selective_backend_policy_is_single_and_explicit() -> None:
@@ -67,3 +68,34 @@ def test_repository_policy_wins_over_global_engine_for_production_routes(
         ("screen", "legacy_parquet"),
         ("returns", "legacy_parquet"),
     ]
+
+
+def test_production_repository_rejects_explicit_engine_override(tmp_path) -> None:
+    repository = PresentationDataRepository(
+        root=tmp_path,
+        engine="duckdb",
+        run_type="production",
+    )
+
+    try:
+        _ = repository.data_engine
+    except ValueError as exc:
+        assert "not allowed" in str(exc)
+    else:
+        raise AssertionError("production repository accepted an explicit engine override")
+
+
+def test_benchmark_repository_can_use_explicit_engine(tmp_path) -> None:
+    repository = PresentationDataRepository(
+        root=tmp_path,
+        engine="duckdb",
+        run_type="benchmark",
+    )
+
+    assert repository.data_engine == "duckdb"
+
+
+def test_generic_reader_does_not_take_engine_from_global_environment(monkeypatch) -> None:
+    monkeypatch.setenv("TP_DATA_ENGINE", "duckdb")
+
+    assert _resolve_engine(None) == "legacy_parquet"

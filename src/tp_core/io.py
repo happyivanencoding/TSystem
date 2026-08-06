@@ -313,7 +313,10 @@ def _read_only_config() -> DuckDBConfig:
 
 
 def _resolve_engine(engine: str | None) -> str:
-    value = engine or DuckDBConfig.from_env().data_engine
+    # Generic readers are compatibility/research seams. Production routing is
+    # resolved by a workload repository; TP_DATA_ENGINE must not silently
+    # replace that policy when a caller omitted an explicit engine.
+    value = engine or "legacy_parquet"
     if value not in {"legacy_parquet", "duckdb", "hybrid", "shadow_compare"}:
         raise ValueError(f"unsupported data engine: {value!r}")
     return value

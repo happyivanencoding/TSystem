@@ -16,6 +16,7 @@ _BACKEND_TO_ENGINE = {
     "duckdb": "duckdb",
 }
 _EXPLICIT_ENGINES = {"legacy_parquet", "duckdb", "hybrid", "shadow_compare"}
+_OVERRIDE_RUN_TYPES = {"inspect", "shadow", "migration", "benchmark"}
 
 
 @lru_cache(maxsize=1)
@@ -37,12 +38,24 @@ def backend_for(query_type: str) -> str:
     return str(backend)
 
 
-def reader_engine(query_type: str, *, explicit_engine: str | None = None) -> str:
+def reader_engine(
+    query_type: str,
+    *,
+    explicit_engine: str | None = None,
+    run_type: str | None = None,
+) -> str:
     """Resolve a reader engine, allowing explicit diagnostic overrides only."""
 
     if explicit_engine is not None:
         if explicit_engine not in _EXPLICIT_ENGINES:
             raise ValueError(f"unsupported explicit reader engine: {explicit_engine!r}")
+        if run_type == "production" or (
+            run_type is not None and run_type not in _OVERRIDE_RUN_TYPES
+        ):
+            raise ValueError(
+                "explicit backend engine overrides are not allowed for production routes; "
+                "use inspect, shadow, migration, or benchmark run types"
+            )
         return explicit_engine
     return _BACKEND_TO_ENGINE[backend_for(query_type)]
 

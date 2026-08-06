@@ -265,6 +265,7 @@ def load_pruned_backtest_inputs(
     include_esg: bool = False,
     extra_screen_columns: Iterable[str] = (),
     engine: str | None = None,
+    run_type: str = "production",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Charge uniquement la periode, les facteurs et les titres necessaires."""
 
@@ -273,7 +274,11 @@ def load_pruned_backtest_inputs(
     metric_columns = _expanded_metric_columns(metrics)
     benchmark_names = _unique_strings(benchmarks)
     parsed_start_date = _normalise_start_date(start_date)
-    resolved_engine = reader_engine("screen_full", explicit_engine=engine)
+    resolved_engine = reader_engine(
+        "screen_full",
+        explicit_engine=engine,
+        run_type=run_type,
+    )
 
     if resolved_engine != "legacy_parquet" and screen_file.suffix.lower() == ".parquet" and returns_file.suffix.lower() == ".parquet":
         if resolved_engine == "shadow_compare" and parsed_start_date is None:
@@ -297,7 +302,7 @@ def load_pruned_backtest_inputs(
             returns_file,
             columns=return_columns,
             date_from=parsed_start_date,
-            engine=reader_engine("official_backtest_input"),
+            engine=reader_engine("official_backtest_input", run_type=run_type),
         )
         return screen, prepare_returns_dataframe(returns)
 

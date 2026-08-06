@@ -630,6 +630,7 @@ def load_official_inputs(
         benchmarks=benchmarks,
         start_date=start_date,
         engine=engine,
+        run_type="benchmark",
         extra_screen_columns=("Exchange Country Iso2", " Benchmark ICB Supersector ", " Benchmark ICB Industry "),
     )
     if "Date" not in screen.columns or "Company SEDOL" not in screen.columns:

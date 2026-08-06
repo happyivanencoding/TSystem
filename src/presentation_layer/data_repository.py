@@ -21,6 +21,7 @@ class PresentationDataRepository:
 
     root: Path = TP_ROOT
     engine: str | None = None
+    run_type: str = "production"
 
     def __post_init__(self) -> None:
         self.root = Path(self.root)
@@ -31,7 +32,11 @@ class PresentationDataRepository:
 
     @property
     def data_engine(self) -> str:
-        return self.engine or reader_engine("screen_full")
+        return reader_engine(
+            "screen_full",
+            explicit_engine=self.engine,
+            run_type=self.run_type,
+        )
 
     def screen(
         self,
@@ -49,14 +54,22 @@ class PresentationDataRepository:
             return read_last_screen(
                 self.root / "00_screen" / "last_screen.parquet",
                 columns=columns,
-                engine=reader_engine(query_type, explicit_engine=self.engine),
+                engine=reader_engine(
+                    query_type,
+                    explicit_engine=self.engine,
+                    run_type=self.run_type,
+                ),
             )
         return read_screen_aggregate(
             screen_path,
             columns=columns,
             date_from=date_from,
             date_to=date_to,
-            engine=reader_engine("screen_full", explicit_engine=self.engine),
+            engine=reader_engine(
+                "screen_full",
+                explicit_engine=self.engine,
+                run_type=self.run_type,
+            ),
         )
 
     def returns(
@@ -73,7 +86,11 @@ class PresentationDataRepository:
             columns=columns,
             date_from=date_from,
             date_to=date_to,
-            engine=reader_engine("returns_matrix", explicit_engine=self.engine),
+            engine=reader_engine(
+                "returns_matrix",
+                explicit_engine=self.engine,
+                run_type=self.run_type,
+            ),
         )
 
     def signal_path(self, name: str) -> Path:
@@ -111,7 +128,7 @@ class PresentationDataRepository:
 
         frame = read_last_screen(
             self.root / "00_screen" / "last_screen.parquet",
-            engine=reader_engine("company_latest"),
+            engine=reader_engine("company_latest", run_type=self.run_type),
         ).copy()
         if sedol is not None and "Company SEDOL" in frame.columns:
             frame = frame[frame["Company SEDOL"].astype(str).eq(str(sedol))].copy()
@@ -139,7 +156,7 @@ class PresentationDataRepository:
             columns=columns,
             date_from=date_from,
             date_to=date_to,
-            engine=reader_engine("company_history"),
+            engine=reader_engine("company_history", run_type=self.run_type),
         )
         if frame.empty:
             return frame

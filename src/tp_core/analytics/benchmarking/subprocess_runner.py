@@ -209,6 +209,7 @@ def _returns_operation(spec: dict[str, Any], io: Any, connection: Any) -> pd.Dat
                 if spec["engine"] == "current_duckdb" and connection is not None
                 else routed_engine
             )
+            kwargs["run_type"] = "benchmark"
         _, frame = loader.load_pruned_backtest_inputs(
             root / "00_screen" / "screen_aggregate.parquet",
             returns_path,
@@ -289,6 +290,7 @@ def _mart_operation(spec: dict[str, Any], connection: Any) -> pd.DataFrame:
             repository = PresentationDataRepository(
                 root=root,
                 engine=("hybrid" if spec["engine"] == "current_hybrid" else "legacy_parquet"),
+                run_type="benchmark",
             )
             isin = str(resolved.get("company_isin"))
             return (

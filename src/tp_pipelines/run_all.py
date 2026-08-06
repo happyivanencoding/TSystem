@@ -13,7 +13,7 @@ import pandas as pd
 from tp_core.data_sources import LAST_SCREEN_PATH, RETURNS_PATH, SCREEN_AGGREGATE_PATH, TP_ROOT
 from tp_core.security_nav_engine import NAV_ENGINE_ID, NAV_ENGINE_VERSION
 from tp_core.workspace import PIPELINE_MANIFESTS_DIR, SIGNALS_DIR
-from tp_experiments import ExperimentRecorder, ExperimentSpec
+from tp_experiments import ExperimentRecorder, ExperimentSpec, ModelReleaseStore
 from tp_portfolio import OPTIMIZER_ID, OPTIMIZER_VERSION
 
 from .build_candidates import DEFAULT_OUTPUT as DEFAULT_CANDIDATES
@@ -25,6 +25,12 @@ from .orchestration import (
     execute_pipeline_steps,
     pipeline_dag,
     pipeline_steps,
+)
+from .lineage import (
+    ProductionRunBundle,
+    new_production_run_id,
+    resolve_catalog_release_id,
+    resolve_data_release_id,
 )
 from .refresh_small_cap import DEFAULT_OUTPUT_DIR as DEFAULT_SMALL_CAP_OUTPUT_DIR
 from .refresh_small_cap import DEFAULT_SIGNAL_OUTPUT as DEFAULT_SMALL_CAP_SIGNAL_OUTPUT
@@ -203,6 +209,21 @@ def _experiment_artifacts(child_manifests: list[str], run_all_manifest: Path) ->
     return artifacts
 
 
+def _sync_bundle(bundle: ProductionRunBundle, context: PipelineContext) -> None:
+    for step, state in context.step_states.items():
+        if state == "produced_this_run" and step in context.step_manifests:
+            bundle.record_manifest(step, context.step_manifests[step])
+        elif state == "explicitly_reused" and step in context.explicit_reuse_manifests:
+            details = context.explicit_reuse_manifests[step]
+            bundle.record_reuse(
+                step,
+                details,
+                reason=str(details.get("reason") or "explicit reuse"),
+            )
+        else:
+            bundle.mark(step, state)
+
+
 def _write_approval(config: PipelineRunConfig) -> dict[str, object]:
     """Return the machine-readable approval state for refresh_data writes."""
 
@@ -237,11 +258,21 @@ def run_all(args: argparse.Namespace | PipelineRunConfig) -> Path:
         if isinstance(args, PipelineRunConfig)
         else PipelineRunConfig.from_namespace(args)
     )
+    production_run_id = new_production_run_id()
+    data_release_id = resolve_data_release_id()
+    catalog_release_id = resolve_catalog_release_id()
+    config.cli_parameters["production_run_id"] = production_run_id
+    config.cli_parameters["data_release_id"] = data_release_id
+    config.cli_parameters["catalog_release_id"] = catalog_release_id
     manifest_parameters = config.cli_parameters.copy()
     manifest_parameters["_experiment_managed_externally"] = True
     manifest = StepManifest("run_all", manifest_parameters)
     write_approval = _write_approval(config)
+    config.cli_parameters["write_approval"] = write_approval
     manifest.details["write_approval"] = write_approval
+    manifest.details["production_run_id"] = production_run_id
+    manifest.details["data_release_id"] = data_release_id
+    manifest.details["catalog_release_id"] = catalog_release_id
     manifest.add_validation(
         "write_approval",
         write_approval["status"] != "blocked",
@@ -253,12 +284,30 @@ def run_all(args: argparse.Namespace | PipelineRunConfig) -> Path:
         write_approval,
     )
     context = PipelineContext.from_args(config)
+    context.production_run_id = production_run_id
+    bundle = ProductionRunBundle.start(
+        run_type=config.run_type,
+        as_of_date=config.as_of,
+        input_month=config.cli_parameters.get("input_month"),
+        data_release_id=data_release_id,
+        catalog_release_id=catalog_release_id,
+        model_release_ids=config.model_release_ids,
+        production_run_id=production_run_id,
+    )
     experiment = ExperimentRecorder(
         root=config.experiment.root,
     ).start_run(
         _experiment_spec(config),
         parameters=config.cli_parameters,
         parent_run_id=config.experiment.parent_run_id,
+        run_kind="production" if config.run_type == "production" else "research",
+        production_run={
+            "production_run_id": production_run_id,
+            "data_release_id": data_release_id,
+            "model_release_ids": list(config.model_release_ids),
+            "reuse_decisions": [],
+            "write_approval": write_approval,
+        },
     )
     experiment.log_inputs(
         {
@@ -271,6 +320,9 @@ def run_all(args: argparse.Namespace | PipelineRunConfig) -> Path:
     manifest.details["experiment_record"] = str(experiment.path)
 
     try:
+        if config.run_type == "production":
+            for model_release_id in config.model_release_ids:
+                ModelReleaseStore(config.experiment.root).require_production(model_release_id)
         if write_approval["status"] == "blocked":
             raise ValueError("run_all 数据刷新写入必须显式传入 --apply；请使用 --dry-run-data、--inspect-only-refresh-data 或 --skip-refresh-data 进行非写入运行")
         previous_parent = os.environ.get("TP_PARENT_EXPERIMENT_RUN_ID")
@@ -282,6 +334,9 @@ def run_all(args: argparse.Namespace | PipelineRunConfig) -> Path:
                 os.environ.pop("TP_PARENT_EXPERIMENT_RUN_ID", None)
             else:
                 os.environ["TP_PARENT_EXPERIMENT_RUN_ID"] = previous_parent
+        _sync_bundle(bundle, context)
+        manifest.details["step_states"] = context.step_states
+        manifest.details["explicit_reuse_manifests"] = context.explicit_reuse_manifests
         should_check_freshness = not all(
             [
                 config.controls.skip_build_candidates,
@@ -325,6 +380,8 @@ def run_all(args: argparse.Namespace | PipelineRunConfig) -> Path:
             "已完成选定流水线步骤",
             {"count": len(child_manifests)},
         )
+        bundle_path = bundle.finish("success", validations=manifest.validations)
+        manifest.details["production_run_bundle"] = str(bundle_path)
         manifest_path = manifest.write("success")
         experiment.log_metrics(
             {
@@ -332,14 +389,23 @@ def run_all(args: argparse.Namespace | PipelineRunConfig) -> Path:
                 "freshness_status": manifest.details.get("freshness", {}).get("status"),
             }
         )
-        experiment.log_artifacts(_experiment_artifacts(child_manifests, manifest_path))
+        artifacts = _experiment_artifacts(child_manifests, manifest_path)
+        artifacts["production_run_bundle"] = bundle_path
+        experiment.log_artifacts(artifacts)
         experiment.complete()
         return manifest_path
     except Exception as exc:
         child_manifests = context.child_manifests
+        _sync_bundle(bundle, context)
         manifest.details["child_manifests"] = child_manifests
+        manifest.details["step_states"] = context.step_states
+        manifest.details["explicit_reuse_manifests"] = context.explicit_reuse_manifests
+        bundle_path = bundle.finish("failed", validations=manifest.validations)
+        manifest.details["production_run_bundle"] = str(bundle_path)
         manifest_path = manifest.write("failed", error=exc)
-        experiment.log_artifacts(_experiment_artifacts(child_manifests, manifest_path))
+        artifacts = _experiment_artifacts(child_manifests, manifest_path)
+        artifacts["production_run_bundle"] = bundle_path
+        experiment.log_artifacts(artifacts)
         experiment.fail(exc)
         raise
 
@@ -347,6 +413,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="按顺序运行 TP 主流水线")
     parser.add_argument("--as-of", help="目标日期，传给信号、候选池、优化和报告环节")
     parser.add_argument("--run-type", choices=["production", "smoke", "inspect"], default="production")
+    parser.add_argument(
+        "--reuse-manifest",
+        help="JSON step->manifest 映射；只有显式映射的旧产物允许复用",
+    )
+    parser.add_argument(
+        "--model-release-id",
+        action="append",
+        default=[],
+        help="生产模型 release ID，可重复传入；不会自动从 research 目录推断",
+    )
     parser.add_argument("--hypothesis-id", default="production-pipeline", help="稳定的研究命题 ID")
     parser.add_argument("--experiment-name", default="TP production pipeline", help="实验名称")
     parser.add_argument("--parent-run-id", help="父运行 ID，用于 lineage")

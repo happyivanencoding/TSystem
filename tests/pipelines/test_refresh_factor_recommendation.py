@@ -126,7 +126,7 @@ def test_research_step_is_independent_and_disabled_by_default() -> None:
     dag = pipeline_dag()
     step = next(item for item in dag.ordered_steps() if item.name == "refresh_factor_recommendation")
 
-    assert step.dependencies == ()
+    assert step.dependencies == ("refresh_data",)
     assert step.enabled(SimpleNamespace(config=SimpleNamespace(controls=SimpleNamespace()))) is False
 
 

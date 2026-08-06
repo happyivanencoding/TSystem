@@ -581,9 +581,31 @@ def test_run_all_calls_supplemental_stage_only_when_enabled(
 
     monkeypatch.setattr(run_all_module, "StepManifest", FakeManifest)
     monkeypatch.setattr(orchestration, "run_refresh_supplemental_data", fake_refresh)
+    reused_output = tmp_path / "reused-canonical.parquet"
+    reused_output.write_bytes(b"reused")
+    reused_manifest = tmp_path / "reused-refresh-data.json"
+    reused_manifest.write_text(
+        json.dumps(
+            {
+                "step": "refresh_data",
+                "run_type": "production",
+                "production_run_id": "prod-old",
+                "parameters": {"run_type": "production"},
+                "outputs": {"canonical": {"path": str(reused_output)}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    reuse_mapping = tmp_path / "reuse.json"
+    reuse_mapping.write_text(
+        json.dumps({"refresh_data": {"manifest": str(reused_manifest), "reason": "test reuse"}}),
+        encoding="utf-8",
+    )
     args = run_all_module.build_parser().parse_args(
         [
             "--skip-refresh-data",
+            "--reuse-manifest",
+            str(reuse_mapping),
             "--refresh-supplemental-data",
             "--supplemental-source",
             "fred",

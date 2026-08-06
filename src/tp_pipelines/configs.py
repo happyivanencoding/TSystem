@@ -285,6 +285,8 @@ class PipelineRunConfig:
     as_of: str | None
     run_type: str
     freshness_window_days: int
+    reuse_manifest: str | None
+    model_release_ids: tuple[str, ...]
     controls: PipelineControls
     experiment: PipelineExperimentConfig
     refresh_data: RefreshDataConfig
@@ -326,6 +328,10 @@ class PipelineRunConfig:
 
         run_type = str(get("run_type", "production"))
         as_of = get("as_of")
+        raw_model_release_ids = get("model_release_id", ()) or ()
+        if isinstance(raw_model_release_ids, str):
+            raw_model_release_ids = (raw_model_release_ids,)
+        model_release_ids = tuple(str(item) for item in raw_model_release_ids)
         hypothesis_id = get("hypothesis_id") or "production-pipeline"
         experiment_name = get("experiment_name") or "TP production pipeline"
         technical_patterns = str(
@@ -688,6 +694,8 @@ class PipelineRunConfig:
             as_of=as_of,
             run_type=run_type,
             freshness_window_days=int(get("freshness_window_days", 31)),
+            reuse_manifest=get("reuse_manifest"),
+            model_release_ids=model_release_ids,
             controls=controls,
             experiment=experiment,
             refresh_data=refresh_data,

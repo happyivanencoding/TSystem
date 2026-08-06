@@ -7,6 +7,11 @@ from pathlib import Path
 
 from .configs import PipelineRunConfig
 from .dag import PipelineDAG, PipelineStep
+from .lineage import (
+    load_reuse_mapping,
+    new_production_run_id,
+    validate_reuse_manifest,
+)
 
 
 @dataclass
@@ -18,14 +23,22 @@ class PipelineContext:
     regime_refreshed: bool = False
     country_model_refreshed: bool = False
     experiment_parent_run_id: str | None = None
+    production_run_id: str = field(default_factory=new_production_run_id)
+    step_states: dict[str, str] = field(default_factory=dict)
+    step_manifests: dict[str, str] = field(default_factory=dict)
+    explicit_reuse_manifests: dict[str, dict[str, object]] = field(default_factory=dict)
+    reuse_mapping: dict[str, dict[str, object]] = field(default_factory=dict)
+    reuse_decisions: list[dict[str, object]] = field(default_factory=list)
 
     @classmethod
     def from_args(cls, args: object) -> "PipelineContext":
         """Compatibility adapter for callers still passing parser output."""
 
         if isinstance(args, PipelineRunConfig):
-            return cls(config=args)
-        return cls(config=PipelineRunConfig.from_namespace(args))
+            config = args
+        else:
+            config = PipelineRunConfig.from_namespace(args)
+        return cls(config=config, reuse_mapping=load_reuse_mapping(config.reuse_manifest))
 
     @property
     def run_type(self) -> str:
@@ -47,8 +60,79 @@ class PipelineContext:
     def technical_patterns_output(self) -> str:
         return self.config.refresh_technical.output
 
-    def record(self, manifest: str | Path) -> None:
-        self.child_manifests.append(str(manifest))
+    def record(self, step: str, manifest: str | Path) -> None:
+        path = str(manifest)
+        self.child_manifests.append(path)
+        self.step_manifests[step] = path
+        self.step_states[step] = "produced_this_run"
+
+    def mark(self, step: str, state: str) -> None:
+        self.step_states[step] = state
+
+    def parent_manifests_for(self, step: PipelineStep) -> list[str]:
+        return [
+            self.step_manifests[dependency]
+            for dependency in step.dependencies
+            if dependency in self.step_manifests
+        ]
+
+    def prepare_step(self, step: PipelineStep) -> None:
+        config_names = {
+            "refresh_data": "refresh_data",
+            "refresh_supplemental_data": "refresh_supplemental",
+            "refresh_regime": "refresh_regime",
+            "refresh_sector_model": "refresh_sector",
+            "refresh_country_model": "refresh_country_model",
+            "refresh_ml": "refresh_ml",
+            "refresh_technical": "refresh_technical",
+            "export_signals": "export_signals",
+            "refresh_factor_recommendation": "refresh_factor_recommendation",
+            "refresh_small_cap": "refresh_small_cap",
+            "build_candidates": "build_candidates",
+            "optimize_portfolio": "optimize_portfolio",
+            "run_backtest": "run_backtest",
+            "generate_report": "generate_report",
+        }
+        step_config = getattr(self.config, config_names[step.name])
+        setattr(step_config, "production_run_id", self.production_run_id)
+        setattr(step_config, "data_release_id", self.config.cli_parameters.get("data_release_id"))
+        setattr(step_config, "catalog_release_id", self.config.cli_parameters.get("catalog_release_id"))
+        setattr(step_config, "model_release_ids", list(self.config.model_release_ids))
+        setattr(step_config, "parent_manifests", self.parent_manifests_for(step))
+        setattr(
+            step_config,
+            "reuse_decisions",
+            list(self.reuse_decisions),
+        )
+        setattr(step_config, "write_approval", self.config.cli_parameters.get("write_approval"))
+
+    def reuse_for(self, step: str) -> dict[str, object] | None:
+        entry = self.reuse_mapping.get(step)
+        if entry is None:
+            return None
+        details = validate_reuse_manifest(
+            str(entry["manifest"]),
+            run_type=self.run_type,
+            as_of=self.config.as_of,
+            allowed_lag_days=self.config.freshness_window_days,
+        )
+        details["reason"] = str(entry.get("reason") or "explicit reuse")
+        return details
+
+    def record_reuse(self, step: str, details: dict[str, object]) -> None:
+        path = str(details["manifest_path"])
+        self.step_states[step] = "explicitly_reused"
+        self.step_manifests[step] = path
+        self.explicit_reuse_manifests[step] = details
+        self.reuse_decisions.append(
+            {
+                "step": step,
+                "manifest": path,
+                "reason": details.get("reason", "explicit reuse"),
+                "source_production_run_id": details.get("production_run_id"),
+                "data_date": details.get("data_date"),
+            }
+        )
 
 
 def run_refresh_supplemental_data(config):
@@ -240,7 +324,7 @@ def pipeline_dag() -> PipelineDAG:
         ),
         PipelineStep(
             "refresh_factor_recommendation",
-            (),
+            ("refresh_data",),
             lambda context: bool(
                 getattr(context.config.controls, "refresh_factor_recommendation", False)
             ),
@@ -287,9 +371,33 @@ def pipeline_steps() -> tuple[PipelineStep, ...]:
 
 
 def execute_pipeline_steps(context: PipelineContext) -> list[str]:
-    """Execute enabled steps and return their manifest paths."""
+    """Execute steps only after dependencies are produced or explicitly reused."""
 
+    failure: BaseException | None = None
     for step in pipeline_dag().ordered_steps():
-        if step.enabled(context):
-            context.record(step.execute(context))
+        try:
+            reuse = context.reuse_for(step.name)
+            if reuse is not None:
+                context.record_reuse(step.name, reuse)
+                continue
+            if not step.enabled(context):
+                context.mark(step.name, "disabled")
+                continue
+            blocked = [
+                dependency
+                for dependency in step.dependencies
+                if context.step_states.get(dependency)
+                not in {"produced_this_run", "explicitly_reused"}
+            ]
+            if blocked:
+                context.mark(step.name, "blocked_by_dependency")
+                continue
+            context.prepare_step(step)
+            context.record(step.name, step.execute(context))
+        except BaseException as exc:
+            context.mark(step.name, "failed")
+            if failure is None:
+                failure = exc
+    if failure is not None:
+        raise failure
     return context.child_manifests

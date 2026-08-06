@@ -130,10 +130,18 @@ def _replay_one(
         "--apply",
         "--qa-report",
         str(root / "artifacts" / "writer_replay" / f"{month}_{mode}_qa.json"),
+        "--stage-timing",
+        str(root / "artifacts" / "writer_replay" / f"{month}_{mode}_stage_timing.json"),
     ]
     if mode == "partition_writer":
         command.extend(["--partition-writer", "--compatibility-exports"])
     run = _run_command(command, cwd=root, env=env, timeout_seconds=timeout_seconds)
+    timing_path = root / "artifacts" / "writer_replay" / f"{month}_{mode}_stage_timing.json"
+    timing = (
+        json.loads(timing_path.read_text(encoding="utf-8"))
+        if timing_path.exists()
+        else {"status": "missing", "stage_seconds": {}}
+    )
     after = {
         "screen_manifest": _manifest_state(root, "screen"),
         "returns_manifest": _manifest_state(root, "returns_wide"),
@@ -152,6 +160,7 @@ def _replay_one(
             "screen_input": str(screen_copy),
             "returns_input": str(returns_copy),
             "command": run,
+            "stage_timing": timing,
             "before": before,
             "after": after,
             "changed_partitions": changed,
@@ -237,7 +246,73 @@ def run_monthly_replays(
                 "rollback_result": "not_applicable_in_writer_replay",
             }
         )
+    timing_output = Path(run_dir) / "writer_stage_timing.json"
+    timing_output.parent.mkdir(parents=True, exist_ok=True)
+    timing_output.write_text(
+        json.dumps(
+            {
+                "status": "passed" if all(item.get("status") == "passed" for item in rows) else "blocked",
+                "months": [item.get("input_month") for item in rows],
+                "replays": [
+                    {
+                        "input_month": item.get("input_month"),
+                        "legacy": item.get("legacy_results", {}).get("stage_timing"),
+                        "partition_writer": item.get("partition_results", {}).get("stage_timing"),
+                    }
+                    for item in rows
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     return rows
 
 
-__all__ = ["run_monthly_replays"]
+def run_partition_writer_smoke(
+    *,
+    source_root: str | Path,
+    current_root: str | Path,
+    run_dir: str | Path,
+    month: str = "202606",
+    timeout_seconds: int = 600,
+) -> dict[str, Any]:
+    """Run one bounded Partition Writer smoke in an isolated scratch root."""
+
+    source = Path(source_root).resolve()
+    current = Path(current_root).resolve()
+    cycle_root = Path(run_dir) / "writer_smoke" / month / "partition_writer"
+    result = _replay_one(
+        root=cycle_root,
+        source_root=source,
+        code_root=current,
+        month=month,
+        mode="partition_writer",
+        timeout_seconds=timeout_seconds,
+    )
+    output = Path(run_dir) / "writer_stage_timing.json"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps(
+            {
+                "status": result.get("status", "blocked"),
+                "input_month": month,
+                "mode": "partition_writer",
+                "timeout_seconds": timeout_seconds,
+                "stage_timing": result.get("stage_timing"),
+                "command": result.get("command"),
+                "changed_partitions": result.get("changed_partitions", []),
+                "compatibility_exports": result.get("compatibility_exports"),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return result
+
+
+__all__ = ["run_monthly_replays", "run_partition_writer_smoke"]

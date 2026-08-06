@@ -292,11 +292,14 @@ def load_pruned_backtest_inputs(
             engine=resolved_engine,
         )
         sedols = _screen_sedols(screen, benchmark_names)
-        return_columns = resolve_return_columns(
-            returns_file,
-            sorted(sedols),
-            engine=resolved_engine,
-        )
+        if resolved_engine == "hybrid":
+            return_columns = available_return_columns(returns_file, sorted(sedols))
+        else:
+            return_columns = resolve_return_columns(
+                returns_file,
+                sorted(sedols),
+                engine=resolved_engine,
+            )
         returns = read_returns(
             returns_file,
             columns=return_columns,

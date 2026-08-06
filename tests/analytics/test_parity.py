@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from tp_core.analytics.benchmarking.pipeline_suite import compare_pipeline_outputs
 from tp_core.analytics.parity import compare_frames
 
 
@@ -46,3 +47,34 @@ def test_compare_frames_reports_first_mismatch_and_uses_explicit_tolerance() -> 
         "right": 2.5,
     }
     assert result.diagnostics["max_abs_numeric_diff"] == 0.5
+
+
+def test_pipeline_parity_ignores_only_declared_provenance_fields(tmp_path) -> None:
+    left_path = tmp_path / "legacy.parquet"
+    right_path = tmp_path / "hybrid.parquet"
+    base = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2026-01-31"]),
+            "ISIN": ["ISIN1"],
+            "value": [1.0],
+            "source_path": ["legacy.parquet"],
+            "run_id": ["legacy-run"],
+        }
+    )
+    right = base.copy()
+    right["source_path"] = "partition.parquet"
+    right["run_id"] = "hybrid-run"
+    base.to_parquet(left_path, index=False)
+    right.to_parquet(right_path, index=False)
+
+    rows = compare_pipeline_outputs(
+        [
+            {"engine": "current_legacy", "paths": {"ml": left_path}},
+            {"engine": "current_hybrid", "paths": {"ml": right_path}},
+        ]
+    )
+
+    ml_row = next(row for row in rows if row["surface"] == "ml")
+    assert ml_row["status"] == "passed"
+    assert ml_row["business_parity"] == "passed"
+    assert ml_row["provenance_difference"]["status"] == "different"

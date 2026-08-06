@@ -131,3 +131,37 @@ def test_io_reads_duckdb_and_shadow_engines_without_changing_default_contract(
     )
     assert loaded_screen["score"].tolist() == [1.0, 2.0, 3.0]
     assert loaded_returns.columns.tolist() == ["SED1", "SED2"]
+
+
+def test_hybrid_engine_reads_partitioned_screen_returns_and_company_history(tmp_path: Path) -> None:
+    _, screen_path, returns_path = _fixture_release(tmp_path)
+
+    screen = read_screen_aggregate(
+        screen_path,
+        columns=("Date", "ISIN", "Company SEDOL", "value"),
+        date_from=date(2026, 1, 31),
+        date_to=date(2026, 2, 28),
+        engine="hybrid",
+    )
+    latest = read_last_screen(
+        screen_path,
+        columns=("Date", "ISIN", "value"),
+        engine="hybrid",
+    )
+    returns = read_returns(
+        returns_path,
+        columns=("SED1",),
+        date_from=date(2025, 12, 31),
+        date_to=date(2026, 1, 2),
+        engine="hybrid",
+    )
+    history = PresentationDataRepository(root=tmp_path, engine="hybrid").company_history(
+        "ISIN1",
+        columns=("Date", "ISIN", "value"),
+    )
+
+    assert screen.shape == (3, 4)
+    assert latest["Date"].nunique() == 1
+    assert latest.iloc[0]["ISIN"] == "ISIN1"
+    assert returns["SED1"].tolist() == [0.1, 0.2]
+    assert history["ISIN"].tolist() == ["ISIN1", "ISIN1"]

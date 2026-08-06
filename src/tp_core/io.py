@@ -11,14 +11,17 @@ import pandas as pd
 
 from .analytics.config import DuckDBConfig
 from .analytics.connection import connect
+from .analytics.partition_readers import (
+    read_latest_screen_partitioned,
+    read_returns_dates_partitioned,
+    read_returns_partitioned,
+    read_screen_partitioned,
+    returns_partition_paths,
+)
 from .analytics.queries import QuerySpecError, ReturnsQuery, ScreenQuery
 from .analytics.repositories import ReturnsRepository, ScreenRepository
-from .analytics.returns_io import (
-    read_returns_dates as read_legacy_returns_dates,
-)
-from .analytics.returns_io import (
-    read_returns_matrix,
-)
+from .analytics.returns_io import read_returns_dates as read_legacy_returns_dates
+from .analytics.returns_io import read_returns_matrix
 from .analytics.shadow import shadow_compare_returns, shadow_compare_screen
 from .data_contract import drop_deprecated_screen_columns, normalize_screen_dates
 from .data_sources import (
@@ -62,6 +65,17 @@ def read_screen_aggregate(
     projection = tuple(columns) if columns is not None else None
     if resolved_engine == "legacy_parquet":
         frame = _read_legacy_screen(
+            path,
+            projection,
+            filters=filters,
+            date_from=date_from,
+            date_to=date_to,
+            as_of=as_of,
+            isins=tuple(isins),
+            sedols=tuple(sedols),
+        )
+    elif resolved_engine == "hybrid":
+        frame = read_screen_partitioned(
             path,
             projection,
             filters=filters,
@@ -115,6 +129,9 @@ def read_last_screen(
             engine="legacy_parquet",
         )
         return frame
+    if resolved_engine == "hybrid":
+        frame = read_latest_screen_partitioned(path, projection or None)
+        return _postprocess_screen(frame, drop_deprecated=drop_deprecated, normalize_dates=normalize_dates)
     with connect(_read_only_config()) as connection:
         frame = ScreenRepository(connection).latest(columns=projection)
         if resolved_engine == "shadow_compare":
@@ -152,12 +169,16 @@ def read_screen_5y(
             normalize_dates=normalize_dates,
             engine="legacy_parquet",
         )
-    latest = read_last_screen(
-        SCREEN_AGGREGATE_PATH,
-        columns=("Date", "ISIN"),
-        drop_deprecated=False,
-        normalize_dates=True,
-        engine="duckdb",
+    latest = (
+        read_latest_screen_partitioned(SCREEN_AGGREGATE_PATH, columns=("Date", "ISIN"))
+        if resolved_engine == "hybrid"
+        else read_last_screen(
+            SCREEN_AGGREGATE_PATH,
+            columns=("Date", "ISIN"),
+            drop_deprecated=False,
+            normalize_dates=True,
+            engine="duckdb",
+        )
     )
     if latest.empty:
         return latest
@@ -191,6 +212,13 @@ def read_returns(
             date_from=date_from,
             date_to=date_to,
         )
+    if resolved_engine == "hybrid":
+        return read_returns_partitioned(
+            path,
+            columns=projection,
+            date_from=date_from,
+            date_to=date_to,
+        ).sort_index()
     if projection is None and resolved_engine == "shadow_compare":
         raise QuerySpecError("shadow_compare returns reads require an explicit security projection")
     spec = ReturnsQuery(
@@ -224,6 +252,8 @@ def read_returns_dates(
     resolved_engine = _resolve_engine(engine)
     if resolved_engine == "legacy_parquet":
         return read_legacy_returns_dates(path)
+    if resolved_engine == "hybrid":
+        return read_returns_dates_partitioned(path)
     with connect(_read_only_config()) as connection:
         duck = connection.execute(
             'SELECT "Date" FROM "canonical"."returns_wide" ORDER BY "Date"'
@@ -251,8 +281,17 @@ def resolve_return_columns(
     import pyarrow.parquet as pq
 
     physical = set(pq.ParquetFile(path).schema_arrow.names)
-    if resolved_engine == "legacy_parquet":
+    if resolved_engine in {"legacy_parquet", "hybrid"}:
         available = physical
+        if resolved_engine == "hybrid":
+            partition_paths = returns_partition_paths(path)
+            available = set()
+            for partition_path in partition_paths:
+                available.update(
+                    name
+                    for name in pq.ParquetFile(partition_path).schema_arrow.names
+                    if name not in {"Date", "__index_level_0__"}
+                )
     else:
         with connect(_read_only_config()) as connection:
             catalog = {
@@ -275,7 +314,7 @@ def _read_only_config() -> DuckDBConfig:
 
 def _resolve_engine(engine: str | None) -> str:
     value = engine or DuckDBConfig.from_env().data_engine
-    if value not in {"legacy_parquet", "duckdb", "shadow_compare"}:
+    if value not in {"legacy_parquet", "duckdb", "hybrid", "shadow_compare"}:
         raise ValueError(f"unsupported data engine: {value!r}")
     return value
 

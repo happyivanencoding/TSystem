@@ -19,7 +19,7 @@ from typing import Any
 import pandas as pd
 import pyarrow.parquet as pq
 
-from .engines import ENGINE_ORDER
+from .engines import ENGINE_ORDER, VALID_ENGINES
 from .environment import capture_environment, file_state, snapshot_paths
 from .parity import _normalise, compare_frames
 from .pipeline_suite import _run_command, run_pipeline_suite
@@ -256,6 +256,22 @@ def _run_worker_batch(
         return [(futures[future], future.result()) for future in as_completed(futures)]
 
 
+_CRITICAL_WORKLOAD_TIMEOUTS = {
+    "S03": 30,
+    "R02": 30,
+    "M09": 30,
+    "R03": 90,
+    "R05": 90,
+    "M10": 60,
+}
+
+
+def _workload_timeout(workload_id: str, default: int) -> int:
+    if default <= 300:
+        return _CRITICAL_WORKLOAD_TIMEOUTS.get(workload_id, default)
+    return default
+
+
 def _run_measurements(
     *,
     workloads: list[Any],
@@ -305,9 +321,11 @@ def _run_measurements(
         "pre_duckdb": pre_root,
         "current_legacy": current_root,
         "current_duckdb": current_root,
+        "current_hybrid": current_root,
     }
     reference_storage = "google_drive" if "google_drive" in storages else storages[0]
     for workload in workloads:
+        workload_timeout = _workload_timeout(workload.workload_id, timeout_seconds)
         resolved = _resolve_workload_inputs(
             workload,
             database=storage_databases[reference_storage],
@@ -355,7 +373,7 @@ def _run_measurements(
                                 "repo_root": str(repo_roots[engine]),
                                 "data_root": str(storage_roots[storage]),
                                 "database": str(storage_databases[storage])
-                                if engine == "current_duckdb"
+                                if engine in {"current_duckdb", "current_hybrid"}
                                 else None,
                                 "engine": engine,
                                 "storage": storage,
@@ -371,7 +389,7 @@ def _run_measurements(
                             }
                             jobs.append(((repeat, position, engine, key), spec))
                     for metadata, result in _run_worker_batch(
-                        jobs, timeout_seconds=timeout_seconds
+                        jobs, timeout_seconds=workload_timeout
                     ):
                         repeat, position, engine, key = metadata
                         records.append(
@@ -443,7 +461,7 @@ def _run_measurements(
                             "repo_root": str(repo_roots[engine]),
                             "data_root": str(storage_roots[storage]),
                             "database": str(storage_databases[storage])
-                            if engine == "current_duckdb"
+                            if engine in {"current_duckdb", "current_hybrid"}
                             else None,
                             "engine": engine,
                             "storage": storage,
@@ -459,7 +477,7 @@ def _run_measurements(
                         }
                         jobs.append(((missing, position, engine), spec))
                     for metadata, result in _run_worker_batch(
-                        jobs, timeout_seconds=timeout_seconds
+                        jobs, timeout_seconds=workload_timeout
                     ):
                         missing, position, engine = metadata
                         result_rows = result.get("results") or [result]
@@ -501,6 +519,7 @@ def _query_parity(
         "pre_duckdb": pre_root,
         "current_legacy": current_root,
         "current_duckdb": current_root,
+        "current_hybrid": current_root,
     }
     frames: dict[tuple[str, str], pd.DataFrame] = {}
     metadata: dict[tuple[str, str], dict[str, Any]] = {}
@@ -562,7 +581,7 @@ def _query_parity(
                     "repo_root": str(repo_roots[engine]),
                     "data_root": str(storage_roots[storage]),
                     "database": str(storage_databases[storage])
-                    if engine == "current_duckdb"
+                    if engine in {"current_duckdb", "current_hybrid"}
                     else None,
                     "engine": engine,
                     "storage": storage,
@@ -578,7 +597,10 @@ def _query_parity(
                     "result_path": str(path),
                     "parity_keys": list(workload.parity.get("keys") or ()),
                 }
-                result = _worker_result(spec, timeout_seconds=timeout_seconds)
+                result = _worker_result(
+                    spec,
+                    timeout_seconds=_workload_timeout(workload.workload_id, timeout_seconds),
+                )
                 result_rows = result.get("results") or []
                 if result_rows:
                     result_rows[0]["schema_complete"] = True
@@ -593,6 +615,9 @@ def _query_parity(
         ("pre_duckdb", "current_legacy"),
         ("current_legacy", "current_duckdb"),
         ("pre_duckdb", "current_duckdb"),
+        ("current_legacy", "current_hybrid"),
+        ("pre_duckdb", "current_hybrid"),
+        ("current_duckdb", "current_hybrid"),
     )
     normalized_frames: dict[tuple[str, str], pd.DataFrame] = {}
     for workload in workloads:
@@ -907,13 +932,15 @@ def _rollback_drill(
     }
 
 
-def _performance_status(attribution: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]]]:
+def _performance_status(
+    attribution: list[dict[str, Any]], *, new_engine: str = "current_duckdb"
+) -> tuple[str, list[dict[str, Any]]]:
     hot = [
         row
         for row in attribution
         if row.get("storage") == "google_drive"
         and row.get("old_engine") == "current_legacy"
-        and row.get("new_engine") == "current_duckdb"
+        and row.get("new_engine") == new_engine
         and row.get("workload_id")
         and row.get("speedup_x") is not None
     ]
@@ -922,6 +949,40 @@ def _performance_status(attribution: list[dict[str, Any]]) -> tuple[str, list[di
     if not hot:
         return "blocked", regressions
     return ("review_required" if review else "passed"), regressions
+
+
+def _critical_query_status(
+    records: list[dict[str, Any]],
+    parity: list[dict[str, Any]],
+    attribution: list[dict[str, Any]],
+    *,
+    target_engine: str,
+) -> str:
+    required_workloads = {"S03", "R02", "R03", "R05", "M09", "M10"}
+    measured_workloads = {str(row.get("workload_id")) for row in records}
+    if (
+        not records
+        or measured_workloads != required_workloads
+        or any(row.get("status") != "passed" for row in records)
+        or any(item.get("status") != "passed" for item in parity)
+    ):
+        return "FIX_INCOMPLETE"
+    hot = [
+        row
+        for row in attribution
+        if row.get("storage") == "google_drive"
+        and row.get("old_engine") == "current_legacy"
+        and row.get("new_engine") == target_engine
+        and row.get("workload_id") in required_workloads
+        and row.get("speedup_x") is not None
+    ]
+    if {str(row.get("workload_id")) for row in hot} != required_workloads:
+        return "FIX_INCOMPLETE"
+    return (
+        "PERFORMANCE_REVIEW_REQUIRED"
+        if any(float(row.get("speedup_x", 0)) < 1.0 for row in hot)
+        else "HYBRID_QUERY_READY"
+    )
 
 
 def _readiness_candidate(
@@ -1111,7 +1172,7 @@ def benchmark_main(argv: Iterable[str] | None = None) -> int:
     selected = select_workloads(workloads, workload_ids=args.workload or (), category=args.category)
     engines = args.engine or _parse_csv(args.engines)
     storages = _parse_csv(args.storage)
-    invalid_engines = sorted(set(engines) - set(ENGINE_ORDER))
+    invalid_engines = sorted(set(engines) - set(VALID_ENGINES))
     if invalid_engines:
         parser.error(f"unknown engine(s): {', '.join(invalid_engines)}")
     invalid_storage = sorted(set(storages) - {"google_drive", "local_mirror"})
@@ -1255,13 +1316,18 @@ def benchmark_main(argv: Iterable[str] | None = None) -> int:
         resume=args.resume,
     )
     summary = summarize_measurements(records)
-    attribution = attribution_rows(summary, old_engine="pre_duckdb", new_engine="current_legacy")
-    attribution.extend(
-        attribution_rows(summary, old_engine="current_legacy", new_engine="current_duckdb")
-    )
-    attribution.extend(
-        attribution_rows(summary, old_engine="pre_duckdb", new_engine="current_duckdb")
-    )
+    attribution: list[dict[str, Any]] = []
+    for old_engine, new_engine in (
+        ("pre_duckdb", "current_legacy"),
+        ("current_legacy", "current_duckdb"),
+        ("pre_duckdb", "current_duckdb"),
+        ("current_legacy", "current_hybrid"),
+        ("pre_duckdb", "current_hybrid"),
+        ("current_duckdb", "current_hybrid"),
+    ):
+        attribution.extend(
+            attribution_rows(summary, old_engine=old_engine, new_engine=new_engine)
+        )
     storage_comparison: list[dict[str, Any]] = []
     summary_frame = pd.DataFrame(summary)
     if not summary_frame.empty and {"google_drive", "local_mirror"}.issubset(
@@ -1342,19 +1408,82 @@ def benchmark_main(argv: Iterable[str] | None = None) -> int:
             )
         for index, item in enumerate(monthly, start=1):
             _write_json(run_dir / f"monthly_replay_{index}.json", item)
-    performance_status, regressions = _performance_status(attribution)
+    target_engine = "current_hybrid" if "current_hybrid" in engines else "current_duckdb"
+    performance_status, regressions = _performance_status(
+        attribution, new_engine=target_engine
+    )
     if args.smoke_only:
+        critical_status = _critical_query_status(
+            records,
+            parity,
+            attribution,
+            target_engine=target_engine,
+        )
+        _write_json(
+            run_dir / "parity.json",
+            {
+                "status": "passed"
+                if parity and all(item.get("status") == "passed" for item in parity)
+                else "blocked",
+                "business_parity": parity,
+                "provenance_fields_ignored": [
+                    "source_candidates",
+                    "source_path",
+                    "output_path",
+                    "artifact_path",
+                    "run_directory",
+                    "generated_at",
+                    "run_id",
+                ],
+            },
+        )
+        pd.DataFrame(
+            [
+                row
+                for row in attribution
+                if row.get("old_engine") == "current_legacy"
+                and row.get("new_engine") == target_engine
+                and row.get("storage") == "google_drive"
+            ]
+        ).to_csv(run_dir / "before_after.csv", index=False)
+        readiness = {
+            "decision": critical_status,
+            "status": "not_active",
+            "authority_not_active": True,
+            "compatibility_exports_enabled": True,
+            "performance_status": performance_status,
+            "remaining_blocker": "仅完成关键查询证据；Authority activation 仍需外部 approval。",
+        }
+        report_paths = write_reports(
+            run_dir=run_dir,
+            run_id=run_id,
+            measurements=records,
+            summary=summary,
+            attribution=attribution,
+            storage_comparison=storage_comparison,
+            pipeline={"runs": [], "parity": []},
+            deployment={"status": "blocked", "reason": "critical_query_smoke_only"},
+            rollback={"status": "blocked", "reason": "critical_query_smoke_only"},
+            monthly=[],
+            readiness=readiness,
+            environment=environment["current"],
+            stable_html=root
+            / "artifacts"
+            / "analytics"
+            / "benchmarks"
+            / "duckdb_performance_comparison_latest.html",
+        )
+        _write_json(run_dir / "report_paths.json", report_paths)
         smoke_status = {
             "run_id": run_id,
-            "status": "passed"
-            if all(row.get("status") == "passed" for row in records)
-            and all(item.get("status") == "passed" for item in parity)
-            else "failed",
+            "status": critical_status,
             "performance_status": performance_status,
             "regressions": regressions,
             "parity": parity,
             "authority_activation_called": False,
             "stable_readiness_written": False,
+            "authority_not_active": True,
+            "compatibility_exports_enabled": True,
         }
         _write_json(run_dir / "smoke_status.json", smoke_status)
         environment["production_files_after"] = snapshot_paths(
@@ -1373,13 +1502,13 @@ def benchmark_main(argv: Iterable[str] | None = None) -> int:
                     "run_id": run_id,
                     "run_dir": str(run_dir),
                     "readiness_candidate": None,
-                    "report": None,
+                    "report": report_paths,
                 },
                 ensure_ascii=False,
                 indent=2,
             )
         )
-        return 0 if smoke_status["status"] == "passed" else 1
+        return 0 if critical_status != "FIX_INCOMPLETE" else 1
     readiness = _readiness_candidate(
         run_id=run_id,
         run_dir=run_dir,

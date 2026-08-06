@@ -45,7 +45,11 @@ class PresentationDataRepository:
 
         screen_path = self.root / "00_screen" / "screen_aggregate.parquet"
         if last_only:
-            return read_last_screen(screen_path, columns=columns, engine=self.engine)
+            return read_last_screen(
+                self.root / "00_screen" / "last_screen.parquet",
+                columns=columns,
+                engine=self.engine,
+            )
         return read_screen_aggregate(
             screen_path,
             columns=columns,
@@ -104,7 +108,15 @@ class PresentationDataRepository:
     def latest_company_snapshot(self, sedol: str | None = None, isin: str | None = None) -> pd.DataFrame:
         """读取最新公司截面，可按 SEDOL 或 ISIN 过滤。"""
 
-        frame = self.screen(last_only=True).copy()
+        if self.data_engine == "hybrid":
+            # The immutable partition mirror preserves Arrow half-float values;
+            # use the compatibility latest file for the all-column company payload.
+            frame = read_last_screen(
+                self.root / "00_screen" / "last_screen.parquet",
+                engine="legacy_parquet",
+            ).copy()
+        else:
+            frame = self.screen(last_only=True).copy()
         if sedol is not None and "Company SEDOL" in frame.columns:
             frame = frame[frame["Company SEDOL"].astype(str).eq(str(sedol))].copy()
         if isin is not None:
@@ -114,25 +126,68 @@ class PresentationDataRepository:
                 frame = frame[frame.index.astype(str) == str(isin)].copy()
         return frame
 
-    def company_history(self, isin: str) -> pd.DataFrame:
+    def company_history(
+        self,
+        isin: str,
+        *,
+        date_from: date | datetime | None = None,
+        date_to: date | datetime | None = None,
+        columns: Iterable[str] | None = None,
+    ) -> pd.DataFrame:
         """按 ISIN 读取单公司历史 screen 面板，供公司分析和报告层复用。"""
 
-        if self.data_engine in {"duckdb", "shadow_compare"}:
+        screen_path = self.root / "00_screen" / "screen_aggregate.parquet"
+        if self.data_engine in {"duckdb", "hybrid", "shadow_compare"}:
             frame = read_screen_aggregate(
-                self.root / "00_screen" / "screen_aggregate.parquet",
+                screen_path,
                 isins=(isin,),
-                columns=None,
+                columns=columns,
+                date_from=date_from,
+                date_to=date_to,
                 engine=self.engine,
             )
         else:
+            filters: list[tuple[str, str, object]] = [("ISIN", "==", isin)]
+            if date_from is not None:
+                filters.append(("Date", ">=", pd.Timestamp(date_from)))
+            if date_to is not None:
+                filters.append(("Date", "<=", pd.Timestamp(date_to)))
             frame = pd.read_parquet(
-                self.root / "00_screen" / "screen_aggregate.parquet",
-                filters=[("ISIN", "==", isin)],
+                screen_path,
+                columns=list(columns) if columns is not None else None,
+                filters=filters,
             )
         if frame.empty:
             return frame
         if "ISIN" not in frame.columns:
             frame = frame.reset_index()
+        if "ISIN" in frame.columns:
+            frame = frame.loc[:, ["ISIN", *[column for column in frame.columns if column != "ISIN"]]]
+        if self.data_engine == "hybrid" and columns is None:
+            # Some legacy half-float fields were written as nulls in the existing
+            # mirror. Rehydrate only the degraded columns from the read-only
+            # compatibility export while retaining partition routing for the query.
+            compatibility_filters: list[tuple[str, str, object]] = [("ISIN", "==", isin)]
+            if date_from is not None:
+                compatibility_filters.append(("Date", ">=", pd.Timestamp(date_from)))
+            if date_to is not None:
+                compatibility_filters.append(("Date", "<=", pd.Timestamp(date_to)))
+            compatibility = pd.read_parquet(screen_path, filters=compatibility_filters)
+            if compatibility.index.name == "ISIN":
+                compatibility = compatibility.reset_index()
+            if "ISIN" in compatibility.columns and "Date" in compatibility.columns:
+                keys = ["ISIN", "Date"]
+                frame_keys = frame.loc[:, keys].astype({"ISIN": str})
+                compatible = compatibility.set_index(keys).reindex(
+                    pd.MultiIndex.from_frame(frame_keys)
+                )
+                for column in frame.columns:
+                    if column in keys or column not in compatible.columns:
+                        continue
+                    if not frame[column].reset_index(drop=True).equals(
+                        compatible[column].reset_index(drop=True)
+                    ):
+                        frame[column] = compatible[column].to_numpy()
         if "Date" in frame.columns:
             frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
             frame = frame.sort_values("Date")

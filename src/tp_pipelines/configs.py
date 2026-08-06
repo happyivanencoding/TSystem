@@ -45,6 +45,7 @@ class RefreshDataConfig(StepConfig):
     apply: bool = False
     partition_writer: bool = False
     compatibility_exports: bool | None = None
+    stage_timing_path: str | None = None
 
 
 @dataclass

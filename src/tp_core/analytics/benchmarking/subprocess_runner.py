@@ -30,9 +30,10 @@ def _configure_environment(spec: dict[str, Any]) -> None:
     os.environ["TP_ROOT"] = data_root
     os.environ["TP_DATA_ROOT"] = data_root
     os.environ["TP_ARTIFACT_ROOT"] = str(Path(data_root) / "artifacts")
-    os.environ["TP_DATA_ENGINE"] = (
-        "duckdb" if spec["engine"] == "current_duckdb" else "legacy_parquet"
-    )
+    os.environ["TP_DATA_ENGINE"] = {
+        "current_duckdb": "duckdb",
+        "current_hybrid": "hybrid",
+    }.get(spec["engine"], "legacy_parquet")
     if spec.get("database"):
         os.environ["TP_DUCKDB_PATH"] = str(Path(spec["database"]).resolve())
     else:
@@ -97,42 +98,43 @@ def _screen_operation(spec: dict[str, Any], io: Any, connection: Any) -> pd.Data
     columns = tuple(spec.get("input_columns") or ())
     resolved = spec.get("resolved") or {}
     pre = spec["engine"] == "pre_duckdb"
+    routed_engine = "hybrid" if spec["engine"] == "current_hybrid" else "legacy_parquet"
     if operation == "screen_full":
         if pre:
             return io.read_screen_aggregate(aggregate)
-        if connection is not None:
+        if spec["engine"] == "current_duckdb" and connection is not None:
             from tp_core.analytics.queries import ScreenQuery
             from tp_core.analytics.repositories import ScreenRepository
 
             return ScreenRepository(connection).query(ScreenQuery())
-        return io.read_screen_aggregate(aggregate, engine="legacy_parquet")
+        return io.read_screen_aggregate(aggregate, engine=routed_engine)
     if operation == "screen_latest_all":
         if pre:
             return io.read_last_screen(latest)
-        if connection is not None:
+        if spec["engine"] == "current_duckdb" and connection is not None:
             from tp_core.analytics.repositories import ScreenRepository
 
             return ScreenRepository(connection).latest()
-        return io.read_last_screen(engine="legacy_parquet")
+        return io.read_last_screen(engine=routed_engine)
     date_to = _as_date(spec.get("as_of") or (spec.get("input_date") or {}).get("as_of"))
     date_from = _as_date((spec.get("input_date") or {}).get("from"))
     if operation == "screen_5y":
         if pre:
             return io.read_screen_5y(five_year, columns=columns or None)
-        if connection is not None:
+        if spec["engine"] == "current_duckdb" and connection is not None:
             from tp_core.analytics.queries import ScreenQuery
             from tp_core.analytics.repositories import ScreenRepository
 
             return ScreenRepository(connection).query(
                 ScreenQuery(columns=columns, date_from=date_from, date_to=date_to)
             )
-        return io.read_screen_5y(columns=columns or None, engine="legacy_parquet")
+        return io.read_screen_5y(columns=columns or None, engine=routed_engine)
     isins = tuple(str(value) for value in resolved.get("screen_isins") or ())
     if operation in {"screen_company_history", "screen_companies_history"}:
         if pre:
             frame = io.read_screen_aggregate(aggregate, columns=columns or None)
             return _filter_frame(frame, date_from=date_from, date_to=date_to, isins=isins)
-        if connection is not None:
+        if spec["engine"] == "current_duckdb" and connection is not None:
             from tp_core.analytics.queries import ScreenQuery
             from tp_core.analytics.repositories import ScreenRepository
 
@@ -145,12 +147,12 @@ def _screen_operation(spec: dict[str, Any], io: Any, connection: Any) -> pd.Data
             date_from=date_from,
             date_to=date_to,
             isins=isins,
-            engine="legacy_parquet",
+            engine=routed_engine,
         )
     if pre:
         frame = io.read_screen_aggregate(aggregate, columns=columns or None)
         frame = _filter_frame(frame, date_from=date_to, date_to=date_to)
-    elif connection is not None:
+    elif spec["engine"] == "current_duckdb" and connection is not None:
         from tp_core.analytics.queries import ScreenQuery
         from tp_core.analytics.repositories import ScreenRepository
 
@@ -163,7 +165,7 @@ def _screen_operation(spec: dict[str, Any], io: Any, connection: Any) -> pd.Data
             columns=columns or None,
             date_from=date_to,
             date_to=date_to,
-            engine="legacy_parquet",
+            engine=routed_engine,
         )
     if operation == "screen_benchmark":
         weight_column = str((spec.get("universe") or {}).get("weight_column"))
@@ -177,6 +179,7 @@ def _returns_operation(spec: dict[str, Any], io: Any, connection: Any) -> pd.Dat
     root = Path(spec["data_root"])
     returns_path = root / "00_screen" / "returns.parquet"
     pre = spec["engine"] == "pre_duckdb"
+    routed_engine = "hybrid" if spec["engine"] == "current_hybrid" else "legacy_parquet"
     resolved = spec.get("resolved") or {}
     columns = tuple(str(value) for value in resolved.get("returns_columns") or ())
     input_date = spec.get("input_date") or {}
@@ -186,12 +189,12 @@ def _returns_operation(spec: dict[str, Any], io: Any, connection: Any) -> pd.Dat
         if pre:
             frame = pd.read_parquet(returns_path, columns=[])
             return pd.DataFrame({"Date": pd.to_datetime(frame.index, errors="coerce")})
-        if connection is not None:
+        if spec["engine"] == "current_duckdb" and connection is not None:
             frame = connection.execute(
                 'SELECT "Date" FROM "canonical"."returns_wide" ORDER BY "Date"'
             ).df()
             return frame
-        dates = io.read_returns_dates(returns_path, engine="legacy_parquet")
+        dates = io.read_returns_dates(returns_path, engine=routed_engine)
         return pd.DataFrame({"Date": dates})
     if operation == "returns_official_backtest_input":
         loader = importlib.import_module("tp_backtest.runner.input_loader")
@@ -201,7 +204,11 @@ def _returns_operation(spec: dict[str, Any], io: Any, connection: Any) -> pd.Dat
             "start_date": "2020-01-31",
         }
         if not pre:
-            kwargs["engine"] = "duckdb" if connection is not None else "legacy_parquet"
+            kwargs["engine"] = (
+                "duckdb"
+                if spec["engine"] == "current_duckdb" and connection is not None
+                else routed_engine
+            )
         _, frame = loader.load_pruned_backtest_inputs(
             root / "00_screen" / "screen_aggregate.parquet",
             returns_path,
@@ -211,12 +218,12 @@ def _returns_operation(spec: dict[str, Any], io: Any, connection: Any) -> pd.Dat
     if operation == "returns_full":
         if pre:
             return io.read_returns(returns_path)
-        if connection is not None:
+        if spec["engine"] == "current_duckdb" and connection is not None:
             from tp_core.analytics.queries import ReturnsQuery
             from tp_core.analytics.repositories import ReturnsRepository
 
             return ReturnsRepository(connection).matrix(ReturnsQuery())
-        return io.read_returns(returns_path, engine="legacy_parquet")
+        return io.read_returns(returns_path, engine=routed_engine)
     if operation in {"returns_risk_window", "returns_cross_year", "returns_selected"}:
         if operation == "returns_risk_window":
             date_from = (
@@ -231,7 +238,7 @@ def _returns_operation(spec: dict[str, Any], io: Any, connection: Any) -> pd.Dat
             if date_to is not None:
                 frame = frame.loc[frame.index <= date_to]
             return frame.sort_index()
-        if connection is not None:
+        if spec["engine"] == "current_duckdb" and connection is not None:
             from tp_core.analytics.queries import ReturnsQuery
             from tp_core.analytics.repositories import ReturnsRepository
 
@@ -243,7 +250,7 @@ def _returns_operation(spec: dict[str, Any], io: Any, connection: Any) -> pd.Dat
             columns=columns,
             date_from=date_from,
             date_to=date_to,
-            engine="legacy_parquet",
+            engine=routed_engine,
         )
     raise ValueError(f"unsupported returns operation: {operation}")
 
@@ -279,12 +286,18 @@ def _mart_operation(spec: dict[str, Any], connection: Any) -> pd.DataFrame:
         if spec["engine"] != "pre_duckdb":
             from presentation_layer.data_repository import PresentationDataRepository
 
-            repository = PresentationDataRepository(root=root, engine="legacy_parquet")
+            repository = PresentationDataRepository(
+                root=root,
+                engine=("hybrid" if spec["engine"] == "current_hybrid" else "legacy_parquet"),
+            )
             isin = str(resolved.get("company_isin"))
             return (
                 repository.latest_company_snapshot(isin=isin)
                 if operation == "company_latest_payload"
-                else repository.company_history(isin)
+                else repository.company_history(
+                    isin,
+                    date_to=(spec.get("input_date") or {}).get("to"),
+                )
             )
         frame = pd.read_parquet(root / "00_screen" / "screen_aggregate.parquet")
         frame = frame.reset_index() if frame.index.name == "ISIN" else frame
@@ -354,7 +367,11 @@ def execute_workload(spec: dict[str, Any], connection: Any = None) -> pd.DataFra
     operation = str(spec["operation"])
     if operation.startswith("screen_"):
         frame = _screen_operation(spec, io, connection)
-        return _restore_screen_output_order(frame) if spec["engine"] == "current_duckdb" else frame
+        return (
+            _restore_screen_output_order(frame)
+            if spec["engine"] in {"current_duckdb", "current_hybrid"}
+            else frame
+        )
     if operation.startswith("returns_"):
         return _returns_operation(spec, io, connection)
     if (
@@ -467,7 +484,7 @@ def worker_main() -> int:
     connection = None
     connection_context = None
     try:
-        if spec.get("engine") == "current_duckdb":
+        if spec.get("engine") in {"current_duckdb", "current_hybrid"}:
             _prepare_import_path(spec["repo_root"])
             _configure_environment(spec)
             from tp_core.analytics.config import DuckDBConfig

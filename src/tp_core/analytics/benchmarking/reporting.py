@@ -39,12 +39,29 @@ def _category_summary(attribution: list[dict[str, Any]]) -> list[dict[str, Any]]
     return rows
 
 
-def _format_headline(attribution: list[dict[str, Any]], workload_id: str) -> str:
+def _format_headline(
+    attribution: list[dict[str, Any]],
+    workload_id: str,
+    *,
+    old_engine: str = "current_legacy",
+    new_engine: str | None = None,
+) -> str:
     matches = [
         row
         for row in attribution
-        if row.get("workload_id") == workload_id and row.get("storage") == "google_drive"
+        if row.get("workload_id") == workload_id
+        and row.get("storage") == "google_drive"
+        and row.get("old_engine") == old_engine
     ]
+    if new_engine is not None:
+        matches = [row for row in matches if row.get("new_engine") == new_engine]
+    else:
+        matches.sort(
+            key=lambda row: (
+                0 if row.get("new_engine") == "current_hybrid" else 1,
+                0 if row.get("new_engine") == "current_duckdb" else 1,
+            )
+        )
     if not matches:
         return "N/A"
     value = matches[0].get("speedup_x")
@@ -75,7 +92,12 @@ def build_markdown_report(
         "",
         "## 结论",
         "",
-        f"- Current Legacy -> DuckDB：S03 {_format_headline(attribution, 'S03')}；R02 {_format_headline(attribution, 'R02')}；Dashboard hot paths 以 M01-M12 的类别 geometric mean 见下表。",
+        "- Current Legacy -> 当前目标引擎："
+        + "；".join(
+            f"{workload_id} {_format_headline(attribution, workload_id)}"
+            for workload_id in ("S03", "R02", "R03", "R05", "M09", "M10")
+        )
+        + "。Dashboard hot paths 以类别 geometric mean 见下表。",
         f"- A/B/C commit：{environment.get('commit') or 'unknown'}；release：{environment.get('release_id') or 'unknown'}。",
         "- 本报告使用 median 作为主结论；process-cold 与 warm 分开，不声称清空了系统磁盘缓存。",
         "",

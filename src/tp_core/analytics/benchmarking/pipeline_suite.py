@@ -15,6 +15,18 @@ import pandas as pd
 from .engines import ENGINE_ORDER, engine_code_root
 from .parity import compare_frames
 
+_PROVENANCE_FIELDS = frozenset(
+    {
+        "source_candidates",
+        "source_path",
+        "output_path",
+        "artifact_path",
+        "run_directory",
+        "generated_at",
+        "run_id",
+    }
+)
+
 
 def _copy_pipeline_inputs(source_root: Path, target_root: Path) -> None:
     target_root.mkdir(parents=True, exist_ok=True)
@@ -141,10 +153,13 @@ def _pipeline_env(
             "TP_ROOT": str(pipeline_root),
             "TP_DATA_ROOT": str(pipeline_root),
             "TP_ARTIFACT_ROOT": str(pipeline_root / "artifacts"),
-            "TP_DATA_ENGINE": "duckdb" if engine == "current_duckdb" else "legacy_parquet",
+            "TP_DATA_ENGINE": {
+                "current_duckdb": "duckdb",
+                "current_hybrid": "hybrid",
+            }.get(engine, "legacy_parquet"),
             "TP_DUCKDB_PATH": str(database),
             "TP_DUCKDB_TEMP_DIR": str(temp_root),
-            "TP_DUCKDB_READ_ONLY": "true" if engine == "current_duckdb" else "false",
+            "TP_DUCKDB_READ_ONLY": "true" if engine in {"current_duckdb", "current_hybrid"} else "false",
             "TP_COMPAT_EXPORTS": "true",
             "PYTHONUTF8": "1",
         }
@@ -305,6 +320,9 @@ def compare_pipeline_outputs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]
         ("pre_duckdb", "current_legacy"),
         ("current_legacy", "current_duckdb"),
         ("pre_duckdb", "current_duckdb"),
+        ("current_legacy", "current_hybrid"),
+        ("pre_duckdb", "current_hybrid"),
+        ("current_duckdb", "current_hybrid"),
     )
     output_names = ("ml", "technical", "regime", "candidates", "portfolio")
     rows: list[dict[str, Any]] = []
@@ -334,7 +352,16 @@ def compare_pipeline_outputs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]
                 for column in ("Date", "candidate_date", "ISIN", "Company SEDOL", "signal_name")
                 if column in left_frame.columns and column in right_frame.columns
             ]
-            result = compare_frames(left_frame, right_frame, key_columns=candidates[:3])
+            business_left = left_frame.drop(columns=list(_PROVENANCE_FIELDS), errors="ignore")
+            business_right = right_frame.drop(columns=list(_PROVENANCE_FIELDS), errors="ignore")
+            result = compare_frames(business_left, business_right, key_columns=candidates[:3])
+            result.update(
+                {
+                    "business_parity": result.get("status"),
+                    "provenance_difference": _provenance_difference(left_frame, right_frame),
+                    "provenance_fields_ignored": sorted(_PROVENANCE_FIELDS),
+                }
+            )
             rows.append(
                 {
                     "left_engine": left_engine,
@@ -344,6 +371,30 @@ def compare_pipeline_outputs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]
                 }
             )
     return rows
+
+
+def _provenance_difference(left: pd.DataFrame, right: pd.DataFrame) -> dict[str, Any]:
+    differences: dict[str, Any] = {}
+    for field in sorted(_PROVENANCE_FIELDS):
+        left_present = field in left.columns
+        right_present = field in right.columns
+        if left_present and right_present:
+            if not compare_frames(left[[field]], right[[field]]).get("equal"):
+                differences[field] = {
+                    "status": "different",
+                    "left_sample": left[field].drop_duplicates().head(3).astype(str).tolist(),
+                    "right_sample": right[field].drop_duplicates().head(3).astype(str).tolist(),
+                }
+        elif left_present or right_present:
+            differences[field] = {
+                "status": "present_on_one_side",
+                "left_present": left_present,
+                "right_present": right_present,
+            }
+    return {
+        "status": "different" if differences else "same",
+        "fields": differences,
+    }
 
 
 def run_pipeline_suite(

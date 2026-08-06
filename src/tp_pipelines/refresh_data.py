@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -214,11 +215,24 @@ def _returns_index_max_date() -> str | None:
     return dates.max().date().isoformat() if len(dates) else None
 
 
+def _write_stage_timing(path: str | None, *, status: str, stages: dict[str, float]) -> None:
+    if not path:
+        return
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        json.dumps({"status": status, "stage_seconds": stages}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 def run_refresh_data(args: RefreshDataConfig) -> Path:
     if not args.inspect_only and not args.dry_run and not args.apply:
         raise ValueError("refresh_data 写入必须显式传入 --apply；dry-run/inspect-only 不需要")
     parameters = vars(args).copy()
     manifest = StepManifest("refresh_data", parameters)
+    stage_seconds: dict[str, float] = {}
+    total_started = time.perf_counter()
     manifest.inputs = {
         "production_incoming": path_profile(PRODUCTION_INCOMING_DIR),
         "input_batch": path_profile(PRODUCTION_INCOMING_DIR / args.input_month) if args.input_month else None,
@@ -227,8 +241,12 @@ def run_refresh_data(args: RefreshDataConfig) -> Path:
     }
     try:
         if getattr(args, "inspect_only", False):
+            started = time.perf_counter()
             data_source_status = validate_data_sources()
+            stage_seconds["validate_data_sources"] = time.perf_counter() - started
+            started = time.perf_counter()
             returns_audit = _run_returns_extreme_audit()
+            stage_seconds["returns_extreme_audit"] = time.perf_counter() - started
             manifest.outputs = {
                 "screen_after": path_profile(SCREEN_AGGREGATE_PATH, parquet=True),
                 "returns_after": path_profile(RETURNS_PATH, parquet=True),
@@ -253,8 +271,12 @@ def run_refresh_data(args: RefreshDataConfig) -> Path:
                 returns_audit,
             )
             manifest.add_validation("monthly_update_import_skipped", True, "inspect-only 未执行重计算月更")
+            stage_seconds["total"] = time.perf_counter() - total_started
+            manifest.details["stage_timing_seconds"] = stage_seconds
+            _write_stage_timing(args.stage_timing_path, status="success", stages=stage_seconds)
             return manifest.write("success")
 
+        started = time.perf_counter()
         result = _load_monthly_update()(
             base_dir=args.base_dir,
             screen_excel=args.screen_excel,
@@ -268,8 +290,15 @@ def run_refresh_data(args: RefreshDataConfig) -> Path:
             partition_writer=args.partition_writer,
             compatibility_exports=args.compatibility_exports,
         )
+        stage_seconds["partition_writer" if args.partition_writer else "monthly_update"] = (
+            time.perf_counter() - started
+        )
+        started = time.perf_counter()
         data_source_status = validate_data_sources()
+        stage_seconds["validate_data_sources"] = time.perf_counter() - started
+        started = time.perf_counter()
         returns_audit = _run_returns_extreme_audit()
+        stage_seconds["returns_extreme_audit"] = time.perf_counter() - started
         manifest.outputs = {
             "screen_after": path_profile(SCREEN_AGGREGATE_PATH, parquet=True),
             "returns_after": path_profile(RETURNS_PATH, parquet=True),
@@ -281,10 +310,12 @@ def run_refresh_data(args: RefreshDataConfig) -> Path:
         }
         manifest.details["monthly_update_result"] = result
         manifest.details["returns_extreme_audit"] = returns_audit
+        started = time.perf_counter()
         archive_result = _archive_processed_input_batch(
             result.get("input_batch_dir"),
             dry_run=bool(args.dry_run),
         )
+        stage_seconds["archive_input_batch"] = time.perf_counter() - started
         manifest.details["input_batch_archive"] = archive_result
         if args.dry_run or args.update_mode == "returns_only":
             score_ml_result = {
@@ -292,7 +323,9 @@ def run_refresh_data(args: RefreshDataConfig) -> Path:
                 "reason": "dry_run" if args.dry_run else "returns_only",
             }
         else:
+            started = time.perf_counter()
             score_ml_result = _run_score_ml_production()
+            stage_seconds["score_ml_production"] = time.perf_counter() - started
         manifest.details["score_ml_production"] = score_ml_result
         manifest.add_validation(
             "canonical_data_sources_exist",
@@ -335,8 +368,14 @@ def run_refresh_data(args: RefreshDataConfig) -> Path:
             else "Score ML 生产失败",
             score_ml_result,
         )
+        stage_seconds["total"] = time.perf_counter() - total_started
+        manifest.details["stage_timing_seconds"] = stage_seconds
+        _write_stage_timing(args.stage_timing_path, status="success", stages=stage_seconds)
         return manifest.write("success")
     except Exception as exc:
+        stage_seconds["total"] = time.perf_counter() - total_started
+        manifest.details["stage_timing_seconds"] = stage_seconds
+        _write_stage_timing(args.stage_timing_path, status="failed", stages=stage_seconds)
         manifest.write("failed", error=exc)
         raise
 
@@ -372,6 +411,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.set_defaults(compatibility_exports=None)
     parser.add_argument("--inspect-only", action="store_true", help="只检查 canonical 路径和输入目录，不执行月更重计算")
     parser.add_argument("--qa-report", help="显式指定 QA JSON 输出路径")
+    parser.add_argument(
+        "--stage-timing",
+        dest="stage_timing_path",
+        help="写出本次 refresh_data 的简单阶段耗时 JSON",
+    )
     parser.add_argument("--run-type", choices=["production", "smoke", "inspect"], default="production")
     parser.add_argument(
         "--update-mode",

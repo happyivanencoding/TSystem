@@ -10,7 +10,7 @@ from tp_core.data_sources import TP_ROOT
 
 _TRUE_VALUES = {"1", "true", "yes", "on", "y"}
 _FALSE_VALUES = {"0", "false", "no", "off", "n"}
-_VALID_ENGINES = {"legacy_parquet", "duckdb", "shadow_compare"}
+_VALID_ENGINES = {"legacy_parquet", "duckdb", "hybrid", "shadow_compare"}
 
 
 def _env_path(name: str, default: Path) -> Path:

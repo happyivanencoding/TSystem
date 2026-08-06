@@ -14,11 +14,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from tp_core.workspace import EXPERIMENTS_DIR
+from tp_core.workspace import EXPERIMENTS_DIR, PIPELINE_RUNS_DIR
 
 from .recorder import ExperimentRecorder
 
 PROMOTION_DECISIONS_DIRNAME = "promotion_decisions"
+MODEL_RELEASES_DIR = PIPELINE_RUNS_DIR / "model_releases"
+MODEL_RELEASE_STATUSES = {"shadow", "approved", "active", "retired", "revoked"}
 PROMOTION_DECISIONS = {"approved", "rejected", "revoked"}
 
 
@@ -204,8 +206,301 @@ class PromotionDecisionStore:
         return decision
 
 
+@dataclass(frozen=True)
+class ModelRelease:
+    """A production-addressable model release, separate from research output paths."""
+
+    model_release_id: str
+    model_family: str
+    hypothesis_id: str
+    source_experiment_run_id: str
+    promotion_decision_id: str | None
+    configuration_reference: str
+    artifact_references: Mapping[str, Any] = field(default_factory=dict)
+    component_versions: Mapping[str, str] = field(default_factory=dict)
+    applicable_markets: tuple[str, ...] = field(default_factory=tuple)
+    effective_from: str | None = None
+    effective_to: str | None = None
+    deployment_status: str = "shadow"
+    created_by: str = "system"
+    created_at: str = field(default_factory=_utc_now)
+    retired_at: str | None = None
+    replacement_release_id: str | None = None
+    state_history: tuple[Mapping[str, Any], ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if self.deployment_status not in MODEL_RELEASE_STATUSES:
+            raise ValueError(f"invalid model release status: {self.deployment_status}")
+        if not self.model_family.strip():
+            raise ValueError("model_family must not be empty")
+        if not self.configuration_reference.strip():
+            raise ValueError("configuration_reference must not be empty")
+        if not self.created_by.strip():
+            raise ValueError("created_by must not be empty")
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        payload["artifact_references"] = dict(self.artifact_references)
+        payload["component_versions"] = dict(self.component_versions)
+        payload["applicable_markets"] = list(self.applicable_markets)
+        payload["state_history"] = [dict(item) for item in self.state_history]
+        return payload
+
+
+class ModelReleaseStore:
+    """Create and transition the single generic model-release record type."""
+
+    def __init__(
+        self,
+        experiment_root: str | Path | None = None,
+        *,
+        release_root: str | Path | None = None,
+        decision_root: str | Path | None = None,
+    ) -> None:
+        self.experiment_root = Path(experiment_root or EXPERIMENTS_DIR)
+        self.release_root = Path(release_root or MODEL_RELEASES_DIR)
+        self.decisions = PromotionDecisionStore(
+            self.experiment_root,
+            decision_root=decision_root,
+        )
+
+    def list(self, *, model_family: str | None = None) -> list[dict[str, Any]]:
+        paths = sorted(self.release_root.glob("*.json")) if self.release_root.exists() else []
+        records: list[dict[str, Any]] = []
+        for path in paths:
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if model_family is not None and record.get("model_family") != model_family:
+                continue
+            record["record_path"] = str(path.resolve())
+            records.append(record)
+        records.sort(
+            key=lambda item: (
+                str(item.get("created_at") or ""),
+                str(item.get("model_release_id") or ""),
+            ),
+            reverse=True,
+        )
+        return records
+
+    def get(self, model_release_id: str) -> dict[str, Any]:
+        path = self.release_root / f"{model_release_id}.json"
+        if not path.is_file():
+            raise ValueError(f"model release does not exist: {model_release_id}")
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"model release is unreadable: {path}") from exc
+        record["record_path"] = str(path.resolve())
+        return record
+
+    def create(
+        self,
+        *,
+        model_family: str,
+        hypothesis_id: str,
+        source_experiment_run_id: str,
+        configuration_reference: str,
+        artifact_references: Mapping[str, Any] | None = None,
+        component_versions: Mapping[str, str] | None = None,
+        applicable_markets: Sequence[str] = (),
+        effective_from: str | None = None,
+        effective_to: str | None = None,
+        deployment_status: str = "shadow",
+        created_by: str = "system",
+        promotion_decision_id: str | None = None,
+        replacement_release_id: str | None = None,
+    ) -> ModelRelease:
+        if deployment_status not in MODEL_RELEASE_STATUSES:
+            raise ValueError(f"invalid model release status: {deployment_status}")
+        if deployment_status != "shadow":
+            if not promotion_decision_id:
+                raise ValueError("a production-capable release requires promotion_decision_id")
+            decision = self.decisions.require_approved(source_experiment_run_id)
+            if decision.get("decision_id") != promotion_decision_id:
+                raise ValueError("promotion_decision_id is not the effective approval")
+        else:
+            self.decisions.find_experiment(source_experiment_run_id, hypothesis_id=hypothesis_id)
+
+        release = ModelRelease(
+            model_release_id=f"mr-{uuid.uuid4().hex}",
+            model_family=model_family,
+            hypothesis_id=hypothesis_id,
+            source_experiment_run_id=source_experiment_run_id,
+            promotion_decision_id=promotion_decision_id,
+            configuration_reference=configuration_reference,
+            artifact_references=dict(artifact_references or {}),
+            component_versions=dict(component_versions or {}),
+            applicable_markets=tuple(str(market) for market in applicable_markets),
+            effective_from=effective_from,
+            effective_to=effective_to,
+            deployment_status=deployment_status,
+            created_by=created_by,
+            replacement_release_id=replacement_release_id,
+            state_history=(
+                {
+                    "status": deployment_status,
+                    "changed_at": _utc_now(),
+                    "changed_by": created_by,
+                    "reason": "created",
+                },
+            ),
+        )
+        self.release_root.mkdir(parents=True, exist_ok=True)
+        path = self.release_root / f"{release.model_release_id}.json"
+        path.write_text(
+            json.dumps(release.to_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return release
+
+    def _transition(
+        self,
+        model_release_id: str,
+        *,
+        status: str,
+        changed_by: str,
+        reason: str,
+        replacement_release_id: str | None = None,
+    ) -> dict[str, Any]:
+        record = self.get(model_release_id)
+        if status not in MODEL_RELEASE_STATUSES:
+            raise ValueError(f"invalid model release status: {status}")
+        if record.get("deployment_status") in {"retired", "revoked"}:
+            raise ValueError(f"model release is already terminal: {model_release_id}")
+        if status == "active":
+            if record.get("deployment_status") != "approved":
+                raise ValueError("only an approved model release can be activated")
+            try:
+                decision = self.decisions.require_approved(str(record["source_experiment_run_id"]))
+            except ValueError as exc:
+                raise ValueError("model release approval is no longer valid") from exc
+            if decision.get("decision_id") != record.get("promotion_decision_id"):
+                raise ValueError("model release approval has been revoked or superseded")
+        if status == "approved":
+            try:
+                decision = self.decisions.require_approved(str(record["source_experiment_run_id"]))
+            except ValueError as exc:
+                raise ValueError("model release approval is no longer valid") from exc
+            if decision.get("decision_id") != record.get("promotion_decision_id"):
+                raise ValueError("model release approval has been revoked or superseded")
+        if not reason.strip() or not changed_by.strip():
+            raise ValueError("state transition requires changed_by and reason")
+        changed_at = _utc_now()
+        history = list(record.get("state_history") or [])
+        history.append(
+            {
+                "status": status,
+                "changed_at": changed_at,
+                "changed_by": changed_by,
+                "reason": reason,
+            }
+        )
+        record["deployment_status"] = status
+        record["state_history"] = history
+        if status == "retired":
+            record["retired_at"] = changed_at
+        if replacement_release_id is not None:
+            record["replacement_release_id"] = replacement_release_id
+        path = self.release_root / f"{model_release_id}.json"
+        temporary = path.with_suffix(".json.tmp")
+        temporary.write_text(
+            json.dumps(
+                {key: value for key, value in record.items() if key != "record_path"},
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        temporary.replace(path)
+        return self.get(model_release_id)
+
+    def activate(self, model_release_id: str, *, changed_by: str, reason: str) -> dict[str, Any]:
+        return self._transition(
+            model_release_id,
+            status="active",
+            changed_by=changed_by,
+            reason=reason,
+        )
+
+    def retire(
+        self,
+        model_release_id: str,
+        *,
+        changed_by: str,
+        reason: str,
+        replacement_release_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._transition(
+            model_release_id,
+            status="retired",
+            changed_by=changed_by,
+            reason=reason,
+            replacement_release_id=replacement_release_id,
+        )
+
+    def revoke(self, model_release_id: str, *, changed_by: str, reason: str) -> dict[str, Any]:
+        record = self.get(model_release_id)
+        decision_id = record.get("promotion_decision_id")
+        if decision_id:
+            self.decisions.create(
+                experiment_run_id=str(record["source_experiment_run_id"]),
+                decision="revoked",
+                reason=reason,
+                decided_by=changed_by,
+                revokes_decision_id=str(decision_id),
+            )
+        return self._transition(
+            model_release_id,
+            status="revoked",
+            changed_by=changed_by,
+            reason=reason,
+        )
+
+    def require_production(self, model_release_id: str) -> dict[str, Any]:
+        record = self.get(model_release_id)
+        if record.get("deployment_status") not in {"approved", "active"}:
+            raise ValueError(f"model release is not production-usable: {model_release_id}")
+        decision = self.decisions.require_approved(str(record["source_experiment_run_id"]))
+        if decision.get("decision_id") != record.get("promotion_decision_id"):
+            raise ValueError(f"model release approval is no longer valid: {model_release_id}")
+        return record
+
+    def current(
+        self,
+        *,
+        model_family: str,
+        market: str | None = None,
+        as_of: str | None = None,
+    ) -> dict[str, Any] | None:
+        candidates: list[dict[str, Any]] = []
+        for record in self.list(model_family=model_family):
+            if record.get("deployment_status") != "active":
+                continue
+            if market and record.get("applicable_markets") and market not in record["applicable_markets"]:
+                continue
+            if as_of:
+                effective_from = record.get("effective_from")
+                effective_to = record.get("effective_to")
+                if effective_from and str(as_of) < str(effective_from):
+                    continue
+                if effective_to and str(as_of) > str(effective_to):
+                    continue
+            try:
+                candidates.append(self.require_production(str(record["model_release_id"])))
+            except ValueError:
+                continue
+        return candidates[0] if candidates else None
+
+
 __all__ = [
+    "MODEL_RELEASES_DIR",
+    "MODEL_RELEASE_STATUSES",
     "PROMOTION_DECISIONS",
+    "ModelRelease",
+    "ModelReleaseStore",
     "PromotionDecision",
     "PromotionDecisionStore",
 ]
